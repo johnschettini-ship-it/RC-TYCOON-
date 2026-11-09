@@ -8,7 +8,7 @@
  * "Guests dislike dark paths. Build lamps", which the UI shows as a toast. Free; no ledger line. The light map does
  * not depend on the setting, so nothing else changes.
  */
-import { text } from '../../data/strings/en';
+import { englishText } from '../../data/strings/en';
 import { AFTER_DARK_WARN_LIT_SHARE } from '../../data/tuning/night';
 import { fail, ok, type AfterDarkCommand, type HandlerMap } from '../commands/types';
 import { afterDarkLocked } from '../scenario/api';
@@ -24,7 +24,7 @@ export function switchAfterDark(world: World, on: boolean): string[] {
   const turningOn = on && !world.state.park.afterDark;
   if (world.state.scenario.kind === 'sandbox') setSandboxLiveOption(world, 'afterDark', on);
   else world.state.park.afterDark = on;
-  return turningOn && litShare(world) < AFTER_DARK_WARN_LIT_SHARE ? [text('night.warnDarkPaths')] : [];
+  return turningOn && litShare(world) < AFTER_DARK_WARN_LIT_SHARE ? [englishText('night.warnDarkPaths')] : [];
 }
 
 export const afterDarkHandlers: HandlerMap<AfterDarkCommand> = {

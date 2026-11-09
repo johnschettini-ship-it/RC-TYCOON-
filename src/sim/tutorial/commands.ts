@@ -9,7 +9,7 @@
  * Each finished step emits `{ type: 'tutorialStep', stepIndex, done }` with the new step index; finishing step 16
  * sets `done` (the client then records `tutorialDone` in progress storage).
  */
-import { text } from '../../data/strings/en';
+import { englishText } from '../../data/strings/en';
 import type { Command, CommandResult } from '../commands/types';
 import { fail, ok, type HandlerMap, type TutorialCommand } from '../commands/types';
 import { emit } from '../events';
@@ -41,14 +41,14 @@ export function runSimChecks(world: World, cmd: Command | null): void {
   }
 }
 
-const notRunning = (): CommandResult => fail(text('prog.tutorial.notRunning'));
+const notRunning = (): CommandResult => fail(englishText('prog.tutorial.notRunning'));
 
 export const tutorialHandlers: HandlerMap<TutorialCommand> = {
   tutorialAdvance(world, cmd) {
     const run = activeTutorial(world);
     if (!run) return notRunning();
     const step = TUTORIAL_STEPS[run.stepIndex];
-    if (!step || step.check !== 'ui' || step.id !== cmd.stepId) return fail(text('prog.tutorial.wrongStep'));
+    if (!step || step.check !== 'ui' || step.id !== cmd.stepId) return fail(englishText('prog.tutorial.wrongStep'));
     finishStep(world, run);
     return ok();
   },
