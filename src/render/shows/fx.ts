@@ -202,8 +202,8 @@ export function glowAlpha(dt: number, life: number): number {
 }
 
 /**
- * Fireworks from the launcher mouth at device (ox, oy). Returns the particles drawn (never more than
- * `MAX_FIREWORK_PARTICLES`, shared with `budget`: the particles other launchers already drew this frame).
+ * Fireworks from the launcher mouth at device (ox, oy). Returns the particles drawn. The frame's cap of
+ * `MAX_FIREWORK_PARTICLES` is shared through `stats.particles` (what other launchers already drew this frame).
  */
 export function drawFireworks(ctx: FxCtx, plan: ShowPlan, palette: readonly string[], t: number, ox: number, oy: number, scale: number, reduced: boolean, stats: FxStats): number {
   if (t < 0) return 0;
