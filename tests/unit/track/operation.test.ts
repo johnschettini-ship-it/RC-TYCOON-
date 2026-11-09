@@ -40,6 +40,8 @@ import { boardRide, finishRide, leaveQueue } from '../../../src/sim/guests/api';
 import { executeCommand } from '../../../src/sim/commands';
 import { Content, tileIndex } from '../../../src/sim/map';
 import { TRACK_ERR } from '../../../src/data/strings/track';
+import { EVACUATE_TICKS } from '../../../src/data/tuning/staff';
+import { UNLOAD_TICKS } from '../../../src/data/tuning/track';
 import { getTrackTypeDef, type TrackTypeDef } from '../../../src/data/track';
 import {
   canOpenTrackRide,
@@ -195,6 +197,9 @@ describe('blocks and dispatch (phase-2 §4.8)', () => {
       const ride = rideOf(w, id);
       ride.status = status;
       ride.breakdownType = status === 'broken' ? 'train_stalled' : null;
+      // A Mechanic is on the way, so the unattended-breakdown evacuation (EVACUATE_TICKS) does not start.
+      ride.lastBreakdownTick = w.state.tick;
+      ride.assignedMechanicId = 999;
       const d = dataOf(w, id);
       tick(w, 3000);
       const layout = getLayout(d);
@@ -214,6 +219,140 @@ describe('blocks and dispatch (phase-2 §4.8)', () => {
       tick(w, 600);
       expect(d.lastDispatchTick).toBeGreaterThan(before);
     }
+  });
+});
+
+describe('unattended breakdowns: riders get off at the station (Phase 3 §4.5, master R16)', () => {
+  /** Break the ride with no Mechanic assigned, as `breakDown` does in a park without Mechanics. */
+  function breakUnattended(w: World, id: number, type: 'gate_stuck' | 'train_stalled'): void {
+    const ride = rideOf(w, id);
+    ride.status = 'broken';
+    ride.breakdownType = type;
+    ride.statusBeforeBreakdown = 'open';
+    ride.lastBreakdownTick = w.state.tick;
+    ride.assignedMechanicId = null;
+  }
+
+  function queueGuests(w: World, id: number, n: number): number[] {
+    const ride = rideOf(w, id);
+    const ids: number[] = [];
+    for (let k = 0; k < n; k++) {
+      const g = addGuestDirect(w, 0, { state: 'queueing', activityId: id });
+      ride.queue.push(g.id);
+      ids.push(g.id);
+    }
+    return ids;
+  }
+
+  function finishedOn(id: number): number[] {
+    return vi
+      .mocked(finishRide)
+      .mock.calls.filter((c) => c[2].id === id)
+      .map((c) => c[1].id);
+  }
+
+  it('riders on a train held in the station get off through finishRide after EVACUATE_TICKS; nobody boards', () => {
+    const w = makeTestWorld();
+    const id = readyRide(w, 'steel_coaster', 4, 2, R1_BLOCKS, 1);
+    const ride = rideOf(w, id);
+    const t = dataOf(w, id).trains[0]!;
+    const [a, b] = queueGuests(w, id, 2);
+    t.state = 'loading';
+    t.dwellTicks = 0;
+    tick(w, 1);
+    expect(t.seats.slice(0, 3)).toEqual([a, b, -1]);
+    breakUnattended(w, id, 'gate_stuck');
+    const [late] = queueGuests(w, id, 1);
+    vi.mocked(finishRide).mockClear();
+    // Riders wait on board while a Mechanic could still come (Phase 3 §4.5).
+    tick(w, EVACUATE_TICKS);
+    expect(t.seats.slice(0, 2)).toEqual([a, b]);
+    expect(finishedOn(id)).toEqual([]);
+    // Then they leave through the exit gate, after the normal unload time.
+    tick(w, 1 + UNLOAD_TICKS);
+    expect(finishedOn(id)).toEqual([a, b]);
+    expect(t.seats.every((s) => s < 0)).toBe(true);
+    expect(ride.riders).toEqual([]);
+    for (const gid of [a, b]) {
+      const g = w.state.guests.find((x) => x.id === gid)!;
+      expect(g.state).toBe('walking');
+      expect(g.seat).toBeNull();
+      expect(g.tile).toBe(ride.exit?.outside);
+    }
+    // The ride stays broken and nobody boards.
+    tick(w, 200);
+    expect(ride.status).toBe('broken');
+    expect(ride.queue).toEqual([late]);
+    expect(t.seats.every((s) => s < 0)).toBe(true);
+    // After the fix the train loads again.
+    ride.status = 'open';
+    ride.breakdownType = null;
+    tick(w, 2);
+    expect(t.seats[0]).toBe(late);
+  });
+
+  it('a Mechanic on the way keeps the riders on board (no evacuation)', () => {
+    const w = makeTestWorld();
+    const id = readyRide(w, 'steel_coaster', 4, 2, R1_BLOCKS, 1);
+    const t = dataOf(w, id).trains[0]!;
+    const [a] = queueGuests(w, id, 1);
+    t.state = 'loading';
+    t.dwellTicks = 0;
+    tick(w, 1);
+    breakUnattended(w, id, 'gate_stuck');
+    rideOf(w, id).assignedMechanicId = 999;
+    vi.mocked(finishRide).mockClear();
+    tick(w, 3 * EVACUATE_TICKS);
+    expect(t.seats[0]).toBe(a);
+    expect(finishedOn(id)).toEqual([]);
+  });
+
+  it('riders on a train held at a block brake stay seated until it reaches the station; trains never touch', () => {
+    const w = makeTestWorld();
+    const id = readyRide(w, 'steel_coaster', 4, 2, R1_BLOCKS, 3);
+    const ride = rideOf(w, id);
+    const d = dataOf(w, id);
+    const type = getTrackTypeDef('steel_coaster') as TrackTypeDef;
+    const layout = getLayout(d);
+    const L = layout.lengthMm;
+    const half = (d.trainConfig.carsPerTrain * type.vehicle.carLengthMm) / 2;
+    queueGuests(w, id, 200);
+    tick(w, 1500);
+    breakUnattended(w, id, 'train_stalled');
+    const before = d.lastDispatchTick;
+    tick(w, EVACUATE_TICKS);
+    // Held at the station or a block brake (R16), riders seated.
+    const out = d.trains.filter((t) => !t.parked && modL(t.s + half, L) !== layout.stopFrontMm);
+    expect(out.length).toBeGreaterThan(0);
+    for (const t of d.trains.filter((x) => !x.parked)) {
+      expect(t.v).toBe(0);
+      expect(layout.blockPoints).toContain(modL(t.s + half, L));
+    }
+    const seatedOut = new Map(out.map((t) => [t.id, t.seats.filter((s) => s >= 0)]));
+    expect([...seatedOut.values()].some((s) => s.length > 0)).toBe(true);
+    vi.mocked(finishRide).mockClear();
+    let worst = Infinity;
+    tick(w, 6000, () => {
+      worst = Math.min(worst, minClearance(d, type));
+      // Away from the station, nobody leaves a train.
+      for (const t of d.trains) {
+        const seated = seatedOut.get(t.id);
+        if (!seated || t.parked || t.state === 'unloading' || t.state === 'loading' || t.state === 'waiting') continue;
+        expect(t.seats.filter((s) => s >= 0)).toEqual(seated);
+      }
+    });
+    expect(worst).toBeGreaterThanOrEqual(1000);
+    expect(d.trains.every((t) => t.seats.every((s) => s < 0))).toBe(true);
+    expect(ride.riders).toEqual([]);
+    const finished = finishedOn(id);
+    for (const seated of seatedOut.values()) for (const gid of seated) expect(finished.filter((x) => x === gid)).toHaveLength(1);
+    expect(ride.status).toBe('broken');
+    expect(d.lastDispatchTick).toBe(before);
+    // Fixed: the trains leave the shed and dispatch again.
+    ride.status = 'open';
+    ride.breakdownType = null;
+    tick(w, 1500);
+    expect(d.lastDispatchTick).toBeGreaterThan(before);
   });
 });
 

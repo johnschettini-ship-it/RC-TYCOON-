@@ -4,6 +4,7 @@
  */
 import { STAFF_MESSAGES } from '../../data/strings/staff';
 import {
+  EVACUATE_TICKS,
   INSPECT_DEFAULT,
   RECENT_BREAK_SCORE,
   RECENT_BREAK_TICKS,
@@ -36,6 +37,25 @@ export function initRideReliability(world: World, ride: Ride): void {
   ride.breakdownsThisMonth = 0;
   ride.lastBreakdownTick = -1;
   ride.assignedMechanicId = null;
+}
+
+/**
+ * Riders may get off a broken ride (not `slow_running`) that no Mechanic has been assigned to for
+ * EVACUATE_TICKS (Phase 1 §9 "no guest stuck in one state"; a park without Mechanics never fixes it).
+ * The ride stays broken and nobody boards. Flat rides: every rider gets off at once (`evacuateUnattended`).
+ * Track rides (`operateRide`, master R16): riders on a train held in the station get off through `finishRide`.
+ * Riders on a train held at a block brake stay seated until their train reaches the station: the train moves
+ * on block by block under the normal block rules (so trains never touch), and an empty train in the station
+ * goes to the shed when another train needs the station, as when the ride closes. Derived from saved fields
+ * only, so it needs no state of its own.
+ */
+export function isEvacuating(world: World, ride: Ride): boolean {
+  return (
+    ride.status === 'broken' &&
+    ride.breakdownType !== 'slow_running' &&
+    ride.assignedMechanicId === null &&
+    world.state.tick - ride.lastBreakdownTick >= EVACUATE_TICKS
+  );
 }
 
 /** A track ride with `slow_running` keeps dispatching (powered drive ×0.6); every other breakdown holds the ride. */

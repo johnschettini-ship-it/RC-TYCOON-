@@ -2,13 +2,14 @@
  * Owner: W1-H. Phase 3 §4.5 per-tick breakdown work: reference integrity, the pending queue,
  * stuck riders, and bookkeeping for bench sitters and recent fixes.
  */
-import { EVACUATE_TICKS, RECENT_BREAK_TICKS, STUCK_RIDER_HAPPY, STUCK_RIDER_INTERVAL } from '../../data/tuning/staff';
+import { RECENT_BREAK_TICKS, STUCK_RIDER_HAPPY, STUCK_RIDER_INTERVAL } from '../../data/tuning/staff';
 import { unloadRiders } from '../rides/flat/api';
 import { THOUGHT, addThought } from '../guests/thoughts';
 import { pruneSitters } from '../litter/benches';
 import { changeHappiness } from '../staff/guestEffects';
 import { findRide, findStaff, indexById } from '../staff/lookup';
 import { dispatchPending, queueBreakdown } from '../staff/mechanics';
+import { isEvacuating } from './api';
 import type { World } from '../types';
 
 export function updateBreakdowns(world: World): void {
@@ -87,13 +88,15 @@ function stuckRiders(world: World): void {
   }
 }
 
-/** Let riders off a broken flat ride that no Mechanic has been assigned to for EVACUATE_TICKS. */
+/**
+ * Let riders off a broken flat ride that no Mechanic has been assigned to for EVACUATE_TICKS (`isEvacuating`).
+ * Track rides follow the same rule in their own operation (`operateRide`): station trains unload, and trains
+ * held at a block brake keep their riders until they reach the station.
+ */
 function evacuateUnattended(world: World): void {
-  const s = world.state;
-  for (const ride of s.rides) {
-    if (ride.kind !== 'flat' || ride.status !== 'broken' || ride.breakdownType === 'slow_running') continue;
-    if (ride.assignedMechanicId !== null || ride.riders.length === 0) continue;
-    if (s.tick - ride.lastBreakdownTick >= EVACUATE_TICKS) unloadRiders(world, ride);
+  for (const ride of world.state.rides) {
+    if (ride.kind !== 'flat' || ride.riders.length === 0) continue;
+    if (isEvacuating(world, ride)) unloadRiders(world, ride);
   }
 }
 

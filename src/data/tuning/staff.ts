@@ -114,8 +114,9 @@ export const SLOW_POWERED_FACTOR = 0.6;
 export const SLOW_EXCITEMENT_PENALTY = 100;
 
 /**
- * Riders of a broken flat ride with no Mechanic assigned get off after this many ticks (8 game hours),
+ * Riders of a broken ride with no Mechanic assigned get off after this many ticks (8 game hours),
  * so no guest stays in `riding` forever in a park without Mechanics (Phase 1 §9 rule; W2-D finding).
- * The ride stays broken.
+ * The ride stays broken. Track rides: station trains unload; a train held at a block brake keeps its
+ * riders until it reaches the station (`isEvacuating` in src/sim/breakdowns/api.ts, master R16).
  */
 export const EVACUATE_TICKS = 400;

@@ -2,6 +2,13 @@
  * Track ride operation (phase-2-coasters.md §4.7 fault guard, §4.8 blocks and dispatch, §4.9 live test, §4.11 guests).
  * Owner: W1-G. Trains update in ascending train id; decisions use a snapshot of the other trains taken at the start of
  * the ride's tick, so the order never changes the outcome.
+ *
+ * Breakdowns (Phase 3 §4.5, master R16): a broken ride (not `slow_running`) holds each train at the station or at the
+ * next block brake and dispatches nothing. Unattended for EVACUATE_TICKS (`isEvacuating`: no Mechanic assigned), the
+ * ride evacuates: a train held in the station lets its riders off through `finishRide` (exit gate); a train held at a
+ * block brake keeps its riders seated and moves on block by block (normal block rules, so trains never touch) until
+ * it reaches the station, where its riders get off. An empty train in the station goes to the shed when another train
+ * is still out, so the next one can reach the station. Nobody boards, and the ride stays broken until it is fixed.
  */
 import type { TrackTypeDef } from '../../../data/track';
 import { getTrackPieceDef } from '../../../data/track';
@@ -12,7 +19,7 @@ import {
   TEST_KART_TEMPERAMENT,
   UNLOAD_TICKS,
 } from '../../../data/tuning/track';
-import { onRideDispatch } from '../../breakdowns/api';
+import { isEvacuating, onRideDispatch } from '../../breakdowns/api';
 import { emit } from '../../events';
 import { boardRide, findGuest, finishRide, leaveQueue } from '../../guests/api';
 import type { World } from '../../types';
@@ -202,7 +209,10 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
   const tick = world.state.tick;
   const open = ride.status === 'open';
   const closed = ride.status === 'closed';
-  const holdAll = ride.status === 'broken' && ride.breakdownType !== 'slow_running';
+  // Unattended breakdown (`isEvacuating`, Phase 3 §4.5 + master R16): station trains let riders off and empty
+  // trains go to the shed, as when the ride closes; held trains move on block by block to the station.
+  const evacuating = isEvacuating(world, ride);
+  const holdAll = ride.status === 'broken' && ride.breakdownType !== 'slow_running' && !evacuating;
   const slowFactor = ride.breakdownType === 'slow_running' ? 0.6 : 1;
   const len = trainLen(type, data);
   const stopC = stopCentreMm(layout, len);
@@ -248,7 +258,7 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
       case 'loading':
       case 'waiting': {
         const riders = t.seats.some((g) => g >= 0);
-        if (closed) {
+        if (closed || evacuating) {
           if (riders) {
             t.state = 'unloading';
             t.dwellTicks = 0;

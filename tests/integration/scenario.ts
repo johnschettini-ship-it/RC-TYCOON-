@@ -6,6 +6,7 @@ import { temperamentGroup, type RideTag } from '../../src/data/catalog';
 import { START_CASH, TICKS_PER_MONTH } from '../../src/data/tuning/core';
 import { validateState } from '../../src/save';
 import { executeCommand, type Command, type CommandResult } from '../../src/sim/commands';
+import { canOpenTrackRide } from '../../src/sim/rides/track/api';
 import { Content } from '../../src/sim/map';
 import { stepTick } from '../../src/sim/tick';
 import { isMonthStart, monthIndexOf } from '../../src/sim/time';
@@ -13,7 +14,8 @@ import { LEDGER_CATEGORIES } from '../../src/sim/economy/types';
 import type { World } from '../../src/sim/types';
 import type { GuestStateName } from '../../src/sim/guests/types';
 import type { EntityId } from '../../src/sim/units';
-import { makeTestWorld } from '../helpers/world';
+import { makeTestWorld, runTicks } from '../helpers/world';
+import { EAST, R1_PIECES } from '../unit/track/helpers';
 
 /** Happiness of the last `k` guests who left (newest last), from the park's rolling leaver list. */
 export function recentLeavers(world: World, k: number): number[] {
@@ -280,4 +282,38 @@ export function runPhase1Game(seed: number): Phase1Run {
     },
   });
   return { world, park, stats, boardings, problems };
+}
+
+/**
+ * Phase 2 §9.2 R1 park: the Steel Coaster R1 at (4, 2) heading +x, a queue and footpaths to the park entrance,
+ * tested and open; the park is open with a $5 fee. Real guests walk in and ride through `stepTick`.
+ */
+export function buildCoasterPark(seed = 2026): { world: World; rideId: EntityId } {
+  const world = makeTestWorld(seed, 'Coaster Park');
+  // Paths first, so the drop at (16, 6) skips its support over the footpath (span rule, §4.5).
+  line(world, 31, 59, 31, 6);
+  line(world, 30, 6, 5, 6);
+  line(world, 6, 4, 6, 5);
+  line(world, 4, 4, 4, 6, 'queue');
+  const rideId = must(world, { type: 'placeStation', typeId: 'steel_coaster', x: 4, y: 2, dir: EAST }).id as EntityId;
+  for (const spec of R1_PIECES) {
+    const p = typeof spec === 'string' ? { id: spec } : spec;
+    must(world, { type: 'addTrackPiece', rideId, defId: p.id, chain: p.chain, brakeSpeed: p.brakeSpeed });
+  }
+  const data = world.state.track.rides[String(rideId)];
+  if (!data?.circuitClosed) throw new Error('R1 did not close');
+  if (must(world, { type: 'placeTrackGate', rideId, kind: 'entrance', x: 4, y: 3 }).warnings.length > 0) throw new Error('entrance warning');
+  if (must(world, { type: 'placeTrackGate', rideId, kind: 'exit', x: 6, y: 3 }).warnings.length > 0) throw new Error('exit warning');
+  must(world, { type: 'startTestRun', rideId });
+  runTicks(world, (data.testRun?.ticksLeft ?? 0) + 1);
+  if (!data.test?.passed) throw new Error('R1 test run failed');
+  const ride = world.state.rides.find((r) => r.id === rideId);
+  if (!ride || canOpenTrackRide(world, ride) !== null) throw new Error('R1 cannot open');
+  must(world, { type: 'setRideOpen', rideId, open: true });
+  // $5: below every arriving guest's fee tolerance with one open ride ($7.50 × 0.8–1.2), so guests come in.
+  must(world, { type: 'setEntranceFee', fee: 500 });
+  must(world, { type: 'setParkOpen', open: true });
+  const problem = validateState(world.state);
+  if (problem) throw new Error(`invalid park: ${problem}`);
+  return { world, rideId };
 }
