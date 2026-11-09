@@ -17,6 +17,8 @@ import {
   VARIETY_FULL_RIDES,
 } from '../../../src/data/tuning/economy';
 import { TICKS_PER_HOUR } from '../../../src/data/tuning/core';
+import { ATMOSPHERE_MAX_POINTS, ATMOSPHERE_NO_GUESTS_SCORE } from '../../../src/data/tuning/fields';
+import { addSceneryDirect } from '../fields/helpers';
 import { createTrackSlice } from '../../../src/sim/rides/track/types';
 import { addGuestDirect, makeTestWorld, makeTrackRideDataDirect, placeRideDirect, runTicks } from '../../helpers/world';
 import type { World } from '../../../src/sim/types';
@@ -48,15 +50,15 @@ describe('rating weights (Phase 3 §4.13, master R8)', () => {
   it('sum to 1,000', () => {
     expect(Object.values(RATING_WEIGHTS).reduce((a, b) => a + b, 0)).toBe(RATING_MAX);
     expect(RATING_WEIGHTS).toEqual({
-      happiness: 400,
+      // Phase 4 (master R8, W3-E) moves 100 points from happiness to atmosphere.
+      happiness: 300,
       cleanliness: 150,
       reliability: 100,
       fairPrices: 100,
       variety: 100,
       lostGuests: 75,
       queues: 75,
-      // Phase 4 (W3-E) moves 100 points from happiness to atmosphere.
-      atmosphere: 0,
+      atmosphere: ATMOSPHERE_MAX_POINTS,
     });
   });
 });
@@ -72,14 +74,21 @@ describe('rating parts at their edges', () => {
       variety: 0,
       lostGuests: 0.5,
       queues: 0,
-      atmosphere: 0,
+      atmosphere: ATMOSPHERE_NO_GUESTS_SCORE,
     });
-    // 200 + 150 + 100 + 50 + 0 + 37.5 + 0 = 537.5
+    // 150 + 150 + 100 + 50 + 0 + 37.5 + 0 + 50 = 537.5 (the Build 1 total: Atmosphere's no-data 0.5 keeps it).
+    const W = RATING_WEIGHTS;
+    expect(computeRating(w)).toBe(
+      Math.round(0.5 * W.happiness + W.cleanliness + W.reliability + 0.5 * W.fairPrices + 0.5 * W.lostGuests + ATMOSPHERE_NO_GUESTS_SCORE * W.atmosphere),
+    );
     expect(computeRating(w)).toBe(538);
   });
 
   it('a perfect park scores 1,000', () => {
     const w = makeTestWorld();
+    // Atmosphere 1 needs Calm and Buzz at 255 where the guests stand (tile 0): stacked fountains and glow pits.
+    for (let k = 0; k < 3; k++) addSceneryDirect(w, 'rock_waterfall', 0, 0);
+    for (let k = 0; k < 4; k++) addSceneryDirect(w, 'magma_pool', 0, 0);
     // 8 open rides: 3 chill, 2 family, 3 thrill → shares 3/8, 2/8, 3/8.
     openRides(w, ['big_wheel', 'big_wheel', 'big_wheel', 'carousel', 'carousel', 'swing_tower', 'swing_tower', 'swing_tower']);
     guests(w, 3, { temperament: 10, needs: { hunger: 0, thirst: 0, bladder: 0, energy: 255, happiness: 255, nausea: 0 } });
@@ -93,10 +102,17 @@ describe('rating parts at their edges', () => {
       variety: 1,
       lostGuests: 1,
       queues: 1,
-      // Calm and Buzz stub (W3-E): 0 until the fields land; its weight is 0 until then too.
-      atmosphere: 0,
+      atmosphere: 1,
     });
     expect(computeRating(w)).toBe(1_000);
+  });
+
+  it('atmosphere: guests with no Calm or Buzz under them score 0, which costs the whole atmosphere weight', () => {
+    const w = makeTestWorld();
+    guests(w, 4, { temperament: 30, needs: { hunger: 0, thirst: 0, bladder: 0, energy: 255, happiness: 255, nausea: 0 } });
+    expect(ratingParts(w).atmosphere).toBe(0);
+    addSceneryDirect(w, 'rock_waterfall', 0, 0); // raw Calm 119 at tile 0
+    expect(ratingParts(w).atmosphere).toBe(Math.round(((70 * 119) / (100 * 255)) * ATMOSPHERE_MAX_POINTS) / ATMOSPHERE_MAX_POINTS);
   });
 
   it('happiness: mean of guests in the park and the last leavers, / 255', () => {
