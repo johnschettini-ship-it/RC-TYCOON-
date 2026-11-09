@@ -13,7 +13,7 @@
 
 ---
 
-## 1. Flat rides (14 in Build 1)
+## 1. Flat rides (14 in Build 1, 18 in Build 3)
 
 | id | Name | Ph | Unlock | Tag | Flags | Size | Exc | Int | Nau | Cap | Cycle | Build | Run/mo | Price |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -31,12 +31,16 @@
 | `thunder_disc` | Thunder Disc | 3 | Thrill | thrill | — | 4×4 | 5.50 | 6.50 | 4.50 | 24 | 25 | $4,000 | $110 | $4 |
 | `drop_tower` | Drop Tower | 3 | Thrill | thrill | tall | 2×2 | 6.00 | 7.50 | 3.00 | 12 | 20 | $4,500 | $120 | $4 |
 | `flip_arm` | Flip Arm | 3 | Thrill | thrill | tall | 3×3 | 6.50 | 8.00 | 6.00 | 16 | 25 | $5,000 | $140 | $4 |
+| `magic_carpet` | Magic Carpet | 6 | Thrill | thrill | — | 4×3 | 5.20 | 6.00 | 3.80 | 20 | 25 | $3,600 | $100 | $3 |
+| `kiddie_cars` | Kiddie Cars | 6 | Gentle | family | — | 3×3 | 2.20 | 0.60 | 0.20 | 12 | 20 | $1,000 | $30 | $1 |
+| `merry_mill` | Merry Mill | 6 | Gentle | chill | — | 3×3 | 3.20 | 1.20 | 0.80 | 16 | 30 | $2,200 | $60 | $2 |
+| `gyro_globe` | Gyro Globe | 6 | Thrill | thrill | tall | 3×3 | 7.00 | 8.50 | 7.00 | 8 | 25 | $6,000 | $160 | $5 |
 
-Phase 6 adds more flat rides (section 8).
+The Phase 6 rows come from `phase-6-polish.md` §4.5 (Build 3). Merry Mill is a chill windmill ride.
 
 ---
 
-## 2. Track ride types (7 in Build 1, 9 after Build 2)
+## 2. Track ride types (7 in Build 1, 9 after Build 2, 12 after Build 3)
 
 Track pieces, piece costs, build and running costs, extra-train costs, physics, and rating formulas are in `phase-2-coasters.md` (§4 and §8). A track ride counts as `tall` when its highest point is 20 m or more above ground. Water piece sets are in `phase-4-land-scenery-after-dark.md`.
 
@@ -51,10 +55,15 @@ Track pieces, piece costs, build and running costs, extra-train costs, physics, 
 | `go_karts` | Go-Kart Track | 3 | Thrill | thrill | — | guest-driven, 6–9 m/s | 1 | 1 | 12 | 4 m | flat, gentle slopes, turns; laps | $3 |
 | `log_flume` | Log Flume | 4 | Water | family | — | water channel + conveyor lift | 4 | 1 | 6 | 20 m | flume set; splashdown | $4 |
 | `rapids_raft` | Rapids Raft | 4 | Water | family | — | water current | 8 | 1 | 8 | 10 m | rapids set; waterfall | $4 |
+| `inverted_coaster` | Inverted Coaster | 6 | Coasters | thrill | — | gravity + chain lift | 4 | 3–8 | 3 | 45 m | Steel set + corkscrew + helix; riders hang below the track | $6 |
+| `bobsled_run` | Bobsled Run | 6 | Coasters | thrill | — | gravity + chain lift | 2 | 1–4 | 4 | 25 m | flat, gentle and steep down, banked turns, helix; no loop | $4 |
+| `monorail` | Monorail | 6 | Gentle | chill | — | powered, 8 m/s | 6 | 3–6 | 4 | 12 m | flat, gentle slopes, turns; up to 4 stations | $2 |
+
+The Phase 6 rows come from `phase-6-polish.md` §4.5 (Build 3). The Monorail is a multi-station transport ride. The Phase 6 track pieces (corkscrew, helix) are in section 8.
 
 ---
 
-## 3. Stalls and facilities (11 in Build 1)
+## 3. Stalls and facilities (11 in Build 1, 14 in Build 3)
 
 All are 1×1 with one service side.
 
@@ -71,9 +80,22 @@ All are 1×1 with one service side.
 | `info_kiosk` | Info Kiosk | 3 | start | info | $400 | $15 | $1.00 | $0.10 | gives park map: guest is never lost | — |
 | `first_aid` | First Aid | 3 | Shops | facility | $600 | $40 | $0.00 | — | nausea → 0, happiness +5 | — |
 | `cash_machine` | Cash Machine | 3 | Shops | facility | $800 | $20 | $0.00 | — | guest with cash < $10 withdraws $40–$80 | — |
+| `noodle_bar` | Noodle Bar | 6 | Shops | food | $550 | $25 | $4.50 | $1.60 | hunger −170 | cold ×1.3, hot ×0.8 |
+| `smoothie_bar` | Smoothie Bar | 6 | Shops | drink | $450 | $20 | $3.00 | $0.90 | thirst −140, energy +20 | hot ×1.5, cold ×0.6 |
+| `photo_booth` | Photo Booth | 6 | Shops | souvenir | $500 | $20 | $4.00 | $0.80 | gives photo: happiness +10; want ×2 within 6 tiles of a ride exit with excitement ≥ 5.00 | — |
 
-- A guest holds at most one balloon, one umbrella, and one map.
+- A guest holds at most one balloon, one umbrella, one map, and one photo.
 - Weather factors multiply the guest's chance to want the item (Phase 3).
+- The Phase 6 rows come from `phase-6-polish.md` §4.5 (Build 3).
+
+### Show sites (Phase 6)
+
+After Dark show sites (`phase-6-polish.md` §4.4). A show site is a building with no gates. Cost per show is charged to the ledger line `shows` at each show start; the radius sets the viewing tiles (footpaths within it).
+
+| id | Name | Ph | Unlock | Size | Build | Run/mo | Cost per show | Radius | Show length |
+|---|---|---|---|---|---|---|---|---|---|
+| `lightshow_tower` | Lightshow Tower | 6 | Scenery | 2×2 | $2,500 | $40 | $150 | 8 tiles | 300 ticks (15 s) |
+| `fireworks_launcher` | Fireworks Launcher | 6 | Scenery | 1×1 | $1,500 | $20 | $400 | 12 tiles | 400 ticks (20 s) |
 
 ---
 
@@ -134,15 +156,24 @@ Item lists, sizes, prices, and Calm/Buzz values are in `phase-4-land-scenery-aft
 
 ## 8. Phase 6 extras (Build 3)
 
+Build 3 started (Wave 4.0): the final stats from `phase-6-polish.md` §4.5 are now in sections 1–3 (flat rides, track ride types, stalls, show sites) and in `src/data/catalog/`. The Phase 6 track pieces stay here, because track pieces are not in sections 1–3 (Phase 2 §4 and §8 hold the other pieces).
+
 | Kind | Items |
 |---|---|
-| Flat rides | Magic Carpet (thrill), Kiddie Cars (family), Merry Mill (chill windmill ride), Gyro Globe (thrill) |
-| Track rides | Inverted Coaster (thrill), Bobsled Run (thrill), Monorail (chill, multi-station transport) |
-| Track pieces | Corkscrew (Steel, Inverted), helix (Steel, Bobsled) |
-| Stalls | Noodle Bar (food), Smoothie Bar (drink), Photo Booth (souvenir) |
-| Show sites | Lightshow Tower (`lightshow_tower`), Fireworks Launcher (`fireworks_launcher`) |
+| Flat rides | Magic Carpet (thrill), Kiddie Cars (family), Merry Mill (chill windmill ride), Gyro Globe (thrill) — section 1 |
+| Track rides | Inverted Coaster (thrill), Bobsled Run (thrill), Monorail (chill, multi-station transport) — section 2 |
+| Track pieces | Corkscrew (Steel, Inverted), helix (Steel, Inverted, Bobsled) — table below |
+| Stalls | Noodle Bar (food), Smoothie Bar (drink), Photo Booth (souvenir) — section 3 |
+| Show sites | Lightshow Tower (`lightshow_tower`), Fireworks Launcher (`fireworks_launcher`) — section 3 |
 
-`phase-6-polish.md` §4 holds the final stats for these items. Copy them into sections 1–3 when Build 3 starts.
+**Track pieces** (cost as a multiple of the straight piece cost of the same track type, Phase 2)
+
+| Piece | Track types | Footprint | Height change | Inversions | Min entry speed | Cost |
+|---|---|---|---|---|---|---|
+| Corkscrew (left, right) | Steel, Inverted | 3 tiles straight | 0 | 1 | 10 m/s | ×3 |
+| Helix (left, right; up, down) | Steel, Inverted, Bobsled | 3×3, 360° turn | ±4 m | 0 | — | ×5 |
+
+The earlier summary listed the helix for Steel and Bobsled only; `phase-6-polish.md` §4.5 (final stats) adds the Inverted Coaster, and this table follows it.
 
 ---
 
@@ -155,6 +186,6 @@ Item lists, sizes, prices, and Calm/Buzz values are in `phase-4-land-scenery-aft
 | Coasters | Wooden Coaster, Spinning Mouse | — | Inverted Coaster, Bobsled Run |
 | Shops | Pizza Slice, Ice Cream Cart, Cocoa Hut, Balloon Stand, Umbrella Stand, First Aid, Cash Machine | — | Noodle Bar, Smoothie Bar, Photo Booth |
 | Water | — | Log Flume, Rapids Raft | — |
-| Scenery | — | Frost Peaks, Volcano Ridge, Spooky Hollow, Jungle Lagoon, Starport | — |
+| Scenery | — | Frost Peaks, Volcano Ridge, Spooky Hollow, Jungle Lagoon, Starport | Lightshow Tower, Fireworks Launcher |
 
-Research costs and order are in `phase-3-management.md` (Build 1), `phase-4-land-scenery-after-dark.md` (Build 2), and `phase-6-polish.md` (Build 3). Phase 6 places its items into categories; this table follows it.
+Research costs and order are in `phase-3-management.md` (Build 1), `phase-4-land-scenery-after-dark.md` (Build 2), and `phase-6-polish.md` (Build 3). Phase 6 places its items into categories (§4.5 Unlock column); this table follows it. `phase-6-polish.md` gives no research costs for the Build 3 items: provisional costs are in the delivery plan (card W4-D) until the owner confirms them.

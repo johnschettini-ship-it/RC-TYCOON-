@@ -141,6 +141,7 @@ export class SpriteBank {
         facing,
         walk: (frame >> 4) & 3,
         ring: tinted ? shirt : null,
+        ringStep: tinted ? colour : -1,
         balloon,
         umbrella,
       }),

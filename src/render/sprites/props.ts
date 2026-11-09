@@ -28,6 +28,11 @@ export interface GuestLook {
   walk: number;
   /** Temperament ring colour, or null. */
   ring: string | null;
+  /**
+   * Temperament tint step of the ring (0 = Chill … `TINT_STEPS − 1` = Thrill), or −1 without a ring. Phase 6 §4.7
+   * (W4-F): Chill guests get a full ring, Thrill guests a notched ring, so colour is not the only signal.
+   */
+  ringStep?: number;
   /** Balloon colour while the guest holds a balloon, or null. */
   balloon?: string | null;
   /** Open umbrella colour (shown in rain and storms), or null. */

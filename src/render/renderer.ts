@@ -35,6 +35,7 @@ import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
 import { createWorldLayers } from './worldLayers';
+import { displayPrefs } from '../a11y/prefs';
 import {
   viewAffine,
   viewCornerHeights,
@@ -464,6 +465,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const weather = s.management.weather.current;
     const wet = weather === 'rain' || weather === 'storm';
     const heights = walkerHeights(world);
+    // Phase 6 §4.7: reduced motion turns guest bobbing off (walkers keep the standing frame; W4-F sets the pref).
+    const bob = !displayPrefs().reducedMotion;
     for (let gi = 0; gi < guests.length; gi++) {
       const g = guests[gi]!;
       if (g.state === 'riding' || g.tile < 0) continue;
@@ -492,7 +495,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         z = pos.z;
         if (g.nextTile >= 0 && g.nextTile !== g.tile) {
           facing = dirBetween(w, g.tile, g.nextTile);
-          walk = 1 + ((Math.floor((g.progress + alpha) / 5) + g.id) & 1);
+          if (bob) walk = 1 + ((Math.floor((g.progress + alpha) / 5) + g.id) & 1);
         } else {
           facing = g.dir;
         }
