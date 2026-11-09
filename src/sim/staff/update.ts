@@ -12,7 +12,8 @@ import {
 } from '../../data/tuning/staff';
 import { hourlyShare, recordLedger } from '../economy/ledger';
 import { isBroken, repairCost, setBroken } from '../litter/pathItems';
-import { neighbour, PathItem, type Dir, type MapState } from '../map';
+import { standUpFromBench } from '../litter/benches';
+import { Content, neighbour, PathItem, type Dir, type MapState } from '../map';
 import { notify } from '../notifications';
 import { isWalkable } from '../pathing';
 import { rngInt } from '../rng';
@@ -234,10 +235,32 @@ function startWork(world: World, s: Staff): boolean {
   }
 }
 
-/** Hour start: wages (hourly charge rule, R9/R20) and auto-repair (§4.4). */
+/** Hour start: wages (hourly charge rule, R9/R20), orphan cleanup, and auto-repair (§4.4). */
 export function hourlyStaff(world: World): void {
   chargeWages(world);
+  clearOrphans(world);
   if (world.state.staff.autoRepair) autoRepair(world);
+}
+
+/**
+ * Path items live only on footpaths, litter and mess only on footpaths and queues (§4.3).
+ * When a path is demolished or turned into a queue, what can no longer be there is removed.
+ */
+function clearOrphans(world: World): void {
+  const map = world.state.map;
+  for (let i = 0; i < map.content.length; i++) {
+    const c = map.content[i];
+    if (map.pathItem[i] !== PathItem.None && c !== Content.Footpath) {
+      if (map.pathItem[i] === PathItem.Bench) standUpFromBench(world, i);
+      map.pathItem[i] = PathItem.None;
+      map.pathItemFlags[i] = 0;
+      map.binFill[i] = 0;
+    }
+    if (c !== Content.Footpath && c !== Content.Queue && ((map.litter[i] as number) > 0 || (map.mess[i] as number) > 0)) {
+      map.litter[i] = 0;
+      map.mess[i] = 0;
+    }
+  }
 }
 
 function chargeWages(world: World): void {
