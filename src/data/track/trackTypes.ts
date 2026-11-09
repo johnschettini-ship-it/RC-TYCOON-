@@ -1,8 +1,9 @@
 /**
- * Track ride types (phase-2-coasters.md §4.4, §4.10, §8). Owner: W1-G.
+ * Track ride types (phase-2-coasters.md §4.4, §4.10, §8). Owner: W1-G; water types (Phase 4 §4.4) added by W3-C.
  * Seats, cars, max trains, max height, and drive speeds come from the catalog (content-catalog §2).
  */
 import { getTrackRideDef } from '../catalog/trackRides';
+import { FLUME_K, FLUME_V_CURRENT, RAPIDS_K, RAPIDS_V_CURRENT } from '../tuning/track';
 import type { PieceGroup, RatingExtra, TrackDriveMode, TrackTypeDef } from './types';
 
 interface Extra {
@@ -80,9 +81,12 @@ function build(e: Extra): TrackTypeDef {
     id: e.id,
     drive: driveOf(cat.drive),
     medium: 'rail',
+    pieceSet: 'rail',
+    stationPiece: 'station',
     groups: Object.freeze([...e.groups]),
     chain: e.chain,
     physics: { mu: e.mu, cd: e.cd, chainSpeedMms: e.chainSpeedMms, driveSpeedMms: cat.driveSpeedMms ?? 0 },
+    water: null,
     vehicle: {
       seatsPerCar: cat.seatsPerCar,
       carLengthMm: e.carLengthMm,
@@ -104,10 +108,88 @@ function build(e: Extra): TrackTypeDef {
   });
 }
 
-/** The 7 Build 1 track types (rail medium). Water types arrive in Phase 4. */
+/** The 7 Build 1 track types (rail medium). */
 export const TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(EXTRAS.map(build));
 
-const BY_ID: ReadonlyMap<string, TrackTypeDef> = new Map(TRACK_TYPES.map((t) => [t.id, t]));
+interface WaterExtra {
+  id: 'log_flume' | 'rapids_raft';
+  pieceSet: 'flume' | 'rapids';
+  currentMms: number;
+  k: number;
+  spins: boolean;
+  ratings: { e: number; i: number; n: number; kAir: number; extra: RatingExtra };
+  /** Dollars. */
+  costs: { base: number; pieceFactorPermille: number; runBase: number; extraTrain: number };
+  render: TrackTypeDef['render'];
+}
+
+/**
+ * Water types (Phase 4 §4.4; catalog §2). Both use the `waterCurrent` drive (phase-2 §4.4) and the gap rule like
+ * powered types (no block brakes in the water sets). A boat is one 4 m car: one boat per station tile.
+ * Not in the spec (tuning starting values): the type rating terms, costs, channel friction for drops (μ, c_d).
+ */
+const WATER_EXTRAS: WaterExtra[] = [
+  {
+    id: 'log_flume', pieceSet: 'flume', currentMms: Math.round(FLUME_V_CURRENT * 1000), k: FLUME_K, spins: false,
+    ratings: { e: 1.5, i: 0.8, n: 0.3, kAir: 1.0, extra: 'none' },
+    costs: { base: 2400, pieceFactorPermille: 1000, runBase: 80, extraTrain: 200 },
+    render: { rail: 'flume', supports: 'lattice', car: 'log', colours: { track: 11, supports: 11, cars: 11 } },
+  },
+  {
+    id: 'rapids_raft', pieceSet: 'rapids', currentMms: Math.round(RAPIDS_V_CURRENT * 1000), k: RAPIDS_K, spins: true,
+    ratings: { e: 1.6, i: 1.0, n: 0.5, kAir: 1.0, extra: 'none' },
+    costs: { base: 2800, pieceFactorPermille: 1000, runBase: 90, extraTrain: 250 },
+    render: { rail: 'rapids', supports: 'pillar', car: 'raft', colours: { track: 9, supports: 9, cars: 1 } },
+  },
+];
+
+/** Boat length: one 4 m car fills one station tile ("1 boat per station tile"). */
+const BOAT_LENGTH_MM = 4000;
+/** Channel friction on gravity pieces (drops, waterfalls). */
+const WATER_MU = 0.02;
+const WATER_CD = 0.001;
+
+function buildWater(e: WaterExtra): TrackTypeDef {
+  const cat = getTrackRideDef(e.id);
+  if (!cat) throw new Error(`Track type ${e.id} is missing from the catalog`);
+  return Object.freeze({
+    id: e.id,
+    drive: 'waterCurrent',
+    medium: 'water',
+    pieceSet: e.pieceSet,
+    stationPiece: `${e.pieceSet}_station`,
+    groups: Object.freeze(['S', 'St', 'G', 'X', 'Ts', 'Tm', 'W'] as PieceGroup[]),
+    chain: false,
+    physics: { mu: WATER_MU, cd: WATER_CD, chainSpeedMms: 0, driveSpeedMms: 0 },
+    water: { currentMms: e.currentMms, k: e.k },
+    vehicle: {
+      seatsPerCar: cat.seatsPerCar,
+      carLengthMm: BOAT_LENGTH_MM,
+      carsMin: cat.carsMin,
+      carsMax: cat.carsMax,
+      defaultCars: cat.carsMin,
+      maxTrains: cat.maxTrains,
+      spins: e.spins,
+    },
+    ratings: e.ratings,
+    costs: {
+      base: e.costs.base * 100,
+      pieceFactorPermille: e.costs.pieceFactorPermille,
+      runBase: e.costs.runBase * 100,
+      extraTrain: e.costs.extraTrain * 100,
+    },
+    maxHeightM: cat.maxHeightM,
+    render: e.render,
+  } satisfies TrackTypeDef);
+}
+
+/** The 2 Build 2 water types: Log Flume and Rapids Raft. */
+export const WATER_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(WATER_EXTRAS.map(buildWater));
+
+/** Every track type: rail then water. */
+export const ALL_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze([...TRACK_TYPES, ...WATER_TRACK_TYPES]);
+
+const BY_ID: ReadonlyMap<string, TrackTypeDef> = new Map(ALL_TRACK_TYPES.map((t) => [t.id, t]));
 
 export function getTrackTypeDef(id: string): TrackTypeDef | undefined {
   return BY_ID.get(id);

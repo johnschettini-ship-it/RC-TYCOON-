@@ -1,5 +1,6 @@
-/** Piece table (phase-2-coasters.md §4.2). Owner: W1-G. Costs in cents; lengths in mm. */
+/** Piece table (phase-2-coasters.md §4.2). Owner: W1-G; the water sets (Phase 4 §4.4) are added by W3-C. Costs in cents; lengths in mm. */
 import type { PieceGeometry, PieceGroup, PieceSpecial, TrackBank, TrackPieceDef, TrackSlope } from './types';
+import { WATER_PIECES } from './waterPieces';
 
 type Exit = TrackPieceDef['exit'];
 const T00: ReadonlyArray<readonly [number, number]> = [[0, 0]];
@@ -73,6 +74,7 @@ function toDef(r: Row): TrackPieceDef {
     id: r.id,
     name: r.name,
     group: r.group,
+    set: 'rail',
     entry: { slope: r.entry[0], bank: r.entry[1] },
     exit,
     tiles: r.tiles ?? T00,
@@ -87,12 +89,19 @@ function toDef(r: Row): TrackPieceDef {
     inversions: r.inversions ?? 0,
     turnKind: r.turnKind ?? null,
     special: r.special ?? null,
+    water: null,
   });
 }
 
+/** The 29 rail pieces of the phase-2 §4.2 table. */
 export const TRACK_PIECES: readonly TrackPieceDef[] = Object.freeze(ROWS.map(toDef));
 
-const BY_ID: ReadonlyMap<string, TrackPieceDef> = new Map(TRACK_PIECES.map((p) => [p.id, p]));
+export { WATER_PIECES };
+
+/** Rail pieces then water pieces (Phase 4 §4.4): every piece any track type can build. */
+export const ALL_TRACK_PIECES: readonly TrackPieceDef[] = Object.freeze([...TRACK_PIECES, ...WATER_PIECES]);
+
+const BY_ID: ReadonlyMap<string, TrackPieceDef> = new Map(ALL_TRACK_PIECES.map((p) => [p.id, p]));
 
 export function getTrackPieceDef(id: string): TrackPieceDef | undefined {
   return BY_ID.get(id);

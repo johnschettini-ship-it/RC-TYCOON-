@@ -16,6 +16,7 @@ import { ok, type CommandContext, type CommandResult } from '../../commands/type
 import { recordLedger } from '../../economy/ledger';
 import { findGuest, finishRide, forgetDestination, leaveQueue } from '../../guests/api';
 import { Content, inBounds, tileIndex } from '../../map';
+import { markOccupancyDirty } from '../../occupancy';
 import { markNetworkDirty } from '../../pathing';
 import type { GameState, World } from '../../types';
 import type { Cents } from '../../units';
@@ -85,6 +86,7 @@ export function demolishTrackRide(world: World, ride: Ride, ctx: CommandContext)
     }
   }
   refreshGroundTiles(world, tiles);
+  markOccupancyDirty(world);
   if (!ctx.setup && refund > 0) recordLedger(world, 'demolitionRefunds', refund);
   forgetDestination(world, `ride:${ride.id}`);
   markNetworkDirty(world);
@@ -196,15 +198,20 @@ export function trainCarPoses(world: World, rideId: number): { trainId: number; 
 }
 
 /**
- * Load check (phase-2 §5): pieces chain joint to joint, `circuitClosed` matches the geometry,
- * 0 ≤ train.s < circuit length, seats hold −1 or a guest id. With `state`, seated guests must exist and be
+ * Load check (phase-2 §5): every piece belongs to the type's piece set (Phase 4), pieces chain joint to joint,
+ * `circuitClosed` matches the geometry, 0 ≤ train.s < circuit length, seats hold −1 or a guest id. With `state`, seated guests must exist and be
  * riding this ride. Null when sound, else a short reason.
  */
 export function checkTrackRideForLoad(data: TrackRideData, state?: GameState): string | null {
   const type = getTrackTypeDef(data.typeId);
   if (!type) return 'Unknown track ride type';
   if (!Array.isArray(data.pieces) || data.pieces.length === 0) return 'Track ride has no pieces';
-  for (const p of data.pieces) if (!getTrackPieceDef(p.defId)) return 'Unknown track piece';
+  for (const p of data.pieces) {
+    const def = getTrackPieceDef(p.defId);
+    if (!def) return 'Unknown track piece';
+    // Phase 4 §4.4: a type builds only pieces of its own set (rail, flume, or rapids).
+    if (def.set !== type.pieceSet) return 'Track piece does not belong to this ride type';
+  }
   if (getTrackPieceDef((data.pieces[0] as { defId: string }).defId)?.special !== 'station') return 'Track does not start with a station';
   for (let i = 1; i < data.pieces.length; i++) {
     const prev = pieceExitJoint(data.pieces[i - 1]!);

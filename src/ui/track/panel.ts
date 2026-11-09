@@ -4,7 +4,7 @@
  * the ghost) adds it, a double-click selects and builds. Touch: a bottom sheet (≤ 45% of the height) with group
  * tabs, 56 px piece buttons, options, cost, Undo, a large Build button, and Done; map taps never add pieces.
  */
-import { getTrackPieceDef, getTrackTypeDef, TRACK_PIECES, type TrackPieceDef } from '../../data/track';
+import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, type TrackPieceDef } from '../../data/track';
 import { getTrackRideDef } from '../../data/catalog/trackRides';
 import { text } from '../../data/strings/en';
 import { trackToolOf, type PaletteGroupId, type TrackToolState } from '../../render/track/toolState';
@@ -86,6 +86,35 @@ function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
   if (def.special === 'brakes' || def.special === 'blockBrake') {
     ctx.fillStyle = def.special === 'brakes' ? '#f07a3a' : '#ffd23f';
     for (let i = -2; i <= 2; i++) ctx.fillRect(midX + i * 5 - 1, midY - 4, 2, 8);
+  }
+  // Water pieces (Phase 4 §4.4): a blue channel line, foam for splashdowns, waterfalls, and rough water, a swirl for
+  // whirlpools, and belt marks for lift conveyors.
+  if (def.water) {
+    ctx.beginPath();
+    for (let i = 0; i < sm.n; i++) {
+      const u = sm.x[i] as number;
+      const v = side ? -(sm.h[i] as number) : (sm.y[i] as number);
+      if (i === 0) ctx.moveTo(ox + u * k, oy + v * k);
+      else ctx.lineTo(ox + u * k, oy + v * k);
+    }
+    ctx.strokeStyle = '#4fb3d9';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#f2fbff';
+    if (def.special === 'splashdown' || def.special === 'waterfall' || def.special === 'rough') {
+      for (let i = -2; i <= 2; i++) ctx.fillRect(midX + i * 5 - 1, midY - 6 + (i % 2 === 0 ? 0 : 2), 2, 3);
+    }
+    if (def.special === 'whirlpool') {
+      ctx.strokeStyle = '#f2fbff';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(midX, midY, 5, 0.3, Math.PI * 1.7);
+      ctx.stroke();
+    }
+    if (def.water.drive === 'conveyor' && def.special !== 'station') {
+      ctx.fillStyle = '#ffd23f';
+      for (let i = -2; i <= 2; i++) ctx.fillRect(midX + i * 5 - 1, midY - 2 - i * 1.2, 2, 4);
+    }
   }
   if (def.special === 'spooky') {
     ctx.fillStyle = '#b39ddb';
@@ -187,10 +216,10 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
     groupButtons.set(g.id, b);
     groups.append(b);
   });
-  const pieceButtons: PieceButton[] = TRACK_PIECES.map((def) => {
+  const pieceButtons: PieceButton[] = ALL_TRACK_PIECES.map((def) => {
     const b = h(
       'button',
-      { type: 'button', class: 'tb-piece', 'data-piece': def.id, 'data-testid': `track-piece-${def.id}`, 'aria-pressed': 'false', title: def.name },
+      { type: 'button', class: 'tb-piece', 'data-piece': def.id, 'data-testid': `track-piece-${def.id}`, 'aria-pressed': 'false', title: def.water?.wetsRiders ? `${def.name} · ${text('ui.track.wet')}` : def.name },
       pieceIcon(def),
       h('span', { class: 'tb-piece-name', text: def.name }),
     );

@@ -107,3 +107,43 @@ export const RATING = {
 
 /** Warning thresholds (§4.10). */
 export const WARN = { intensity: 8.0, nausea: 7.0, dullExcitement: 2.0 } as const;
+
+/**
+ * Water rides (Phase 4 §4.4, §8). Owner: W3-C. Speeds in m/s, k in 1/s.
+ * Current pieces: a = −g·sinθ − k·(v − vCurrent). Conveyors (stations, lifts): v = conveyor speed.
+ */
+export const FLUME_V_CURRENT = 1.5;
+export const FLUME_K = 0.6;
+export const RAPIDS_V_CURRENT = 3.0;
+export const RAPIDS_K = 0.9;
+/** Lift conveyor speed. */
+export const V_LIFT = 2.0;
+/** Station conveyor speed (Phase 4 §4.4 table: stations convey at 1.5 m/s). */
+export const V_STATION_CONVEYOR = 1.5;
+/** Splash brake: above SPLASH_MAX_V the boat slows at SPLASH_DECEL (more when needed to leave the piece at the cap). */
+export const SPLASH_MAX_V = 4;
+export const SPLASH_DECEL = 12;
+export const WHIRLPOOL_MAX_V = 2;
+/**
+ * Rough water: the current speed varies along the piece as a fixed function of the position (phase-2 §4.14: never
+ * the RNG), vCurrent × (1 + amplitude × sin(2π u / wavelength)).
+ */
+export const ROUGH_AMPLITUDE = 0.4;
+export const ROUGH_WAVELENGTH_MM = 4000;
+
+/**
+ * Water rating extras (Phase 4 §4.4), added to the Phase 2 result after its formula. Integer hundredths per piece,
+ * counted up to `max` pieces.
+ */
+export const WATER_RATING_EXTRAS = {
+  splashdown: { e: 40, i: 10, n: 0, max: 3 },
+  waterfall: { e: 30, i: 20, n: 0, max: 3 },
+  rough: { e: 0, i: 10, n: 0, max: 10 },
+  whirlpool: { e: 20, i: 0, n: 50, max: 3 },
+} as const;
+
+/** Wet riders (Phase 4 §4.4): wet for 1 game hour (50 ticks) after a ride with a wetting piece. */
+export const WET_TICKS = 50;
+/** Happiness per game hour while wet: hot weather +8, cold or rain (storm included) −8. */
+export const WET_HAPPINESS_HOT = 8;
+export const WET_HAPPINESS_COLD_OR_RAIN = -8;

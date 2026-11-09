@@ -1,4 +1,4 @@
-/** Track command handlers (phase-2-coasters.md §6). Owner: W1-G. */
+/** Track command handlers (phase-2-coasters.md §6; water types Phase 4 §4.4, §6). Owner: W1-G; water types W3-C. */
 import { getTrackRideDef } from '../../../data/catalog/trackRides';
 import { getTrackPieceDef, getTrackTypeDef } from '../../../data/track';
 import {
@@ -21,7 +21,8 @@ import { fail, ok, type CommandContext, type CommandResult, type HandlerMap, typ
 import { initRideReliability } from '../../breakdowns/api';
 import { canAfford, pay, recordLedger } from '../../economy/ledger';
 import { allocId } from '../../ids';
-import { Content, inBounds, isOwned, tileIndex, type Dir } from '../../map';
+import { groundOwnershipBlock } from '../../land/api';
+import { Content, inBounds, tileIndex, type Dir } from '../../map';
 import { markNetworkDirty } from '../../pathing';
 import { isUnlocked } from '../../research/api';
 import type { World } from '../../types';
@@ -46,7 +47,9 @@ function configBlock(ride: Ride, data: TrackRideData): string | null {
 
 function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContext): CommandResult {
   const type = getTrackTypeDef(cmd.typeId);
-  if (!type || type.medium !== 'rail' || type.drive === 'waterCurrent') return fail(TRACK_ERR.unknownType);
+  if (!type) return fail(TRACK_ERR.unknownType);
+  const stationDef = getTrackPieceDef(type.stationPiece);
+  if (!stationDef) return fail(TRACK_ERR.unknownType);
   if (!ctx.setup && !isUnlocked(world, cmd.typeId)) return fail(TRACK_ERR.notResearched);
   const s = world.state;
   const map = s.map;
@@ -54,7 +57,7 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
   // The command takes a map `Dir` (0 = N, 1 = E, 2 = S, 3 = W, like every command); pieces use `TrackDir`.
   const mapDir = (((cmd.dir % 4) + 4) % 4) as Dir;
   const piece: TrackPieceInstance = {
-    defId: 'station',
+    defId: stationDef.id,
     x: cmd.x,
     y: cmd.y,
     z: map.heights[tileIndex(map, cmd.x, cmd.y)] as number,
@@ -65,7 +68,7 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
   };
   const chk = checkPieceTiles(world, s.nextId, 0, piece, type, []);
   if (!chk.ok) return fail(chk.reason);
-  const pc = pieceCost(type, getTrackPieceDef('station')!, false, chk.heightAboveGround);
+  const pc = pieceCost(type, stationDef, false, chk.heightAboveGround);
   const cost = type.costs.base + pc;
   if (!canAfford(world, cost, ctx)) return fail(TRACK_ERR.notEnoughCash);
 
@@ -122,7 +125,7 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
   s.rides.push(ride);
   s.track.rides[String(id)] = data;
   pay(world, type.costs.base, 'construction', ctx);
-  applyPlan(world, ride, data, { piece, def: getTrackPieceDef('station')!, tiles: chk.tiles, cost: pc, closes: false }, ctx);
+  applyPlan(world, ride, data, { piece, def: stationDef, tiles: chk.tiles, cost: pc, closes: false }, ctx);
   return ok(cost, [], id);
 }
 
@@ -208,7 +211,10 @@ function placeTrackGate(world: World, cmd: Cmd<'placeTrackGate'>, _ctx: CommandC
   const { ride, data } = tc;
   if (isRunningStatus(ride.status)) return fail(TRACK_ERR.closeFirst);
   const map = world.state.map;
-  if (!inBounds(map, cmd.x, cmd.y) || !isOwned(map, tileIndex(map, cmd.x, cmd.y))) return fail(TRACK_ERR.outsidePark);
+  if (!inBounds(map, cmd.x, cmd.y)) return fail(TRACK_ERR.outsidePark);
+  // A gate stands on the ground: owned land only ("You only have construction rights here" on state 3).
+  const own = groundOwnershipBlock(map, tileIndex(map, cmd.x, cmd.y));
+  if (own) return fail(own);
   const side = gateSide(data, cmd.x, cmd.y);
   if (side === null) return fail(TRACK_ERR.gateBesideStation);
   const gate = tileIndex(map, cmd.x, cmd.y);
@@ -288,6 +294,10 @@ export function trainCountBlock(data: TrackRideData, typeId: string): string | n
     if (data.trainConfig.trains > maxKarts) {
       return fillTrackString(TRACK_ERR.stationTooShort, { n: Math.ceil(data.trainConfig.trains / KARTS_PER_STATION_TILE) });
     }
+  }
+  // Water rides (Phase 4 §4.4): 1 boat per station tile.
+  if (type.medium === 'water' && data.trainConfig.trains > layout.stationCount) {
+    return fillTrackString(TRACK_ERR.stationTooShort, { n: data.trainConfig.trains });
   }
   if (type.drive === 'gravity' && data.trainConfig.trains > 1) {
     if (data.trainConfig.trains > layout.blockBrakeCount) return TRACK_ERR.tooManyTrains;

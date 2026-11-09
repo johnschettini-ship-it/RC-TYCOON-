@@ -4,7 +4,7 @@
  * entry tile (0, 0) spans metres [0, 4] × [0, 4], the entry joint is (0, 2), heading +x, entry height 0.
  * Sample tables are derived data built once per def; saves never store them.
  */
-import { getTrackPieceDef, getTrackTypeDef, TRACK_PIECES, type TrackBank, type TrackPieceDef, type TrackSlope } from '../../../data/track';
+import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, type TrackBank, type TrackPieceDef, type TrackSlope } from '../../../data/track';
 import { BANK_ANGLE_DEG, GENTLE_PITCH_RAD, SAMPLE_STEP_MM, STEEP_PITCH_RAD, TILE_M } from '../../../data/tuning/track';
 import { DEG, PI, tcos, tsin } from '../../trig';
 import type { Dir } from '../../map';
@@ -155,11 +155,13 @@ function buildStatic(def: TrackPieceDef): PieceStatic {
   // Loop: true arc length 16π m over four quarters (radii 12, 4, 4, 12).
   const LOOP = 16 * PI;
 
+  // Straight and ramp pieces run along +x for `exit.dx` tiles (the water splashdown is 2 tiles long).
+  const run = g.kind === 'straight' || g.kind === 'ramp' ? TILE_M * def.exit.dx : TILE_M;
   for (let i = 0; i < n; i++) {
     const smm = Math.min(i * SAMPLE_STEP_MM, def.lengthMm);
     const s = smm / 1000;
     const t = s / L;
-    let x = TILE_M * t;
+    let x = run * t;
     let y = half;
     let h = dz * t;
     let th = th0;
@@ -170,6 +172,10 @@ function buildStatic(def: TrackPieceDef): PieceStatic {
     let yaw = 0;
     switch (g.kind) {
       case 'straight':
+        break;
+      case 'ramp':
+        // Constant pitch between flat joints; sinT = dz / L keeps the gravity work equal to the height change.
+        th = slopePitch(g.slope);
         break;
       case 'transition':
         th = th0 + k * s;
@@ -268,7 +274,7 @@ function buildStatic(def: TrackPieceDef): PieceStatic {
 
 /** Build every sample table now (start-up). */
 export function buildAllPieceStatics(): void {
-  for (const d of TRACK_PIECES) pieceStatic(d.id);
+  for (const d of ALL_TRACK_PIECES) pieceStatic(d.id);
 }
 
 export interface Joint {
@@ -341,12 +347,16 @@ export function worldYaw(piece: TrackPieceInstance, localYaw: number): number {
   return localYaw + (piece.dir * PI) / 2;
 }
 
-/** Pieces of a type whose entry matches an end state (palette, §7.1). `afterStation`: the end is the station run. */
+/**
+ * Pieces of a type whose entry matches an end state (palette, §7.1): pieces of the type's set (rail, flume, or rapids)
+ * in its groups. `afterStation`: the end is the station run.
+ */
 export function piecesForEnd(typeId: string, slope: TrackSlope, bank: TrackBank, afterStation = false): TrackPieceDef[] {
   const type = getTrackTypeDef(typeId);
   if (!type) return [];
-  return TRACK_PIECES.filter(
+  return ALL_TRACK_PIECES.filter(
     (p) =>
+      p.set === type.pieceSet &&
       type.groups.includes(p.group) &&
       p.entry.slope === slope &&
       p.entry.bank === bank &&
