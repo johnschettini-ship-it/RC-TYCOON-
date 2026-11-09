@@ -43,7 +43,8 @@ vi.mock('../../../src/sim/fields/api', async (orig) => {
   return {
     ...real,
     markFieldsDirty: (_w: unknown, tile: number) => {
-      fake.fields.push(tile);
+      // −1 is the whole-world mark executeCommand sends after every successful command; this test checks tile marks.
+      if (tile >= 0) fake.fields.push(tile);
     },
   };
 });

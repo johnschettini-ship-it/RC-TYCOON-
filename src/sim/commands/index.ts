@@ -11,6 +11,7 @@ import { sceneryHandlers } from '../scenery/commands';
 import { afterDarkHandlers } from '../lighting/commands';
 import { scenarioHandlers } from '../scenario/commands';
 import { tutorialAfterCommand, tutorialHandlers } from '../tutorial/commands';
+import { markFieldsDirty } from '../fields/api';
 import type { Command, CommandContext, CommandResult, Handler, HandlerMap } from './types';
 
 const handlers: HandlerMap<Command> = {
@@ -34,7 +35,11 @@ export function executeCommand(world: World, cmd: Command, opts?: { setup?: bool
   if (!handler) return { ok: false, reason: `Unknown command ${String((cmd as { type: unknown }).type)}` };
   const result = handler(world, cmd, ctx);
   // Phase 5 §4.11: tutorial `sim` checks run after every successful command.
-  if (result.ok) tutorialAfterCommand(world, cmd, result);
+  if (result.ok) {
+    // Calm and Buzz read after this command must see its change (W3-E: fields sync once per tick otherwise).
+    markFieldsDirty(world, -1);
+    tutorialAfterCommand(world, cmd, result);
+  }
   return result;
 }
 
