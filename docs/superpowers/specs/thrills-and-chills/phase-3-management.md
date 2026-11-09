@@ -35,7 +35,7 @@ Running the park becomes a challenge. The player hires staff, keeps the park cle
 ## 4. Detailed design
 
 ### 4.1 Shared rules
-- **Hourly charge rule.** A monthly amount `M` (cents) charges `floor(M / 72)` at the end of each game hour (72 hours per month). At the last hour of the month, an item that was active for all 72 hours at the same `M` also charges `M − 72 × floor(M / 72)`. So a full month costs exactly `M`. A partial month costs only the full hours worked. Wages and the research budget use this rule.
+- **Hourly charge rule.** A monthly amount `M` (cents) charges `floor(M / 72)` at the end of each game hour (72 hours per month). At the last hour of the month, an item that was active for all 72 hours at the same `M` also charges `M − 72 × floor(M / 72)`. So a full month costs exactly `M`. A partial month costs only the full hours worked. Running costs, wages, and the research budget use this rule (master R9).
 - **Staff walking.** Staff walk on footpath and queue tiles. Queue ownership does not limit staff. Staff use their own distance fields (walkable mask `staff`), built and cached by the Phase 1 `pathing.ts` code. A path change marks these fields dirty.
 - **Local search.** Staff look for nearby work with a breadth-first search (BFS) over walkable tiles inside their patrol area. The search stops at `STAFF_SEARCH_RADIUS` steps. The BFS parent links give the route. Ties break by fixed direction order (N, E, S, W).
 - **Chebyshev radius.** "Within r tiles" means `max(|dx|, |dy|) ≤ r`.
@@ -70,7 +70,7 @@ Running the park becomes a challenge. The player hires staff, keeps the park cle
   6. If the park has no Mechanic, the message "No mechanic is available" appears once per breakdown.
 - **Inspection:** each ride has an interval (section 8, default `INSPECT_DEFAULT`). A ride is due when `now − lastInspectionTick ≥ interval`. The Mechanic picks the due ride with the highest `elapsed / interval` (tie: lower ride id), walks to its service tile, and waits until the current cycle ends. The ride status becomes `inspecting` for `INSPECTION_TICKS`. The ride starts no new cycle during the inspection.
 - **Performer:** a Performer picks a spot by sampling `PERFORMER_SPOT_SAMPLES` random reachable patrol tiles within `PERFORMER_SEARCH_RADIUS`. The spot with the most guests within `PERFORMER_RADIUS` wins. The Performer performs for `PERFORMER_SHOW_TICKS`. At each decision tick, every guest within `PERFORMER_RADIUS` of a performing Performer gains `PERFORMER_HAPPY` happiness, or `PERFORMER_HAPPY_MATCH` on a costume match. A guest gets at most one Performer bonus per decision tick.
-- **Costumes:** Frost matches temperament ≤ 40. Spark matches temperament ≥ 60. Boo has no match in Phase 3. Phase 4 adds Boo's match: night, or within 6 tiles of a `spooky` ride.
+- **Costumes:** Frost matches Chill guests (temperament ≤ 35). Spark matches Thrill guests (temperament ≥ 65). Groups follow master R6. Boo has no match in Phase 3. Phase 4 adds Boo's match: night, or within 6 tiles of a `spooky` ride.
 
 ### 4.3 Litter, mess, bins, benches
 - **Litter source:** a guest who buys food or drink gets `trash` with a timer from `TRASH_TIMER_MIN` to `TRASH_TIMER_MAX` ticks.
@@ -81,7 +81,7 @@ Running the park becomes a challenge. The player hires staff, keeps the park cle
 - **Dirt effect:** at each decision, `d = Σ litter + 4 × Σ mess` over the current tile and its 4 neighbours. If `d ≥ DIRT_MILD`, happiness −1. If `d ≥ DIRT_BAD`, happiness −3 and the thought "This path is filthy".
 - **Cleanliness** (for the rating): `C = 1 − min(1, (totalLitter + 4 × totalMess) / (walkableTiles × DIRT_PER_TILE_ZERO))`.
 - **Bins:** capacity 24 (catalog). A full bin accepts nothing. A broken bin accepts nothing but can still be emptied.
-- **Benches:** at a decision, a guest with energy < `BENCH_TIRED` sits if a bench with a free seat is on the current tile or a 4-neighbour. Chill guests (temperament ≤ 40) use `BENCH_TIRED_CHILL`. Each bench has 2 seats. Sitting lasts 60 ticks and gives energy +60 (catalog).
+- **Benches:** at a decision, a guest with energy < `BENCH_TIRED` sits if a bench with a free seat is on the current tile or a 4-neighbour. Chill guests (temperament ≤ 35, master R6) use `BENCH_TIRED_CHILL`. Each bench has 2 seats. Sitting lasts 60 ticks and gives energy +60 (catalog).
 - **Placement:** one path item per footpath tile. Not on queue tiles. Not on the park entrance tile.
 
 ### 4.4 Vandalism and repair
@@ -104,9 +104,9 @@ Running the park becomes a challenge. The player hires staff, keeps the park cle
 | Type | Applies to | Weight | Effect until fixed | Fix factor |
 |---|---|---|---|---|
 | `stopped` | flat | 40 | Ride stops at once. Riders wait on board. | 1.00 |
-| `train_stalled` | track | 40 | Each train continues to the next flat, lift, brake, or station piece and stops there. Riders stay seated. | 1.50 |
-| `gate_stuck` | all | 30 | The current cycle ends. Riders cannot leave and no one can board. | 0.50 |
-| `slow_running` | all | 30 | The ride keeps running. Flat cycle time ×1.5. Track powered and lift speeds ×0.6. Rider excitement −1.00. | 0.75 |
+| `train_stalled` | track | 40 | Each train continues to the next station or block brake and is held there. Trains are never held anywhere else, so they never touch (Phase 2 §4.7 and §11). Riders stay seated. | 1.50 |
+| `gate_stuck` | all | 30 | The current cycle ends. Riders cannot leave and no one can board. Track rides: running trains finish the circuit and are held at the station or a block brake. | 0.50 |
+| `slow_running` | all | 30 | The ride keeps running. Flat cycle time ×1.5. Track rides: powered drive speeds ×0.6; chain and lift speeds never change, so gravity physics stays as tested (Phase 2 §11). Rider excitement −1.00. | 0.75 |
 
 - **Status:** the ride status becomes `broken` and stores `breakdownType`. A spanner icon shows above the ride. A `breakdown` message appears.
 - **Fix:** the Mechanic stands on the service tile for `FIX_TICKS × fix factor`. Then the ride returns to its status before the breakdown, and the trains or cycle continue.
@@ -172,7 +172,7 @@ Total: 6,460 points. At medium (216 points per month), all items unlock in about
 - **Interest:** at the first tick of each month, `floor(balance × LOAN_RATE_BP / 10,000)` cents, category `loanInterest`.
 - Borrowed and repaid amounts are **financing**. They change cash but not profit.
 - If `parkValue` falls, the limit falls. The game never forces a repayment.
-- Cash below $0 at a month start gives a `finance` message: "Cash is negative. Repay costs or take a loan." Phase 3 has no game over. Phase 5 scenarios add fail rules.
+- Cash below $0 at a month start gives a `finance` message: "Cash is negative. Repay costs or take a loan". Phase 3 has no game over. Phase 5 scenarios add fail rules.
 
 ### 4.9 Weather
 - **States:** sunny, cloudy, rain, storm, hot, cold. A new game starts sunny.
@@ -226,14 +226,14 @@ Total: 6,460 points. At medium (216 points per month), all items unlock in about
 | Go-Kart Track | guest-driven | Kart speed = 6 + 3 × temperament / 100 m/s. 3 laps. A kart stays at least one piece behind the kart ahead and waits if needed. |
 
 ### 4.12 Park value
-- Updated once per game day.
-- `parkValue = Σ rides and stalls (buildCost × depFactor) + Σ paths and path items (buildCost × 0.5) + land value (Phase 4 hook, 0 in Phase 3)`.
-- `depFactor = max(DEP_FLOOR, 1 − ageMonths / DEP_MONTHS)`.
-- Track ride `buildCost` = total cost of its pieces, stations, and trains (Phase 2).
+- Updated at every hour start (master R13).
+- `parkValue = Σ rides and stalls (asset value) + Σ paths and path items (buildCost × 0.5) + land value (Phase 4 hook, 0 in Phase 3)`.
+- **Asset value** of a ride or stall = `buildCost × max(DEP_FLOOR, 1 − (1 − DEP_FLOOR) × ageMonths / DEP_MONTHS)` = `buildCost × max(0.30, 1 − 0.7 × ageMonths / 120)`. Phase 2 uses the same formula.
+- A track ride's `buildCost` is its `totalBuildCost`: pieces, stations, and trains (Phase 2).
 - The park panel and finance panel show it. Loans and Phase 5 goals use it.
 
 ### 4.13 Park rating (replaces the Phase 1 formula)
-`rating = round(Σ weight × subScore)`. Each sub-score is 0–1. Updated once per game day, as in Phase 1.
+`rating = round(Σ weight × subScore)`. Each sub-score is 0–1. Updated at every hour start (master R8).
 
 | Sub-score | Formula | Weight |
 |---|---|---|
@@ -245,8 +245,8 @@ Total: 6,460 points. At medium (216 points per month), all items unlock in about
 | Lost guests `L` | `1 − min(1, 4 × lostGuests / max(1, guests))` | 75 |
 | Queues `Q` | `1 − min(1, average over open rides of queueLength / (3 × capacity))` | 75 |
 
-- **Variety shares** use three bands. Guests: temperament ≤ 33 (chill), 34–66 (family), ≥ 67 (thrill). Rides: open rides by tag.
-- **Phase 4 hook:** Phase 4 adds Scenery `S` with weight 100 and lowers Happiness to 300. The sum stays 1,000.
+- **Variety shares** use the three master R6 groups. Guests: temperament ≤ 35 (chill), 36–64 (family), ≥ 65 (thrill). Rides: open rides by tag.
+- **Phase 4 hook:** Phase 4 adds Atmosphere with weight 100 and lowers Happiness to 300 (master R8). The sum stays 1,000.
 - With 0 guests, `H`, `P`, `L` use 0.5.
 
 ### 4.14 Message log
@@ -268,7 +268,7 @@ Total: 6,460 points. At medium (216 points per month), all items unlock in about
 - A guest shows the same thought at most once per game day.
 
 ### 4.17 Tick order (Phase 3)
-time → weather (on interval) → arrivals → guests (id order) → staff (id order) → rides → stalls → hourly charges (wages, research, running costs) → research points → campaign expiry → loan interest (month start) → auto-repair (hour start) → park value and rating (day start) → messages.
+See master R13. Phase 3 parts, in that order: month-end pipeline at month start (ledger close → loan interest → metric resets → `monthEnded` event) → weather (on interval) → arrivals → guests (id order) → staff (id order) → flat rides → track rides → stalls → hour-start work (hourly charges for running costs, wages, and research → research points → campaign expiry → auto-repair → park value → rating) → message pruning → `tick + 1`.
 
 ---
 
@@ -391,7 +391,7 @@ All values are **starting values**. They live in `src/data/` (`staff.ts`, `litte
 | `LOST_STEPS` | 60 | |
 | `FIRST_AID_NAUSEA` | 150 | |
 | `CASH_MACHINE_HAPPY` | 100 | |
-| `DEP_FLOOR` / `DEP_MONTHS` | 0.30 / 120 | |
+| `DEP_FLOOR` / `DEP_MONTHS` | 0.30 / 120 | asset value reaches the floor at 120 months |
 | `MESSAGE_MAX` | 200 | |
 
 ---
@@ -417,7 +417,7 @@ All values are **starting values**. They live in `src/data/` (`staff.ts`, `litte
 ### 9.2 Integration: 6-month scripted game
 Setup: 64 × 64 map, footpath loop, 4 Phase 1 rides with queues, 3 stalls, 6 bins, 6 benches, 1 Junior Coaster, 2 Groundskeepers (one with a patrol), 1 Mechanic, 1 Security Guard, 1 Performer (Spark), research at medium, a $5,000 loan, Town Poster Run at month 2. Run 6 game months (21,600 ticks). Check:
 - The finance check from 4.15 holds for every month.
-- Research unlocks match the points: 6 × 216 = 1,296 points unlock items 1–7 (1,380 points needed for item 7, so exactly items 1–6 unlock).
+- Research unlocks match the points: 6 × 216 = 1,296 points. Item 7 needs 1,380 cumulative points, so exactly items 1–6 unlock.
 - At least one breakdown occurs and is fixed. No ride stays `broken` longer than `FIX_TICKS × 1.5` plus walking time while the Mechanic is free.
 - Total litter stays below 0.5 per walkable tile at each month end.
 - All reference integrity checks pass. The rating stays in 0–1,000.

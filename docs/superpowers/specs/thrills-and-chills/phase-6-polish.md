@@ -18,7 +18,7 @@ The game sounds alive, looks good at night, plays well on every device, and is o
 | 4 | After Dark (clock, lighting pass, lit tiles), scenery themes (music per theme), water rides (splash). |
 | 5 | Title screen, settings entry point, progress storage, awards. |
 
-**Interface Phase 6 needs:** `tick()` returns a list of `SimEvent`s for that tick (for example `built`, `demolished`, `sale`, `rideCycleStart`, `trainDrop`, `splash`, `breakdown`, `award`, `showStart`). Events are not saved. Audio and UI consume them.
+**Interface Phase 6 uses:** `world.events: SimEvent[]` already exists (master 5.3). Systems push events; the client drains the list once per frame. Phase 6 adds event types (for example `built`, `demolished`, `sale`, `rideCycleStart`, `trainDrop`, `splash`, `breakdown`, `award`, `showStart`). Events are not saved. Audio and UI consume them.
 
 ## 3. Scope
 1. Web Audio engine with synthesized sound effects and procedural music.
@@ -95,7 +95,7 @@ All sounds are synthesized at runtime. The game ships no audio files.
 - **Schedule** per site: start time 20:00–23:30 in 30-minute steps; every 1, 2, or 3 days; enabled or disabled.
 - **States:** `idle → announced → running → done → idle`. The show is announced 1 game hour (50 ticks) before it starts.
 - **Cost:** charged at show start to the new ledger category `shows`. If cash is below the cost (and money is not unlimited), the show is cancelled, a toast says "Not enough cash for the show", and nothing is charged.
-- **Gathering:** at the announcement, each guest who is walking (not queueing, riding, or buying), has energy ≥ 40, and is within 20 tiles of walking distance decides with the sim RNG. Chance 0.5, plus 0.2 if temperament matches (Lightshow: ≤ 40; Fireworks: ≥ 60). Watchers walk to **viewing tiles** (footpaths within the show radius) through a distance field, then stand and watch.
+- **Gathering:** at the announcement, each guest who is walking (not queueing, riding, or buying), has energy ≥ 40, and is within 20 tiles of walking distance decides with the sim RNG. Chance 0.5, plus 0.2 if temperament matches (Lightshow: Chill group, ≤ 35; Fireworks: Thrill group, ≥ 65; master R6). Watchers walk to **viewing tiles** (footpaths within the show radius) through a distance field, then stand and watch.
 - **Effect:** each watcher gains +1 happiness per second (20 ticks) of the show, max +40 per show. Matching temperament gains ×1.3. After the show, the guest thinks `thought.greatShow`.
 - **Arrivals:** a park with ≥ 1 show per night gets arrivals ×1.05 from 20:00 to 24:00.
 - **Rendering (render only, not sim):**
@@ -111,15 +111,15 @@ These tables replace section 8 of `content-catalog.md` when Phase 6 starts. The 
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `magic_carpet` | Magic Carpet | 6 | Thrill | thrill | — | 4×3 | 5.20 | 6.00 | 3.80 | 20 | 25 | $3,600 | $100 | $3 |
 | `kiddie_cars` | Kiddie Cars | 6 | Gentle | family | — | 3×3 | 2.20 | 0.60 | 0.20 | 12 | 20 | $1,000 | $30 | $1 |
-| `merry_mill` | Merry Mill | 6 | Gentle | chill | lit | 3×3 | 3.20 | 1.20 | 0.80 | 16 | 30 | $2,200 | $60 | $2 |
-| `gyro_globe` | Gyro Globe | 6 | Thrill | thrill | lit | 3×3 | 7.00 | 8.50 | 7.00 | 8 | 25 | $6,000 | $160 | $5 |
+| `merry_mill` | Merry Mill | 6 | Gentle | chill | — | 3×3 | 3.20 | 1.20 | 0.80 | 16 | 30 | $2,200 | $60 | $2 |
+| `gyro_globe` | Gyro Globe | 6 | Thrill | thrill | tall | 3×3 | 7.00 | 8.50 | 7.00 | 8 | 25 | $6,000 | $160 | $5 |
 
 **Track ride types**
 | id | Name | Ph | Unlock | Tag | Flags | Drive | Seats/car | Cars/train | Max trains | Max height | Piece set | Price |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `inverted_coaster` | Inverted Coaster | 6 | Coasters | thrill | — | gravity + chain lift | 4 | 3–8 | 3 | 45 m | Steel set + corkscrew + helix; riders hang below the track | $6 |
 | `bobsled_run` | Bobsled Run | 6 | Coasters | thrill | — | gravity + chain lift | 2 | 1–4 | 4 | 25 m | flat, gentle and steep down, banked turns, helix; no loop | $4 |
-| `monorail` | Monorail | 6 | Gentle | chill | lit | powered, 8 m/s | 6 | 3–6 | 4 | 12 m | flat, gentle slopes, turns; up to 4 stations | $2 |
+| `monorail` | Monorail | 6 | Gentle | chill | — | powered, 8 m/s | 6 | 3–6 | 4 | 12 m | flat, gentle slopes, turns; up to 4 stations | $2 |
 
 **Track pieces** (cost as a multiple of the straight piece cost of the same track type, Phase 2)
 | Piece | Track types | Footprint | Height change | Inversions | Min entry speed | Cost |
@@ -170,7 +170,7 @@ These tables replace section 8 of `content-catalog.md` when Phase 6 starts. The 
 - **Sound cues:** every important sound (breakdown, award, error) also has a visible toast.
 
 ### 4.8 Localization
-- **String tables:** `src/i18n/en.ts` exports one object. Keys are dotted ids. Values are strings with `{name}` placeholders, or plural objects.
+- **String tables:** `src/data/strings/en.ts` (master R5) exports one object. Keys are dotted ids. Values are strings with `{name}` placeholders, or plural objects.
 ```ts
 export const en = {
   'hud.cash': 'Cash',
@@ -183,7 +183,7 @@ export const en = {
 - **Sim rule:** the sim stores no display text. Thoughts, toasts, and reasons are ids with parameters. Data definitions have `nameKey`. Names typed by the player stay as typed.
 - **Missing key at runtime:** show the English text and log a warning. CI blocks any shipped locale with a missing key or a placeholder mismatch.
 - **Locales in Build 3:** English, plus pseudo-locale `en-XA` (accented, 30% longer) for layout tests. Right-to-left scripts are out of scope.
-- **Add a language:** (1) copy `en.ts` to `<code>.ts`; (2) translate every value and keep placeholders; (3) add the code to `src/i18n/index.ts`; (4) run `npm test` (completeness test); (5) check screens at 175% text scale.
+- **Add a language:** (1) copy `en.ts` to `<code>.ts`; (2) translate every value and keep placeholders; (3) add the code to `src/data/strings/index.ts`; (4) run `npm test` (completeness test); (5) check screens at 175% text scale.
 - **Language choice:** `navigator.language` matched to available locales, else English. The setting overrides it.
 
 ### 4.9 Settings menu

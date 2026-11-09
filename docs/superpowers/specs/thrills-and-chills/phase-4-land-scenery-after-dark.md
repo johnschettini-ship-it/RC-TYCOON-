@@ -119,7 +119,7 @@ Guests and staff do not block terrain edits. They are never on a tile without a 
 ### 4.4 Water rides
 Both rides use the Phase 2 track system: the same piece geometry, builder, validation, 1D integration, test run, and rating model. This phase adds piece sets and a drive mode. Track pieces carry their own water channel. They do not need terrain water.
 
-**Geometry assumption.** Gentle slope = 1 m per tile. Steep slope = 4 m per tile. Small turn = 1 tile, 90°. Medium turn = 3 × 3 tiles, 90°. These match the Phase 2 geometry names.
+**Geometry (Phase 2 §4.1–4.5).** Gentle slope = 2 m per tile. Steep slope = 6 m per tile. Small turn = 1 tile, 90°. Medium turn = 3 × 3 tiles, 90°. Bank angle = 35°. A path fits under track when the lowest rail is at least 4 m above the path. These match the Phase 2 geometry names and numbers.
 
 | Piece id | Geometry | Drive | Notes |
 |---|---|---|---|
@@ -142,7 +142,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | `rapids_lift` | gentle slope up | conveyor 2.0 m/s | — |
 
 **Physics (per tick, 1D along the track).**
-- Water current: `a = g·sinθ − k·(v − vCurrent)`, with `g = 9.81 m/s²`.
+- Water current: `a = −g·sinθ − k·(v − vCurrent)`, with `g = 9.81 m/s²` and pitch `θ` signed as in Phase 2 §4.7 (up is positive).
 - Conveyor: `v = vLift`. Gravity is ignored.
 - Splash brake: if `v > 4 m/s`, then `a = −12 m/s²`.
 - Whirlpool: `v = min(v, 2 m/s)`.
@@ -183,7 +183,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 - Below 64 the item is **wilted**: wilted art, Calm value halved (rounded down), and a rare guest thought "These flowers look sad".
 - **Groundskeeper task order:** mess, full bins, litter, then gardens with `waterLevel < 128` inside the patrol area. Watering takes 2 s and sets the level to 255.
 
-**Scenery item tables.** `Size` is tiles. `H` is height in m. `C` is Calm strength, `B` is Buzz strength. Flags: `L` = lit, `W` = needsWater, `S` = slopeOk, `E` = edge item, `P` = overPath, `K` = spooky.
+**Scenery item tables.** `Size` is tiles. `H` is height in m. `C` is Calm strength, `B` is Buzz strength. Flags: `L` = light source (scenery only; every open ride and stall gives light anyway, master R11), `W` = needsWater, `S` = slopeOk, `E` = edge item, `P` = overPath, `K` = spooky.
 
 *Base set (start, 13 items)*
 | id | Name | Size | H | Cost | C | B | Flags |
@@ -322,6 +322,8 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 - **Incremental update:** add, remove, or change of a source subtracts its old stamp and adds its new stamp. Cost is `(2R + 1)²` per tile of the source. Changes include placement, removal, wilting, ride status, water edits, and bench edits.
 
 **Effects on guests.** `t` = temperament (0–100). `c = (100 − t) / 100` (chill share). `h = t / 100` (thrill share). `C = calm / 255`. `B = buzz / 255`. Values come from the guest's current tile and apply each game hour, except speed.
+Chill and Thrill below mean the master R6 groups (Chill: T ≤ 35, Thrill: T ≥ 65).
+
 | Effect | Formula |
 |---|---|
 | Energy loss | Phase 1 rate × `(1 − 0.6 × C × c)` |
@@ -329,7 +331,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | Happiness | `+ round(6 × C × c) − round(3 × B × c) + round(6 × B × h)` |
 | Walking speed | Chill: × `(1 − 0.15 × C × c)`. Thrill, walking to a `thrill` ride: × `(1 + 0.25 × B × h)` |
 
-**Park rating input: Atmosphere.** Once per game day, the game computes `a = c × C + h × B` for every guest on a path (ascending id). Atmosphere = `round(mean(a) × 100)`, worth 0–100 rating points. The Phase 3 rating formula adds this term.
+**Park rating input: Atmosphere.** At every hour start, when the rating updates (master R8), the game computes `a = c × C + h × B` for every guest on a path (ascending id). Atmosphere = `round(mean(a) × 100)`, worth 0–100 rating points. The Phase 3 rating formula adds this term and lowers Happiness from 400 to 300 (master R8), so the weights still sum to 1,000.
 
 **Overlays.** Calm (teal) and Buzz (orange) tint path and ground tiles by band. Each band also has a hatch density, so colour is not the only signal. A legend shows the 4 band names and thresholds. Tap or hover on a tile shows the exact value.
 
@@ -348,8 +350,8 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | Source | Radius `R` (tiles) |
 |---|---|
 | Path lamp | 3 |
-| Lit scenery 1×1 | 2 |
-| Lit scenery 2×2 | 3 |
+| Scenery with flag `L`, 1×1 | 2 |
+| Scenery with flag `L`, 2×2 | 3 |
 | Open ride (from each footprint or station tile) | 2 |
 | Stall | 1 |
 | Park entrance | 4 |
@@ -379,7 +381,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 - On: all of the above.
 - Off: darkness is always 0. No unlit penalty, no spooky night bonus, no night energy or arrival changes. The Phase 1 arrival curve still applies. The Boo bonus uses only the spooky-ride distance rule. Lamps stay placeable as decoration.
 - New Build 2 parks: on. Migrated Build 1 parks: off.
-- Turning it on with `litShare < 0.5` shows the toast "Guests dislike dark paths. Build lamps."
+- Turning it on with `litShare < 0.5` shows the toast "Guests dislike dark paths. Build lamps".
 
 ### 4.8 View rotation
 - `r` ∈ {0, 1, 2, 3}. Each step turns the view 90° clockwise. Rotation is UI state. The simulation never reads it. Saves do not store it.
@@ -405,7 +407,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 - **Owned states:** 0 = not owned, 1 = owned, 2 = land for sale, 3 = construction rights owned, 4 = construction rights for sale.
 - **Buy land:** drag a rectangle. The command buys every state-2 tile in it (→ 1) and every state-4 tile (→ 3). Other tiles are skipped. Total price shows before confirm. Atomic for cash: `"Not enough cash"` fails the whole command. No tile to buy: `"Nothing to buy here"`. A single-tile tap on a state 0 tile: `"This land is not for sale"`.
 - **Construction rights (state 3):** track and elevated paths may pass over with `zMin ≥ ground + 3`. Supports may stand there. Nothing else may touch the ground.
-- **Border fence:** derived, not stored. The renderer draws a fence on every edge between a state-1 tile and a tile that is not state 1. The `fence` content value is no longer used from schema 2.
+- **Border fence:** derived from `owned`, not stored (master R3). The renderer draws a fence on every edge between a state-1 tile and a tile that is not state 1. There is no `fence` content value in any schema.
 - The park entrance does not move. Guests still spawn on the tile outside it.
 
 ### 4.10 Performance (128 × 128, 3,000 guests)
@@ -425,8 +427,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | Item | Change |
 |---|---|
 | `map.height`, `slope`, `water`, `terrain` | Editable. Base ground level for new parks = 8 m, so the player can dig 8 m down. |
-| `map.owned` | New value 4 = construction rights for sale. |
-| `map.content` | `fence` is no longer used. |
+| `map.owned` | Same values as schema 1 (master 6.3): 0 not owned, 1 owned, 2 land for sale, 3 construction rights owned, 4 construction rights for sale. Land purchase now uses 2–4. |
 | `ElevatedPath` (new list) | `{ id, x, y, z, kind, rampDir }`. |
 | `PathItem` | New field `level` (0 = ground, else elevated path id). Lamp added. |
 | `Scenery` (new list) | `{ id, defId, x, y, z, rotation, edge (−1 = centre, 0–3), waterLevel }`. |
@@ -437,13 +438,12 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 
 ### 5.1 Migration 1 → 2 (`save/migrations/v1-to-v2.ts`)
 1. Validate the input with the schema 1 validator. Failure → existing load error.
-2. Add 8 to `map.height` on every tile. Add 8 to every height field in the schema 1 state. The list lives in `HEIGHT_FIELDS_V1`.
-3. Keep `water` at 0. Keep `owned` values (0 and 1 only in schema 1).
-4. Set every `fence` content tile to empty.
-5. Set `park.afterDark = false`, `landPrice = 15000`, `rightsPrice = 6000` (cents).
-6. Add empty `elevatedPaths` and `scenery` lists. Set path item `level = 0`. Set guest and staff `z` from their ground path height.
-7. Set `schemaVersion = 2`. Validate with the schema 2 validator.
-8. Any failure shows "This save could not be upgraded." and keeps the current game.
+2. Keep `water` at 0. Keep `owned` values unchanged (same encoding as schema 1, master 6.3). Heights are not shifted (master R2).
+3. Set `park.afterDark = false`, `landPrice = 15000`, `rightsPrice = 6000` (cents).
+4. Add empty `elevatedPaths` and `scenery` lists. Set path item `level = 0`. Set guest and staff `z` from their ground path height.
+4a. Set `scenario = { kind: 'freePlay' }` (Phase 5 §5).
+5. Set `schemaVersion = 2`. Validate with the schema 2 validator.
+6. Any failure shows "This save could not be upgraded" and keeps the current game.
 
 ---
 
@@ -516,7 +516,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | `SPLASH_MAX_V` / `SPLASH_DECEL` | 4 m/s / 12 m/s² |
 | `WHIRLPOOL_MAX_V` | 2 m/s |
 | `CHUNK_CACHE_MB` / `SPRITE_CACHE_MB` | 64 / 96 |
-| Research points (Phase 3 unit) | Log Flume 2,400; Rapids Raft 2,800; each scenery theme 1,200 |
+| Research points (Phase 3 unit, master R10) | Log Flume 480; Rapids Raft 540; each scenery theme 240 |
 
 ---
 
@@ -538,7 +538,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 - Darkness curve at 06:00, 12:00, 20:00, and 22:00. Night window edges. Light stamps. Lit threshold.
 - After Dark off: no night effects. Boo bonus rules.
 - Rotation: map → view → map is the identity for all 4 values of `r`. Mask rotation matches corner heights. Depth order under rotation.
-- Migration 1 → 2 on 3 Build 1 fixture saves: heights +8, fences removed, `afterDark` false, schema 2 validator passes.
+- Migration 1 → 2 on 3 Build 1 fixture saves: heights unchanged, `owned` unchanged, `afterDark` false, schema 2 validator passes.
 
 ### 9.2 Integration (scripted game, 96 × 96)
 Buy land. Raise a 5 × 5 hill and smooth it. Build a ramp path to the top and a flat ride there. Raise water for a 6 × 6 lake. Build an elevated path across it. Build a Log Flume. Place a Frost Peaks garden with lamps on one side and leave the other side unlit. Hire 2 groundskeepers. Turn After Dark on. Run 6 game months.
@@ -578,8 +578,7 @@ Tests use the `window.__tc` debug hook, which exists only in dev and test builds
 | Chunk images use too much memory on phones. | LRU cap, lower cap on phones (32 MB), cache only visible zoom bucket. |
 | `multiply` compositing is slow on some mobile browsers. | Measure in Phase 4. Fallback: draw darkness with `source-over` and light holes with `destination-out`. |
 | Depth sort errors with cliffs, elevated paths, and tracks. | Per-tile slices (master 6.4) plus a visual regression test at fixed seeds and rotations. |
-| The height shift in migration misses a field. | `HEIGHT_FIELDS_V1` list plus a test that scans the v1 fixture for fields named `z`, `zMin`, `zMax`, `height`. |
-| Water piece geometry differs from the Phase 2 spec. | Section 4.4 uses Phase 2 geometry names. Align the numbers when both specs are approved. |
+| Water piece geometry differs from the Phase 2 spec. | Section 4.4 uses the Phase 2 geometry names and numbers. Re-check both if either spec changes. |
 
 **Open questions for the owner**
 1. Should darkness hours change with the season (longer winter nights)? This spec uses one fixed curve.

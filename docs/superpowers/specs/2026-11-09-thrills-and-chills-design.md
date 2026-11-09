@@ -310,10 +310,11 @@ These rules settle conflicts between phase specs. They win over any phase text.
 | R3 | **Fence** is derived from `owned`. No `fence` content value. The park entrance tile is owned and sits in the gap of the border. |
 | R4 | **Strings:** player-facing messages, errors, and thoughts have no final period. `!` and `?` stay. |
 | R5 | **Thoughts** are stored as `{ id, tick, params? }`. Text comes from the string table `src/data/strings/en.ts`. A guest shows the same thought at most once per game day. |
-| R6 | **Temperament groups:** Chill = T ≤ 35, Family = 36–64, Thrill = T ≥ 65. Every system uses these groups: variety, costume matches, goals, Calm and Buzz effects. |
+| R6 | **Temperament groups:** Chill = T ≤ 35, Family = 36–64, Thrill = T ≥ 65. Every system that sorts guests into groups uses them: variety, costume matches, goals, show gathering. Formulas that scale smoothly with T (for example Calm and Buzz shares) may use T directly. |
 | R7 | **Modifiers:** `GameState.modifiers = { arrivals: 1, priceTolerance: 1, happinessDecay: 1, researchSpeed: 1, breakdownChance: 1, loanInterest: 1, ratingBonus: 0 }` in Build 1. Phase 5 changes them. Formulas multiply by the factors and add `ratingBonus`. |
 | R8 | **Park rating:** the Phase 3 formula replaces the Phase 1 formula. Phase 4 adds an Atmosphere term (100 points) and lowers Happiness from 400 to 300. The rating updates at every hour start. |
 | R9 | **Hourly charge rule** (Phase 3 §4.1) covers running costs, wages, and the research budget. |
+| R20 | **Charge timing:** each hourly charge is booked at the start of the hour it pays for (`hourOfMonth` 0–71). The remainder is booked at the start of hour 71, so it always lands in the right month. |
 | R10 | **Research points** use the Phase 3 scale. Phase 4 costs: Log Flume 480, Rapids Raft 540, each scenery theme 240. |
 | R11 | **Catalog flags:** `covered`, `spooky`, `tall`. Every open ride and stall gives light at night (Phase 4), so there is no `lit` flag. |
 | R12 | **State slices:** `GameState` groups fields by owning module (`park`, `guests`, `rides`, `stalls`, `economy`, `track`, `staff`, `management`, …). Spec text such as "Park (added)" means "add to the owning slice". |
@@ -322,3 +323,5 @@ These rules settle conflicts between phase specs. They win over any phase text.
 | R15 | **Demolish refund** is 50% of build cost. Exception: a track ride that has never opened refunds 100%. Paths refund 0%. |
 | R16 | **Breakdowns** may stop a train only at a station or a block brake. Trains never touch (Phase 2 safety guarantee). |
 | R17 | **Track geometry** (Phase 2 wins): gentle slope 2 m per tile, steep slope 6 m per tile, bank 35°, path clearance under track ≥ 4 m. |
+| R18 | **Slopes and cliffs:** within one tile, raised corners are at most 1 step above the tile base (4-bit mask). Between neighbouring tiles there is no height limit, so cliffs are allowed. A generator smoothing pass skips tiles that a cliff feature marks. |
+| R19 | **Scenario heights** in specs and scenario data are relative to `baseHeight` unless the text says "absolute". |

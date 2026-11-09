@@ -12,16 +12,16 @@ The player chooses a goal-driven scenario, a free sandbox, or a guided tutorial.
 ## 2. Depends on
 | Phase | What Phase 5 uses |
 |---|---|
-| 1 | Guests (temperament, happiness 0–255, thoughts), rides, stalls, ledger, park rating (0–1000, daily update), arrival rate. |
+| 1 | Guests (temperament, happiness 0–255, thoughts), rides, stalls, ledger, park rating (0–1000, updated at every hour start, master R8), arrival rate. |
 | 2 | Track rides with tested excitement and intensity. |
 | 3 | Park value, loans (balance, max loan, interest), research (unlocked items, speed), weather (states, temperature), reliability, litter and mess counts. |
 | 4 | Terrain heights and slope rules, water, land ownership states, elevated footpaths over water, scenery, Calm and Buzz fields, After Dark (on/off, lit tiles). |
 
 **Interfaces Phase 5 needs from earlier phases** (each phase spec must expose them):
-- Systems read difficulty multipliers from `state.scenario.modifiers` (section 4.8).
+- Systems read difficulty multipliers from `GameState.modifiers` (master R7; Phase 5 sets them from section 4.8).
 - Weather accepts a climate id (section 4.9).
 - Thoughts are stored as ids, so the game can count them (for example `thought.tooExpensive`, `thought.lost`).
-- `executeCommand` accepts an internal `{ setup: true }` option. Setup mode skips cost and research checks but keeps all placement checks.
+- `executeCommand(world, cmd, opts?: { setup?: boolean })` and `world.events` already exist (master 5.3). Setup mode skips cash checks and ledger lines. Phase 5 also skips research (unlock) checks in setup mode. All placement checks stay.
 
 ## 3. Scope
 1. Scenario definition format and a seeded map generator.
@@ -68,12 +68,12 @@ type ScenarioDef = {
 
 type MapGenSpec = {
   width: number; height: number; seed: number;
-  baseHeight: number;                                // steps
+  baseHeight: number;                                // steps; 8 = master ground level (R2)
   noise: { amplitude: number; scale: number; octaves: number };
   waterLevel: number;                                // 0 = no sea or lakes from noise
   terrainRules: { minHeight?: number; maxHeight?: number; nearWater?: number; terrain: TerrainId }[];
   features: Feature[];                               // applied in list order
-  park: { owned: Rect[]; forSale: Rect[]; rightsForSale: Rect[];
+  park: { owned: Rect[]; forSale: Rect[]; rightsForSale: Rect[];   // owned → 1, forSale → 2, rightsForSale → 4; other tiles 0 (master 6.3)
           entrance: { x: number; y: number; side: 'N' | 'E' | 'S' | 'W' } };
 };
 ```
@@ -101,7 +101,7 @@ type MapGenSpec = {
 4. **Slope pass:** clamp corners so that shared corners of neighbours differ by at most 1 step (Phase 4 slope rules). Repeat until no change (max 64 passes; fail generation if not stable).
 5. Fill water below `waterLevel` and in lakes, rivers, and seas.
 6. Set terrain types from `terrainRules` (first matching rule wins; default grass).
-7. Set ownership from `park`. Place the entrance and the fence.
+7. Set ownership from `park`. Place the entrance on an owned tile in the gap of the border. The border fence is derived from `owned` (master R3); nothing is placed for it.
 8. Run `scatterScenery`, then `prebuilt`, `rideCondition`, `litter`, and `startGuests` in list order.
 9. **Validate:** the entrance is reachable on land; owned buildable tiles ≥ 200; every prebuilt command succeeded. A failure is a build-time error (test fails), never a silent fix.
 
@@ -111,8 +111,10 @@ type MapGenSpec = {
 
 ### 4.3 Goal types
 - **Month index:** `monthIndex = floor(tick / 3600)`. Month 0 is March, Year 1.
+- **Start tick:** every scenario, the sandbox, and the tutorial start at tick 450 (09:00, 1 March, Year 1; master R1) unless a scenario definition says otherwise.
 - **Evaluation time:** all objectives are evaluated at **month end**, after the ledger closes the month and after awards (order in 4.6).
 - **Samples:** the scenario system records a **day sample** at 12:00 and a **night sample** at 22:00 each day (3 per month each).
+- **Daily rating:** the rating updates at every hour start (master R8). Goals and lose checks that say "daily rating" use the rating value stored with the day sample (12:00).
 
 | Type | Fields | Met at a month end when … |
 |---|---|---|
@@ -124,7 +126,7 @@ type MapGenSpec = {
 | `coasterExcitement` | `count`, `minExcitement`, `maxIntensity?`, `types?` | At least `count` open track rides of `types` (default: all gravity-driven coaster types) have a completed test with excitement ≥ `minExcitement` and intensity ≤ `maxIntensity`. |
 | `ridesOpen` | `count`, `tag?`, `flag?`, `defIds?` | Open rides (flat and track) that match every given filter ≥ `count`. |
 | `repayLoan` | — | Loan balance = 0 and cash ≥ 0. |
-| `temperamentBalance` | `minGuests`, `minShare`, `minHappiness`, `months` | For each of the last `months` months, the means of that month's day samples meet all of: guests ≥ `minGuests`; Thrill share (temperament ≥ 60) ≥ `minShare`; Chill share (temperament ≤ 40) ≥ `minShare`; mean happiness of each group ≥ `minHappiness`. |
+| `temperamentBalance` | `minGuests`, `minShare`, `minHappiness`, `months` | For each of the last `months` months, the means of that month's day samples meet all of: guests ≥ `minGuests`; Thrill share (temperament ≥ 65, master R6) ≥ `minShare`; Chill share (temperament ≤ 35) ≥ `minShare`; mean happiness of each group ≥ `minHappiness`. |
 | `afterDarkHappiness` | `minGuests`, `minHappiness`, `months` | After Dark is on, and for each of the last `months` months the means of the night samples meet guests ≥ `minGuests` and happiness ≥ `minHappiness`. |
 
 - Shares are percentages 0–100. Happiness uses the 0–255 scale (170 ≈ 67%).
@@ -136,7 +138,7 @@ type MapGenSpec = {
   - **Time up:** the deadline month ends without a win.
   - **Bankrupt:** at a month end, cash < 0 and loan = max loan. The counter rises by 1; any other month end resets it. Lose at the preset limit.
   - **Rating collapse:** every daily rating < 200 for 6 consecutive days.
-- On win or lose, the sim sets `status` and `endMonthIndex` and emits a `scenarioEnded` event. The loop pauses on this event. Pausing is UI state, not sim state.
+- On win or lose, the sim sets `status` and `endMonthIndex` and pushes a `scenarioEnded` event to `world.events` (master 5.3). The loop pauses on this event. Pausing is UI state, not sim state.
 - **Stars:** 1 = complete; 2 = complete with ≥ 25% of the time limit left; 3 = complete with ≥ 50% left. No time limit → 3 stars on completion.
 - **End screen:** result title, Frost and Spark art (happy or sad), date, guests, rating, park value, total profit, best coaster excitement, stars.
   - After a win: **Keep playing**, **Scenario select**, **Main menu**.
@@ -159,7 +161,7 @@ type MapGenSpec = {
 | Weather | normal, always sunny | normal | Yes |
 | Awards | on, off | on | Yes |
 
-- Map sizes 192 and 256 show a warning: "Large maps can run slowly on phones."
+- Map sizes 192 and 256 show a warning: "Large maps can run slowly on phones".
 - **Unlimited money:** affordability checks always pass and cash does not fall. The ledger still records every amount, so the finance panel stays correct. The HUD shows `∞`.
 - Sandbox has no objectives and no lose conditions. All land in the map is owned except a 2-tile border.
 
@@ -173,7 +175,7 @@ type MapGenSpec = {
 | River valley | 6 / 28 / 3 | 0 | 1 river across the map |
 
 ### 4.6 Month-end order
-In `tick.ts`, on the last tick of a month: (1) ledger closes the month (Phase 1), (2) Phase 3 monthly tasks, (3) awards (4.10), (4) objectives (4.3), (5) lose checks (4.4), (6) reset monthly metrics.
+See master R13. In `tick.ts`, the month-end pipeline runs at the first tick of each month, before weather: (1) ledger closes the previous month (Phase 1), (2) Phase 3 monthly tasks such as loan interest, (3) awards (4.10), (4) objectives (4.3), (5) lose checks (4.4), (6) reset monthly metrics, (7) `monthEnded` event.
 
 ### 4.7 The 8 scenarios
 All maps and names are original. The deadline is the end of the named month.
@@ -241,7 +243,7 @@ At each month end, every award checks the month's metrics. Awards need mean day-
 | Dark and Dreary | − | After Dark on and < 40% of footpath tiles lit |
 
 - **Effect:** each award is active for the next month. Positive: arrivals ×1.10 and rating +20. Negative: arrivals ×0.90 and rating −20.
-- Totals are clamped: arrival factor 0.70–1.30, rating modifier −60 to +60. Phase 1 rating and arrival formulas add these terms.
+- Totals are clamped: arrival factor 0.70–1.30, rating modifier −60 to +60. The park rating (Phase 3 formula, master R8) and the Phase 1 arrival formula add these terms.
 - A toast and the park panel announce each award. Award history is kept for the whole game.
 
 ### 4.11 Tutorial
@@ -283,8 +285,8 @@ At each month end, every award checks the month's metrics. Awards need mean day-
 ```
 - **Merge rule:** keep the result with more stars; on a tie, the earlier `endMonthIndex`.
 - **Validation on read:** JSON parses; `format` matches; `version` known; every record has every field with the right type.
-  - Newer `version` → error "Your progress comes from a newer version of the game." The game does not write progress until the player acts.
-  - Any other failure → error "Your scenario progress could not be read." with **Export raw data** and **Reset progress** (confirm dialog).
+  - Newer `version` → error "Your progress comes from a newer version of the game". The game does not write progress until the player acts.
+  - Any other failure → error "Your scenario progress could not be read" with **Export raw data** and **Reset progress** (confirm dialog).
   - Until the player resets, only the start-open scenarios are open, and nothing is written. **Never** fill in missing records.
 - A record with an older `defVersion` stays and shows the tag "earlier version".
 
@@ -308,7 +310,7 @@ type ScenarioState =
       endMonthIndex?: number; continued: boolean; progressRecorded: boolean;
       deadlineMonthIndex: number | null; objectives: ObjectiveProgress[];
       loseCounters: { bankruptMonths: number; lowRatingDays: number }; awards: AwardState };
-// Shared: state.scenarioModifiers (difficulty multipliers), state.monthMetrics (samples and counters).
+// Shared: state.modifiers (difficulty multipliers, master R7), state.monthMetrics (samples and counters).
 ```
 - **Migration 1 → 2** (owned by Phase 4) sets `scenario = { kind: 'freePlay', awards: empty }` for Build 1 saves. This is a documented rule: Build 1 had no scenarios.
 - `monthMetrics` holds day and night samples and counters (distinct guests with each tracked thought, queue wait sum and count, rides with a breakdown). It resets after the month-end steps.
@@ -335,7 +337,7 @@ New game, restart, and scenario select build a new `GameState`. They are not com
 |---|---|
 | Samples per day | 2 (12:00 day, 22:00 night) |
 | Days per month (from master) | 3 |
-| Thrill / Chill thresholds | ≥ 60 / ≤ 40 |
+| Thrill / Chill thresholds | ≥ 65 / ≤ 35 (master R6) |
 | Award guest minimum (+ / −) | 100 / 50 |
 | Award effect (+ / −) | arrivals ×1.10 / ×0.90; rating +20 / −20 |
 | Award clamps | arrivals 0.70–1.30; rating −60 to +60 |

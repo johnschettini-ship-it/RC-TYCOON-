@@ -265,13 +265,13 @@ Steps in order:
   - Chill group (T ≤ 35) and inversions ≥ 1: happiness −10. Thought id `neverUpsideDown`: "Upside down? Never again"
 - A guest who refuses for intensity gets the Phase 1 thought "That looks too intense for me".
 - Thoughts follow master R5 (stored as ids, text in `src/data/strings/en.ts`).
-- The ride panel shows throughput: `seats × trains × 3600 / (rideTime + max dwell)` guests per hour.
+- The ride panel shows throughput in guests per game hour: `seats × trains × 50 / (rideTicks + maxDwellTicks)` (1 game hour = 50 ticks).
 
 ### 4.12 Costs and value
 - **Build cost** = type base cost + Σ (piece cost × piece factor) + chain extras + $3 × (highest rail above ground on the piece, m) + extra trains × extra train cost.
 - **Running cost per month** = run base + $1.50 × piece count + extra train cost / 20 × (trains − 1). It is charged by the hourly charge rule (master R9).
 - **Refunds:** `removeLastTrackPiece` refunds 100% before the ride first opens and 50% after. Demolish refunds 50% (Phase 1 rule), or 100% if the ride never opened.
-- **Asset value** (input to Phase 3 park value) = `totalBuildCost × max(0.30, 1 − 0.02 × ageMonths)`. This is not the Phase 1 "ride value" used for price checks.
+- **Asset value** (input to Phase 3 park value) = `totalBuildCost × max(0.30, 1 − 0.7 × ageMonths / 120)`, the same formula as Phase 3 §4.12 (`DEP_FLOOR` 0.30, `DEP_MONTHS` 120). This is not the Phase 1 "ride value" used for price checks.
 - **`tall` flag** (catalog section 2): set from the last passed test when `highest ≥ 20 m`.
 
 ### 4.13 Rendering
