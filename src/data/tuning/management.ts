@@ -13,6 +13,9 @@ export type WeatherState = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'hot' | 'cold
 
 // ---------------------------------------------------------------- research (§4.6)
 
+/** Content of later phases is not part of Build 1 and is never unlocked. */
+export const BUILD_MAX_PHASE = 3;
+
 export const RESEARCH_LEVELS: readonly ResearchLevelKey[] = ['none', 'low', 'medium', 'high'];
 
 /** Monthly research budget per level (hourly charge rule, master R9). $0 / $200 / $400 / $600. */
