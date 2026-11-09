@@ -86,6 +86,13 @@ export class SpriteCache {
     this.pixels += sprite.w * sprite.h;
   }
 
+  delete(key: number): void {
+    const e = this.map.get(key);
+    if (!e) return;
+    this.map.delete(key);
+    this.pixels -= e.sprite.w * e.sprite.h;
+  }
+
   /** Drop least recently used sprites (not used this frame) until under budget. */
   trim(): void {
     if (this.pixels <= this.budgetPixels) return;

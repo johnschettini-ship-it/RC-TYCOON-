@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { SpriteCache, bucketIndex, defHash, spriteKey, type Sprite } from '../../../src/render/spriteCache';
 import { FLAT_RIDES, STALLS } from '../../../src/data/catalog';
+import { guestFrame, guestSpriteKey } from '../../../src/render/sprites/bank';
+
+describe('guest sprite keys', () => {
+  it('match spriteKey("guest", facing, frame, bucket) and pack the look into one frame', () => {
+    const f = guestFrame(11, 2, 3, false);
+    expect(f).toBe(11 | (2 << 4) | (3 << 6));
+    expect(guestFrame(8, 0, 0, true)).toBe(8 | 256);
+    // 12 shirts × 3 walk frames × 4 looks per facing and bucket, plus 9 tint steps.
+    expect(guestFrame(15, 3, 3, true)).toBeLessThan(512);
+    for (const facing of [0, 1, 2, 3] as const) {
+      for (const b of [0.5, 1, 2] as const) expect(guestSpriteKey(facing, f, b)).toBe(spriteKey('guest', facing, f, b));
+    }
+  });
+});
 
 /** Reference FNV-1a (32-bit) used to pin the key layout. */
 function fnv(s: string): number {
@@ -74,6 +88,16 @@ describe('SpriteCache', () => {
     c.beginFrame();
     c.trim();
     expect(c.pixels).toBeLessThanOrEqual(100);
+  });
+
+  it('delete() removes one sprite and its pixels', () => {
+    const c = new SpriteCache(100);
+    c.set(1, sprite(10));
+    c.set(2, sprite(20));
+    c.delete(1);
+    c.delete(99);
+    expect(c.get(1)).toBeUndefined();
+    expect(c.pixels).toBe(20);
   });
 
   it('clear() empties the cache', () => {
