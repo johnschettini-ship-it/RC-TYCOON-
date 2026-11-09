@@ -16,13 +16,14 @@ import { makeTestWorld } from '../../helpers/world';
 const THEMES = ['frost_peaks', 'volcano_ridge', 'spooky_hollow', 'jungle_lagoon', 'starport'];
 
 describe('Phase 4 research entries', () => {
-  it('Build 2 raises the build phase limit to 4 (master R23)', () => {
-    expect(BUILD_MAX_PHASE).toBe(4);
+  it('Build 2 raised the build phase limit to 4 (master R23); Build 3 raises it to 6 (W4-D)', () => {
+    expect(BUILD_MAX_PHASE).toBeGreaterThanOrEqual(4);
   });
 
   it('adds Log Flume 480, Rapids Raft 540, and 240 per theme after the 21 Build 1 items', () => {
-    expect(RESEARCH_ORDER).toHaveLength(28);
-    const build2 = RESEARCH_ORDER.slice(21);
+    // Build 3 (W4-D) appends 12 more items after these (tests/unit/content/research.test.ts).
+    expect(RESEARCH_ORDER).toHaveLength(28 + 12);
+    const build2 = RESEARCH_ORDER.slice(21, 28);
     expect(build2.map((r) => [r.id, r.category, r.cost])).toEqual([
       ['log_flume', 'water', 480],
       ['frost_peaks', 'scenery', 240],

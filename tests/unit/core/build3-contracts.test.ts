@@ -1,8 +1,8 @@
 /**
  * Wave 4.0 contracts (Build 3, Phase 6): schema 3 start values, stub neutrality, sound cues, catalog rows, strings,
  * display prefs, and the client registries. Each stub's real behaviour is tested by its owner card (W4-A … W4-G).
- * Named hunks: W4-C replaces the block "W4-C stubs" (its stubs become real); W4-D replaces the test "all Phase 6
- * content stays locked …" when it raises `BUILD_MAX_PHASE`.
+ * Named hunks: W4-C replaces the block "W4-C stubs" (its stubs become real); W4-D replaced the test "all Phase 6
+ * content stays locked …" with "Phase 6 content unlocks by research" when it raised `BUILD_MAX_PHASE`.
  */
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES, getFlatRideDef, getShowSiteDef, getStallDef, getTrackRideDef, SHOW_SITES, STALLS, TRACK_RIDES } from '../../../src/data/catalog';
@@ -178,13 +178,14 @@ describe('Phase 6 catalog rows (phase-6-polish.md §4.5)', () => {
     expect(getShowSiteDef('lightshow_tower')).toMatchObject({ w: 2, d: 2, costPerShow: 15_000, radius: 8, showTicks: 300 });
   });
 
-  it('all Phase 6 content stays locked while BUILD_MAX_PHASE < 6, even when researched', () => {
-    expect(BUILD_MAX_PHASE).toBeLessThan(6);
+  it('Phase 6 content unlocks by research (W4-D raised BUILD_MAX_PHASE to 6)', () => {
+    expect(BUILD_MAX_PHASE).toBe(6);
     const w = makeTestWorld();
     const ids = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS, ...SHOW_SITES].filter((d) => d.phase === 6).map((d) => d.id);
     expect(ids).toHaveLength(12);
-    w.state.management.research.unlocked.push(...ids);
     for (const id of ids) expect(isUnlocked(w, id), id).toBe(false);
+    w.state.management.research.unlocked.push(...ids);
+    for (const id of ids) expect(isUnlocked(w, id), id).toBe(true);
   });
 
   it('show sites are content of the Scenery research category', () => {

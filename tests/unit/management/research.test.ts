@@ -124,7 +124,8 @@ describe('research item choice and focus', () => {
     expect(pickNextResearch(r)).toBe('pendulum_ship');
     r.focus.thrill = false;
     expect(pickNextResearch(r)).toBe('spinning_mouse');
-    r.unlocked.push('spinning_mouse', 'wooden_coaster');
+    // Build 3 (W4-D, BUILD_MAX_PHASE 6) adds the Bobsled Run and the Inverted Coaster to the Coasters category.
+    r.unlocked.push('spinning_mouse', 'wooden_coaster', 'bobsled_run', 'inverted_coaster');
     expect(pickNextResearch(r)).toBe('spiral_slide');
   });
 
@@ -198,7 +199,7 @@ describe('research completion', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    // The last item of the default order (Build 2: the Starport theme, 240 points).
+    // The last item of the default order (Build 3: the Inverted Coaster, 650 points).
     const last = RESEARCH_ORDER[RESEARCH_ORDER.length - 1]!;
     r.unlocked = RESEARCH_ORDER.slice(0, -1).map((i) => i.id);
     r.current = last.id;
@@ -213,7 +214,7 @@ describe('research completion', () => {
     const done = w.state.management.messages.filter((m) => m.textId === MSG.researchComplete);
     expect(done).toHaveLength(1);
     expect(done[0]?.category).toBe('research');
-    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'starport', name: 'Starport' });
+    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'inverted_coaster', name: 'Inverted Coaster' });
   });
 });
 
