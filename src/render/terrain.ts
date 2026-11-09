@@ -291,7 +291,7 @@ function paintTile(p: TilePainter, map: MapState, x: number, y: number, env: Ter
     p.quad(0, 0, 1, 1, 'rgba(63,143,214,0.8)', lift);
   }
 
-  // Paths, queues, entrance plaza, track placeholder.
+  // Paths, queues, entrance plaza.
   if (content === Content.Footpath || content === Content.ParkEntrance) {
     const mask = pathJoinMask(map, i, env.rides, env.stalls);
     paintPathShape(p, mask, diagMask(map, x, y, mask), PATH.fill, PATH.edge);
@@ -300,9 +300,8 @@ function paintTile(p: TilePainter, map: MapState, x: number, y: number, env: Ter
     const mask = pathJoinMask(map, i, env.rides, env.stalls);
     paintPathShape(p, mask, 0, QUEUE.fill, QUEUE.edge);
     paintQueueRails(p, mask);
-  } else if (content === Content.Track) {
-    p.quad(0.12, 0.12, 0.88, 0.88, '#5e6875');
   }
+  // Track tiles keep plain grass: the track layer (src/render/track) draws rails, supports, and footings.
 }
 
 // ------------------------------------------------------------------ chunk layer
