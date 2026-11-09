@@ -29,13 +29,30 @@ export interface Point {
   y: number;
 }
 
-/** A command object run in setup mode (`executeCommand(world, cmd, { setup: true })`). Checked by the generator. */
+/**
+ * A command object run in setup mode (`executeCommand(world, cmd, { setup: true })`). Checked by the generator.
+ * Height fields `z` and `targetHeight` are relative to `baseHeight` here (master R19); the generator adds it.
+ */
 export interface PrebuiltCommand {
   type: string;
   [field: string]: string | number | boolean | number[] | null;
 }
 
-/** Map features, applied in list order (Phase 5 §4.1 table). */
+/**
+ * Map features (Phase 5 §4.1 table). Terrain features (`raise` … `sea`) are applied in list order at step 3 of the
+ * generator; content features (`scatterScenery` … `startGuests`, `brokenPathItems`) in list order at step 8.
+ *
+ * Coordinates: `rect` is in tiles (inclusive). Circle centres (`cx`, `cy`), cliff and river points are tile corners
+ * (vertex coordinates: corner (x, y) is the N corner of tile (x, y)). Distances are Euclidean, in tiles.
+ * - `raise` / `lower` with `falloff: 0` move whole tiles (a cliff edge, master R18); with `falloff > 0` they move
+ *   corners with a linear falloff outside the area.
+ * - `flatten` sets the tiles flat at `height`; the slope pass ramps the land around it but never moves it.
+ * - `cone`: `peak` is the rim height; inside `craterRadius` the floor is `CRATER_DEPTH` steps below the rim.
+ * - `cliff`: raises the tiles on the left of the line from `from` to `to` (north is up), within the segment's span.
+ * - `lake` / `sea` surfaces are relative heights; `river` water stands `depth − 1` steps above its bed.
+ * - `rideCondition.reliability` is a percentage (0–100); `open: true` opens the ride after setting its condition.
+ * - `brokenPathItems`: the path items on these tiles start broken (Fading Fairground's broken benches).
+ */
 export type Feature =
   | { kind: 'raise' | 'lower'; area: { rect: Rect } | { circle: Circle }; by: number; falloff: number }
   | { kind: 'flatten'; rect: Rect; height: number }
@@ -46,9 +63,12 @@ export type Feature =
   | { kind: 'sea'; edge: Side; depthTiles: number; surface: number }
   | { kind: 'scatterScenery'; rect: Rect; defIds: string[]; density: number }
   | { kind: 'prebuilt'; commands: PrebuiltCommand[] }
-  | { kind: 'rideCondition'; rideIndex: number; ageMonths: number; reliability: number }
+  | { kind: 'rideCondition'; rideIndex: number; ageMonths: number; reliability: number; open?: boolean }
   | { kind: 'litter'; rect: Rect; density: number }
-  | { kind: 'startGuests'; count: number; happiness: number };
+  | { kind: 'startGuests'; count: number; happiness: number }
+  | { kind: 'brokenPathItems'; points: Point[] };
+
+export type FeatureKind = Feature['kind'];
 
 export interface TerrainRule {
   minHeight?: number;

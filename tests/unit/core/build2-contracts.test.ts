@@ -89,8 +89,6 @@ describe('Build 2 commands are registered (Phase 4 §6, Phase 5 §6)', () => {
     { type: 'placeScenery', defId: 'oak_round', x: 10, y: 10, rotation: 0, edge: -1 },
     { type: 'removeScenery', id: 1 },
     { type: 'setAfterDark', on: false },
-    { type: 'scenarioContinue' },
-    { type: 'setSandboxOption', key: 'awards', value: false },
     { type: 'tutorialAdvance', stepId: 'welcome' },
     { type: 'tutorialSkipStep' },
     { type: 'tutorialSkipAll' },

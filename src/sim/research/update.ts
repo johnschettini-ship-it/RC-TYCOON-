@@ -10,17 +10,19 @@ import { notify } from '../notifications';
 import { hourOfMonth } from '../time';
 import type { World } from '../types';
 import { contentInfo } from './api';
+import { scenarioContentRule } from '../scenario/api';
 
 type ResearchState = ManagementSlice['research'];
 
 /**
  * The first remaining item (default order) whose category is focused.
  * With no focus, or no focused item left, the first remaining item. Null when all are unlocked.
+ * Phase 5 §4.1 (W3-H): `skip` leaves out items the scenario hides or already unlocked at start.
  */
-export function pickNextResearch(r: ResearchState): string | null {
+export function pickNextResearch(r: ResearchState, skip: (itemId: string) => boolean = () => false): string | null {
   let firstRemaining: string | null = null;
   for (const item of RESEARCH_ORDER) {
-    if (r.unlocked.includes(item.id)) continue;
+    if (r.unlocked.includes(item.id) || skip(item.id)) continue;
     if (r.focus[item.category]) return item.id;
     if (firstRemaining === null) firstRemaining = item.id;
   }
@@ -34,9 +36,14 @@ function unlockMessageId(itemId: string): string {
   return MSG.researchRide;
 }
 
-function ensureCurrent(r: ResearchState): void {
-  if (r.current !== null && getResearchItem(r.current) && !r.unlocked.includes(r.current)) return;
-  r.current = pickNextResearch(r);
+function ensureCurrent(r: ResearchState, skip: (itemId: string) => boolean): void {
+  if (r.current !== null && getResearchItem(r.current) && !r.unlocked.includes(r.current) && !skip(r.current)) return;
+  r.current = pickNextResearch(r, skip);
+}
+
+/** Phase 5 §4.1: research never picks an item the scenario hides or unlocked at start (W3-H). */
+export function scenarioResearchSkip(world: World): (itemId: string) => boolean {
+  return (itemId) => scenarioContentRule(world, itemId) !== 'normal';
 }
 
 function notifyComplete(world: World, r: ResearchState): void {
@@ -56,7 +63,8 @@ export function hourlyResearch(world: World): void {
   const hour = hourOfMonth(s.tick);
   if (hour === 0) r.hoursThisMonth = 0;
 
-  ensureCurrent(r);
+  const skip = scenarioResearchSkip(world);
+  ensureCurrent(r, skip);
   if (r.current === null) {
     notifyComplete(world, r);
     return;
@@ -78,7 +86,7 @@ export function hourlyResearch(world: World): void {
     notify(world, 'research', unlockMessageId(item.id), {
       params: { itemId: item.id, name: contentInfo(item.id)?.name ?? item.id },
     });
-    r.current = pickNextResearch(r);
+    r.current = pickNextResearch(r, skip);
   }
   if (r.current === null) notifyComplete(world, r);
 }
