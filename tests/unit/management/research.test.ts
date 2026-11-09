@@ -26,8 +26,10 @@ function researchLine(w: World, monthIndex: number): number {
 
 describe('research order (Phase 3 §4.6, catalog §9)', () => {
   it('lists all 21 Build 1 items with the spec costs (6,460 points)', () => {
-    expect(RESEARCH_ORDER).toHaveLength(21);
-    expect(RESEARCH_ORDER.reduce((a, r) => a + r.cost, 0)).toBe(6460);
+    // Build 2 (W3-D) appends the Phase 4 items after these (tests/unit/scenery/research.test.ts).
+    const build1 = RESEARCH_ORDER.slice(0, 21);
+    expect(build1).toHaveLength(21);
+    expect(build1.reduce((a, r) => a + r.cost, 0)).toBe(6460);
     expect(RESEARCH_ORDER.slice(0, 7).map((r) => [r.id, r.cost])).toEqual([
       ['spiral_slide', 150],
       ['ice_cream_cart', 150],
@@ -41,8 +43,9 @@ describe('research order (Phase 3 §4.6, catalog §9)', () => {
 
   it('covers exactly the Phase 3 research items of the catalog, each in its catalog category', () => {
     const catalog = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS].filter((d) => d.phase === 3 && d.unlock !== 'start');
-    expect(new Set(RESEARCH_ORDER.map((r) => r.id))).toEqual(new Set(catalog.map((d) => d.id)));
-    for (const item of RESEARCH_ORDER) expect(catalog.find((d) => d.id === item.id)?.unlock).toBe(item.category);
+    const build1 = RESEARCH_ORDER.slice(0, 21);
+    expect(new Set(build1.map((r) => r.id))).toEqual(new Set(catalog.map((d) => d.id)));
+    for (const item of build1) expect(catalog.find((d) => d.id === item.id)?.unlock).toBe(item.category);
   });
 
   it('a new game starts at medium with the first item in progress', () => {
@@ -183,12 +186,14 @@ describe('research completion', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    r.unlocked = RESEARCH_ORDER.slice(0, 20).map((i) => i.id);
-    r.current = 'flip_arm';
-    r.progress = 549;
+    // The last item of the default order (Build 2: the Starport theme, 240 points).
+    const last = RESEARCH_ORDER[RESEARCH_ORDER.length - 1]!;
+    r.unlocked = RESEARCH_ORDER.slice(0, -1).map((i) => i.id);
+    r.current = last.id;
+    r.progress = last.cost - 1;
     runHours(w, TICKS_PER_MONTH, 1);
     expect(r.current).toBeNull();
-    expect(r.unlocked).toHaveLength(21);
+    expect(r.unlocked).toHaveLength(RESEARCH_ORDER.length);
     expect(r.completeNotified).toBe(true);
     const cash = w.state.park.cash;
     runHours(w, TICKS_PER_MONTH + TICKS_PER_HOUR, 30);
@@ -196,7 +201,7 @@ describe('research completion', () => {
     const done = w.state.management.messages.filter((m) => m.textId === MSG.researchComplete);
     expect(done).toHaveLength(1);
     expect(done[0]?.category).toBe('research');
-    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'flip_arm', name: 'Flip Arm' });
+    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'starport', name: 'Starport' });
   });
 });
 
@@ -213,15 +218,17 @@ describe('six months at medium (Phase 3 §9.2)', () => {
 });
 
 describe('isUnlocked', () => {
-  it('start items and Phase 1–2 content are unlocked; Phase 3 research items only after unlock; Phase 4+ never in Build 1', () => {
+  it('start items and Phase 1–2 content are unlocked; research items only after unlock; Phase 4 open in Build 2 (master R23)', () => {
     const w = makeTestWorld();
     for (const id of ['carousel', 'big_wheel', 'steel_coaster', 'junior_coaster', 'mini_railway', 'snack_shack', 'restrooms', 'info_kiosk', 'bench', 'bin']) {
       expect(isUnlocked(w, id)).toBe(true);
     }
     for (const id of ['groundskeeper', 'mechanic', 'security', 'performer']) expect(isUnlocked(w, id)).toBe(true);
     for (const item of RESEARCH_ORDER) expect(isUnlocked(w, item.id)).toBe(false);
-    for (const id of ['log_flume', 'rapids_raft', 'lamp', 'no_such_thing']) expect(isUnlocked(w, id)).toBe(false);
+    // Build 2 raises BUILD_MAX_PHASE to 4: the lamp starts unlocked, water rides wait for research.
+    for (const id of ['log_flume', 'rapids_raft', 'no_such_thing']) expect(isUnlocked(w, id)).toBe(false);
     expect(PATH_ITEMS.find((p) => p.id === 'lamp')?.phase).toBe(4);
+    expect(isUnlocked(w, 'lamp')).toBe(true);
     w.state.management.research.unlocked.push('drop_tower', 'ghost_train', 'cocoa_hut');
     expect(isUnlocked(w, 'drop_tower')).toBe(true);
     expect(isUnlocked(w, 'ghost_train')).toBe(true);
