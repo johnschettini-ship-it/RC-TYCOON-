@@ -325,3 +325,6 @@ These rules settle conflicts between phase specs. They win over any phase text.
 | R17 | **Track geometry** (Phase 2 wins): gentle slope 2 m per tile, steep slope 6 m per tile, bank 35°, path clearance under track ≥ 4 m. |
 | R18 | **Slopes and cliffs:** within one tile, raised corners are at most 1 step above the tile base (4-bit mask). Between neighbouring tiles there is no height limit, so cliffs are allowed. A generator smoothing pass skips tiles that a cliff feature marks. |
 | R19 | **Scenario heights** in specs and scenario data are relative to `baseHeight` unless the text says "absolute". |
+| R21 | **Keys:** `V` cycles map overlays. `O` stays the Office/Finance key (Phase 3). |
+| R22 | **Path items:** one path item per tile column (ground path or one elevated path) in Build 2. |
+| R23 | **Build phase limit:** when Build 2 raises `BUILD_MAX_PHASE` to 4, Phase 4 items (lamps start unlocked; water rides and scenery themes via research) become available in every park, including Build 1 saves after migration. |

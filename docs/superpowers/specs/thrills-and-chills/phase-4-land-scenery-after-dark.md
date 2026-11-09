@@ -473,7 +473,7 @@ Chill and Thrill below mean the master R6 groups (Chill: T ≤ 35, Thrill: T ≥
 | Buy Land | Owned states shown as tints. Drag shows the total. Release buys. | Drag a rectangle, check the total chip, then Confirm. |
 | Scenery | Theme tabs and an item grid. Ghost is green or red with a reason icon. `R` rotates. Click places. Shift-click keeps the tool. | Tap moves the ghost. Rotate and Confirm buttons. A Repeat toggle keeps the tool. |
 | Path height | `Page Up` / `Page Down` and a ramp toggle. | + / − buttons and a ramp toggle in the path mini-bar. |
-| Overlays | `O` cycles None → Calm → Buzz → Light → Temperament. Legend in the corner. | Overlay button opens a chip row. Legend as a small card. |
+| Overlays | `V` cycles None → Calm → Buzz → Light → Temperament (`O` stays the Phase 3 Office/Finance key). Legend in the corner. | Overlay button opens a chip row. Legend as a small card. |
 | View | `[` and `]`. | Two rotate buttons in the HUD. |
 | Park panel | After Dark switch with a short help line. | Same, in the bottom sheet. |
 

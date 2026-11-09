@@ -25,7 +25,7 @@ The player chooses a goal-driven scenario, a free sandbox, or a guided tutorial.
 
 ## 3. Scope
 1. Scenario definition format and a seeded map generator.
-2. 9 goal types with exact evaluation rules.
+2. 10 goal types with exact evaluation rules.
 3. Win, lose, end screen, and "keep playing".
 4. 8 original scenarios.
 5. Sandbox mode with options.
