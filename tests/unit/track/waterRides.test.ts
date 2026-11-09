@@ -231,6 +231,22 @@ describe('saves (schema 2 track slice)', () => {
     expect(stateHash(r.world)).toBe(stateHash(w));
     expect(checkTrackRideForLoad(dataOf(r.world, id), r.world.state)).toBeNull();
   });
+
+  it('a load check rejects a piece of another set (a rail straight in a flume, a flume piece in a raft)', () => {
+    const w = makeTestWorld();
+    const flume = build(w, 'flume');
+    const bad = JSON.parse(JSON.stringify(dataOf(w, flume))) as ReturnType<typeof dataOf>;
+    bad.pieces[5]!.defId = 'straight';
+    expect(checkTrackRideForLoad(bad)).toBe('Track piece does not belong to this ride type');
+    bad.pieces[5]!.defId = 'rapids_straight';
+    expect(checkTrackRideForLoad(bad)).toBe('Track piece does not belong to this ride type');
+    bad.pieces[5]!.defId = 'flume_straight';
+    expect(checkTrackRideForLoad(bad)).toBeNull();
+    const json = JSON.parse(serialize(w, '0.2.0', '2026-11-09T10:15:00.000Z')) as { state: { track: { rides: Record<string, { pieces: Array<{ defId: string }> }> } } };
+    json.state.track.rides[String(flume)]!.pieces[5]!.defId = 'rapids_straight';
+    const r = deserialize(JSON.stringify(json));
+    expect(r.ok).toBe(false);
+  });
 });
 
 describe('wet riders last one game hour', () => {

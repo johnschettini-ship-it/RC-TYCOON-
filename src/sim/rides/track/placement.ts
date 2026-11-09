@@ -163,8 +163,9 @@ export function checkPieceTiles(
     // Owned land, or construction rights under an envelope that starts ≥ 3 m above the ground (Phase 4 §4.9).
     const i = tileIndex(map, t.x, t.y);
     const clears = t.railMin - ENVELOPE_BELOW_M >= (map.heights[i] as number) + RIGHTS_MIN_CLEARANCE;
+    // The reason is "Outside the park" (TRACK_ERR.outsidePark) or "You only have construction rights here".
     const block = aboveGroundOwnershipBlock(map, i, clears);
-    if (block) return { ok: false, reason: block === TERRAIN_ERR.onlyRights ? TERRAIN_ERR.onlyRights : TRACK_ERR.outsidePark };
+    if (block) return { ok: false, reason: block };
   }
   const idx = wts.map((t) => tileIndex(map, t.x, t.y));
   if (def.special === 'station') {
