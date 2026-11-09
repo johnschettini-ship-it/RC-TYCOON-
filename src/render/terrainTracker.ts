@@ -24,6 +24,8 @@ export class TerrainTracker {
   chunksY = 0;
   /** Bumps whenever any tile changes (objects derived from the map, e.g. the fence, rebuild on it). */
   version = 0;
+  /** Bumps when a new map (or a new size) replaced the snapshot; every chunk is dirty then. */
+  resets = 0;
 
   /** Compare the map against the snapshot; mark changed chunks dirty. */
   sync(map: MapState): void {
@@ -56,6 +58,7 @@ export class TerrainTracker {
     this.dirty = new Uint8Array(cx * cy).fill(1);
     this.dirtyN = cx * cy;
     this.version++;
+    this.resets++;
   }
 
   private markChunkOf(map: MapState, x: number, y: number): void {

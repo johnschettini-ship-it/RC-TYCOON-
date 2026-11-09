@@ -6,7 +6,6 @@
  */
 import type { Game } from '../../game';
 import { worldToScreen } from '../../render/camera';
-import { tileToScreen } from '../../render/iso';
 import { resetTrackTool, trackToolOf, type TrackToolState } from '../../render/track/toolState';
 import { trackEnd } from '../../sim/rides/track/build';
 import { findRide, trackData } from '../../sim/rides/track/common';
@@ -29,6 +28,7 @@ import {
 } from '../../ui/track/builder';
 import { clampToMap } from '../camera';
 import type { GestureAction } from '../gestures';
+import { mapPointToWorld } from '../camera';
 
 export type TileAt = (x: number, y: number) => number | null;
 
@@ -185,8 +185,8 @@ function followTrackEnd(game: Game, viewport: { width: number; height: number },
   m.followRide = rideId;
   m.followN = n;
   const end = trackEnd(game.world, ride, data);
-  const p = tileToScreen(end.x + 0.5, end.y + 0.5, end.z);
   const cam = game.camera;
+  const p = mapPointToWorld(game.world.state.map, end.x + 0.5, end.y + 0.5, end.z, cam.rotation);
   const s = worldToScreen(cam, p.sx, p.sy, viewport.width, viewport.height);
   const b = followBox(viewport.width);
   const inside = s.x >= b.x0 * viewport.width && s.x <= b.x1 * viewport.width && s.y >= b.y0 * viewport.height && s.y <= b.y1 * viewport.height;

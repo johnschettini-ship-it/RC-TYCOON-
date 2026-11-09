@@ -1,15 +1,20 @@
 /**
- * Terrain chunk cache (Phase 0 §4.8): static tiles (ground, cliffs, water, paths, queues) pre-drawn
- * into 16 × 16-tile chunk images per zoom bucket (0.5, 1, 2). Owner: W1-A.
+ * Terrain chunk cache (Phase 0 §4.8, Phase 4 §4.8 and §4.10): static tiles (ground, cliffs, water, paths, queues)
+ * pre-drawn into 16 × 16-tile chunk images per zoom bucket (0.5, 1, 2) and view rotation. Owner: W1-A, W3-G.
+ * A chunk is a block of map tiles; with a view rotation it is painted in view space (view corners, cliff faces
+ * toward the viewer, path joins turned by r). Images are keyed by (chunk, rotation, bucket) in an LRU with a
+ * memory cap (`CHUNK_CACHE_MB`, 32 MB on phones): after a rotation the visible chunks are built first, the rest
+ * when they come into view, and the old rotation's images age out of the LRU.
  */
 import { Content, Terrain, type MapState } from '../sim/map';
 import type { Ride } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
 import { bucketIndex, SpriteCache, type Sprite } from './spriteCache';
 import type { ZoomBucket } from './camera';
-import { makeCanvas } from './canvas';
-import { cornerHeights, STEP_PX } from './iso';
+import { isPhoneScreen, makeCanvas } from './canvas';
+import { STEP_PX } from './iso';
 import { JOIN_E, JOIN_N, JOIN_S, JOIN_W, pathJoinMask } from './paths';
+import { mapToView, rotateSlopeMask, viewCornerHeights, viewSize, viewToMap, type ViewRotation } from './view';
 import { mix32, shade } from './palette';
 import { CHUNK_SIZE, TerrainTracker } from './terrainTracker';
 import type { Ctx } from './sprites/shapes';
@@ -233,35 +238,53 @@ function paintEntrancePlaza(p: TilePainter): void {
   p.quad(0.5, 0.3, 0.7, 0.7, '#7cc3e6');
 }
 
-/** Paint tile (x, y) in world-pixel coordinates. */
-function paintTile(p: TilePainter, map: MapState, x: number, y: number, env: TerrainEnv): void {
+/** Scratch corner records for tile painting (no allocation per tile). */
+const vc: [number, number, number, number] = [0, 0, 0, 0];
+const nc: [number, number, number, number] = [0, 0, 0, 0];
+
+/** Map tile index under view tile (u, v). */
+function mapIndexAt(map: MapState, u: number, v: number, r: ViewRotation): number {
+  if (r === 0) return v * map.width + u;
+  const m = viewToMap(u, v, r, map.width, map.height);
+  return m.y * map.width + m.x;
+}
+
+/**
+ * Paint view tile (u, v) in world-pixel coordinates (view space, Phase 4 §4.8). The map tile under it comes from the
+ * inverse table; corner heights, cliff faces, and path joins are turned into the view. Rotation 0 is the Build 1 look.
+ */
+function paintTile(p: TilePainter, map: MapState, u: number, v: number, r: ViewRotation, env: TerrainEnv): void {
   const w = map.width;
-  const i = y * w + x;
-  const c = cornerHeights(map, i);
-  p.setTile(x, y, c);
+  const vs = viewSize(map, r);
+  const i = mapIndexAt(map, u, v, r);
+  const x = i % w;
+  const y = (i - x) / w;
+  const c = viewCornerHeights(map, i, r, vc);
+  p.setTile(u, v, c);
   const owned = map.owned[i] === 1;
-  // Cliff and edge faces toward the viewer (+x and +y), down to the neighbour or to height 0 at the map edge.
+  // Cliff and edge faces toward the viewer (+u and +v in the view), down to the neighbour or to height 0 at the
+  // map edge.
   const hE = c[1] * STEP_PX;
   const hS = c[2] * STEP_PX;
   const hW = c[3] * STEP_PX;
   let nN = 0;
   let nW = 0;
-  if (x + 1 < w) {
-    const n = cornerHeights(map, i + 1);
+  if (u + 1 < vs.w) {
+    const n = viewCornerHeights(map, mapIndexAt(map, u + 1, v, r), r, nc);
     nN = n[0] * STEP_PX;
     nW = n[3] * STEP_PX;
   }
   if (hE > nN || hS > nW) p.faceE(Math.min(nN, hE), Math.min(nW, hS), CLIFF_RIGHT);
   let sN = 0;
   let sE = 0;
-  if (y + 1 < map.height) {
-    const n = cornerHeights(map, i + w);
+  if (v + 1 < vs.h) {
+    const n = viewCornerHeights(map, mapIndexAt(map, u, v + 1, r), r, nc);
     sN = n[0] * STEP_PX;
     sE = n[1] * STEP_PX;
   }
   if (hW > sN || hS > sE) p.faceS(Math.min(sN, hW), Math.min(sE, hS), CLIFF_LEFT);
 
-  // Ground.
+  // Ground. Shades and tufts follow the map tile, so they turn with it.
   const shades = TERRAIN_SHADES[map.terrain[i] as number] ?? TERRAIN_SHADES[Terrain.Grass]!;
   let base = shades[grassShade(env.seed, x, y)];
   const dzdx = (c[1] + c[2] - c[0] - c[3]) / 2;
@@ -272,14 +295,14 @@ function paintTile(p: TilePainter, map: MapState, x: number, y: number, env: Ter
   // Grass tufts on some tiles (deterministic).
   const content = map.content[i];
   if (content === Content.Empty && map.terrain[i] === Terrain.Grass) {
-    const m = mix32(i * 2654435761 + env.seed);
-    if ((m & 7) === 0) {
+    const h = mix32(i * 2654435761 + env.seed);
+    if ((h & 7) === 0) {
       const tuft = shade(base, 0.8);
       for (let k = 0; k < 3; k++) {
-        const u = 0.25 + (((m >>> (4 + k * 4)) & 15) / 15) * 0.5;
-        const v = 0.25 + (((m >>> (16 + k * 4)) & 15) / 15) * 0.5;
-        p.line(u - 0.04, v, u, v - 0.02, 0, 3, tuft, 1.2);
-        p.line(u + 0.04, v, u, v - 0.02, 0, 3, tuft, 1.2);
+        const tu = 0.25 + (((h >>> (4 + k * 4)) & 15) / 15) * 0.5;
+        const tv = 0.25 + (((h >>> (16 + k * 4)) & 15) / 15) * 0.5;
+        p.line(tu - 0.04, tv, tu, tv - 0.02, 0, 3, tuft, 1.2);
+        p.line(tu + 0.04, tv, tu, tv - 0.02, 0, 3, tuft, 1.2);
       }
     }
   }
@@ -291,13 +314,13 @@ function paintTile(p: TilePainter, map: MapState, x: number, y: number, env: Ter
     p.quad(0, 0, 1, 1, 'rgba(63,143,214,0.8)', lift);
   }
 
-  // Paths, queues, entrance plaza.
+  // Paths, queues, entrance plaza. Join masks are found in map directions, then turned into the view.
   if (content === Content.Footpath || content === Content.ParkEntrance) {
     const mask = pathJoinMask(map, i, env.rides, env.stalls);
-    paintPathShape(p, mask, diagMask(map, x, y, mask), PATH.fill, PATH.edge);
+    paintPathShape(p, rotateSlopeMask(mask, r), rotateSlopeMask(diagMask(map, x, y, mask), r), PATH.fill, PATH.edge);
     if (content === Content.ParkEntrance) paintEntrancePlaza(p);
   } else if (content === Content.Queue) {
-    const mask = pathJoinMask(map, i, env.rides, env.stalls);
+    const mask = rotateSlopeMask(pathJoinMask(map, i, env.rides, env.stalls), r);
     paintPathShape(p, mask, 0, QUEUE.fill, QUEUE.edge);
     paintQueueRails(p, mask);
   }
@@ -320,8 +343,23 @@ interface ChunkGeom {
   bottom: number;
 }
 
-/** World-pixel bounds of chunk (cx, cy), including cliff faces and queue rails. */
-export function chunkBounds(map: MapState, cx: number, cy: number): ChunkGeom {
+/** View-space tile rectangle [u0, u1) × [v0, v1) of map chunk (cx, cy). */
+export function chunkViewRect(map: Pick<MapState, 'width' | 'height'>, cx: number, cy: number, r: ViewRotation = 0): { u0: number; v0: number; u1: number; v1: number } {
+  const x0 = cx * CHUNK_SIZE;
+  const y0 = cy * CHUNK_SIZE;
+  const x1 = Math.min(map.width, x0 + CHUNK_SIZE);
+  const y1 = Math.min(map.height, y0 + CHUNK_SIZE);
+  const a = mapToView(x0, y0, r, map.width, map.height);
+  const b = mapToView(x1 - 1, y1 - 1, r, map.width, map.height);
+  return { u0: Math.min(a.u, b.u), v0: Math.min(a.v, b.v), u1: Math.max(a.u, b.u) + 1, v1: Math.max(a.v, b.v) + 1 };
+}
+
+/**
+ * World-pixel bounds of map chunk (cx, cy) as seen with view rotation `r`, including cliff faces, queue rails, and
+ * the chunk's height range (Phase 4 §4.10). Faces reach down to the lowest neighbour, or to height 0 at the map
+ * edge in front of the viewer.
+ */
+export function chunkBounds(map: MapState, cx: number, cy: number, r: ViewRotation = 0): ChunkGeom {
   const x0 = cx * CHUNK_SIZE;
   const y0 = cy * CHUNK_SIZE;
   const x1 = Math.min(map.width, x0 + CHUNK_SIZE);
@@ -329,72 +367,155 @@ export function chunkBounds(map: MapState, cx: number, cy: number): ChunkGeom {
   let zTop = 0;
   let zBot = Infinity;
   const w = map.width;
+  const hs = map.heights;
   for (let y = y0; y < y1; y++) {
     for (let x = x0; x < x1; x++) {
       const i = y * w + x;
-      const h = map.heights[i] as number;
+      const h = hs[i] as number;
       const top = Math.max(h + ((map.slope[i] as number) ? 1 : 0), map.water[i] as number);
       if (top > zTop) zTop = top;
       if (h < zBot) zBot = h;
-      if (x + 1 < w) zBot = Math.min(zBot, map.heights[i + 1] as number);
-      if (y + 1 < map.height) zBot = Math.min(zBot, map.heights[i + w] as number);
+      // Any neighbour may be the one in front in some view.
+      if (x + 1 < w) zBot = Math.min(zBot, hs[i + 1] as number);
+      if (y + 1 < map.height) zBot = Math.min(zBot, hs[i + w] as number);
+      if (x > 0) zBot = Math.min(zBot, hs[i - 1] as number);
+      if (y > 0) zBot = Math.min(zBot, hs[i - w] as number);
     }
   }
-  if (x1 === map.width || y1 === map.height) zBot = 0;
+  const vr = chunkViewRect(map, cx, cy, r);
+  const vs = viewSize(map, r);
+  if (vr.u1 === vs.w || vr.v1 === vs.h) zBot = 0;
   if (zBot === Infinity) zBot = 0;
   return {
-    left: (x0 - y1) * HW,
-    right: (x1 - y0) * HW,
-    top: (x0 + y0) * HH - (zTop + 2) * STEP_PX,
-    bottom: (x1 + y1) * HH - zBot * STEP_PX,
+    left: (vr.u0 - vr.v1) * HW,
+    right: (vr.u1 - vr.v0) * HW,
+    top: (vr.u0 + vr.v0) * HH - (zTop + 2) * STEP_PX,
+    bottom: (vr.u1 + vr.v1) * HH - zBot * STEP_PX,
   };
 }
 
 const CHUNK_PAD = 2;
 /** Chunks built per frame when an image at another bucket can stand in. */
 const MAX_REFINES_PER_FRAME = 1;
+/**
+ * Exact-scale chunk images: once the device scale (zoom × pixel ratio) has stayed the same for this many frames
+ * and is not a bucket scale, visible chunks are rebuilt at that exact scale, one per frame, so they draw as 1:1
+ * copies instead of filtered scaled draws (a software-rastered canvas pays about 5× for a filtered draw; measured
+ * on the 128 × 128 park at zoom 0.75). Up to scale 2: larger images would cost more memory than they save.
+ */
+export const EXACT_SETTLE_FRAMES = 8;
+const MAX_EXACT_BUILDS_PER_FRAME = 1;
+const MAX_EXACT_SCALE = 2;
+/** Cache slot of the exact-scale image (bucket slots are 0–2). */
+const EXACT_SLOT = 3;
+/** Image cache keys per chunk: 4 rotations × 4 bucket slots. */
+const KEYS_PER_CHUNK = 16;
+
+/** Phase 4 §8 `CHUNK_CACHE_MB` (32 MB on phones, §11): chunk image memory cap at 4 bytes per pixel. */
+export const CHUNK_CACHE_MB = 64;
+export const CHUNK_CACHE_MB_PHONE = 32;
+
+/** Chunk image cap in pixels (4 bytes each) for a canvas of this CSS size: the phone cap on phone-sized screens. */
+export function chunkCacheBudgetPixels(cssW: number, cssH: number): number {
+  return ((isPhoneScreen(cssW, cssH) ? CHUNK_CACHE_MB_PHONE : CHUNK_CACHE_MB) * 1024 * 1024) / 4;
+}
+
+/** Image cache key of a chunk image: (chunk, view rotation, zoom bucket). */
+export function chunkImageKey(chunk: number, r: ViewRotation, bucket: ZoomBucket): number {
+  return chunk * KEYS_PER_CHUNK + r * 4 + bucketIndex(bucket);
+}
 
 export class TerrainLayer {
   readonly tracker = new TerrainTracker();
   private images: SpriteCache;
   private bounds: ChunkGeom[] = [];
+  /** Chunk indices in view row-major order (back to front for the painter). */
+  private order = new Int32Array(0);
+  /** Rotation the bounds and order were computed for, or −1. */
+  private rot = -1;
+  /** Chunk images built since the last `draw` began (tests and the debug overlay). */
+  builds = 0;
 
-  constructor(budgetPixels = 20_000_000) {
+  /** `budgetPixels`: image memory cap in pixels (4 bytes each); default `CHUNK_CACHE_MB`. */
+  constructor(budgetPixels = (CHUNK_CACHE_MB * 1024 * 1024) / 4) {
     this.images = new SpriteCache(budgetPixels);
+  }
+
+  /** Image memory cap in pixels. */
+  get budgetPixels(): number {
+    return this.images.budgetPixels;
+  }
+
+  set budgetPixels(px: number) {
+    this.images.budgetPixels = px;
+  }
+
+  /** Pixels held by chunk images now. */
+  get pixels(): number {
+    return this.images.pixels;
+  }
+
+  /** Has an image for this chunk, rotation, and bucket. */
+  hasImage(chunk: number, r: ViewRotation, bucket: ZoomBucket): boolean {
+    return this.images.peek(chunkImageKey(chunk, r, bucket));
   }
 
   /** Diff the map, drop stale chunk images. Returns true when anything changed. */
   sync(map: MapState): boolean {
     const v = this.tracker.version;
     this.tracker.sync(map);
-    const reset = this.bounds.length !== this.tracker.chunksX * this.tracker.chunksY;
-    if (reset) {
+    const n = this.tracker.chunksX * this.tracker.chunksY;
+    if (this.bounds.length !== n || this.tracker.resets !== this.resetsSeen) {
+      // New map: start over.
+      this.resetsSeen = this.tracker.resets;
       this.images.clear();
-      this.bounds = [];
-      for (let cy = 0; cy < this.tracker.chunksY; cy++) {
-        for (let cx = 0; cx < this.tracker.chunksX; cx++) this.bounds.push(chunkBounds(map, cx, cy));
-      }
+      this.bounds = new Array<ChunkGeom>(n);
+      this.rot = -1;
+      for (let c = 0; c < n; c++) this.tracker.clean(c);
+      return v !== this.tracker.version;
     }
     if (this.tracker.dirtyCount() > 0) {
-      const n = this.tracker.chunksX * this.tracker.chunksY;
       for (let c = 0; c < n; c++) {
         if (!this.tracker.isDirty(c)) continue;
-        for (const b of [0, 1, 2]) this.images.delete(c * 4 + b);
-        this.bounds[c] = chunkBounds(map, c % this.tracker.chunksX, Math.floor(c / this.tracker.chunksX));
+        for (let k = 0; k < KEYS_PER_CHUNK; k++) this.images.delete(c * KEYS_PER_CHUNK + k);
+        if (this.rot >= 0) this.bounds[c] = chunkBounds(map, c % this.tracker.chunksX, Math.floor(c / this.tracker.chunksX), this.rot as ViewRotation);
         this.tracker.clean(c);
       }
     }
     return v !== this.tracker.version;
   }
 
+  private resetsSeen = -1;
+
   /** Forget all images (e.g. the seed changed). */
   invalidate(): void {
     this.images.clear();
   }
 
-  private build(map: MapState, chunk: number, bucket: ZoomBucket, env: TerrainEnv): Sprite {
+  /** Bounds and draw order for rotation `r` (recomputed when the rotation changes). */
+  private orient(map: MapState, r: ViewRotation): void {
+    if (this.rot === r) return;
+    this.rot = r;
+    const cx = this.tracker.chunksX;
+    const n = cx * this.tracker.chunksY;
+    const keys = new Float64Array(n);
+    for (let c = 0; c < n; c++) {
+      this.bounds[c] = chunkBounds(map, c % cx, Math.floor(c / cx), r);
+      const vr = chunkViewRect(map, c % cx, Math.floor(c / cx), r);
+      keys[c] = vr.v0 * 65536 + vr.u0;
+    }
+    const order = Array.from({ length: n }, (_, c) => c).sort((a, b) => (keys[a] as number) - (keys[b] as number));
+    this.order = Int32Array.from(order);
+  }
+
+  /** Device scale of the last frame and how many frames in a row it stayed the same. */
+  private lastScale = 0;
+  private stableFrames = 0;
+
+  /** Build the image of `chunk` at `scale` image px per world px (a zoom bucket, or an exact device scale). */
+  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation): Sprite {
+    this.builds++;
     const g = this.bounds[chunk] as ChunkGeom;
-    const scale = bucket;
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
     const { canvas, ctx } = makeCanvas(w, h);
@@ -402,16 +523,11 @@ export class TerrainLayer {
     const oy = CHUNK_PAD - g.top * scale;
     ctx.setTransform(scale, 0, 0, scale, ox, oy);
     const p = new TilePainter(ctx, 0.6 / scale);
-    const cx = chunk % this.tracker.chunksX;
-    const cy = Math.floor(chunk / this.tracker.chunksX);
-    const x0 = cx * CHUNK_SIZE;
-    const y0 = cy * CHUNK_SIZE;
-    const x1 = Math.min(map.width, x0 + CHUNK_SIZE);
-    const y1 = Math.min(map.height, y0 + CHUNK_SIZE);
-    // Back to front by x + y so front cliff faces cover the tiles behind them.
-    for (let s = x0 + y0; s <= x1 + y1 - 2; s++) {
-      for (let x = Math.max(x0, s - (y1 - 1)); x <= Math.min(x1 - 1, s - y0); x++) {
-        paintTile(p, map, x, s - x, env);
+    const vr = chunkViewRect(map, chunk % this.tracker.chunksX, Math.floor(chunk / this.tracker.chunksX), r);
+    // Back to front by u + v so front cliff faces cover the tiles behind them.
+    for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
+      for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
+        paintTile(p, map, u, s - u, r, env);
       }
     }
     // Anchor is world (0, 0).
@@ -419,8 +535,8 @@ export class TerrainLayer {
   }
 
   /**
-   * Draw visible chunks. `scale` = device pixels per world pixel; (offX, offY) = device position of world (0, 0).
-   * Returns the number of chunks drawn.
+   * Draw visible chunks with view rotation `r`, back to front. `scale` = device pixels per world pixel;
+   * (offX, offY) = device position of world (0, 0). Returns the number of chunks drawn.
    */
   draw(
     ctx: CanvasRenderingContext2D,
@@ -431,24 +547,46 @@ export class TerrainLayer {
     scale: number,
     offX: number,
     offY: number,
+    r: ViewRotation = 0,
   ): number {
+    this.orient(map, r);
     this.images.beginFrame();
+    this.builds = 0;
     const bi = bucketIndex(bucket);
+    if (scale === this.lastScale) this.stableFrames++;
+    else {
+      this.lastScale = scale;
+      this.stableFrames = 0;
+    }
+    const exact = this.stableFrames >= EXACT_SETTLE_FRAMES && scale !== bucket && scale <= MAX_EXACT_SCALE;
+    let exactBuilds = 0;
     let refines = 0;
     let drawn = 0;
-    const n = this.bounds.length;
-    for (let c = 0; c < n; c++) {
+    const n = this.order.length;
+    for (let k = 0; k < n; k++) {
+      const c = this.order[k] as number;
       const g = this.bounds[c] as ChunkGeom;
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
-      let sp = this.images.get(c * 4 + bi);
+      const base = c * KEYS_PER_CHUNK + r * 4;
+      let sp: Sprite | undefined;
+      // An exact-scale image of this very scale draws 1:1.
+      if (exact && this.images.peekSprite(base + EXACT_SLOT)?.scale === scale) sp = this.images.get(base + EXACT_SLOT);
       if (!sp) {
-        const alt = this.images.get(c * 4 + (bi === 1 ? 0 : 1)) ?? this.images.get(c * 4 + (bi === 2 ? 0 : 2));
-        if (alt && refines >= MAX_REFINES_PER_FRAME) {
-          sp = alt;
-        } else {
-          sp = this.build(map, c, bucket, env);
-          this.images.set(c * 4 + bi, sp);
-          if (alt) refines++;
+        const own = this.images.get(base + bi);
+        if (own && !exact) sp = own;
+        else {
+          // Anything that can stand in while the wanted image waits for its turn to be built.
+          const standIn = own ?? this.images.get(base + (bi === 1 ? 0 : 1)) ?? this.images.get(base + (bi === 2 ? 0 : 2));
+          const budgetLeft = exact ? exactBuilds < MAX_EXACT_BUILDS_PER_FRAME : refines < MAX_REFINES_PER_FRAME;
+          if (standIn && !budgetLeft) sp = standIn;
+          else {
+            sp = this.build(map, c, exact ? scale : bucket, env, r);
+            this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+            if (standIn) {
+              if (exact) exactBuilds++;
+              else refines++;
+            }
+          }
         }
       }
       const f = scale / sp.scale;

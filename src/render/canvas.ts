@@ -20,6 +20,28 @@ export function makeCanvas(w: number, h: number): { canvas: AnyCanvas; ctx: Ctx 
   return { canvas, ctx };
 }
 
+/**
+ * Phone-sized screens (either CSS side below this) get the phone budgets: a capped canvas pixel ratio and the
+ * 32 MB terrain chunk cache (Phase 4 §11).
+ */
+export const PHONE_SCREEN_MAX_CSS = 600;
+/**
+ * Canvas pixel ratio cap on phone-sized screens. Build 1 finding: the phone frame rate is bound by drawing a
+ * full-DPR canvas (2.6 × 2.6 device px per CSS px on a Pixel 7). At 2 the art stays sharp (sprites are built at
+ * the zoom-2 bucket) and the canvas has about 40% fewer pixels.
+ */
+export const PHONE_MAX_PIXEL_RATIO = 2;
+
+export function isPhoneScreen(cssW: number, cssH: number): boolean {
+  return Math.min(cssW, cssH) < PHONE_SCREEN_MAX_CSS;
+}
+
+/** Device pixels per CSS pixel for the game canvas: the device ratio, capped on phone-sized screens. */
+export function canvasPixelRatio(cssW: number, cssH: number, dpr: number): number {
+  const d = dpr > 0 && Number.isFinite(dpr) ? dpr : 1;
+  return isPhoneScreen(cssW, cssH) ? Math.min(d, PHONE_MAX_PIXEL_RATIO) : d;
+}
+
 const PAD = 2;
 
 /**

@@ -5,6 +5,7 @@
  */
 import { Content, DIR_DX, DIR_DY, type MapState } from '../sim/map';
 import type { GuestPos } from './guestPos';
+import { surfaceHeight } from './iso';
 
 export const QUEUE_SLOTS_PER_TILE = 4;
 
@@ -90,7 +91,7 @@ export function queueSlot(map: MapState, chain: readonly number[], gateTile: num
   const side = (s & 1) === 0 ? SIDE_JITTER : -SIDE_JITTER;
   out.fx = x + 0.5 + ux * t + uy * side;
   out.fy = y + 0.5 + uy * t + ux * side;
-  out.z = map.heights[tile] as number;
+  out.z = surfaceHeight(map, out.fx, out.fy);
   out.tile = tile;
   return out;
 }

@@ -4,7 +4,6 @@
  * Talks to input only through the shared ToolState and the `tc-ui-intent` window event.
  */
 import type { Game } from '../game';
-import { tileToScreen } from '../render/iso';
 import { SaveStore, importFile, type KeyValueStore } from '../save';
 import type { PanelKind, PanelView, UiContext } from './context';
 import { h } from './dom';
@@ -35,6 +34,7 @@ import { TOAST_MS } from './toasts';
 import { toolOptions } from '../render/management/toolOptions';
 import { mountTrackUi } from './track';
 import { UI_EXTENSIONS } from './extensions';
+import { tileCentreWorld } from '../input/camera';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -278,7 +278,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
       return;
     }
     const map = game.world.state.map;
-    const p = tileToScreen((g.tile % map.width) + 0.5, Math.floor(g.tile / map.width) + 0.5, map.heights[g.tile] ?? 0);
+    const p = tileCentreWorld(map, g.tile, cam.rotation);
     cam.centerX = p.sx;
     cam.centerY = p.sy;
     followSet = { x: p.sx, y: p.sy };

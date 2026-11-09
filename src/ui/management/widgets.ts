@@ -1,9 +1,9 @@
 /** Small widgets for the Phase 3 panels and tool bars. Owner: W2-B. Browser only. */
 import type { UiContext } from '../context';
 import { h, setAttr, toggleClass } from '../dom';
-import { tileToScreen } from '../../render/iso';
 import { mgmtIcon, type MgmtIconName } from './icons';
 import type { LocateTarget } from './messages';
+import { tileCentreWorld } from '../../input/camera';
 
 export interface SegmentOption<T extends string | number> {
   value: T;
@@ -61,7 +61,7 @@ export function centreOnTile(ctx: UiContext, tile: number): void {
   const map = ctx.game.world.state.map;
   const n = map.width * map.height;
   if (tile < 0 || tile >= n) return;
-  const p = tileToScreen((tile % map.width) + 0.5, Math.floor(tile / map.width) + 0.5, map.heights[tile] ?? 0);
+  const p = tileCentreWorld(map, tile, ctx.game.camera.rotation);
   ctx.game.camera.centerX = p.sx;
   ctx.game.camera.centerY = p.sy;
 }

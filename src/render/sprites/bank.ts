@@ -1,6 +1,7 @@
 /**
  * Sprite bank: builds procedural sprites on demand and keeps them in the sprite cache keyed by
- * (defId, rotation, frame, zoom bucket). Owner: W1-A.
+ * (defId, rotation, frame, zoom bucket). Owner: W1-A, W3-G. With a view rotation the renderer asks for the
+ * rotation as seen in the view, `(rotation + r) mod 4` (Phase 4 §4.8), so the key holds the view rotation.
  */
 import { decodeRideFrame, ANGLE_FRAMES, GHOST_FRAME_INVALID, GHOST_FRAME_VALID } from '../anim';
 import type { ZoomBucket } from '../camera';
@@ -14,6 +15,9 @@ import { HAIR_COLOURS, SKIN_TONES } from './shapes';
 import { drawStallArt, stallArtBounds } from './stalls';
 import { decodeStaffFrame, drawStaffArt, STAFF_BOUNDS } from './staff';
 import { drawLitterArt, drawMessArt, drawPathItemArt, LITTER_BOUNDS, MESS_BOUNDS, PATH_ITEM_BOUNDS } from './litter';
+
+/** Phase 4 §8 `SPRITE_CACHE_MB`: sprite LRU cap across rotations and zoom buckets (4 bytes per pixel). */
+export const SPRITE_CACHE_MB = 96;
 
 export const GHOST_TINT_VALID = 'rgba(70, 205, 95, 0.5)';
 export const GHOST_TINT_INVALID = 'rgba(235, 60, 60, 0.55)';
@@ -75,7 +79,7 @@ export class SpriteBank {
   readonly cache: SpriteCache;
   private guestBuilds = 0;
 
-  constructor(budgetPixels = 16_000_000) {
+  constructor(budgetPixels = (SPRITE_CACHE_MB * 1024 * 1024) / 4) {
     this.cache = new SpriteCache(budgetPixels);
   }
 

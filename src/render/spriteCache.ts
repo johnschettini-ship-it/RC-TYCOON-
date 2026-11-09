@@ -76,6 +76,16 @@ export class SpriteCache {
     return e.sprite;
   }
 
+  /** The sprite under `key` without touching the LRU order (or marking it used this frame). */
+  peekSprite(key: number): Sprite | undefined {
+    return this.map.get(key)?.sprite;
+  }
+
+  /** Is `key` cached? Does not touch the LRU order. */
+  peek(key: number): boolean {
+    return this.map.has(key);
+  }
+
   set(key: number, sprite: Sprite): void {
     const old = this.map.get(key);
     if (old) {

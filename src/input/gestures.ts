@@ -39,9 +39,10 @@ export type GestureAction =
   | { type: 'panStart'; x: number; y: number }
   | { type: 'pan'; dx: number; dy: number }
   | { type: 'panEnd' }
-  | { type: 'dragStart'; x: number; y: number }
+  /** `pointerType` (Phase 4, W3-G): the pointer that drags, so a tool can tell a mouse release from a finger lift. */
+  | { type: 'dragStart'; x: number; y: number; pointerType?: PointerKind }
   | { type: 'dragMove'; x: number; y: number }
-  | { type: 'dragEnd'; x: number; y: number }
+  | { type: 'dragEnd'; x: number; y: number; pointerType?: PointerKind }
   | { type: 'dragCancel' }
   | { type: 'pinchStart'; cx: number; cy: number }
   | { type: 'pinch'; cx: number; cy: number; scale: number; dx: number; dy: number }
@@ -170,7 +171,7 @@ export class GestureRecognizer {
         }
         this.phase = 'dragging';
         return [
-          { type: 'dragStart', x: this.startX, y: this.startY },
+          { type: 'dragStart', x: this.startX, y: this.startY, pointerType: this.primaryType },
           { type: 'dragMove', x: ev.x, y: ev.y },
         ];
       }
@@ -221,7 +222,7 @@ export class GestureRecognizer {
         break;
       case 'dragging':
         if (ev.id === this.primary) {
-          out = cancelled ? [{ type: 'dragCancel' }] : [{ type: 'dragEnd', x: ev.x, y: ev.y }];
+          out = cancelled ? [{ type: 'dragCancel' }] : [{ type: 'dragEnd', x: ev.x, y: ev.y, pointerType: this.primaryType }];
           this.phase = 'consumed';
         }
         break;

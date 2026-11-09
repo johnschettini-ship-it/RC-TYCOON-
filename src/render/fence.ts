@@ -3,6 +3,8 @@
  * owned (or outside the map), except the park entrance's outer edge. Owner: W1-A.
  */
 import { Content, DIR_DX, DIR_DY, isOwned, type Dir, type MapState } from '../sim/map';
+import { viewPointDepth } from './depth';
+import type { ViewAffine } from './view';
 
 export interface FenceSegment {
   /** The owned tile the edge belongs to. */
@@ -53,10 +55,14 @@ export function fenceSegments(map: MapState, out: FenceSegment[] = []): FenceSeg
   return out;
 }
 
-/** Depth of a fence edge: the x + y sum of the edge midpoint. */
-export function fenceEdgeDepth(map: Pick<MapState, 'width'>, tile: number, dir: Dir): number {
+/**
+ * Depth of a fence edge: the x + y sum of the edge midpoint, or with a view rotation (`a`) the u + v of the
+ * midpoint's view position (Phase 4 §4.8).
+ */
+export function fenceEdgeDepth(map: Pick<MapState, 'width'>, tile: number, dir: Dir, a?: ViewAffine): number {
   const x = tile % map.width;
   const y = (tile - x) / map.width;
+  if (a) return viewPointDepth(x + 0.5 + (DIR_DX[dir] as number) * 0.5, y + 0.5 + (DIR_DY[dir] as number) * 0.5, a);
   switch (dir) {
     case 0:
       return x + 0.5 + y;

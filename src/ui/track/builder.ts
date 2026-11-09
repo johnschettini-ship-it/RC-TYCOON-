@@ -31,11 +31,14 @@ import {
 } from '../../render/track/toolState';
 import type { ToolState } from '../../render/types';
 import { requestTrackTab } from './tabRequest';
+import { mapRotationFromView, type ViewRotation } from '../../render/view';
 
 /** What the builder needs from the game: the world, the shared tool state, and command dispatch. */
 export interface BuilderHost {
   readonly world: World;
   readonly tool: ToolState;
+  /** View rotation (Phase 4). `tool.rotation` is in view terms; commands take map rotation. */
+  readonly camera?: { readonly rotation: ViewRotation };
   dispatch(cmd: Command): CommandResult;
 }
 
@@ -313,7 +316,7 @@ export function setStationLength(host: BuilderHost, length: number): void {
 export function refreshStationGhost(host: BuilderHost, fallback: number | null): void {
   const st = trackToolOf(host.tool);
   const anchor = st.anchor ?? fallback;
-  st.stationGhost = st.typeId && anchor !== null ? stationGhostAt(host.world, st.typeId, anchor, host.tool.rotation, st.stationLength) : null;
+  st.stationGhost = st.typeId && anchor !== null ? stationGhostAt(host.world, st.typeId, anchor, mapRotationFromView(host.tool.rotation, host.camera?.rotation ?? 0), st.stationLength) : null;
 }
 
 /** Place the station run of the ghost. Returns the new ride id, or null. */

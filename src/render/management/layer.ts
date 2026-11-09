@@ -7,6 +7,8 @@
  * - overlays: the selected staff member's patrol area and ring, spanner and storm markers over rides,
  *   the path item ghost
  * Frame loops write into reused records and typed arrays: no allocation per object.
+ * View rotation (Phase 4 §4.8, W3-G): positions go through the frame's view table (`begin(…, va)`), depth sorts by
+ * u + v, and facings, bench sides, and item sides turn by r.
  */
 import { BIN_CAPACITY, STAFF } from '../../data/catalog/people';
 import { getFlatRideDef } from '../../data/catalog/flatRides';
@@ -16,7 +18,7 @@ import { PathItem, type Dir, type MapState } from '../../sim/map';
 import type { Staff } from '../../sim/staff/types';
 import type { World } from '../../sim/types';
 import type { ZoomBucket } from '../camera';
-import { Layer, pointDepth } from '../depth';
+import { Layer, viewPointDepth } from '../depth';
 import type { GuestPos } from '../guestPos';
 import { STEP_PX, TILE_H, TILE_W } from '../iso';
 import { mix32 } from '../palette';
@@ -28,6 +30,7 @@ import { rideArtBounds } from '../sprites/rides';
 import { COSTUME_CODE, STAFF_TYPE_CODE, staffFrame } from '../sprites/staff';
 import type { ViewRect } from '../terrain';
 import type { ToolState } from '../types';
+import { viewAffine, viewCornerHeights, viewDir, viewPointSX, viewPointSY, viewSpriteRotation, viewTileSX, viewTileSY, viewTileU, viewTileV, type ViewAffine } from '../view';
 import { litterSlot, messSlot, type DecalSlot } from './litter';
 import { pathItemPlacement, type ItemPlacement } from './pathItemPos';
 import { staffPosition, type StaffPos } from './staffPos';
@@ -101,6 +104,9 @@ export class ManagementLayer {
   private sz = new Float64Array(256);
   private sdir = new Uint8Array(256);
   private readonly rain = new Float32Array(RAIN_MAX * 3);
+  /** The frame's view table (rotation 0 until `begin` sets it). */
+  private va: ViewAffine = viewAffine(0, 1, 1);
+  private readonly corners: [number, number, number, number] = [0, 0, 0, 0];
   private readonly reducedMotion: boolean;
 
   constructor(
@@ -122,8 +128,9 @@ export class ManagementLayer {
     this.reducedMotion = reduced;
   }
 
-  /** Frame transform: device px = world px × scale + off. */
-  begin(scale: number, offX: number, offY: number, dpr: number, bucket: ZoomBucket, view: ViewRect): void {
+  /** Frame transform: device px = world px × scale + off; `va`: the view table of this frame (rotation 0 when left out). */
+  begin(scale: number, offX: number, offY: number, dpr: number, bucket: ZoomBucket, view: ViewRect, va?: ViewAffine): void {
+    if (va) this.va = va;
     this.scale = scale;
     this.offX = offX;
     this.offY = offY;
@@ -155,8 +162,8 @@ export class ManagementLayer {
       const x = i % w;
       const y = (i - x) / w;
       const z0 = map.heights[i] as number;
-      const ax = (x - y) * HW;
-      const ay = (x + y) * HH - z0 * STEP_PX;
+      const ax = viewTileSX(this.va, x, y);
+      const ay = viewTileSY(this.va, x, y, z0);
       if (!this.inView(ax - HW, ay - 12, ax + HW, ay + TILE_H + 4)) continue;
       for (let k = 0; k < nm; k++) {
         messSlot(i, k, slot);
@@ -164,14 +171,14 @@ export class ManagementLayer {
         const fy = y + slot.v;
         const frame = DECAL_MESS + slot.variant;
         const sp = this.bank.decal(decalSpriteKey(frame, slot.flip, bucket), frame, slot.flip, bucket);
-        this.blit(sp, (fx - fy) * HW, (fx + fy) * HH - surfaceZ(map, i, slot.u, slot.v) * STEP_PX);
+        this.blit(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
       }
       for (let k = 0; k < nl; k++) {
         litterSlot(i, k, slot);
         const fx = x + slot.u;
         const fy = y + slot.v;
         const sp = this.bank.decal(decalSpriteKey(slot.variant, slot.flip, bucket), slot.variant, slot.flip, bucket);
-        this.blit(sp, (fx - fy) * HW, (fx + fy) * HH - surfaceZ(map, i, slot.u, slot.v) * STEP_PX);
+        this.blit(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
       }
     }
   }
@@ -209,8 +216,8 @@ export class ManagementLayer {
       const x = i % w;
       const y = (i - x) / w;
       const z0 = map.heights[i] as number;
-      const cx = (x - y) * HW;
-      const cy = (x + y) * HH - z0 * STEP_PX;
+      const cx = viewTileSX(this.va, x, y);
+      const cy = viewTileSY(this.va, x, y, z0);
       if (!this.inView(cx - HW, cy - 34, cx + HW, cy + TILE_H + 8)) continue;
       pathItemPlacement(pathJoinMask(map, i, s.rides, s.stalls), p);
       const fx = x + p.u;
@@ -218,8 +225,9 @@ export class ManagementLayer {
       const z = surfaceZ(map, i, p.u, p.v);
       const broken = ((map.pathItemFlags[i] as number) & 1) !== 0;
       const fill = code === PathItem.Bin ? binFillLevel(map.binFill[i] as number, BIN_CAPACITY) : 0;
-      const frame = pathItemFrame(code, p.side, fill, broken);
-      sink.push(KIND_PATH_ITEM, i, frame, (fx - fy) * HW, (fx + fy) * HH - z * STEP_PX, pathItemSpriteKey(frame, this.bucket), pointDepth(fx, fy), z, Layer.Object);
+      const frame = pathItemFrame(code, viewDir(p.side, this.va.r), fill, broken);
+      const va = this.va;
+      sink.push(KIND_PATH_ITEM, i, frame, viewPointSX(va, fx, fy), viewPointSY(va, fx, fy, z), pathItemSpriteKey(frame, this.bucket), viewPointDepth(fx, fy, va), z, Layer.Object);
     }
   }
 
@@ -235,8 +243,8 @@ export class ManagementLayer {
       if (m.tile < 0) continue;
       const tpt = TICKS_PER_TILE[m.type];
       staffPosition(map, m, tpt, alpha, pos);
-      const ax = (pos.fx - pos.fy) * HW;
-      const ay = (pos.fx + pos.fy) * HH - pos.z * STEP_PX;
+      const ax = viewPointSX(this.va, pos.fx, pos.fy);
+      const ay = viewPointSY(this.va, pos.fx, pos.fy, pos.z);
       if (ax < this.view.x0 - 14 || ax > this.view.x1 + 14 || ay < this.view.y0 - 6 || ay > this.view.y1 + 32) continue;
       let facing: Dir = m.dir;
       let walk = 0;
@@ -247,7 +255,8 @@ export class ManagementLayer {
       const action = working(m) ? 1 + (((tick >> 3) + m.id) & 1) : 0;
       const costume = m.type === 'performer' && m.costume ? COSTUME_CODE[m.costume] : 0;
       const frame = staffFrame(STAFF_TYPE_CODE[m.type], costume, walk, action);
-      sink.push(KIND_STAFF, si, facing | (frame << 2), ax, ay, staffSpriteKey(facing, frame, this.bucket), pointDepth(pos.fx, pos.fy), pos.z, Layer.Guest);
+      const vf = viewDir(facing, this.va.r);
+      sink.push(KIND_STAFF, si, vf | (frame << 2), ax, ay, staffSpriteKey(vf, frame, this.bucket), viewPointDepth(pos.fx, pos.fy, this.va), pos.z, Layer.Guest);
     }
   }
 
@@ -367,20 +376,18 @@ export class ManagementLayer {
     this.drawItemGhost(ctx, world, tool);
   }
 
+  /** Map tile `i`'s top face as seen in the view (view corners N, E, S, W). */
   private tileDiamond(ctx: CanvasRenderingContext2D, map: MapState, i: number): void {
     const w = map.width;
     const x = i % w;
     const y = (i - x) / w;
-    const h = map.heights[i] as number;
-    const s = map.slope[i] as number;
-    const hN = h + (s & 1 ? 1 : 0);
-    const hE = h + (s & 2 ? 1 : 0);
-    const hS = h + (s & 4 ? 1 : 0);
-    const hW = h + (s & 8 ? 1 : 0);
-    ctx.moveTo(this.dx((x - y) * HW), this.dy((x + y) * HH - hN * STEP_PX));
-    ctx.lineTo(this.dx((x + 1 - y) * HW), this.dy((x + 1 + y) * HH - hE * STEP_PX));
-    ctx.lineTo(this.dx((x - y) * HW), this.dy((x + y + 2) * HH - hS * STEP_PX));
-    ctx.lineTo(this.dx((x - y - 1) * HW), this.dy((x + y + 1) * HH - hW * STEP_PX));
+    const u = viewTileU(this.va, x, y);
+    const v = viewTileV(this.va, x, y);
+    const c = viewCornerHeights(map, i, this.va.r, this.corners);
+    ctx.moveTo(this.dx((u - v) * HW), this.dy((u + v) * HH - c[0] * STEP_PX));
+    ctx.lineTo(this.dx((u + 1 - v) * HW), this.dy((u + 1 + v) * HH - c[1] * STEP_PX));
+    ctx.lineTo(this.dx((u - v) * HW), this.dy((u + v + 2) * HH - c[2] * STEP_PX));
+    ctx.lineTo(this.dx((u - v - 1) * HW), this.dy((u + v + 1) * HH - c[3] * STEP_PX));
     ctx.closePath();
   }
 
@@ -407,8 +414,8 @@ export class ManagementLayer {
           if (i >= n) break;
           const x = i % w;
           const y = (i - x) / w;
-          const ax = (x - y) * HW;
-          const ay = (x + y) * HH - (map.heights[i] as number) * STEP_PX;
+          const ax = viewTileSX(this.va, x, y);
+          const ay = viewTileSY(this.va, x, y, map.heights[i] as number);
           if (!this.inView(ax - HW, ay - 8, ax + HW, ay + TILE_H + 8)) continue;
           this.tileDiamond(ctx, map, i);
         }
@@ -421,8 +428,8 @@ export class ManagementLayer {
     }
     // Ring and marker on the staff member.
     staffPosition(map, m, TICKS_PER_TILE[m.type], alpha, this.spos);
-    const x = this.dx((this.spos.fx - this.spos.fy) * HW);
-    const y = this.dy((this.spos.fx + this.spos.fy) * HH - this.spos.z * STEP_PX);
+    const x = this.dx(viewPointSX(this.va, this.spos.fx, this.spos.fy));
+    const y = this.dy(viewPointSY(this.va, this.spos.fx, this.spos.fy, this.spos.z));
     const k = this.scale;
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = Math.max(1.5, 2 * k);
@@ -447,15 +454,23 @@ export class ManagementLayer {
       if (r.status !== 'broken' && r.status !== 'stormHold') continue;
       const oi = r.y * map.width + r.x;
       const z = (map.heights[oi] as number | undefined) ?? 0;
-      let wx = (r.x - r.y) * HW;
-      let wy = (r.x + r.y) * HH - z * STEP_PX;
+      const va = this.va;
+      let wx = viewTileSX(va, r.x, r.y);
+      let wy = viewTileSY(va, r.x, r.y, z);
       if (r.kind === 'flat') {
         const def = getFlatRideDef(r.defId);
         const fw = def?.w ?? 1;
         const fd = def?.d ?? 1;
         const { ex, ey } = extent(fw, fd, r.rotation);
-        wx += ((ex - ey) * HW) / 2;
-        wy += rideArtBounds(r.defId, fw, fd, r.rotation).top - 4;
+        // Over the middle of the footprint as seen in the view, above the art.
+        const cx = r.x + ex / 2;
+        const cy = r.y + ey / 2;
+        wx = viewPointSX(va, cx, cy);
+        const vrot = viewSpriteRotation(r.rotation, va.r);
+        const eu = va.r & 1 ? ey : ex;
+        const ev = va.r & 1 ? ex : ey;
+        // Footprint top corner (view) = centre less half the view extents.
+        wy = viewPointSY(va, cx, cy, z) - ((eu + ev) * HH) / 2 + rideArtBounds(r.defId, fw, fd, vrot).top - 4;
       } else {
         wy -= 52;
       }
@@ -533,12 +548,12 @@ export class ManagementLayer {
     const p = this.place;
     pathItemPlacement(pathJoinMask(map, g.tile, s.rides, s.stalls), p);
     const code = a === 'bench' ? PathItem.Bench : a === 'bin' ? PathItem.Bin : PathItem.Lamp;
-    const frame = pathItemFrame(code, p.side, 0, false);
+    const frame = pathItemFrame(code, viewDir(p.side, this.va.r), 0, false);
     const fx = x + p.u;
     const fy = y + p.v;
     const z = surfaceZ(map, g.tile, p.u, p.v);
     ctx.globalAlpha = g.valid ? 0.75 : 0.4;
-    this.blit(this.bank.pathItem(pathItemSpriteKey(frame, this.bucket), frame, this.bucket), (fx - fy) * HW, (fx + fy) * HH - z * STEP_PX);
+    this.blit(this.bank.pathItem(pathItemSpriteKey(frame, this.bucket), frame, this.bucket), viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, z));
     ctx.globalAlpha = 1;
   }
 

@@ -76,13 +76,16 @@ describe('staff interpolation (like guests: tile → next tile by (progress + al
     expect(staffPosition(map, { tile: a, nextTile: east, progress: 12 }, 12, 0.9, pos()).fx).toBeCloseTo(11.5);
   });
 
-  it('is deterministic and interpolates height', () => {
+  it('is deterministic and follows the ground surface (a ramp rises along the walk; W3-G)', () => {
     const m = generateMap();
-    m.heights[east] = 12;
-    const p1 = staffPosition(m, { tile: a, nextTile: east, progress: 6 }, 12, 0, pos());
-    const p2 = staffPosition(m, { tile: a, nextTile: east, progress: 6 }, 12, 0, pos());
+    // The east neighbour is a ramp rising toward +x (E and S corners raised).
+    m.slope[east] = 2 | 4;
+    const p1 = staffPosition(m, { tile: a, nextTile: east, progress: 9 }, 12, 0, pos());
+    const p2 = staffPosition(m, { tile: a, nextTile: east, progress: 9 }, 12, 0, pos());
     expect(p1).toEqual(p2);
-    expect(p1.z).toBeCloseTo(10);
+    // Three quarters of the way: a quarter onto the ramp.
+    expect(p1.z).toBeCloseTo((m.heights[east] as number) + 0.25);
+    expect(staffPosition(m, { tile: a, nextTile: east, progress: 3 }, 12, 0, pos()).z).toBe(m.heights[a]);
   });
 });
 

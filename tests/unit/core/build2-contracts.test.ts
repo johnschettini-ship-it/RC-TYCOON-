@@ -76,8 +76,7 @@ describe('new games are schema 2 (Phase 4 §5, Phase 5 §5)', () => {
 
 describe('Build 2 commands are registered (Phase 4 §6, Phase 5 §6)', () => {
   const cmds: Command[] = [
-    // Terrain and water commands (W3-A): implemented, covered by tests/unit/terrain/.
-    { type: 'buyLand', x0: 0, y0: 0, x1: 3, y1: 3 },
+    // Terrain, water (W3-A), scenery (W3-D), and land purchase (W3-G) commands are implemented and tested in their folders.
     { type: 'setAfterDark', on: false },
     { type: 'scenarioContinue' },
     { type: 'setSandboxOption', key: 'awards', value: false },
