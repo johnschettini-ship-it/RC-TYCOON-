@@ -43,7 +43,7 @@ describe('rejects each corruption class (Review Focus 3)', () => {
     ['wrong format', () => corrupt(json, (r) => (r.format = 'some-other-game')), NOT_A_SAVE],
     ['no format', () => corrupt(json, (r) => delete r.format), NOT_A_SAVE],
     ['valid JSON that is not an object', () => '[1, 2, 3]', NOT_A_SAVE],
-    ['future schemaVersion', () => corrupt(json, (r) => (r.schemaVersion = 2)), NEWER],
+    ['future schemaVersion', () => corrupt(json, (r) => (r.schemaVersion = 3)), NEWER],
     ['missing schemaVersion', () => corrupt(json, (r) => delete r.schemaVersion), damaged('missing field schemaVersion')],
     ['schemaVersion 0', () => corrupt(json, (r) => (r.schemaVersion = 0)), damaged('bad value at schemaVersion')],
     ['missing state', () => corrupt(json, (r) => delete r.state), damaged('missing field state')],
@@ -139,7 +139,7 @@ describe('rejects dangling references', () => {
         refs[gate] = missing;
         r.state.map.contentRef = encodeTypedArray(refs);
       },
-      `map tile ${gate} points to a missing ride or stall`,
+      `map tile ${gate} points to a missing ride, stall, or scenery`,
     ],
     [
       'contentRef to a guest',
@@ -148,7 +148,7 @@ describe('rejects dangling references', () => {
         refs[gate] = rich.queuer;
         r.state.map.contentRef = encodeTypedArray(refs);
       },
-      `map tile ${gate} points to a missing ride or stall`,
+      `map tile ${gate} points to a missing ride, stall, or scenery`,
     ],
     ['dangling queue guest id', (r) => r.state.rides[rideIndex(ride.id)].queue.push(missing), `ride ${ride.id} queue lists a missing guest`],
     ['dangling rider', (r) => (r.state.rides[rideIndex(ride.id)].riders = [missing]), `ride ${ride.id} lists a missing rider`],

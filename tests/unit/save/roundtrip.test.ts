@@ -21,7 +21,7 @@ describe('serialize', () => {
     expect(raw.format).toBe(SAVE_FORMAT);
     expect(raw.format).toBe('thrills-and-chills-save');
     expect(raw.schemaVersion).toBe(SCHEMA_VERSION);
-    expect(raw.schemaVersion).toBe(1);
+    expect(raw.schemaVersion).toBe(2);
     expect(raw.gameVersion).toBe('1.2.3');
     expect(raw.savedAt).toBe(SAVED_AT);
   });

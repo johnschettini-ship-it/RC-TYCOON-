@@ -15,6 +15,11 @@ export interface ParkState {
   /** Fractional arrivals carried between ticks, in thousandths of a guest. */
   arrivalCarry: number;
   guestsArrivedTotal: number;
+  /** Phase 4 §4.7: After Dark on (night effects). New Build 2 parks: on; migrated Build 1 parks: off. Owner: W3-F. */
+  afterDark: boolean;
+  /** Phase 4 §4.9: price per tile of land for sale (state 2) and of construction rights (state 4). Owner: W3-G. */
+  landPrice: Cents;
+  rightsPrice: Cents;
 }
 
 /** Master rule R7. All neutral in Build 1. Phase 5 changes them. */

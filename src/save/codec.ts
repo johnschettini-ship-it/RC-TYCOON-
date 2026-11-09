@@ -1,13 +1,15 @@
 /** Save encoding and decoding (master §7). Pure: no storage, no DOM. */
 import type { GameState, World } from '../sim/types';
 import { checkIntegrity } from './integrity';
-import { damaged, ERR_NEWER, ERR_NOT_A_SAVE, ERR_TOO_OLD, ERR_UNREADABLE } from './messages';
-import type { Migrations } from './migrations';
+import { damaged, ERR_NEWER, ERR_NOT_A_SAVE, ERR_TOO_OLD, ERR_UNREADABLE, ERR_UPGRADE } from './messages';
+import { MigrationError, type Migrations } from './migrations';
 import { checkStructure, isRecord } from './schema';
 import { decodeTypedArrays, encodeTypedArray } from './typedArrays';
+import { STATE_SCHEMA_VERSION } from '../sim/types';
 
 export const SAVE_FORMAT = 'thrills-and-chills-save';
-export const SCHEMA_VERSION = 1;
+/** Schema version this build writes (Build 2 = 2, master §7). */
+export const SCHEMA_VERSION: number = STATE_SCHEMA_VERSION;
 
 export type LoadResult = { ok: true; world: World } | { ok: false; error: string };
 
@@ -77,18 +79,27 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
     const decodeError = decodeTypedArrays(state);
     if (decodeError) return fail(damaged(decodeError));
 
+    const migrated = version < opts.schemaVersion;
     for (let from = version; from < opts.schemaVersion; from++) {
       const migrate = opts.migrations[from];
       if (!migrate) return fail(ERR_TOO_OLD);
       try {
         state = migrate(state);
-      } catch {
-        return fail(damaged(`could not upgrade it from version ${from}`));
+      } catch (e) {
+        return fail(e instanceof MigrationError ? e.message : ERR_UPGRADE);
       }
     }
 
-    const problem = validateState(state);
-    if (problem) return fail(damaged(problem));
+    if (migrated) {
+      // Phase 4 §5.1 steps 5–6: a structure failure after the upgrade is an upgrade failure; a reference failure
+      // means the old save itself was damaged.
+      if (checkStructure(state)) return fail(ERR_UPGRADE);
+      const broken = checkIntegrity(state as GameState);
+      if (broken) return fail(damaged(broken));
+    } else {
+      const problem = validateState(state);
+      if (problem) return fail(damaged(problem));
+    }
     return { ok: true, world: { state: state as GameState, events: [] } };
   } catch {
     return fail(ERR_UNREADABLE);

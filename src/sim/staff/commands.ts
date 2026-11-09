@@ -99,6 +99,7 @@ export const staffHandlers: HandlerMap<StaffCommand> = {
       type: def.id,
       name: staffName(world),
       tile,
+      z: s.map.heights[tile] as number,
       nextTile: -1,
       progress: 0,
       dir: 0,

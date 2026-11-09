@@ -40,6 +40,11 @@ export interface Guest {
   id: EntityId;
   /** Current tile index. */
   tile: number;
+  /**
+   * Phase 4 §4.2: height (absolute steps) of the walking surface of the path node the guest stands on, `(tile, z)`.
+   * The ground height of `tile` on ground paths. Maintained by the walking code (W3-B).
+   */
+  z: number;
   /** Tile the guest walks toward, or −1 when standing. */
   nextTile: number;
   /** Ticks walked toward `nextTile`. */
@@ -83,4 +88,6 @@ export interface Guest {
   bestDistance: number;
   /** Phase 3 §4.10: the target that `lostSteps` and `bestDistance` measure, or null. */
   lostTarget: DestKey | null;
+  /** Phase 4 §4.4: wet from a water ride until this tick (1 game hour), or −1 when dry (W3-C). */
+  wetUntilTick: number;
 }

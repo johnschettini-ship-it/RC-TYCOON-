@@ -3,6 +3,7 @@
  * "Direct" helpers write state without commands so tests of one system do not depend on another.
  */
 import { createWorld } from '../../src/sim/world';
+import { GROUND_LEVEL } from '../../src/data/tuning/core';
 import { Content, tileIndex } from '../../src/sim/map';
 import { allocId } from '../../src/sim/ids';
 import { stepTick } from '../../src/sim/tick';
@@ -223,6 +224,7 @@ export function addGuestDirect(world: World, tile: number, patch: Partial<Guest>
   const guest: Guest = {
     id,
     tile,
+    z: tile >= 0 ? (s.map.heights[tile] as number) : GROUND_LEVEL,
     nextTile: -1,
     progress: 0,
     dir: 0,
@@ -248,6 +250,7 @@ export function addGuestDirect(world: World, tile: number, patch: Partial<Guest>
     lostSteps: 0,
     bestDistance: -1,
     lostTarget: null,
+    wetUntilTick: -1,
     ...patch,
   };
   s.guests.push(guest);

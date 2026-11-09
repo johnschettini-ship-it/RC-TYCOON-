@@ -6,6 +6,8 @@ export const ERR_TOO_OLD = 'This save comes from an older version that this game
 export const ERR_SAVE_FAILED = 'Could not save. Storage is full or blocked. Use Export instead';
 export const ERR_NO_STORAGE = 'Saved games are not available in this browser. Use Import instead';
 export const ERR_EMPTY_SLOT = 'This save slot is empty';
+/** Phase 4 §5.1 step 6: an older save failed to upgrade. */
+export const ERR_UPGRADE = 'This save could not be upgraded';
 
 /** The live state would not load back, so the slot keeps its old save. */
 export function saveInvalid(reason: string): string {
