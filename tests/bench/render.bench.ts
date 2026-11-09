@@ -3,25 +3,21 @@
  *
  * - Terrain change check on 128 × 128: the Build 2 diff (9 layers, byte by byte; kept here as the reference) against
  *   the W4-E tracker (7 layers, 32-bit words).
- * - A renderer frame with the fake canvas (JavaScript cost only; raster is the browser's): a still camera (static
- *   terrain layer copied) against a moving one (every visible chunk drawn).
  * - One tick of the Build 2 perf scene (`tests/perf/`, 3,000 guests on 128 × 128) for the worker rule
- *   (`docs/adr/0002-worker.md`): plain timed loop, p50 / p95 (bench mode slows calls into `src/sim`, see
- *   `tick.bench.ts`, so the loop runs outside it).
+ *   (`docs/adr/0002-worker.md`): a plain timed loop over a game day, p50 / p95. Bench mode slows every call into
+ *   `src/sim` (see `tick.bench.ts`), so this is an upper bound; the rule uses the browser perf run.
+ *
+ * Console lines need `--silent=false` (`npm run bench -- --silent=false`).
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'vitest';
 import { TerrainTracker } from '../../src/render/terrainTracker';
-import { terrainClock } from '../../src/render/terrain';
-import { createCanvasRenderer } from '../../src/render/renderer';
-import { defaultToolState, type Camera } from '../../src/render/types';
 import { deserialize } from '../../src/save';
 import { stepTick } from '../../src/sim/tick';
 import type { MapState } from '../../src/sim/map';
 import type { World } from '../../src/sim/types';
 import { percentile } from '../../src/perf/stats';
-import { install, make } from '../unit/render/fakeCanvas';
 import { PERF_SCENES } from '../perf/sceneInfo';
 
 const RUN = { time: 2_000, warmupTime: 300 };
@@ -61,32 +57,7 @@ test('terrain change check, 128 × 128 (Phase 6 §4.6 finding)', async ({ bench 
   console.log(`[bench] terrain change check 128 × 128: ${before.latency.mean.toFixed(4)} ms → ${after.latency.mean.toFixed(4)} ms per frame`);
 }, 60_000);
 
-test('renderer frame, fake canvas: still camera (static layer) against a moving camera', async ({ bench }) => {
-  install();
-  terrainClock.now = () => 0;
-  const world = loadScene('build2');
-  const canvas = make(1280, 800);
-  const renderer = createCanvasRenderer(canvas as unknown as HTMLCanvasElement);
-  renderer.resize(1280, 800, 1);
-  const tool = defaultToolState();
-  const still: Camera = { centerX: 0, centerY: 129 * 16 - 64, zoom: 1, rotation: 0 };
-  for (let k = 0; k < 3; k++) renderer.draw(world, still, tool, 0);
-  const s = await bench('frame, still camera', () => {
-    canvas.reset();
-    renderer.draw(world, still, tool, 0.5);
-  }).run(RUN);
-  let dx = 0;
-  const moving: Camera = { ...still };
-  const m = await bench('frame, moving camera', () => {
-    canvas.reset();
-    dx = (dx + 4) % 256;
-    moving.centerX = dx;
-    renderer.draw(world, moving, tool, 0.5);
-  }).run(RUN);
-  console.log(`[bench] renderer JS per frame (fake canvas): still ${s.latency.mean.toFixed(2)} ms, moving ${m.latency.mean.toFixed(2)} ms`);
-}, 60_000);
-
-test('tick of the Build 2 perf scene (3,000 guests, 128 × 128; budget p95 4 ms)', () => {
+test('tick of the Build 2 perf scene (3,000 guests, 128 × 128; budget p95 4 ms, bench-mode upper bound)', () => {
   const world = loadScene('build2');
   for (let k = 0; k < 100; k++) stepTick(world);
   const times: number[] = [];

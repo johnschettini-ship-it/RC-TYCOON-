@@ -8,7 +8,7 @@
 
 - **Scenes:** three schema 3 saves in `tests/perf/` built by `tests/perf/scenes.ts` (regenerate with
   `TC_WRITE_SCENES=1 npx vitest run tests/unit/perf/scenes.test.ts`): `build1` (64 × 64, 2,000 guests, 10 Mini Railway
-  loops with 2 trains each, 4 flat rides, 4 stalls, 8 staff), `build2` (128 × 128, 3,000 guests, 24 flat rides with
+  loops with 2 trains each, 14 flat rides, 4 stalls, 8 staff), `build2` (128 × 128, 3,000 guests, 24 flat rides with
   queues, 24 stalls, plateaus, ponds, 60 scenery items, 2 show sites written directly until W4-C's `placeShowSite`
   merges, 12 staff), `phone` (the `build1` park with 800 guests). Guests are real (needs, decisions); the track rides
   run empty trains (a harness: no gates). All three start at 13:10 with After Dark on, so a run reaches the night.
@@ -20,9 +20,9 @@
   churn), long tasks, JS heap (CDP, after GC), the longest frame of two view turns, and a 3 s pan.
 - **Phone:** the Playwright Pixel 7 profile (412 × 839 CSS px, touch, `pointer: coarse`) with **4× CPU throttling**
   (CDP `Emulation.setCPUThrottlingRate`); **desktop:** 1280 × 800, DPR 1.
-- **Machine:** headless Chromium 153 with **software raster** (no GPU) on a shared 4-core container. Six other agents
-  ran test suites at the same time (load average 6–16), so every number is noisy; before / after pairs were run back
-  to back, and the PixiJS rule uses 3 runs.
+- **Machine:** headless Chromium 153 with **software raster** (no GPU) on a shared 4-core container. Other agents ran
+  test suites at the same time for most of the work (load average 6–16); the tables below come from runs at load
+  average 1–5, with before / after pairs run back to back, and the PixiJS rule uses 3 runs.
 - **Profiles:** CDP `Profiler` (self time by function, unminified build) and a `devtools.timeline` trace for the
   split between JavaScript, canvas calls, and the canvas commit.
 
@@ -83,12 +83,84 @@ Also done (Phase 6 §4.6 limits and the remaining findings):
 
 ## Results
 
-RESULTS
+All runs: 10 s warm-up, then 30 s at 1×. "Before" = the Wave 4.0 renderer with only the probe added (same scenes,
+same harness), run back to back with "after". Frame times are requestAnimationFrame intervals, so they come in
+16.7 ms steps (33.4 = two refreshes).
+
+**Phone scene (800 guests), Pixel 7 profile, CPU 4× slower — 3 runs each (budget: p95 ≤ 40 ms):**
+
+| | Before | After, `auto` (default) | After, `high` (fixed 2×) |
+|---|---|---|---|
+| fps | 16.5 / 17.0 / 18.8 | 43.0 / 41.0 / 41.8 | 23.2 |
+| Frame p95 | 83.4 / 83.4 / 83.3 ms | **33.4 / 33.4 / 49.9 ms** | 83.3 ms |
+| Render p95 (`Renderer.draw`) | 26.0–27.3 ms | 9.6–10.1 ms | 12.0 ms |
+| Main-thread work p95 (`Game.frame`) | 31.9–33.5 ms | 16.4–17.6 ms | 21.2 ms |
+| Tick p95 (4× slower CPU) | 3.9–4.4 ms | 4.8–5.0 ms | 5.0 ms |
+| Long tasks in 30 s | 367–386 | 36–55 | 343 |
+| Sprite and chunk memory | 130 MB | 57.5 MB | 64.0 MB |
+| Longest frame of a view turn | 450–633 ms | 83–117 ms | 150–183 ms |
+| Pan, frame p95 | 83–100 ms | 33.4 ms | 100 ms |
+| Render scale | 2× | 1× (`auto` stepped down) | 2× |
+
+**Build 2 scene (128 × 128, 3,000 guests) on the phone profile, CPU 4×:** before 17–19 fps, p95 100–117 ms, render
+p95 33–39 ms, 132 MB (3 runs, busier machine); after `auto` 47 fps, p95 33.4 / 33.4 / 33.4 ms, render p95 9–10 ms,
+58–64 MB; after `high` 20 fps, p95 83.3–83.4 ms, render p95 12 ms.
+
+**Desktop, 1280 × 800 (budget: frame p95 ≤ 20 ms, tick p95 ≤ 4 ms):**
+
+| Scene | | Before | After |
+|---|---|---|---|
+| Build 1 (2,000 guests, 10 track rides) | fps, frame p95 | 59.9, 16.8 ms | 59.9, 16.7 ms |
+| | tick p95, render p95 | 1.6 ms, 4.3 ms | 1.6 ms, 4.1 ms |
+| | longest frame of a turn | 67–83 ms (work 66–78 ms) | 33 ms (work 25–28 ms) |
+| Build 2 (128 × 128, 3,000 guests, 2 shows) | fps, frame p95 | 59.9, 16.7 ms | 59.9, 16.7–16.8 ms |
+| | tick p95, render p95 | 2.4 ms, 3.3 ms | 2.6–2.7 ms, 3.0–3.1 ms |
+| | longest frame of a turn | 50–67 ms (work 51–66 ms) | 17–33 ms (work 9–15 ms) |
+| | long tasks in 30 s | 1 | 0 |
+
+Desktops were already vsync-bound in this harness; the desktop gains are the turn (no frame over 33 ms) and less
+work per frame. **Other budgets:** JS heap 7–9 MB in every scene (budget 250 / 150 MB; sprite and chunk images are
+canvas memory, capped separately at 192 / 64 MB); initial load 294.9 KB gzipped JS + CSS + HTML after the Wave 4
+merges (budget 400 KB). **Terrain change check** on 128 × 128 (`tests/bench/render.bench.ts`): 0.37 → 0.06 ms per
+frame. With the machine busy (load average 9–15), the same runs gave phone p95 50 ms for `auto` and desktop tick
+p95 up to 4.9 ms: these budgets have little margin on a loaded device.
 
 ## PixiJS decision
 
-PIXI
+**Rule (Phase 6 §4.6):** adopt PixiJS only if, after steps 1–4, the phone scene p95 frame > 40 ms in 2 of 3 runs
+**and** the profile shows ≥ 50% of frame time in canvas drawing.
+
+**Measured:** with the default render quality (`auto`) the phone scene p95 was over 40 ms in **1 of 3 runs** (33.4,
+33.4, 49.9 ms). **The rule is not met: PixiJS is not adopted.** No runtime dependency was added.
+
+With the render scale held at 2× (`high`) both conditions would hold: p95 83 ms, and the profile is dominated by the
+browser putting an 824 × 1,678 px software-rastered canvas on screen (render p95 is only 12 ms and main-thread work
+21 ms of the 83 ms; the rest is canvas commit and raster, 343 long tasks in 30 s). That is not a reason to switch
+renderers here:
+
+1. **The proxy has no GPU.** Headless Chromium rasters Canvas 2D in software, and WebGL would run on SwiftShader
+   (also the CPU), so a PixiJS renderer cannot be shown to win on this proxy. Real phones raster both Canvas 2D and
+   WebGL on the GPU; the expensive part measured here (per-pixel work on 1.4 Mpx per frame) is what a GPU does well.
+2. **Bundle budget.** The build is 294.9 KB gzipped; PixiJS v8 adds roughly 150–250 KB gzipped depending on the
+   modules used (estimate: not installed), which breaks the 400 KB budget and needs the owner's approval.
+3. **Contract cost.** `WorldLayer` (Wave 3.0/4.0) hands a `CanvasRenderingContext2D` to the fields, lighting
+   (`multiply` / `lighter` compositing), elevated path, scenery, terrain tool, show, and a11y layers, and the track
+   and management layers draw through the same context. A `PixiRenderer` means porting every card's layer; the
+   `Renderer` interface alone (master §4) does not cover them.
+
+The upgrade path stays open: everything still draws through one `Renderer` interface.
 
 ## Plan for the gap
 
-PLAN
+- `auto` stays the default render quality. It keeps 2× where the device holds the budget and steps down to 1×
+  where it cannot; `high` and `low` remain player choices.
+- **Release (Phase 6 §4.6 method, release checklist item 2):** run the manual check on a real mid-range Android
+  phone and an iPhone with the F3 overlay, at `auto` and `high`. If `high` misses p95 ≤ 40 ms on real hardware while
+  the overlay's render p95 stays low (the browser's raster, not our drawing, is the bound), reopen this ADR with the
+  owner (bundle budget). If render p95 is high, profile the layers first.
+- **Layers owned by other cards** (out of W4-E scope, reported): the track layer drew 9.9% of the phone frame before
+  this work, cutting slices from large per-ride images (in a software canvas a draw costs by the source image size);
+  per-slice images would remove most of it. The scenery, terrain tool, and track layers still hard-code the old
+  red / green ghost colours (Phase 6 §4.7).
+- Re-run `TC_PERF=1 TC_PERF_RUNS=3` after the W4-C and W4-D merges (shows and extra content add drawing; regenerate
+  the Build 2 scene with real show sites once `placeShowSite` exists).
