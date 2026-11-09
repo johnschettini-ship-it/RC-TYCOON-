@@ -11,9 +11,8 @@ import type { GameState, World } from '../types';
 /** Field value for tiles that cannot reach the destination. */
 export const UNREACHABLE = 0xffff;
 
-/** Which tiles a BFS may enter besides footpaths and the park entrance. */
-const NO_QUEUE = -1;
-const ANY_QUEUE = -2;
+/** Queue id that matches no owner (fields that may not enter queues). */
+const NO_QUEUE = -3;
 
 export interface NetworkCache {
   state: GameState;
@@ -24,6 +23,10 @@ export interface NetworkCache {
   dirty: boolean;
   /** Ride id owning each queue tile, or −1. */
   owner: Int32Array;
+  /** 1 where guests may always walk: footpath or park entrance. */
+  guestPass: Uint8Array;
+  /** 1 where staff may walk: footpath, queue, or park entrance. */
+  staffPass: Uint8Array;
   /** Guest fields by destination; null = no valid destination tile. */
   fields: Map<DestKey, Uint16Array | null>;
   /** Staff fields by target tile; null = target not walkable. Oldest first (LRU order). */
@@ -79,13 +82,27 @@ function rebuild(s: GameState, old: NetworkCache | undefined): NetworkCache {
     stallCount: s.stalls.length,
     dirty: false,
     owner: sameSize && old ? old.owner : new Int32Array(n),
+    guestPass: sameSize && old ? old.guestPass : new Uint8Array(n),
+    staffPass: sameSize && old ? old.staffPass : new Uint8Array(n),
     fields: new Map(),
     staffFields: new Map(),
     pool,
     work: sameSize && old ? old.work : new Int32Array(n),
   };
+  computePassMasks(c);
   computeQueueOwners(s, c);
   return c;
+}
+
+function computePassMasks(c: NetworkCache): void {
+  const content = c.map.content;
+  const { guestPass, staffPass } = c;
+  for (let i = 0; i < content.length; i++) {
+    const t = content[i];
+    const g = t === Content.Footpath || t === Content.ParkEntrance;
+    guestPass[i] = g ? 1 : 0;
+    staffPass[i] = g || t === Content.Queue ? 1 : 0;
+  }
 }
 
 /** Flood fill each queue from its ride's entrance outside tile. Rides in ascending id order; the first claim wins. */
@@ -129,15 +146,15 @@ function takeBuffer(c: NetworkCache): Uint16Array {
 }
 
 /**
- * BFS from `seed`. Footpaths and the park entrance are always walkable.
- * `queue` = NO_QUEUE: no queue tiles; a ride id: only that ride's queue tiles; ANY_QUEUE: every queue tile (staff).
+ * BFS from `seed` over tiles where `pass` is 1, plus the queue tiles owned by `queueId` (a ride id, or NO_QUEUE).
+ * Neighbours are visited in order N, E, S, W.
  */
-function bfs(c: NetworkCache, seed: number, queue: number, out: Uint16Array): void {
-  const content = c.map.content;
+function bfs(c: NetworkCache, seed: number, pass: Uint8Array, queueId: number, out: Uint16Array): void {
   const owner = c.owner;
   const work = c.work;
   const w = c.map.width;
-  const h = c.map.height;
+  const maxX = w - 1;
+  const lastRow = (c.map.height - 1) * w;
   out.fill(UNREACHABLE);
   out[seed] = 0;
   let head = 0;
@@ -147,25 +164,31 @@ function bfs(c: NetworkCache, seed: number, queue: number, out: Uint16Array): vo
     const i = work[head++] as number;
     const d = (out[i] as number) + 1;
     const x = i % w;
-    const y = (i - x) / w;
-    for (let k = 0; k < 4; k++) {
-      let j: number;
-      if (k === 0) {
-        if (y === 0) continue;
-        j = i - w;
-      } else if (k === 1) {
-        if (x === w - 1) continue;
-        j = i + 1;
-      } else if (k === 2) {
-        if (y === h - 1) continue;
-        j = i + w;
-      } else {
-        if (x === 0) continue;
-        j = i - 1;
+    let j: number;
+    if (i >= w) {
+      j = i - w;
+      if (out[j] === UNREACHABLE && (pass[j] === 1 || owner[j] === queueId)) {
+        out[j] = d;
+        work[tail++] = j;
       }
-      if (out[j] !== UNREACHABLE) continue;
-      const t = content[j];
-      if (t === Content.Footpath || t === Content.ParkEntrance || (t === Content.Queue && (queue === ANY_QUEUE || (queue >= 0 && owner[j] === queue)))) {
+    }
+    if (x < maxX) {
+      j = i + 1;
+      if (out[j] === UNREACHABLE && (pass[j] === 1 || owner[j] === queueId)) {
+        out[j] = d;
+        work[tail++] = j;
+      }
+    }
+    if (i < lastRow) {
+      j = i + w;
+      if (out[j] === UNREACHABLE && (pass[j] === 1 || owner[j] === queueId)) {
+        out[j] = d;
+        work[tail++] = j;
+      }
+    }
+    if (x > 0) {
+      j = i - 1;
+      if (out[j] === UNREACHABLE && (pass[j] === 1 || owner[j] === queueId)) {
         out[j] = d;
         work[tail++] = j;
       }
@@ -204,7 +227,7 @@ function computeField(c: NetworkCache, dest: DestKey): Uint16Array | null {
     return null;
   }
   const out = takeBuffer(c);
-  bfs(c, seed, queue, out);
+  bfs(c, seed, c.guestPass, queue, out);
   return out;
 }
 
@@ -236,7 +259,7 @@ export function staffField(c: NetworkCache, target: number): Uint16Array | null 
   let f: Uint16Array | null = null;
   if (target >= 0 && target < c.owner.length && isStaffWalkableContent(c.map.content[target])) {
     f = takeBuffer(c);
-    bfs(c, target, ANY_QUEUE, f);
+    bfs(c, target, c.staffPass, NO_QUEUE, f);
   }
   c.staffFields.set(target, f);
   while (c.staffFields.size > STAFF_FIELD_CACHE_MAX) {

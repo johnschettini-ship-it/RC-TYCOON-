@@ -69,7 +69,10 @@ export function markNetworkDirty(world: World): void {
   markDirty(world);
 }
 
-/** Read-only view of the guest distance field for `dest` (UNREACHABLE = no route), or null. For overlays and tests. */
+/**
+ * Read-only view of the guest distance field for `dest` (UNREACHABLE = no route), or null. For overlays and tests.
+ * The buffer is reused after the next network change: read it now, do not keep it.
+ */
 export function distanceField(world: World, dest: DestKey): Readonly<Uint16Array> | null {
   return guestField(network(world), dest);
 }
