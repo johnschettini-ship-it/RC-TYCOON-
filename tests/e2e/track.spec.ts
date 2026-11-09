@@ -229,6 +229,18 @@ test.describe('track builder', () => {
     await expect(page.getByTestId('track-open')).toHaveText('Close ride');
     const status = await page.evaluate(() => window.__tc.world.state.rides.find((r) => r.kind === 'track')?.status);
     expect(status).toBe('open');
+
+    // 6. Overview tab: the maintenance section (Phase 3 §7.1), the same as on a flat ride panel.
+    await press(page, phone, 'track-tab-overview');
+    const reliability = page.getByTestId('ride-reliability');
+    await expect(reliability).toBeVisible();
+    await expect(reliability.locator('.meter-value')).toHaveText(/^\d+%$/);
+    const inspect = page.getByTestId('ride-inspection');
+    await expect(inspect).toBeVisible();
+    await inspect.selectOption('200');
+    await expect
+      .poll(() => page.evaluate(() => (window.__tc.world.state.rides.find((r) => r.kind === 'track') as unknown as { inspectionIntervalTicks: number }).inspectionIntervalTicks))
+      .toBe(200);
   });
 
   test('undo refunds the last piece; Esc leaves the builder and the track stays', async ({ page }, info) => {
