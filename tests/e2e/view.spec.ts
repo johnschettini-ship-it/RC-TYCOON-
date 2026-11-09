@@ -185,6 +185,10 @@ test.describe('phone', () => {
     // Nothing is bought until Confirm; the total chip shows the price.
     await expect(page.getByTestId('buy-total')).toHaveText('6 land, 0 rights: $900');
     expect(await ownedCount(page, 20, 30, 22, 31)).toBe(0);
+    await expect(page.getByTestId('buy-confirm')).toBeEnabled();
+    // A tap within the double-tap window of the drag's lift gets no click in Chrome's touch emulation; a person's
+    // thumb is never that quick.
+    await page.waitForTimeout(400);
     await page.getByTestId('buy-confirm').tap();
     await expect.poll(() => ownedCount(page, 20, 30, 22, 31)).toBe(6);
     expect(await cash(page)).toBe(before - 6 * 15_000);
