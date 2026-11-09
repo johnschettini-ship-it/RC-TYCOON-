@@ -231,12 +231,13 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
   const snaps = snapshot(data, layout, len);
   const snapOf = new Map(snaps.map((s) => [s.id, s]));
   const P = layout.blockPoints;
-  let spawned = false;
-
-  for (const t of data.trains) {
-    if (t.parked) {
-      if (!open || spawned) continue;
-      const free = gravity ? !blockOccupied(layout, snaps, lastBlock(layout), t.id) && arcFree(snaps, L, layout.stopFrontMm, len, t.id) : arcFree(snaps, L, layout.stopFrontMm + GAP_RULE_MM, len + GAP_RULE_MM + 10_000, t.id);
+  // Trains leave the shed before anyone moves, so every decision this tick sees them.
+  if (open) {
+    for (const t of data.trains) {
+      if (!t.parked) continue;
+      const free = gravity
+        ? !blockOccupied(layout, snaps, lastBlock(layout), t.id) && arcFree(snaps, L, layout.stopFrontMm, len, t.id)
+        : arcFree(snaps, L, layout.stopFrontMm + GAP_RULE_MM, len + GAP_RULE_MM + 10_000, t.id);
       if (free) {
         t.parked = false;
         t.s = stopC;
@@ -245,10 +246,17 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
         t.dwellTicks = 0;
         t.dist = 0;
         t.lap = 0;
-        spawned = true;
+        const half = Math.round(len / 2);
+        const snap: Snap = { id: t.id, front: modL(t.s + half, L), tail: modL(t.s - half, L), len, v: 0 };
+        snaps.push(snap);
+        snapOf.set(t.id, snap);
       }
-      continue;
+      break;
     }
+  }
+
+  for (const t of data.trains) {
+    if (t.parked) continue;
     switch (t.state) {
       case 'unloading':
         t.dwellTicks++;
