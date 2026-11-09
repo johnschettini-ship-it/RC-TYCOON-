@@ -22,7 +22,7 @@ import type { World } from '../types';
 import { joinQueue, leaveQueue } from './api';
 import { updateBuying, startBuying } from './buying';
 import { becomeLost, decide } from './decide';
-import { beginStep, keepOnNode, relocate, stepAllowed, stepOffQueue, stopWalking, tileOk, wanderStep } from './movement';
+import { beginStep, clearStepStarts, keepOnNode, relocate, stepAllowed, stepOffQueue, stopWalking, tileOk, wanderStep } from './movement';
 import { changeNeed, ditherStep, updateNeeds } from './needs';
 import { findRide, findStall, parseDest, replan, setState, targetValid } from './state';
 import { THOUGHT } from './thoughts';
@@ -231,7 +231,9 @@ export function updateGuest(world: World, guest: Guest, gone: Set<number>): bool
 export function updateGuests(world: World): void {
   const guests = world.state.guests;
   const gone = new Set<number>();
+  clearStepStarts(world);
   for (let i = 0; i < guests.length; i++) updateGuest(world, guests[i] as Guest, gone);
+  clearStepStarts(world);
   if (gone.size === 0) return;
   let w = 0;
   for (let r = 0; r < guests.length; r++) {

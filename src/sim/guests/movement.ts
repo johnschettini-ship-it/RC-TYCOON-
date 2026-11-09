@@ -76,10 +76,35 @@ export function dirBetween(world: World, from: number, to: number, fallback: Dir
   return fallback;
 }
 
+/**
+ * Guests whose step began in the current guest pass (`updateGuests`). Per-step work in the per-tick guest hooks (the
+ * facilities' lost count, impulse buys, wrong turns — Phase 3 §4.10) asks `stepBeganThisPass`, so each step is
+ * handled exactly once whatever the walking speed: a step's first tick no longer moves `progress` by exactly 1 once
+ * ramps (× 0.75 / × 1.10, Phase 4 §4.2) or Calm and Buzz walking factors apply. Transient and never saved: the pass
+ * clears the list before and after it runs, and a save happens between passes.
+ */
+const stepStarts = new WeakMap<World, Set<number>>();
+
+/** Forget the step starts of the last pass (`updateGuests` calls it before and after the pass). */
+export function clearStepStarts(world: World): void {
+  stepStarts.get(world)?.clear();
+}
+
+/** True when `guest` began its current step in the running guest pass. */
+export function stepBeganThisPass(world: World, guest: Guest): boolean {
+  return stepStarts.get(world)?.has(guest.id) ?? false;
+}
+
 export function beginStep(world: World, guest: Guest, next: number): void {
   guest.dir = dirBetween(world, guest.tile, next, guest.dir);
   guest.nextTile = next;
   guest.progress = 0;
+  let starts = stepStarts.get(world);
+  if (!starts) {
+    starts = new Set();
+    stepStarts.set(world, starts);
+  }
+  starts.add(guest.id);
 }
 
 export function stopWalking(guest: Guest): void {

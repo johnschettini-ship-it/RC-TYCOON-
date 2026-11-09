@@ -11,8 +11,8 @@
  * - With a map: no wrong turns and never lost by this rule. The Phase 1 "no route" rule (guest system,
  *   `lostSinceTick`) still applies: a map does not make an unreachable target reachable.
  *
- * Steps are counted when a step begins (`progress === 1`), so each step counts once and standing still
- * never counts.
+ * Steps are counted when a step begins (`stepBeganThisPass`, at any walking speed), so each step counts once and
+ * standing still never counts.
  */
 import {
   JUNCTION_MIN_NEIGHBOURS,
