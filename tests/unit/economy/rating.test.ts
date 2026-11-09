@@ -17,7 +17,7 @@ import {
 } from '../../../src/data/tuning/economy';
 import { TICKS_PER_HOUR } from '../../../src/data/tuning/core';
 import { createTrackSlice } from '../../../src/sim/rides/track/types';
-import { addGuestDirect, makeTestWorld, placeRideDirect, runTicks } from '../../helpers/world';
+import { addGuestDirect, makeTestWorld, makeTrackRideDataDirect, placeRideDirect, runTicks } from '../../helpers/world';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
 
@@ -232,18 +232,7 @@ describe('rating parts at their edges', () => {
       ride!.kind = 'track';
       ride!.defId = 'junior_coaster';
       w.state.track = createTrackSlice();
-      w.state.track.rides[String(ride!.id)] = {
-        rideId: ride!.id,
-        typeId: 'junior_coaster',
-        pieces: [],
-        circuitClosed: true,
-        trainConfig: { trains: 2, carsPerTrain: 3 },
-        operation: { minDwellTicks: 0, maxDwellTicks: 0, laps: 1 },
-        trains: [],
-        test: null,
-        colours: { track: 0, supports: 0, cars: 0 },
-        openedOnce: true,
-      };
+      makeTrackRideDataDirect(w, ride!, { trainConfig: { trains: 2, carsPerTrain: 3 }, openedOnce: true });
       // capacity = 2 trains × 3 cars × 2 seats = 12 → 3 × 12 = 36
       ride!.queue = Array.from({ length: 18 }, (_, i) => 1_000 + i);
       expect(ratingParts(w).queues).toBeCloseTo(0.5, 10);

@@ -9,11 +9,10 @@ import {
   WEATHER_STATES,
   WEATHER_STAY,
 } from '../../data/tuning/management';
-import { GROUND_LEVEL } from '../../data/tuning/core';
 import { MSG } from '../../data/strings/management';
 import { getFlatRideDef, getTrackRideDef, type WeatherKey } from '../../data/catalog';
-import { tileIndex } from '../map';
 import { notify } from '../notifications';
+import { trackHighestPointM } from '../rides/track/api';
 import type { Ride } from '../rides/types';
 import { rngChance, rngInt, type RngHolder } from '../rng';
 import { seasonOf, type Season } from '../time';
@@ -65,23 +64,14 @@ export function weatherArrivalFactor(world: World): number {
   return WEATHER_ARRIVAL_FACTOR[world.state.management.weather.current];
 }
 
-/** Highest track rail above the ground at the station, in metres (piece joint heights). */
-export function trackHighestAboveGround(world: World, ride: Ride): number {
-  const data = world.state.track.rides[String(ride.id)];
-  if (!data || data.pieces.length === 0) return 0;
-  const map = world.state.map;
-  const inMap = ride.x >= 0 && ride.y >= 0 && ride.x < map.width && ride.y < map.height;
-  const ground = inMap ? (map.heights[tileIndex(map, ride.x, ride.y)] ?? GROUND_LEVEL) : GROUND_LEVEL;
-  let top = -Infinity;
-  for (const p of data.pieces) if (p.z > top) top = p.z;
-  return top - ground;
-}
-
-/** Catalog `tall` flag, or a track ride whose highest rail is ≥ 20 m above ground. */
+/**
+ * Catalog `tall` flag, or a track ride whose highest rail is ≥ 20 m above the ground below it
+ * (`trackHighestPointM`: every rail tile of the current pieces against its own ground height).
+ */
 export function isTallRide(world: World, ride: Ride): boolean {
   if (ride.kind === 'track') {
     if (getTrackRideDef(ride.defId)?.flags.tall) return true;
-    return trackHighestAboveGround(world, ride) >= TALL_TRACK_HEIGHT_M;
+    return trackHighestPointM(world, ride.id) >= TALL_TRACK_HEIGHT_M;
   }
   return getFlatRideDef(ride.defId)?.flags.tall === true;
 }

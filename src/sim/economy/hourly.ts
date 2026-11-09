@@ -5,12 +5,7 @@
  */
 import { getFlatRideDef, getStallDef } from '../../data/catalog';
 import { TICKS_PER_MONTH } from '../../data/tuning/core';
-import {
-  TRACK_EXTRA_TRAIN_COST,
-  TRACK_EXTRA_TRAIN_DIVISOR,
-  TRACK_RUN_BASE,
-  TRACK_RUN_PER_PIECE,
-} from '../../data/tuning/economy';
+import { trackRunningCostMonthly } from '../rides/track/api';
 import { hourOfMonth } from '../time';
 import type { Ride } from '../rides/types';
 import type { Stall } from '../stalls/types';
@@ -19,20 +14,12 @@ import type { Cents } from '../units';
 import { hourlyShare, recordLedger } from './ledger';
 
 /**
- * Monthly running cost of a ride in cents. Flat rides: catalog. Track rides: Phase 2 §4.12
- * (run base + $1.50 × pieces + extra train cost / 20 × (trains − 1)), from a local copy of the Phase 2 table
- * until W1-G exports its own function (contract change request in the W1-E report).
+ * Monthly running cost of a ride in cents. Flat rides: catalog. Track rides: the track module's Phase 2 §4.12
+ * formula (run base + $1.50 × pieces + extra train cost / 20 × (trains − 1)).
  */
 export function rideMonthlyRunningCost(world: World, ride: Ride): Cents {
   if (ride.kind === 'flat') return getFlatRideDef(ride.defId)?.runningCostMonthly ?? 0;
-  const data = world.state.track.rides[String(ride.id)];
-  const typeId = data?.typeId ?? ride.defId;
-  const base = TRACK_RUN_BASE[typeId];
-  if (base === undefined) return 0;
-  const pieces = data?.pieces.length ?? 0;
-  const trains = data?.trainConfig.trains ?? 1;
-  const extraTrain = Math.floor((TRACK_EXTRA_TRAIN_COST[typeId] ?? 0) / TRACK_EXTRA_TRAIN_DIVISOR);
-  return base + TRACK_RUN_PER_PIECE * pieces + extraTrain * Math.max(0, trains - 1);
+  return trackRunningCostMonthly(world, ride);
 }
 
 export function stallMonthlyRunningCost(stall: Stall): Cents {

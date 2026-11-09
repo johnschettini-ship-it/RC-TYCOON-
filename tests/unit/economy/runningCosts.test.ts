@@ -13,9 +13,19 @@ import { sellItem } from '../../../src/sim/stalls/api';
 import { LEDGER_CATEGORIES, type LedgerMonth } from '../../../src/sim/economy/types';
 import { FLAT_RIDES, STALLS } from '../../../src/data/catalog';
 import { HOURS_PER_MONTH, TICKS_PER_HOUR, TICKS_PER_MONTH } from '../../../src/data/tuning/core';
-import { TRACK_EXTRA_TRAIN_COST, TRACK_RUN_BASE, TRACK_RUN_PER_PIECE } from '../../../src/data/tuning/economy';
+import { EXTRA_TRAIN_RUN_DIVISOR, RUN_COST_PER_PIECE_CENTS } from '../../../src/data/tuning/track';
+import { getTrackTypeDef } from '../../../src/data/track';
+import { trackRunningCostMonthly } from '../../../src/sim/rides/track/api';
 import { createTrackSlice } from '../../../src/sim/rides/track/types';
-import { addGuestDirect, makeTestWorld, placeRideDirect, placeStallDirect, runTicks } from '../../helpers/world';
+import {
+  addGuestDirect,
+  makeTestWorld,
+  makeTrackRideDataDirect,
+  placeRideDirect,
+  placeStallDirect,
+  runTicks,
+  trackPiecesDirect,
+} from '../../helpers/world';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
 
@@ -45,23 +55,14 @@ function worldAtMonthStart(): World {
   return w;
 }
 
+/** A track ride record with `pieces` real pieces (a station, then straights along +x at y = 50) and `trains` trains. */
 function makeTrackRide(w: World, typeId: string, pieces: number, trains: number): Ride {
   const ride = placeRideDirect(w, 'carousel', 30, 30);
   ride.kind = 'track';
   ride.defId = typeId;
   w.state.track = createTrackSlice();
-  w.state.track.rides[String(ride.id)] = {
-    rideId: ride.id,
-    typeId,
-    pieces: Array.from({ length: pieces }, () => ({ defId: 'flat', x: 0, y: 0, z: 0, dir: 0 as const, chain: false, brakeSpeed: null })),
-    circuitClosed: true,
-    trainConfig: { trains, carsPerTrain: 2 },
-    operation: { minDwellTicks: 0, maxDwellTicks: 0, laps: 1 },
-    trains: [],
-    test: null,
-    colours: { track: 0, supports: 0, cars: 0 },
-    openedOnce: false,
-  };
+  const defIds = ['station', ...Array.from({ length: pieces - 1 }, () => 'straight')];
+  makeTrackRideDataDirect(w, ride, { pieces: trackPiecesDirect(2, 50, 8, 0, defIds), trainConfig: { trains, carsPerTrain: 2 } });
   return ride;
 }
 
@@ -137,11 +138,11 @@ describe('hourly running costs (Phase 3 §4.1, master R9, R20)', () => {
   it('a track ride uses the Phase 2 running cost and its month total is exact', () => {
     const w = worldAtMonthStart();
     const ride = makeTrackRide(w, 'steel_coaster', 37, 3);
-    const expected =
-      (TRACK_RUN_BASE.steel_coaster as number) +
-      TRACK_RUN_PER_PIECE * 37 +
-      ((TRACK_EXTRA_TRAIN_COST.steel_coaster as number) / 20) * 2;
+    const costs = getTrackTypeDef('steel_coaster')!.costs;
+    const expected = costs.runBase + RUN_COST_PER_PIECE_CENTS * 37 + (costs.extraTrain / EXTRA_TRAIN_RUN_DIVISOR) * 2;
+    expect(expected).toBe(12_000 + 150 * 37 + (80_000 / 20) * 2);
     expect(rideMonthlyRunningCost(w, ride)).toBe(expected);
+    expect(rideMonthlyRunningCost(w, ride)).toBe(trackRunningCostMonthly(w, ride));
     expect(expected % 72).not.toBe(0);
     chargeFullMonth(w);
     expect(currentLedger(w).lines.rideRunning).toBe(-expected);

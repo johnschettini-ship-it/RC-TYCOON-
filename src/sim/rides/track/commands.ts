@@ -18,6 +18,7 @@ import {
 } from '../../../data/tuning/track';
 import { TRACK_ERR, TRACK_WARN, fillTrackString } from '../../../data/strings/track';
 import { fail, ok, type CommandContext, type CommandResult, type HandlerMap, type TrackCommand } from '../../commands/types';
+import { initRideReliability } from '../../breakdowns/api';
 import { canAfford, pay, recordLedger } from '../../economy/ledger';
 import { allocId } from '../../ids';
 import { Content, inBounds, isOwned, tileIndex, type Dir } from '../../map';
@@ -91,10 +92,10 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
     totals: { riders: 0, income: 0, ridersThisMonth: 0, incomeThisMonth: 0 },
     builtTick: s.tick,
     hoursThisMonth: 0,
-    // Reliability in hundredths (REL_MAX) and the default inspection interval (INSPECT_DEFAULT), W1-H.
-    reliability: 10_000,
+    // Placeholders: `initRideReliability` (W1-H owns the values) sets the reliability fields below.
+    reliability: 0,
     lastInspectionTick: s.tick,
-    inspectionIntervalTicks: 1200,
+    inspectionIntervalTicks: 0,
     breakdownType: null,
     statusBeforeBreakdown: null,
     breakdownsThisMonth: 0,
@@ -102,6 +103,7 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
     assignedMechanicId: null,
     totalBuildCost: type.costs.base,
   };
+  initRideReliability(world, ride);
   const data: TrackRideData = {
     rideId: id,
     typeId: type.id,

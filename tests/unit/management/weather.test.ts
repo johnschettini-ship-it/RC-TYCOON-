@@ -14,11 +14,19 @@ import {
 import { MSG } from '../../../src/data/strings/management';
 import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { START_TICK, TICKS_PER_MONTH } from '../../../src/data/tuning/core';
-import { addGuestDirect, makeTestWorld, placeRideDirect, placeStallDirect } from '../../helpers/world';
+import {
+  addGuestDirect,
+  makeTestWorld,
+  makeTrackRideDataDirect,
+  placeRideDirect,
+  placeStallDirect,
+  trackPiecesDirect,
+} from '../../helpers/world';
+import { tileIndex } from '../../../src/sim/map';
+import { trackHighestPointM } from '../../../src/sim/rides/track/api';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
 import type { Guest } from '../../../src/sim/guests/types';
-import type { TrackPieceInstance } from '../../../src/sim/rides/track/types';
 
 const SEASONS: Season[] = ['winter', 'spring', 'summer', 'autumn'];
 
@@ -43,24 +51,21 @@ function weatherSequence(w: World, ticks: number): [number, WeatherKey][] {
   return seq;
 }
 
-function trackRide(w: World, highestZ: number, x: number): Ride {
+/**
+ * An open track ride whose highest rail is `aboveGround` m above the ground: a station at (x, 44), then a gentle
+ * climb along +x (flat-to-gentle +1 m, gentle +2 m each, gentle-to-flat +1 m), built from real track pieces.
+ */
+function trackRide(w: World, aboveGround: number, x: number): Ride {
   const ride = placeRideDirect(w, 'carousel', x, 40);
   ride.kind = 'track';
   ride.defId = 'steel_coaster';
   ride.status = 'open';
-  const pieces: TrackPieceInstance[] = [8, 12, highestZ, 14, 8].map((z, i) => ({ defId: 'p', x: x + i, y: 44, z, dir: 1, chain: false, brakeSpeed: null }));
-  w.state.track.rides[String(ride.id)] = {
-    rideId: ride.id,
-    typeId: 'steel_coaster',
-    pieces,
-    circuitClosed: true,
-    trainConfig: { trains: 1, carsPerTrain: 2 },
-    operation: { minDwellTicks: 0, maxDwellTicks: 0, laps: 1 },
-    trains: [],
-    test: null,
-    colours: { track: 0, supports: 0, cars: 0 },
-    openedOnce: true,
-  };
+  const ups = Array.from({ length: Math.floor((aboveGround - 1) / 2) }, () => 'gentle_up');
+  const level = aboveGround % 2 === 0 ? ['gentle_up_to_flat'] : [];
+  const ground = w.state.map.heights[tileIndex(w.state.map, x, 44)] as number;
+  const pieces = trackPiecesDirect(x, 44, ground, 0, ['station', 'flat_to_gentle_up', ...ups, ...level]);
+  makeTrackRideDataDirect(w, ride, { pieces, openedOnce: true });
+  expect(trackHighestPointM(w, ride.id)).toBe(aboveGround);
   return ride;
 }
 
@@ -220,8 +225,8 @@ describe('storm hold', () => {
 
   it('track rides are tall from a highest rail point 20 m above ground', () => {
     const w = makeTestWorld();
-    const high = trackRide(w, 8 + 20, 10);
-    const low = trackRide(w, 8 + 19, 30);
+    const high = trackRide(w, 20, 10);
+    const low = trackRide(w, 19, 30);
     expect(isTallRide(w, high)).toBe(true);
     expect(isTallRide(w, low)).toBe(false);
     for (const id of ['big_wheel', 'swing_tower', 'observation_tower', 'drop_tower', 'flip_arm']) {

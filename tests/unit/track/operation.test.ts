@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/sim/research/api', () => ({ isUnlocked: () => true }));
-vi.mock('../../../src/sim/breakdowns/api', () => ({ onRideDispatch: vi.fn(() => false), reliabilityScore: () => 1 }));
+vi.mock('../../../src/sim/breakdowns/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../src/sim/breakdowns/api')>()),
+  onRideDispatch: vi.fn(() => false),
+  reliabilityScore: () => 1,
+}));
 vi.mock('../../../src/sim/guests/api', async () => {
   const ledger = await import('../../../src/sim/economy/ledger');
   type W = import('../../../src/sim/types').World;

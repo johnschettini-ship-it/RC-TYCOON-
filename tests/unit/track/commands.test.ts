@@ -7,7 +7,9 @@ import { Content, Owned, tileIndex } from '../../../src/sim/map';
 import { canOpenTrackRide } from '../../../src/sim/rides/track/api';
 import { trackDirFromMapDir } from '../../../src/sim/rides/track/geometry';
 import { getLayout } from '../../../src/sim/rides/track/layout';
+import { updateTrackRides } from '../../../src/sim/rides/track/update';
 import { TRACK_ERR, TRACK_WARN } from '../../../src/data/strings/track';
+import { INSPECT_DEFAULT, REL_MAX } from '../../../src/data/tuning/staff';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, placeRideDirect, stateHash } from '../../helpers/world';
 import { add, addAll, buildR1, dataOf, EAST, expectOk, NORTH, place, rideOf, SMALL_LOOP, SOUTH, times, WEST } from './helpers';
 
@@ -31,6 +33,10 @@ describe('placeStation', () => {
     expect(ride.stats).toBeNull();
     expect(ride.entrance).toBeNull();
     expect(ride.exit).toBeNull();
+    // Reliability fields come from the breakdown module (initRideReliability).
+    expect(ride.reliability).toBe(REL_MAX);
+    expect(ride.inspectionIntervalTicks).toBe(INSPECT_DEFAULT);
+    expect(ride.lastInspectionTick).toBe(w.state.tick);
     expect(ride.totalBuildCost).toBe(300_000 + 6_000);
     expect(r.cost).toBe(306_000);
     expect(w.state.park.cash).toBe(cash - 306_000);
@@ -400,6 +406,37 @@ describe('test, open, and edit rules', () => {
     expect(canOpenTrackRide(w, rideOf(w, id))).toBe(TRACK_ERR.needGates);
     rideOf(w, id).exit = { gate: 0, outside: 0 };
     expect(canOpenTrackRide(w, rideOf(w, id))).toBe(TRACK_ERR.runTestFirst);
+  });
+
+  it('setRideOpen refuses a track ride with the canOpenTrackRide reason, and opens it once allowed', () => {
+    const w = fresh();
+    const refuses = (id: number, reason: string): void => {
+      expect(canOpenTrackRide(w, rideOf(w, id))).toBe(reason);
+      const h = stateHash(w);
+      expect(executeCommand(w, { type: 'setRideOpen', rideId: id, open: true })).toEqual({ ok: false, reason });
+      expect(stateHash(w)).toBe(h);
+    };
+    const open = place(w, 'steel_coaster', 20, 20, EAST);
+    refuses(open, TRACK_ERR.circuitNotComplete);
+    const id = buildR1(w);
+    refuses(id, TRACK_ERR.needGates);
+    placeQueue(w, 5, 4);
+    placeFootpath(w, 6, 4);
+    expectOk(executeCommand(w, { type: 'placeTrackGate', rideId: id, kind: 'entrance', x: 5, y: 3 }));
+    refuses(id, TRACK_ERR.needGates);
+    expectOk(executeCommand(w, { type: 'placeTrackGate', rideId: id, kind: 'exit', x: 6, y: 3 }));
+    refuses(id, TRACK_ERR.runTestFirst);
+    expectOk(executeCommand(w, { type: 'startTestRun', rideId: id }));
+    refuses(id, TRACK_ERR.waitForTest);
+    const lap = dataOf(w, id).testRun?.ticksLeft ?? 0;
+    for (let k = 0; k <= lap; k++) {
+      updateTrackRides(w);
+      w.state.tick++;
+    }
+    expect(dataOf(w, id).test?.passed).toBe(true);
+    expect(canOpenTrackRide(w, rideOf(w, id))).toBeNull();
+    expectOk(executeCommand(w, { type: 'setRideOpen', rideId: id, open: true }));
+    expect(rideOf(w, id).status).toBe('open');
   });
 
   it(`"${TRACK_ERR.closeFirst}", "${TRACK_ERR.waitForTest}", "${TRACK_ERR.mustBeEmpty}"`, () => {

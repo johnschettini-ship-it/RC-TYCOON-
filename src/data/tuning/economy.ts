@@ -31,33 +31,6 @@ export const PARK_NAME_MAX = 32;
 export const SNACK_DEAL_CAMPAIGN = 'snack_deal';
 export const SNACK_DEAL_PRICE_FACTOR = 0.5;
 
-// ---------------------------------------------------------------- Track ride running cost (Phase 2 §4.12, §8)
-/**
- * Local copy of the Phase 2 running-cost inputs, in cents, until W1-G exports a running-cost function
- * (see the W1-E report, contract change request). Running cost per month =
- * run base + $1.50 × piece count + extra train cost / 20 × (trains − 1).
- */
-export const TRACK_RUN_PER_PIECE = 150;
-export const TRACK_EXTRA_TRAIN_DIVISOR = 20;
-export const TRACK_RUN_BASE: Readonly<Record<string, number>> = Object.freeze({
-  steel_coaster: 12_000,
-  junior_coaster: 6_000,
-  mini_railway: 5_000,
-  wooden_coaster: 13_000,
-  spinning_mouse: 9_000,
-  ghost_train: 7_000,
-  go_karts: 6_000,
-});
-export const TRACK_EXTRA_TRAIN_COST: Readonly<Record<string, number>> = Object.freeze({
-  steel_coaster: 80_000,
-  junior_coaster: 40_000,
-  mini_railway: 50_000,
-  wooden_coaster: 70_000,
-  spinning_mouse: 30_000,
-  ghost_train: 30_000,
-  go_karts: 10_000,
-});
-
 // ---------------------------------------------------------------- Park rating (Phase 3 §4.13, master R8)
 export const RATING_MIN = 0;
 export const RATING_MAX = 1_000;
