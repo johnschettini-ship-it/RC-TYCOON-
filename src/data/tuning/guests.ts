@@ -45,8 +45,8 @@ export const FEE_FACTOR_MAX = 1.2;
 // Needs (Phase 1 §4.3). Changes apply per NEED_INTERVAL ticks.
 export const NEED_MAX = 255;
 export const NEED_INTERVAL = 100;
-export const HUNGER_RATE = 7;
-export const THIRST_RATE = 8;
+export const HUNGER_RATE = 6;
+export const THIRST_RATE = 6;
 export const BLADDER_RATE = 5;
 /** Energy falls by this × the energy drain multiplier. */
 export const ENERGY_RATE = 3;
@@ -75,10 +75,10 @@ export const TAG_FIT_FAMILY = 0.3;
 // Ride score (Phase 1 §4.3). Ratings in these formulas are on the 0.00–10.00 scale, money in dollars.
 export const SCORE_EXCITEMENT = 0.6;
 export const SCORE_TAG_FIT = 1.5;
-export const SCORE_BORING = 0.8;
+export const SCORE_BORING = 0.6;
 export const SCORE_PRICE_PER_DOLLAR = 0.5;
 export const SCORE_DISTANCE_PER_TILE = 0.02;
-export const SCORE_REPEAT = 1.5;
+export const SCORE_REPEAT = 2.0;
 export const SCORE_NOISE = 0.5;
 /** Ride value = excitement × this many cents (excitement 0.00–10.00). */
 export const RIDE_VALUE_CENTS_PER_EXCITEMENT = 100;

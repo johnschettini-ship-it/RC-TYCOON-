@@ -138,11 +138,11 @@ export const HOT_THIRST_FACTOR = 1.5;
 export const COLD_ENERGY_FACTOR = 1.2;
 /**
  * Phase 1 §4.3 base rates the weather hooks scale (W1-D owns the guest copies; keep equal at integration).
- * Thirst +8 per 100 ticks; energy −3 × drain multiplier per 100 ticks.
+ * Thirst +6 per 100 ticks (THIRST_RATE, tuning-log.md); energy −3 × drain multiplier per 100 ticks.
  */
-export const BASE_THIRST_PER_100 = 8;
+export const BASE_THIRST_PER_100 = 6;
 export const BASE_ENERGY_PER_100 = 3;
-/** Hot: extra thirst every 100 ticks = 8 × 0.5 = 4. */
+/** Hot: extra thirst every 100 ticks = 6 × 0.5 = 3. */
 export const HOT_EXTRA_THIRST_TICKS = 100;
 /** Cold: extra energy fall applied every 500 ticks = round(5 × 3 × 0.2 × drain multiplier). */
 export const COLD_EXTRA_ENERGY_TICKS = 500;

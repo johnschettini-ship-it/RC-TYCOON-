@@ -16,7 +16,7 @@ export const PARK_ENTRANCE_X = 31;
 export const ENTRANCE_STUB_LENGTH = 3;
 
 export const START_CASH = 1_500_000; // cents = $15,000
-export const START_ENTRANCE_FEE = 1_000; // cents = $10
+export const START_ENTRANCE_FEE = 600; // cents = $6 (was $10, see tuning-log.md)
 
 export const MAX_HEIGHT_STEPS = 63;
 /** Ground level of every new map, in height steps (master rule R2). */
