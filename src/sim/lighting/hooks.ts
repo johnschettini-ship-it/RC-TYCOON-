@@ -1,15 +1,12 @@
 /**
  * After Dark effects on guests (Phase 4 §4.7) through the guest hooks; every effect only when `nightActive`
  * (After Dark on and the clock in 20:00–06:00). Owner: W3-F.
- * - perTick, once per game hour per guest: guest on an unlit path tile → happiness −4, thought "This path is too
- *   dark". Each guest checks at its own phase of the hour (`(tick + id) mod 50 = 0`), so 2,000 guests do not all
- *   think the thought on one tick (the first night hour would cost one tick ~5 ms). The phase text gives the
+ * - perHour: guest on an unlit path tile → happiness −4, thought "This path is too dark". The phase text gives the
  *   thought a 4-hour cooldown; master R5 (one game day per thought, `addThought`) is longer and wins.
  * - energyFactor: × 1.25
  * - rideScoreFactor: spooky ride × 1.3, plus 2% per spooky scenery item within 6 tiles (max +20%)
  * - afterRide: spooky ride → happiness +5 extra
  */
-import { TICKS_PER_HOUR } from '../../data/tuning/core';
 import { DARK_PATH_PENALTY, NIGHT_ENERGY_MULT, SPOOKY_ITEM_RADIUS, SPOOKY_RIDE_NIGHT_HAPPY } from '../../data/tuning/night';
 import type { GuestHooks } from '../hookTypes';
 import { changeNeed } from '../guests/needs';
@@ -33,17 +30,7 @@ function onPath(world: World, guest: Guest): boolean {
   return pathNodesAt(world, guest.tile).length > 0;
 }
 
-/** The hourly dark-path check of this guest falls on this tick (its own phase of the game hour). */
-export function darkPathPhase(tick: number, guestId: number): boolean {
-  return (tick + guestId) % TICKS_PER_HOUR === 0;
-}
-
-/** perTick: the hourly dark-path effect at the guest's own phase of the hour. */
-export function darkPathTick(world: World, guest: Guest): void {
-  if (darkPathPhase(world.state.tick, guest.id)) darkPathHour(world, guest);
-}
-
-/** The hourly effect: an unlit path at night costs 4 happiness and raises the dark-path thought. */
+/** perHour: an unlit path at night costs 4 happiness and raises the dark-path thought. */
 export function darkPathHour(world: World, guest: Guest): void {
   if (!nightActive(world)) return;
   if (guest.state === 'riding' || guest.tile < 0 || guest.tile >= world.state.map.content.length) return;
@@ -72,7 +59,7 @@ export function spookyAfterRide(world: World, guest: Guest, ride: Ride): void {
 }
 
 export const nightHooks: Partial<GuestHooks> = {
-  perTick: [darkPathTick],
+  perHour: [darkPathHour],
   energyFactor: [nightEnergyFactor],
   rideScoreFactor: [spookyRideScoreFactor],
   afterRide: [spookyAfterRide],
