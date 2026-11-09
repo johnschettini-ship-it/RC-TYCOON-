@@ -15,7 +15,7 @@ import { canOpenTrackRide, checkTrackRideForLoad, nextTrackPieces, trackWarnings
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { cuePoints } from '../../../src/sim/rides/track/cues';
 import type { World } from '../../../src/sim/types';
-import { validateState } from '../../../src/save';
+import { deserialize, serialize, validateState } from '../../../src/save';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, runTicks, stateHash } from '../../helpers/world';
 import { add, addAll, buildR1, dataOf, EAST, expectOk, place, rideOf, times, type PieceSpec } from './helpers';
 
@@ -244,6 +244,36 @@ describe('Monorail stations (catalog §2: up to 4; master R26: extra stations ar
     expect(rideOf(w, id).totals.riders).toBe(6);
     for (const g of guests) expect(g.ridden[String(id)] ?? 0).toBeGreaterThanOrEqual(1);
     expect(validateState(w.state)).toBeNull();
+  });
+});
+
+describe('saves with Phase 6 rides (phase-2 §9.1 round trip)', () => {
+  it('a Monorail train with riders dwelling at a stop and a stored corkscrew failure survive a round trip', () => {
+    const w = makeTestWorld();
+    const id = build(w, 'monorail', 4, 2, MONORAIL);
+    placeQueue(w, 4, 4);
+    placeFootpath(w, 5, 4);
+    expectOk(executeCommand(w, { type: 'placeTrackGate', rideId: id, kind: 'entrance', x: 4, y: 3 }));
+    expectOk(executeCommand(w, { type: 'placeTrackGate', rideId: id, kind: 'exit', x: 5, y: 3 }));
+    testAndWait(w, id);
+    expectOk(executeCommand(w, { type: 'setRideOpen', rideId: id, open: true }));
+    const queue = tileIndex(w.state.map, 4, 4);
+    for (let k = 0; k < 6; k++) rideOf(w, id).queue.push(addGuestDirect(w, queue, { state: 'queueing', activityId: id, cash: 5_000 }).id);
+    const steel = build(w, 'steel_coaster', 4, 30, ['station', 'station', 'corkscrew_right', 'turn_medium_right', ...times(2, 'straight'), 'turn_medium_right', ...times(6, 'straight'), 'turn_medium_right', ...times(2, 'straight'), 'turn_medium_right']);
+    testAndWait(w, steel);
+    expect(dataOf(w, steel).test?.failKind).toBe('corkscrew');
+    let n = 0;
+    while (n < 3000 && !dataOf(w, id).trains.some((t) => t.state === 'held' && t.dwellTicks > 5 && t.seats.some((g) => g >= 0))) {
+      runTicks(w, 1);
+      n++;
+    }
+    expect(n).toBeLessThan(3000);
+    const r = deserialize(serialize(w, '0.3.0', '2026-11-09T10:15:00.000Z'));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.world.state).toStrictEqual(w.state);
+    runTicks(w, 600);
+    runTicks(r.world, 600);
+    expect(stateHash(r.world)).toBe(stateHash(w));
   });
 });
 
