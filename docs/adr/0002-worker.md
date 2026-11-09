@@ -17,9 +17,11 @@ Desktop profile (1280 × 800, headless Chromium, real game loop at 1×), machine
 
 | Scene | Window | Tick p50 / p95 | Long tasks (> 50 ms) |
 |---|---|---|---|
-| Build 2 (128 × 128, 3,000 guests, 24 rides) | 60 s = a full game day (1,200 ticks), 2 runs | 1.3–1.4 / **2.2–2.4 ms** | 0 and 1 in 60 s |
-| Build 2 | 30 s (13:10 → 01:10, into the night), 2 runs | 1.5 / **2.6–2.7 ms** | 0 in 30 s |
-| Build 1 (2,000 guests, 10 track rides, 14 flat rides) | 30 s, 1 run (2 more with an earlier 4-ride layout agree) | 0.8–0.9 / **1.5–1.6 ms** | 0–1 in 30 s |
+| Build 2, merged build with real shows (21:00, 22:30) | 60 s = a full game day (1,200 ticks), 1 run | 1.4 / **2.5 ms** | 0 in 60 s |
+| Build 2, merged build with real shows | 30 s (13:10 → 01:10, into the night), 2 runs | 1.4 / **2.4–2.5 ms** | 0 in 30 s |
+| Build 2 (128 × 128, 3,000 guests, 24 rides), before the W4-C merge | 60 s, 2 runs | 1.3–1.4 / **2.2–2.4 ms** | 0 and 1 in 60 s |
+| Build 2, before the W4-C merge | 30 s, 2 runs | 1.5 / **2.6–2.7 ms** | 0 in 30 s |
+| Build 1 (2,000 guests, 10 track rides, 14 flat rides) | 30 s, 2 runs (merged and before) | 0.9–1.1 / **1.6–1.8 ms** | 0–1 in 30 s |
 
 Cross-checks and caveats:
 
@@ -34,8 +36,9 @@ Cross-checks and caveats:
 
 ## Decision
 
-**Not adopted.** On the measurement the rule names (the desktop perf run), tick p95 is 2.2–2.7 ms (≤ 4 ms) and
-long tasks happen at most once per 30–60 s (≤ 1 per 10 s). Neither trigger is met.
+**Not adopted.** On the measurement the rule names (the desktop perf run), tick p95 is 2.2–2.7 ms (≤ 4 ms; 2.5 ms
+over a full game day with shows) and long tasks happen at most once per 30–60 s (≤ 1 per 10 s). Neither trigger is
+met.
 
 The margin is not large (the Vitest runner and a loaded machine both read above 4 ms), so the rule is re-checked on
 every release with the same run: `TC_PERF=1 TC_PERF_SECONDS=60 TC_PERF_RUNS=2 npx playwright test

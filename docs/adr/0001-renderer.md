@@ -9,8 +9,9 @@
 - **Scenes:** three schema 3 saves in `tests/perf/` built by `tests/perf/scenes.ts` (regenerate with
   `TC_WRITE_SCENES=1 npx vitest run tests/unit/perf/scenes.test.ts`): `build1` (64 × 64, 2,000 guests, 10 Mini Railway
   loops with 2 trains each, 14 flat rides, 4 stalls, 8 staff), `build2` (128 × 128, 3,000 guests, 24 flat rides with
-  queues, 24 stalls, plateaus, ponds, 60 scenery items, 2 show sites written directly until W4-C's `placeShowSite`
-  merges, 12 staff), `phone` (the `build1` park with 800 guests). Guests are real (needs, decisions); the track rides
+  queues, 24 stalls, plateaus, ponds, 60 scenery items, a Lightshow Tower and a Fireworks Launcher with shows at
+  21:00 and 22:30, 12 staff; the before / after tables used placeholder sites with no shows, the merged-build table
+  has real shows), `phone` (the `build1` park with 800 guests). Guests are real (needs, decisions); the track rides
   run empty trains (a harness: no gates). All three start at 13:10 with After Dark on, so a run reaches the night.
 - **Perf run:** `TC_PERF=1 npx playwright test tests/e2e/perf-build3.spec.ts` (`TC_PERF_RUNS`, `TC_PERF_QUALITY`,
   `TC_PERF_SECONDS`, `TC_PERF_WARMUP`). The scene loads through the title screen (slot 1, Continue), the camera sits
@@ -118,10 +119,19 @@ p95 33–39 ms, 132 MB (3 runs, busier machine); after `auto` 47 fps, p95 33.4 /
 | | longest frame of a turn | 50–67 ms (work 51–66 ms) | 17–33 ms (work 9–15 ms) |
 | | long tasks in 30 s | 1 | 0 |
 
+**Merged build (W4-A … W4-G, real shows at 21:00 and 22:30 in the Build 2 scene), `auto`, load average 1–1.4:**
+
+| Scene | Runs | fps | Frame p95 | Render p95 | Tick p95 | Long tasks |
+|---|---|---|---|---|---|---|
+| Phone scene, phone profile, CPU 4× | 3 | 50.5–53.0 | **33.3 / 33.4 / 33.4 ms** | 6.9–8.5 ms | 3.7–4.1 ms | 19–24 in 30 s |
+| Build 2, phone profile, CPU 4× | 1 | 48.7 | 49.9 ms | 8.1 ms | 10.3 ms | 63 in 30 s |
+| Build 2, desktop | 2 × 30 s, 1 × 60 s | 59.9–60.0 | 16.7–16.8 ms | 2.5–3.2 ms | **2.4–2.5 ms** | 0 |
+| Build 1, desktop | 1 | 59.7 | 16.8 ms | 5.1 ms | 1.8 ms | 0 |
+
 Desktops were already vsync-bound in this harness; the desktop gains are the turn (no frame over 33 ms) and less
 work per frame. **Other budgets:** JS heap 7–9 MB in every scene (budget 250 / 150 MB; sprite and chunk images are
-canvas memory, capped separately at 192 / 64 MB); initial load 294.9 KB gzipped JS + CSS + HTML after the Wave 4
-merges (budget 400 KB). **Terrain change check** on 128 × 128 (`tests/bench/render.bench.ts`): 0.37 → 0.06 ms per
+canvas memory, capped separately at 192 / 64 MB); initial load 314.0 KB gzipped JS + CSS + HTML on the merged
+build (budget 400 KB). **Terrain change check** on 128 × 128 (`tests/bench/render.bench.ts`): 0.37 → 0.06 ms per
 frame. With the machine busy (load average 9–15), the same runs gave phone p95 50 ms for `auto` and desktop tick
 p95 up to 4.9 ms: these budgets have little margin on a loaded device.
 
@@ -131,7 +141,8 @@ p95 up to 4.9 ms: these budgets have little margin on a loaded device.
 **and** the profile shows ≥ 50% of frame time in canvas drawing.
 
 **Measured:** with the default render quality (`auto`) the phone scene p95 was over 40 ms in **1 of 3 runs** (33.4,
-33.4, 49.9 ms). **The rule is not met: PixiJS is not adopted.** No runtime dependency was added.
+33.4, 49.9 ms), and in **0 of 3** on the merged build (33.3, 33.4, 33.4 ms). **The rule is not met: PixiJS is not
+adopted.** No runtime dependency was added.
 
 With the render scale held at 2× (`high`) both conditions would hold: p95 83 ms, and the profile is dominated by the
 browser putting an 824 × 1,678 px software-rastered canvas on screen (render p95 is only 12 ms and main-thread work
@@ -141,7 +152,7 @@ renderers here:
 1. **The proxy has no GPU.** Headless Chromium rasters Canvas 2D in software, and WebGL would run on SwiftShader
    (also the CPU), so a PixiJS renderer cannot be shown to win on this proxy. Real phones raster both Canvas 2D and
    WebGL on the GPU; the expensive part measured here (per-pixel work on 1.4 Mpx per frame) is what a GPU does well.
-2. **Bundle budget.** The build is 294.9 KB gzipped; PixiJS v8 adds roughly 150–250 KB gzipped depending on the
+2. **Bundle budget.** The merged build is 314.0 KB gzipped (JS 306.0, CSS 7.5, HTML 0.5); PixiJS v8 adds roughly 150–250 KB gzipped depending on the
    modules used (estimate: not installed), which breaks the 400 KB budget and needs the owner's approval.
 3. **Contract cost.** `WorldLayer` (Wave 3.0/4.0) hands a `CanvasRenderingContext2D` to the fields, lighting
    (`multiply` / `lighter` compositing), elevated path, scenery, terrain tool, show, and a11y layers, and the track
@@ -162,5 +173,6 @@ The upgrade path stays open: everything still draws through one `Renderer` inter
   this work, cutting slices from large per-ride images (in a software canvas a draw costs by the source image size);
   per-slice images would remove most of it. The scenery, terrain tool, and track layers still hard-code the old
   red / green ghost colours (Phase 6 §4.7).
-- Re-run `TC_PERF=1 TC_PERF_RUNS=3` after the W4-C and W4-D merges (shows and extra content add drawing; regenerate
-  the Build 2 scene with real show sites once `placeShowSite` exists).
+- Re-run `TC_PERF=1 TC_PERF_RUNS=3` before the release on the gate build (the merged-build table above is the last
+  run). The Build 2 phone run (not a budget scene) still has a p95 of 50 ms: 3,000 guests tick at 10 ms p95 on the
+  throttled CPU.
