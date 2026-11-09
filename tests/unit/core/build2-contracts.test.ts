@@ -76,15 +76,7 @@ describe('new games are schema 2 (Phase 4 §5, Phase 5 §5)', () => {
 
 describe('Build 2 commands are registered (Phase 4 §6, Phase 5 §6)', () => {
   const cmds: Command[] = [
-    { type: 'raiseCorner', x: 10, y: 10, corner: 0 },
-    { type: 'lowerCorner', x: 10, y: 10, corner: 2 },
-    { type: 'raiseLand', x: 10, y: 10, size: 3 },
-    { type: 'lowerLand', x: 10, y: 10, size: 1 },
-    { type: 'smoothLand', x: 10, y: 10, size: 5 },
-    { type: 'levelLand', x0: 1, y0: 1, x1: 4, y1: 4, targetHeight: 8 },
-    { type: 'paintTerrain', x: 10, y: 10, size: 7, terrain: 4 },
-    { type: 'raiseWater', x: 10, y: 10, size: 3 },
-    { type: 'lowerWater', x: 10, y: 10, size: 3 },
+    // Terrain and water commands (W3-A): implemented, covered by tests/unit/terrain/.
     { type: 'buyLand', x0: 0, y0: 0, x1: 3, y1: 3 },
     { type: 'placeScenery', defId: 'oak_round', x: 10, y: 10, rotation: 0, edge: -1 },
     { type: 'removeScenery', id: 1 },
