@@ -22,7 +22,7 @@ import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth,
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
 import { STEP_PX, TILE_H, TILE_W } from './iso';
-import { mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
+import { GHOST_INVALID, GHOST_VALID, mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
 import { createQueueWalker, queueSlot } from './queue';
 import { SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { Ctx } from './sprites/shapes';
@@ -183,6 +183,26 @@ class GuestDots {
       ctx.fill();
     }
   }
+}
+
+/** `#rrggbb` with alpha `a` as `rgba(…)`. */
+export function withAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+/**
+ * Valid / invalid ghost, drag, and purchase colours (Phase 6 §4.7): the colour-blind safe pair of `./palette.ts`
+ * (blue = OK, vermillion = blocked); the check / cross icons and the a11y layer's hatch carry the meaning too.
+ */
+const OK_FILL = withAlpha(GHOST_VALID, 0.38);
+const BAD_FILL = withAlpha(GHOST_INVALID, 0.42);
+const OK_FILL_STRONG = withAlpha(GHOST_VALID, 0.45);
+const BAD_FILL_STRONG = withAlpha(GHOST_INVALID, 0.45);
+
+/** Outline width: doubled with high contrast (Phase 6 §4.7). */
+function outlineWidth(w: number): number {
+  return displayPrefs().highContrast ? w * 2 : w;
 }
 
 function findGuestIndex(guests: readonly Guest[], id: number): number {
@@ -635,21 +655,21 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         c.fill();
       }
       c.strokeStyle = stroke;
-      c.lineWidth = width;
+      c.lineWidth = outlineWidth(width);
       c.stroke();
     }
   }
 
   function dragColours(tool: ToolState): { fill: string; stroke: string } {
     // A path line the build command would refuse (W3-B dry run) shows in the blocked colours.
-    if (tool.drag?.reason && (tool.tool === 'footpath' || tool.tool === 'queue')) return { fill: 'rgba(229,72,77,0.4)', stroke: '#ff8a8a' };
+    if (tool.drag?.reason && (tool.tool === 'footpath' || tool.tool === 'queue')) return { fill: BAD_FILL, stroke: GHOST_INVALID };
     switch (tool.tool) {
       case 'footpath':
         return { fill: 'rgba(220,199,156,0.75)', stroke: '#fff4d6' };
       case 'queue':
         return { fill: 'rgba(169,192,210,0.8)', stroke: '#e8f4ff' };
       case 'demolish':
-        return { fill: 'rgba(229,72,77,0.45)', stroke: '#ffb3b5' };
+        return { fill: BAD_FILL_STRONG, stroke: GHOST_INVALID };
       case 'patrol':
         return mgmt.strokeColours(tool);
       default:
@@ -698,10 +718,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         if (forSale !== buy) continue;
         tileFace(map, t, 0.02);
       }
-      c.fillStyle = buy ? (b.valid ? 'rgba(70,205,95,0.45)' : 'rgba(235,60,60,0.45)') : 'rgba(255,255,255,0.12)';
+      c.fillStyle = buy ? (b.valid ? OK_FILL_STRONG : BAD_FILL_STRONG) : 'rgba(255,255,255,0.12)';
       c.fill();
-      c.strokeStyle = buy ? (b.valid ? '#7dff9a' : '#ff8a8a') : 'rgba(255,255,255,0.6)';
-      c.lineWidth = Math.max(1, scale);
+      c.strokeStyle = buy ? (b.valid ? GHOST_VALID : GHOST_INVALID) : 'rgba(255,255,255,0.6)';
+      c.lineWidth = outlineWidth(Math.max(1, scale));
       c.stroke();
     }
   }
@@ -718,8 +738,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const z = map.heights[g.tile] as number;
     const ax = viewTileSX(va, x, y);
     const ay = viewTileSY(va, x, y, z);
-    const fill = g.valid ? 'rgba(70,205,95,0.35)' : 'rgba(235,60,60,0.4)';
-    const stroke = g.valid ? '#7dff9a' : '#ff8a8a';
+    const fill = g.valid ? OK_FILL : BAD_FILL;
+    const stroke = g.valid ? GHOST_VALID : GHOST_INVALID;
     const fr = g.valid ? GHOST_FRAME_VALID : GHOST_FRAME_INVALID;
     const c = ctx as CanvasRenderingContext2D;
     // Ghost rotations are map rotations; the sprite turns with the view.
@@ -793,7 +813,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const y = devY(viewPointSY(va, fx, fy, z));
       const k = scale;
       c.strokeStyle = '#ffffff';
-      c.lineWidth = Math.max(1.5, 2 * k);
+      c.lineWidth = outlineWidth(Math.max(1.5, 2 * k));
       c.beginPath();
       c.ellipse(x, y, 8 * k, 4 * k, 0, 0, Math.PI * 2);
       c.stroke();
@@ -843,7 +863,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     if (tool.hoverTile !== null && !tool.ghost && !(tool.tool === 'buyLand' && tool.brush)) {
       single[0] = tool.hoverTile;
-      if (tool.tool === 'demolish') outlineTiles(map, single, 'rgba(229,72,77,0.35)', '#ff8a8a', Math.max(1, 1.5 * scale));
+      if (tool.tool === 'demolish') outlineTiles(map, single, BAD_FILL, GHOST_INVALID, Math.max(1, 1.5 * scale));
       else outlineTiles(map, single, 'rgba(255,224,102,0.22)', '#ffe066', Math.max(1, 1.5 * scale));
     }
     drawGhost(world, tool);

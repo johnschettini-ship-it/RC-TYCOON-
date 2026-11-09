@@ -13,7 +13,7 @@ import { setRenderQuality } from '../../perf/quality';
 import type { World } from '../../sim/types';
 import type { UiExtension, UiPart } from '../extensions';
 import type { UiContext } from '../context';
-import { h, setText } from '../dom';
+import { h, newId, setText } from '../dom';
 
 /** Text refresh interval and the frames the numbers cover (about 2 s at 60 fps). */
 export const OVERLAY_REFRESH_MS = 250;
@@ -23,11 +23,15 @@ const CSS = `
 .tc-perf {
   position: absolute; left: 8px; top: calc(var(--hud-bottom, 52px) + 8px); z-index: 5;
   margin: 0; padding: 6px 8px; border-radius: 6px;
-  background: rgba(10, 16, 26, 0.78); color: #e8f4ff;
-  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  white-space: pre; pointer-events: none;
+  background: rgba(10, 16, 26, 0.82); color: #e8f4ff;
+  pointer-events: none;
 }
 .tc-perf[hidden] { display: none; }
+.tc-perf h2 { margin: 0 0 2px; font-size: calc(12px * var(--ts, 1)); font-weight: 700; }
+.tc-perf pre {
+  margin: 0; white-space: pre;
+  font: calc(12px * var(--ts, 1))/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
 `;
 
 function injectStyles(): void {
@@ -58,7 +62,10 @@ function overlay(ctx: UiContext): UiPart {
   const { game } = ctx;
   // The Playwright perf run reads and drives the probe through the debug hook.
   Object.defineProperty(game, 'perf', { value: perfProbe, configurable: true });
-  const el = h('pre', { class: 'tc-perf', 'data-testid': 'perf-overlay', 'aria-label': text('perf.overlay'), hidden: true });
+  // A labelled region whose name is its visible heading.
+  const titleId = newId('perf-title');
+  const lines = h('pre', {});
+  const el = h('section', { class: 'tc-perf', 'data-testid': 'perf-overlay', 'aria-labelledby': titleId, hidden: true }, h('h2', { id: titleId, text: text('perf.overlay') }), lines);
   let shown = false;
   /** The overlay turned the probe on (a perf run may have turned it on itself). */
   let ownsProbe = false;
@@ -85,7 +92,7 @@ function overlay(ctx: UiContext): UiPart {
     update(now) {
       if (!shown || now - refreshedAt < OVERLAY_REFRESH_MS) return;
       refreshedAt = now;
-      setText(el, overlayLines(perfProbe.snapshot(OVERLAY_WINDOW_FRAMES), game.world).join('\n'));
+      setText(lines, overlayLines(perfProbe.snapshot(OVERLAY_WINDOW_FRAMES), game.world).join('\n'));
     },
   };
 }

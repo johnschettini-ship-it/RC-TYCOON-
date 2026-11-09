@@ -30,6 +30,7 @@ import { rideArtBounds } from '../sprites/rides';
 import { COSTUME_CODE, STAFF_TYPE_CODE, staffFrame } from '../sprites/staff';
 import type { ViewRect } from '../terrain';
 import type { ToolState } from '../types';
+import { displayPrefs } from '../../a11y/prefs';
 import { viewAffine, viewCornerHeights, viewDir, viewPointSX, viewPointSY, viewSpriteRotation, viewTileSX, viewTileSY, viewTileU, viewTileV, type ViewAffine } from '../view';
 import { litterSlot, messSlot, type DecalSlot } from './litter';
 import { pathItemPlacement, type ItemPlacement } from './pathItemPos';
@@ -107,7 +108,10 @@ export class ManagementLayer {
   /** The frame's view table (rotation 0 until `begin` sets it). */
   private va: ViewAffine = viewAffine(0, 1, 1);
   private readonly corners: [number, number, number, number] = [0, 0, 0, 0];
-  private readonly reducedMotion: boolean;
+  /** Phase 6 §4.7: reduced motion (W4-F's display prefs: the setting, else the system preference). */
+  private get reducedMotion(): boolean {
+    return displayPrefs().reducedMotion;
+  }
 
   constructor(
     private readonly bank: SpriteBank,
@@ -119,13 +123,6 @@ export class ManagementLayer {
       this.rain[k * 3 + 1] = (h >>> 16) / 0xffff;
       this.rain[k * 3 + 2] = 0.7 + ((mix32(h) & 0xff) / 0xff) * 0.6;
     }
-    let reduced = false;
-    try {
-      reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    } catch {
-      reduced = false;
-    }
-    this.reducedMotion = reduced;
   }
 
   /** Frame transform: device px = world px × scale + off; `va`: the view table of this frame (rotation 0 when left out). */

@@ -6,7 +6,7 @@
 import { decodeRideFrame, ANGLE_FRAMES, GHOST_FRAME_INVALID, GHOST_FRAME_VALID } from '../anim';
 import type { ZoomBucket } from '../camera';
 import { buildSprite } from '../canvas';
-import { SHIRT_COLOURS, rgbCss, tintStepRgb } from '../palette';
+import { GHOST_INVALID, GHOST_VALID, SHIRT_COLOURS, rgbCss, tintStepRgb } from '../palette';
 import { bucketIndex, defHash, FRAME_SPAN, SpriteCache, spriteKey, spriteMemory, type Sprite } from '../spriteCache';
 import type { Dir } from '../../sim/map';
 import { drawEntranceArt, drawFenceArt, drawGuestArt, entranceBounds, fenceBounds, GUEST_BOUNDS, GUEST_ITEM_BOUNDS, ITEM_COLOURS } from './props';
@@ -19,8 +19,14 @@ import { drawLitterArt, drawMessArt, drawPathItemArt, LITTER_BOUNDS, MESS_BOUNDS
 /** Phase 4 §8 `SPRITE_CACHE_MB`: sprite LRU cap across rotations and zoom buckets (4 bytes per pixel). */
 export const SPRITE_CACHE_MB = 96;
 
-export const GHOST_TINT_VALID = 'rgba(70, 205, 95, 0.5)';
-export const GHOST_TINT_INVALID = 'rgba(235, 60, 60, 0.55)';
+/** Ghost sprite washes (Phase 6 §4.7): the colour-blind safe valid / invalid pair of `../palette.ts`. */
+export const GHOST_TINT_VALID = rgbaOf(GHOST_VALID, 0.5);
+export const GHOST_TINT_INVALID = rgbaOf(GHOST_INVALID, 0.55);
+
+function rgbaOf(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
 
 const GUEST_HASH = defHash('guest');
 const STAFF_HASH = defHash('staff');
