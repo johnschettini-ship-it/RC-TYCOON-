@@ -57,9 +57,16 @@ export function generatorRng(seed: number): RngHolder {
 
 /** Step 7: owned → 1, then land for sale → 2 and construction rights for sale → 4 on tiles not owned. */
 function applyOwnership(map: MapState, park: MapGenSpec['park']): void {
-  for (const r of park.owned) forRect(map, r, (i) => (map.owned[i] = Owned.Owned));
-  for (const r of park.forSale) forRect(map, r, (i) => map.owned[i] === Owned.NotOwned && (map.owned[i] = Owned.LandForSale));
-  for (const r of park.rightsForSale) forRect(map, r, (i) => map.owned[i] === Owned.NotOwned && (map.owned[i] = Owned.RightsForSale));
+  const mark = (rects: readonly Rect[], state: number): void => {
+    for (const r of rects) {
+      forRect(map, r, (i) => {
+        if (state === Owned.Owned || map.owned[i] === Owned.NotOwned) map.owned[i] = state;
+      });
+    }
+  };
+  mark(park.owned, Owned.Owned);
+  mark(park.forSale, Owned.LandForSale);
+  mark(park.rightsForSale, Owned.RightsForSale);
 }
 
 /** Prebuilt height fields are relative to the base height (master R19); commands take absolute heights. */

@@ -306,6 +306,20 @@ function sweep(f: Field, step: (i: number, j: number) => boolean, skip: (i: numb
   }
 }
 
+/** a[i] = max(a[i], value); true when it changed. */
+function raiseTo(a: Int32Array, i: number, value: number): boolean {
+  if (value <= (a[i] as number)) return false;
+  a[i] = value;
+  return true;
+}
+
+/** a[i] = min(a[i], value); true when it changed. */
+function lowerTo(a: Int32Array, i: number, value: number): boolean {
+  if (value >= (a[i] as number)) return false;
+  a[i] = value;
+  return true;
+}
+
 /** Step 4. Returns the number of raise passes. */
 function slopePass(f: Field): number {
   const n = f.v.length;
@@ -321,8 +335,9 @@ function slopePass(f: Field): number {
       hi[i] = locked[i] ? (v[i] as number) : BIG;
       lo[i] = locked[i] ? (v[i] as number) : -BIG;
     }
-    sweep(f, (i, j) => ((hi[j] as number) + 1 < (hi[i] as number) ? ((hi[i] = (hi[j] as number) + 1), true) : false), never);
-    sweep(f, (i, j) => ((lo[j] as number) - 1 > (lo[i] as number) ? ((lo[i] = (lo[j] as number) - 1), true) : false), never);
+    // hi: the highest each corner may be under the slopes down from the locked corners; lo: the lowest.
+    sweep(f, (i, j) => lowerTo(hi, i, (hi[j] as number) + 1), never);
+    sweep(f, (i, j) => raiseTo(lo, i, (lo[j] as number) - 1), never);
     for (let i = 0; i < n; i++) {
       const value = v[i] as number;
       if (locked[i]) {
@@ -332,7 +347,7 @@ function slopePass(f: Field): number {
       }
     }
   }
-  return sweep(f, (i, j) => ((v[j] as number) - 1 > (v[i] as number) ? ((v[i] = (v[j] as number) - 1), true) : false), (i) => locked[i] === 1);
+  return sweep(f, (i, j) => raiseTo(v, i, (v[j] as number) - 1), (i) => locked[i] === 1);
 }
 
 function clampHeight(h: number): number {

@@ -108,7 +108,7 @@ function idsOf(itemId: string): string[] {
 /** Content that research unlocks (a research item, or a scenery theme or item that does not start open). */
 function isResearchContent(itemId: string): boolean {
   if (getResearchItem(itemId)) return true;
-  const theme = getSceneryTheme(itemId as SceneryThemeId) ?? (getSceneryDef(itemId) ? getSceneryTheme(getSceneryDef(itemId)!.theme) : undefined);
+  const theme = getSceneryTheme(getSceneryDef(itemId)?.theme ?? (itemId as SceneryThemeId));
   return theme !== undefined && theme.unlock !== 'start';
 }
 
