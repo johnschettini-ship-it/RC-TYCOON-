@@ -147,16 +147,6 @@ export const HOT_EXTRA_THIRST_TICKS = 100;
 /** Cold: extra energy fall applied every 500 ticks = round(5 × 3 × 0.2 × drain multiplier). */
 export const COLD_EXTRA_ENERGY_TICKS = 500;
 
-/**
- * Phase 1 §4.3 ride score weights (owner W1-D), used by the additive `rideScore` hook to turn a
- * score multiplier into an added term: (factor − 1) × (excitement × 0.6 + tag fit × 1.5).
- */
-export const SCORE_EXCITEMENT_WEIGHT = 0.6;
-export const SCORE_TAG_FIT_WEIGHT = 1.5;
-
-/** Track rides count as tall from this highest rail point above ground (catalog §2). */
-export const TALL_TRACK_HEIGHT_M = 20;
-
 // ---------------------------------------------------------------- park value (§4.12, master R14)
 
 export const DEP_FLOOR = 0.3;

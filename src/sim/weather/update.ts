@@ -3,13 +3,13 @@ import {
   AFTER_STORM_WEIGHTS,
   SEASON_WEATHER_WEIGHTS,
   STORM_FROM,
-  TALL_TRACK_HEIGHT_M,
   WEATHER_ARRIVAL_FACTOR,
   WEATHER_INTERVAL,
   WEATHER_STATES,
   WEATHER_STAY,
 } from '../../data/tuning/management';
 import { MSG } from '../../data/strings/management';
+import { TALL_HEIGHT_M } from '../../data/tuning/track';
 import { getFlatRideDef, getTrackRideDef, type WeatherKey } from '../../data/catalog';
 import { notify } from '../notifications';
 import { trackHighestPointM } from '../rides/track/api';
@@ -71,7 +71,7 @@ export function weatherArrivalFactor(world: World): number {
 export function isTallRide(world: World, ride: Ride): boolean {
   if (ride.kind === 'track') {
     if (getTrackRideDef(ride.defId)?.flags.tall) return true;
-    return trackHighestPointM(world, ride.id) >= TALL_TRACK_HEIGHT_M;
+    return trackHighestPointM(world, ride.id) >= TALL_HEIGHT_M;
   }
   return getFlatRideDef(ride.defId)?.flags.tall === true;
 }

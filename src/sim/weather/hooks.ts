@@ -13,8 +13,6 @@ import {
   COLD_EXTRA_ENERGY_TICKS,
   HOT_EXTRA_THIRST_TICKS,
   HOT_THIRST_FACTOR,
-  SCORE_EXCITEMENT_WEIGHT,
-  SCORE_TAG_FIT_WEIGHT,
   WEATHER_HAPPY_UMBRELLA,
   WEATHER_HAPPY_UNCOVERED,
   WET_BOLD_TEMPERAMENT,
@@ -67,20 +65,6 @@ export function weatherRideScoreFactor(world: World, guest: Guest, ride: Ride): 
 /** Every Phase 3 ride score multiplier: weather × campaigns (Ride Spotlight, weekends). */
 export function rideScoreFactor(world: World, guest: Guest, ride: Ride): number {
   return weatherRideScoreFactor(world, guest, ride) * campaignRideScoreFactor(world, guest, ride);
-}
-
-/** Phase 1 tag fit: thrill (T − 50) / 50, chill (50 − T) / 50, family 0.3. */
-function tagFit(guest: Guest, ride: Ride): number {
-  const tag = rideTag(ride);
-  if (tag === 'thrill') return (guest.temperament - 50) / 50;
-  if (tag === 'chill') return (50 - guest.temperament) / 50;
-  return tag === 'family' ? 0.3 : 0;
-}
-
-/** The positive part of the Phase 1 ride score that a multiplier scales. */
-export function rideAppeal(guest: Guest, ride: Ride): number {
-  const excitement = (ride.stats?.excitement ?? 0) / 100;
-  return Math.max(0, excitement * SCORE_EXCITEMENT_WEIGHT + tagFit(guest, ride) * SCORE_TAG_FIT_WEIGHT);
 }
 
 /** Catalog weather sales factor of the stall for the current weather (§4.9, catalog §3). */
