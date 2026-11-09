@@ -83,9 +83,7 @@ describe('Build 2 commands are registered (Phase 4 §6, Phase 5 §6)', () => {
     { type: 'setAfterDark', on: false },
     { type: 'scenarioContinue' },
     { type: 'setSandboxOption', key: 'awards', value: false },
-    { type: 'tutorialAdvance', stepId: 'welcome' },
-    { type: 'tutorialSkipStep' },
-    { type: 'tutorialSkipAll' },
+    // Tutorial commands (W3-I): see tests/unit/tutorial/tutorial.test.ts.
   ];
   for (const cmd of cmds) {
     it(`${cmd.type} answers "${NOT_IMPLEMENTED}" and changes nothing`, () => {

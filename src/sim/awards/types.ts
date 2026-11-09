@@ -29,6 +29,13 @@ export const AWARD_IDS: readonly AwardId[] = [
   'darkAndDreary',
 ];
 
+const POSITIVE: ReadonlySet<AwardId> = new Set(AWARD_IDS.slice(0, 6));
+
+/** The first 6 awards of the table are positive, the last 6 negative. */
+export function isPositiveAward(id: AwardId): boolean {
+  return POSITIVE.has(id);
+}
+
 export interface AwardRecord {
   /** The month the award was won for; it is active during the next month. */
   monthIndex: number;
