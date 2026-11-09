@@ -36,7 +36,11 @@ export interface ScenarioFlow {
   showSandboxSetup(): void;
   startSandbox(options: SandboxOptions, parkName: string): void;
   startTutorial(): void;
-  /** End screen on a `scenarioEnded` event: Keep playing, Scenario select / Try again, Main menu. */
+  /**
+   * End screen on a `scenarioEnded` event: the facts of the sim's `scenarioResult` (the one source for the end
+   * screen and the progress record); Keep playing, Scenario select / Try again, Main menu. Nothing opens when the
+   * world has no finished run.
+   */
   showEndScreen(event: Extract<SimEvent, { type: 'scenarioEnded' }>): void;
   /** The unreadable-progress notice (error, Export raw data, Reset progress), or null when progress reads fine. */
   progressNotice(): HTMLElement | null;
@@ -314,18 +318,6 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
 
   // ---------------------------------------------------------------- end screen
 
-  /** Facts from the sim, or what the park shows now when the sim has no result. */
-  function resultOf(world: World, event: Extract<SimEvent, { type: 'scenarioEnded' }>): ScenarioResult {
-    const r = scenarioResult(world);
-    if (r) return r;
-    const s = world.state;
-    let profit = 0;
-    for (const m of s.economy.ledger) for (const [k, v] of Object.entries(m.lines)) if (k !== 'loan') profit += v;
-    let best: number | null = null;
-    for (const ride of s.rides) if (ride.kind === 'track' && ride.stats) best = Math.max(best ?? 0, ride.stats.excitement);
-    return { status: event.status, endReason: event.reason, endMonthIndex: event.monthIndex, guests: s.guests.length, rating: s.park.rating, parkValue: s.management.parkValue, totalProfit: profit, bestCoasterExcitement: best, stars: 0 };
-  }
-
   const flow: ScenarioFlow = {
     showNewGame() {
       host.showNewGame();
@@ -379,19 +371,20 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
       start(createTutorialWorld(randomSeed(), text('prog.tutorial.parkName')));
     },
 
-    showEndScreen(event) {
-      endDialog?.close();
-      game.setSpeed(0);
+    showEndScreen(_event) {
       const world = game.world;
       const run = world.state.scenario.kind === 'scenario' ? world.state.scenario : null;
-      const result = resultOf(world, event);
-      const won = event.status === 'won';
+      const result: ScenarioResult | null = scenarioResult(world);
+      if (!result) return;
+      endDialog?.close();
+      game.setSpeed(0);
+      const won = result.status === 'won';
       const facts = endFacts(result, formatDate(world.state.tick));
       const body = h(
         'div',
         { class: 'tc-view' },
         h('div', { class: 'tc-end-art' }, mascotCanvas('both', won ? 'happy' : 'sad', 96, text(won ? 'prog.end.mascotsHappy' : 'prog.end.mascotsSad'))),
-        event.reason ? h('p', { class: 'tc-end-reason', text: text(`prog.end.reason.${event.reason}`) }) : null,
+        result.endReason ? h('p', { class: 'tc-end-reason', text: text(`prog.end.reason.${result.endReason}`) }) : null,
         h('dl', { class: 'tc-facts', 'data-testid': 'end-facts' }, ...facts.flatMap((f) => [h('dt', { text: f.label }), h('dd', { text: f.value })])),
       );
       const close = (): void => {

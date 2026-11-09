@@ -294,6 +294,18 @@ describe('progress from sim events: a win is recorded once (Phase 5 §4.4)', () 
     expect(r.ok && r.progress.scenarios.meadow_start?.best.standard?.completedAt).toBe('t1');
   });
 
+  it('a won event that is not the run\'s recorded win records nothing (another month, a run not marked at its end tick)', () => {
+    const s = new FakeStore();
+    const store = new ProgressStore(s);
+    const other = wonWorld();
+    expect(recordProgressEvents(store, other, [{ type: 'scenarioEnded', status: 'won', reason: null, monthIndex: 6 }], 't', () => result)).toBe(0);
+    const unmarked = wonWorld();
+    if (unmarked.state.scenario.kind !== 'scenario') throw new Error('scenario expected');
+    unmarked.state.scenario.progressRecorded = false;
+    expect(recordProgressEvents(store, unmarked, drainEvents(unmarked), 't', () => result)).toBe(0);
+    expect(s.writes).toBe(0);
+  });
+
   it('a lost run and other events record nothing', () => {
     const s = new FakeStore();
     const store = new ProgressStore(s);

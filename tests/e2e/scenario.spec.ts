@@ -33,12 +33,13 @@ test.describe('Scenario flow: desktop', () => {
   test('title → Scenarios → Meadow Start → Standard → objectives → save → reload keeps progress', async ({ page }) => {
     test.setTimeout(90_000);
     const watch = watchErrors(page);
-    const cards = await openScenarios(page);
-    test.skip(cards === 0, 'the 8 scenario definitions arrive with W3-H');
+    // The 8 scenarios (W3-H) are always present: this flow never skips.
+    expect(await openScenarios(page)).toBe(8);
     // Scenarios 1–3 are open at start; 4–8 are locked.
     const all = page.locator('.tc-card');
     await expect(all.nth(0)).toHaveAttribute('aria-disabled', 'false');
-    if (cards > 3) await expect(all.nth(3)).toHaveAttribute('aria-disabled', 'true');
+    await expect(all.nth(2)).toHaveAttribute('aria-disabled', 'false');
+    await expect(all.nth(3)).toHaveAttribute('aria-disabled', 'true');
     await page.getByTestId('scenario-card-meadow_start').click();
     const sheet = page.getByTestId('scenario-detail');
     await expect(sheet).toBeVisible();
@@ -211,6 +212,48 @@ test.describe('Scenario flow: desktop', () => {
     await expect(page.locator('.title-screen')).toBeVisible();
     watch.expectNoErrors();
   });
+
+  test('a won run: the end screen shows the sim result, progress records it once, a reloaded save does not again', async ({ page }) => {
+    test.setTimeout(90_000);
+    const watch = watchErrors(page);
+    expect(await openScenarios(page)).toBe(8);
+    await page.getByTestId('scenario-card-meadow_start').click();
+    await page.getByTestId('preset-standard').click();
+    await page.getByTestId('scenario-start').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    // The run as the sim leaves it at the end tick of a month-5 win (Phase 5 §4.4: marked progressRecorded).
+    await page.evaluate(() => {
+      const g = (window as unknown as { __tc: Debug }).__tc;
+      Object.assign(g.world.state.scenario, { status: 'won', endReason: null, endMonthIndex: 5, progressRecorded: true });
+      g.world.events.push({ type: 'scenarioEnded', status: 'won', reason: null, monthIndex: 5 });
+    });
+    const end = page.getByTestId('end-screen');
+    await expect(end).toBeVisible();
+    await expect(end.locator('.dialog-title')).toHaveText('Scenario complete!');
+    // Stars come from the sim's scenarioResult: 6 of 12 months left → 3 stars.
+    await expect(page.getByTestId('end-facts')).toContainText('3 of 3');
+    expect((await state(page)).speed).toBe(0);
+    const progress = async () => JSON.parse((await page.evaluate(() => localStorage.getItem('tc.progress'))) ?? 'null');
+    const first = await progress();
+    expect(first.scenarios.meadow_start.best.standard).toMatchObject({ stars: 3, endMonthIndex: 5 });
+
+    await page.getByTestId('end-keep-playing').click();
+    await expect(end).toBeHidden();
+    expect((await state(page)).scenario).toMatchObject({ status: 'won', continued: true, progressRecorded: true });
+    await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Menu', exact: true }).click();
+    await page.getByTestId('menu-save').click();
+    await page.getByTestId('slot-1').click();
+    await expect(page.getByTestId('toast')).toHaveText(/saved to slot 1/i);
+    await page.reload();
+    await page.getByTestId('title-load').click();
+    await page.getByRole('button', { name: /Slot 1/ }).first().click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    expect((await state(page)).scenario).toMatchObject({ kind: 'scenario', status: 'won', progressRecorded: true });
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId('end-screen')).toHaveCount(0);
+    expect(await progress()).toEqual(first);
+    watch.expectNoErrors();
+  });
 });
 
 test.describe('Scenario flow: phone', () => {
@@ -234,8 +277,7 @@ test.describe('Scenario flow: phone', () => {
 
   test('scenario detail opens as a bottom sheet', async ({ page }) => {
     const watch = watchErrors(page);
-    const cards = await openScenarios(page, true);
-    test.skip(cards === 0, 'the 8 scenario definitions arrive with W3-H');
+    expect(await openScenarios(page, true)).toBe(8);
     await page.locator('.tc-card').first().tap();
     const sheet = page.getByTestId('scenario-detail');
     await expect(sheet).toBeVisible();

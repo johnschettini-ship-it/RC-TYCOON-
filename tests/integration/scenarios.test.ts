@@ -14,7 +14,26 @@ import { createScenarioWorld } from '../../src/sim/scenario/start';
 import type { ScenarioRun } from '../../src/sim/scenario/types';
 import { stepTick } from '../../src/sim/tick';
 import type { SimEvent, World } from '../../src/sim/types';
+import { ProgressStore, recordProgressEvents } from '../../src/progress';
+import type { KeyValueStore } from '../../src/save';
 import { addGuestDirect, stateHash } from '../helpers/world';
+
+/** In-memory progress storage that counts writes. */
+class MemoryStore implements KeyValueStore {
+  data = new Map<string, string>();
+  writes = 0;
+  getItem(key: string): string | null {
+    return this.data.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.writes += 1;
+    this.data.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.writes += 1;
+    this.data.delete(key);
+  }
+}
 
 function start(id: string, difficulty: 'relaxed' | 'standard' | 'tough'): World {
   const w = createScenarioWorld(id, difficulty);
@@ -87,11 +106,27 @@ describe('Meadow Start (Standard): scripted win', () => {
     reachMeadowGoalAt(w, 5, ended);
     stepTo(w, monthStart(6) + 1, ended);
     expect(ended).toEqual([{ type: 'scenarioEnded', status: 'won', reason: null, monthIndex: 5 }]);
-    expect(run(w)).toMatchObject({ status: 'won', endReason: null, endMonthIndex: 5, continued: false });
+    expect(run(w)).toMatchObject({ status: 'won', endReason: null, endMonthIndex: 5, continued: false, progressRecorded: true });
     const result = scenarioResult(w)!;
     expect(result).toMatchObject({ status: 'won', endMonthIndex: 5, stars: 3 });
     expect(result.guests).toBeGreaterThanOrEqual(240);
     expect(validateState(w.state)).toBeNull();
+
+    // Progress records the win once, from the end tick's event and the sim's own result (Phase 5 §4.4).
+    const kv = new MemoryStore();
+    const progress = new ProgressStore(kv);
+    expect(recordProgressEvents(progress, w, ended, '2027-08-01T00:00:00.000Z')).toBe(1);
+    const stored = progress.read();
+    expect(stored.ok && stored.progress.scenarios.meadow_start?.best.standard).toMatchObject({ stars: 3, endMonthIndex: 5, guests: result.guests, rating: result.rating });
+    // A save loaded after the win keeps the flag, sends no event, and records nothing.
+    const reloaded = deserialize(serialize(w, '0.2.0', '2027-08-01T00:00:00.000Z'));
+    if (!reloaded.ok) throw new Error(reloaded.error);
+    expect(reloaded.world.state.scenario).toMatchObject({ status: 'won', progressRecorded: true });
+    const later: SimEvent[] = [];
+    stepTo(reloaded.world, reloaded.world.state.tick + TICKS_PER_HOUR, later);
+    expect(later).toEqual([]);
+    expect(recordProgressEvents(progress, reloaded.world, reloaded.world.events, 't2')).toBe(0);
+    expect(kv.writes).toBe(1);
 
     // Keep playing: objectives freeze, no lose check ends the run, the park goes on.
     expect(executeCommand(w, { type: 'scenarioContinue' }).ok).toBe(true);
@@ -111,8 +146,11 @@ describe('time limits', () => {
     const w = start('meadow_start', 'standard');
     const ended = stepTo(w, monthStart(12) + 1);
     expect(ended).toEqual([{ type: 'scenarioEnded', status: 'lost', reason: 'timeUp', monthIndex: 11 }]);
-    expect(run(w)).toMatchObject({ status: 'lost', endReason: 'timeUp', endMonthIndex: 11 });
+    expect(run(w)).toMatchObject({ status: 'lost', endReason: 'timeUp', endMonthIndex: 11, progressRecorded: false });
     expect(scenarioResult(w)).toMatchObject({ status: 'lost', endReason: 'timeUp', stars: 0 });
+    const kv = new MemoryStore();
+    expect(recordProgressEvents(new ProgressStore(kv), w, ended, 't')).toBe(0);
+    expect(kv.writes).toBe(0);
   }, 60_000);
 
   it('Relaxed: no loss at the deadline; a win 2 months late gives 1 star', () => {

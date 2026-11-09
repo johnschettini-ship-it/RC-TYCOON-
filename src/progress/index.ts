@@ -212,8 +212,10 @@ export function recordScenarioWin(store: ProgressStore, run: ScenarioRun, result
 /**
  * Progress writes for a drained batch of sim events (the client calls it once per batch): a won `scenarioEnded`
  * records the run's result, a finished tutorial (`tutorialStep` with `done`) sets `tutorialDone`. Progress is written
- * only on these events, never from the state of a loaded save, so a win is recorded once (Phase 5 §4.4). Returns the
- * number of writes.
+ * only on these events, never from the state of a loaded save, so a win is recorded once (Phase 5 §4.4): the sim sends
+ * the event once, at the end tick, and marks the run `progressRecorded` there (`sim/scenario/end.ts`); an event that
+ * does not match the run's recorded win (another month, a run not marked) records nothing. Returns the number of
+ * writes.
  */
 export function recordProgressEvents(
   store: ProgressStore,
@@ -226,7 +228,8 @@ export function recordProgressEvents(
   for (const ev of events) {
     if (ev.type === 'scenarioEnded' && ev.status === 'won') {
       const run = world.state.scenario.kind === 'scenario' ? world.state.scenario : null;
-      if (run && recordScenarioWin(store, run, resultOf(world), completedAt)) writes += 1;
+      const matches = run !== null && run.status === 'won' && run.progressRecorded && run.endMonthIndex === ev.monthIndex;
+      if (run && matches && recordScenarioWin(store, run, resultOf(world), completedAt)) writes += 1;
     } else if (ev.type === 'tutorialStep' && ev.done) {
       if (store.markTutorialDone()) writes += 1;
     }
