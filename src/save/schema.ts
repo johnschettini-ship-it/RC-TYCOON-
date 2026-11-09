@@ -368,6 +368,10 @@ const guestShape = obj<Guest>({
   seat: nullable(obj<NonNullable<Guest['seat']>>({ rideId: int, trainId: int, car: int, seat: int })),
   activityId: int,
   trashTimer: int,
+  withdrawals: int,
+  lostSteps: int,
+  bestDistance: int,
+  lostTarget: nullable(destKey),
 });
 
 const economyShape = obj<EconomyState>({

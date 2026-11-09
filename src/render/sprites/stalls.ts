@@ -9,6 +9,7 @@ import type { Dir } from '../../sim/map';
 import { shade } from '../palette';
 import type { ArtBounds } from './rides';
 import { box, line3, poly3, pyramid, sx, sy, type Ctx } from './shapes';
+import { CONTENT_STALL_ART } from './content';
 
 interface Scheme {
   roof: string;
@@ -149,6 +150,12 @@ function icon(ctx: Ctx, defId: string, kind: StallKind | 'unknown', x: number, y
 
 /** Draw a stall sprite with its anchor at (0, 0). Unknown ids get the generic scheme and icon. */
 export function drawStallArt(ctx: Ctx, defId: string, rotation: Dir): void {
+  // Phase 3 stalls and facilities have their own art (W2-C, ./content).
+  const art = CONTENT_STALL_ART[defId];
+  if (art) {
+    art.draw(ctx, rotation);
+    return;
+  }
   const def = getStallDef(defId);
   const kind: StallKind | 'unknown' = def?.kind ?? 'unknown';
   const s = SCHEMES[kind];
