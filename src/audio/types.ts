@@ -98,6 +98,8 @@ export interface SoundRequest {
 export interface Listener {
   camera: Camera;
   viewportWidth: number;
+  /** CSS pixels. Optional: when absent, readers assume 9/16 of the width (W4-A contract request). */
+  viewportHeight?: number;
   world: World;
 }
 
