@@ -19,16 +19,6 @@ export function isCampaignRunning(world: World, type: string): boolean {
   return world.state.management.campaigns.some((c) => c.type === type);
 }
 
-/** Running campaigns with their defs, in start order. */
-function running(world: World): { c: Campaign; def: CampaignDef }[] {
-  const out: { c: Campaign; def: CampaignDef }[] = [];
-  for (const c of world.state.management.campaigns) {
-    const def = getCampaignDef(c.type);
-    if (def) out.push({ c, def });
-  }
-  return out;
-}
-
 function targetExists(world: World, def: CampaignDef, targetId: EntityId | undefined): boolean {
   if (targetId === undefined) return false;
   if (def.target === 'ride') return world.state.rides.some((r) => r.id === targetId);
@@ -72,15 +62,17 @@ export function endCampaignsForTarget(world: World, entityId: EntityId): void {
 
 /** Entrance fee charged to arriving guests (Open Gate Day: $0). */
 export function effectiveEntranceFee(world: World): Cents {
-  for (const { def } of running(world)) if (def.freeEntry) return 0;
+  for (const c of world.state.management.campaigns) if (getCampaignDef(c.type)?.freeEntry) return 0;
   return world.state.park.entranceFee;
 }
 
 /** Price a guest pays at this stall (Snack Deal: 50%, floored). Stock cost does not change. */
 export function campaignStallPrice(world: World, stall: Stall): Cents {
   let price = stall.price;
-  for (const { c, def } of running(world)) {
-    if (def.stallPricePercent !== undefined && c.targetId === stall.id) price = Math.floor((price * def.stallPricePercent) / 100);
+  for (const c of world.state.management.campaigns) {
+    if (c.targetId !== stall.id) continue;
+    const pct = getCampaignDef(c.type)?.stallPricePercent;
+    if (pct !== undefined) price = Math.floor((price * pct) / 100);
   }
   return price;
 }
@@ -88,7 +80,11 @@ export function campaignStallPrice(world: World, stall: Stall): Cents {
 /** Want-chance multiplier at this stall from campaigns (Snack Deal: ×1.5). */
 export function campaignStallWant(world: World, stall: Stall): number {
   let f = 1;
-  for (const { c, def } of running(world)) if (def.stallWant !== undefined && c.targetId === stall.id) f *= def.stallWant;
+  for (const c of world.state.management.campaigns) {
+    if (c.targetId !== stall.id) continue;
+    const want = getCampaignDef(c.type)?.stallWant;
+    if (want !== undefined) f *= want;
+  }
   return f;
 }
 
@@ -99,17 +95,11 @@ export function rideTag(ride: Ride): RideTag | undefined {
 /** Ride score multiplier from campaigns (Ride Spotlight ×1.6, weekends ×1.2 by tag). */
 export function campaignRideScoreFactor(world: World, _guest: Guest, ride: Ride): number {
   let f = 1;
-  let tag: RideTag | undefined;
-  let tagKnown = false;
-  for (const { c, def } of running(world)) {
+  for (const c of world.state.management.campaigns) {
+    const def = getCampaignDef(c.type);
+    if (!def) continue;
     if (def.targetRideScore !== undefined && c.targetId === ride.id) f *= def.targetRideScore;
-    if (def.tagRideScore) {
-      if (!tagKnown) {
-        tag = rideTag(ride);
-        tagKnown = true;
-      }
-      if (tag === def.tagRideScore.tag) f *= def.tagRideScore.factor;
-    }
+    if (def.tagRideScore && rideTag(ride) === def.tagRideScore.tag) f *= def.tagRideScore.factor;
   }
   return f;
 }
@@ -117,6 +107,6 @@ export function campaignRideScoreFactor(world: World, _guest: Guest, ride: Ride)
 /** Temperament for a new guest (Thrill Weekend +20, Chill Weekend −20, clamped to 0–100). */
 export function arrivalTemperament(world: World, temperament: number): number {
   let t = temperament;
-  for (const { def } of running(world)) if (def.temperamentShift !== undefined) t += def.temperamentShift;
+  for (const c of world.state.management.campaigns) t += getCampaignDef(c.type)?.temperamentShift ?? 0;
   return Math.max(0, Math.min(100, t));
 }
