@@ -6,7 +6,7 @@ import { guestHooks } from '../../../src/sim/hooks';
 import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { arrivalsPerHour } from '../../../src/sim/park/arrivals';
 import { booBonusActive, nightArrivalFactor } from '../../../src/sim/lighting/api';
-import { darkPathHour, nightEnergyFactor, nightHooks, spookyAfterRide, spookyRideScoreFactor } from '../../../src/sim/lighting/hooks';
+import { darkPathHour, darkPathPhase, darkPathTick, nightEnergyFactor, nightHooks, spookyAfterRide, spookyRideScoreFactor } from '../../../src/sim/lighting/hooks';
 import { nightArrivalFactorFor, spookyScoreFactorFor } from '../../../src/sim/lighting/rules';
 import { isSpookyRide, spookyRideCentre } from '../../../src/sim/lighting/spooky';
 import { spookyItemsNear } from '../../../src/sim/scenery/api';
@@ -49,12 +49,12 @@ afterEach(() => {
 });
 
 describe('the hook set is registered', () => {
-  it('nightHooks fill perHour, energyFactor, rideScoreFactor, and afterRide in the registry', () => {
-    expect(nightHooks.perHour).toEqual([darkPathHour]);
+  it('nightHooks fill perTick, energyFactor, rideScoreFactor, and afterRide in the registry', () => {
+    expect(nightHooks.perTick).toEqual([darkPathTick]);
     expect(nightHooks.energyFactor).toEqual([nightEnergyFactor]);
     expect(nightHooks.rideScoreFactor).toEqual([spookyRideScoreFactor]);
     expect(nightHooks.afterRide).toEqual([spookyAfterRide]);
-    expect(guestHooks.perHour).toContain(darkPathHour);
+    expect(guestHooks.perTick).toContain(darkPathTick);
     expect(guestHooks.energyFactor).toContain(nightEnergyFactor);
   });
 });
@@ -119,12 +119,26 @@ describe('dark paths at night (−4 happiness per game hour, thought "This path 
     expect(g.thoughts).toEqual([]);
   });
 
-  it('runs through the real guest tick at each hour start', () => {
+  it('runs through the real guest tick once per game hour, at the guest\'s own phase of the hour', () => {
     const w = makeTestWorld();
-    w.state.tick = at(22) - 1;
-    const g = darkGuest(w, { needs: { hunger: 0, thirst: 0, bladder: 0, energy: 250, happiness: 180, nausea: 0 } });
-    runTicks(w, 2);
+    w.state.tick = at(22);
+    const g = darkGuest(w, { needs: { hunger: 0, thirst: 0, bladder: 0, energy: 250, happiness: 250, nausea: 0 } });
+    const phase = (TICKS_PER_HOUR - (g.id % TICKS_PER_HOUR)) % TICKS_PER_HOUR;
+    expect(darkPathPhase(at(22) + phase, g.id)).toBe(true);
+    let hits = 0;
+    for (let t = at(22); t < at(22) + 3 * TICKS_PER_HOUR; t++) if (darkPathPhase(t, g.id)) hits++;
+    expect(hits).toBe(3);
+    runTicks(w, phase);
+    expect(g.thoughts.some((t) => t.id === THOUGHT.pathTooDark)).toBe(false);
+    runTicks(w, 1);
     expect(g.thoughts.some((t) => t.id === THOUGHT.pathTooDark)).toBe(true);
+  });
+
+  it('spreads the guests over the hour: each tick checks about 1/50 of them', () => {
+    const counts = new Array<number>(TICKS_PER_HOUR).fill(0);
+    for (let id = 0; id < 5000; id++) for (let t = 0; t < TICKS_PER_HOUR; t++) if (darkPathPhase(at(21) + t, id)) counts[t]!++;
+    expect(Math.max(...counts)).toBe(100);
+    expect(Math.min(...counts)).toBe(100);
   });
 });
 
