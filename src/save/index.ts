@@ -1,11 +1,21 @@
-/** Save API (master §7, Phase 1 §4.7). Owner: W1-F. Signatures are a contract; replace the stub bodies. */
+/** Save API (master §7, Phase 1 §4.7). Owner: W1-F. Signatures are a contract. */
+import { version as packageVersion } from '../../package.json';
 import type { World } from '../sim/types';
+import { formatDate } from '../sim/time';
+import { deserializeWith, SAVE_FORMAT, SCHEMA_VERSION, serializeWorld, validateState, type LoadResult } from './codec';
+import { ERR_EMPTY_SLOT, ERR_NO_STORAGE, ERR_SAVE_FAILED, ERR_UNREADABLE, saveInvalid } from './messages';
+import { migrations } from './migrations';
+import { isRecord } from './schema';
 
-export const SAVE_FORMAT = 'thrills-and-chills-save';
-export const SCHEMA_VERSION = 1;
+export { SAVE_FORMAT, SCHEMA_VERSION, validateState, type LoadResult } from './codec';
+export { migrations, type Migration, type Migrations } from './migrations';
+export * as saveMessages from './messages';
+
+/** Game version written into every save (from package.json). */
+export const GAME_VERSION: string = packageVersion;
+
 export type SlotId = '1' | '2' | '3' | 'auto';
-
-export type LoadResult = { ok: true; world: World } | { ok: false; error: string };
+export const SLOT_IDS: readonly SlotId[] = ['1', '2', '3', 'auto'];
 
 export interface SlotInfo {
   slot: SlotId;
@@ -21,28 +31,84 @@ export interface KeyValueStore {
   removeItem(key: string): void;
 }
 
-export function serialize(_world: World, _gameVersion: string, _savedAtIso: string): string {
-  throw new Error('Not implemented yet');
+/** The localStorage key of a slot: `tc.save.1` … `tc.save.3`, `tc.save.auto`. */
+export function slotKey(slot: SlotId): string {
+  return `tc.save.${slot}`;
 }
 
-export function deserialize(_json: string): LoadResult {
-  return { ok: false, error: 'Not implemented yet' };
+export function serialize(world: World, gameVersion: string, savedAtIso: string): string {
+  return serializeWorld(world, gameVersion, savedAtIso);
+}
+
+/** Parse, check, migrate, and validate a save. Never throws; on failure the caller keeps the current game. */
+export function deserialize(json: string): LoadResult {
+  return deserializeWith(json, { schemaVersion: SCHEMA_VERSION, migrations });
+}
+
+/** Browser storage, or null when it is missing or blocked (private mode, disabled cookies). */
+export function browserStore(): KeyValueStore | null {
+  try {
+    const ls = (globalThis as { localStorage?: KeyValueStore }).localStorage;
+    if (!ls) return null;
+    const probe = 'tc.probe';
+    ls.setItem(probe, '1');
+    ls.removeItem(probe);
+    return ls;
+  } catch {
+    return null;
+  }
 }
 
 export class SaveStore {
-  constructor(private readonly store: KeyValueStore | null) {}
+  constructor(
+    private readonly store: KeyValueStore | null,
+    private readonly now: () => string = () => new Date().toISOString(),
+  ) {}
 
-  /** Error message on failure (storage full or blocked), else null. */
-  save(_slot: SlotId, _world: World): string | null {
-    return 'Not implemented yet';
+  /**
+   * Error message on failure (storage full or blocked), else null.
+   * The state is checked first with the load checks, so a slot is never overwritten by a save that would not load.
+   */
+  save(slot: SlotId, world: World): string | null {
+    if (this.store === null) return ERR_SAVE_FAILED;
+    const problem = validateState(world.state);
+    if (problem) return saveInvalid(problem);
+    const json = serialize(world, GAME_VERSION, this.now());
+    try {
+      this.store.setItem(slotKey(slot), json);
+      return null;
+    } catch {
+      return ERR_SAVE_FAILED;
+    }
   }
 
-  load(_slot: SlotId): LoadResult {
-    return { ok: false, error: 'Not implemented yet' };
+  load(slot: SlotId): LoadResult {
+    if (this.store === null) return { ok: false, error: ERR_NO_STORAGE };
+    let json: string | null;
+    try {
+      json = this.store.getItem(slotKey(slot));
+    } catch {
+      return { ok: false, error: ERR_NO_STORAGE };
+    }
+    if (json === null) return { ok: false, error: ERR_EMPTY_SLOT };
+    return deserialize(json);
   }
 
+  /** Slots that hold a readable save, in slot order. Unreadable slots are skipped. Never throws. */
   list(): SlotInfo[] {
-    return [];
+    const out: SlotInfo[] = [];
+    if (this.store === null) return out;
+    for (const slot of SLOT_IDS) {
+      try {
+        const json = this.store.getItem(slotKey(slot));
+        if (json === null) continue;
+        const info = readSlotInfo(slot, json);
+        if (info) out.push(info);
+      } catch {
+        // Unreadable or blocked: skip the slot.
+      }
+    }
+    return out;
   }
 
   hasStore(): boolean {
@@ -50,10 +116,59 @@ export class SaveStore {
   }
 }
 
-/** Browser only: download the save as a `.tcsave.json` file. */
-export function exportFile(_world: World): void {}
+/** Slot info from the envelope only (no full validation), or null when the text is not a readable save. */
+function readSlotInfo(slot: SlotId, json: string): SlotInfo | null {
+  const raw = JSON.parse(json) as unknown;
+  if (!isRecord(raw) || raw.format !== SAVE_FORMAT || typeof raw.savedAt !== 'string') return null;
+  const state = raw.state;
+  if (!isRecord(state) || !isRecord(state.park) || typeof state.park.name !== 'string') return null;
+  const tick = state.tick;
+  if (typeof tick !== 'number' || !Number.isSafeInteger(tick) || tick < 0) return null;
+  return { slot, parkName: state.park.name, savedAt: raw.savedAt, gameDate: formatDate(tick) };
+}
+
+/** File name for an exported save: the park name made safe for file systems. */
+export function exportFileName(parkName: string): string {
+  const safe = parkName
+    .replace(/[\u0000-\u001f\u007f<>:"/\\|?*]/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\.+/, '')
+    .slice(0, 64)
+    .trim();
+  return `${safe === '' ? 'park' : safe}.tcsave.json`;
+}
+
+/**
+ * Browser only: download the save as a `.tcsave.json` file.
+ * Not validated first, so the player can always get the data out (for example after an unexpected error).
+ */
+export function exportFile(world: World): void {
+  const json = serialize(world, GAME_VERSION, new Date().toISOString());
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = exportFileName(world.state.park.name);
+  a.rel = 'noopener';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  try {
+    a.click();
+  } finally {
+    a.remove();
+    // Give the browser a moment to start the download before the URL goes away.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
 
 /** Browser only: read a picked file and deserialize it. */
-export async function importFile(_file: File): Promise<LoadResult> {
-  return { ok: false, error: 'Not implemented yet' };
+export async function importFile(file: File): Promise<LoadResult> {
+  let text: string;
+  try {
+    text = await file.text();
+  } catch {
+    return { ok: false, error: ERR_UNREADABLE };
+  }
+  return deserialize(text);
 }
