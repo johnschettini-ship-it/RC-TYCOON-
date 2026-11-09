@@ -16,13 +16,15 @@ import { GestureRecognizer, type DragMode, type GestureAction, type GesturePoint
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
 import { PatrolStroke, brushTiles, strokeLine } from './patrol';
 import { pathItemCommand, pathItemGhost } from './pathItemTool';
-import { computeGhost, pathKindOf, pathLineCost, pathLineEnd, pathLineTiles, pickEntity } from './tools';
+import { computeGhost, pathKindOf, pathLineEnd, pathLinePreview, pathLineTiles, pickEntity } from './tools';
 import { pathItemAction, toolOptions } from '../render/management/toolOptions';
 import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
 import { routerOf } from './toolRouters';
 import { changePathHeight, pathCommandHeight } from './pathHeight';
 import { cycleOverlay } from './overlays';
 import { mapRotationFromView, viewSize, viewToMap } from '../render/view';
+import { pickElevatedPath } from '../render/elevated/pick';
+import type { ElevatedPath } from '../sim/paths/types';
 
 /** Requests for the UI layer (it owns panels). */
 export type UiIntent = 'finance' | 'closePanel' | 'staff' | 'office' | 'messages';
@@ -48,6 +50,8 @@ export class InputController {
   /** Patrol paint stroke in progress (Phase 3 §7.2), or null. */
   private stroke: PatrolStroke | null = null;
   private strokeLast = -1;
+  /** Elevated path under the mouse for the deck-aware tools (demolish, path items), by id; −1 for none. */
+  private hoverDeckId = -1;
 
   constructor(
     private readonly game: Game,
@@ -220,9 +224,13 @@ export class InputController {
     const tool = game.tool;
     const map = game.world.state.map;
     switch (a.type) {
-      case 'hover':
-        tool.hoverTile = this.tileAt(a.x, a.y);
+      case 'hover': {
+        // Demolish and path items pick the elevated deck drawn under the pointer (Phase 4 §4.2) before the ground.
+        const deck = this.decksPicked() ? this.deckAt(a.x, a.y) : null;
+        this.hoverDeckId = deck ? deck.id : -1;
+        tool.hoverTile = deck ? deck.y * map.width + deck.x : this.tileAt(a.x, a.y);
         break;
+      }
       case 'tap':
         this.tap(a.x, a.y, a.pointerType === 'mouse');
         break;
@@ -250,7 +258,8 @@ export class InputController {
         const kind = pathKindOf(tool.tool);
         if (!kind) break;
         const start = this.tileAtClamped(a.x, a.y);
-        tool.drag = { startTile: start, endTile: start, tiles: [start], cost: pathLineCost(map, [start], kind) };
+        const preview = pathLinePreview(game.world, kind, start, start, pathCommandHeight(tool));
+        tool.drag = { startTile: start, endTile: start, tiles: [start], cost: preview.cost, reason: preview.reason };
         tool.hoverTile = start;
         break;
       }
@@ -263,7 +272,9 @@ export class InputController {
         if (!kind || !tool.drag) break;
         const cur = this.tileAtClamped(a.x, a.y);
         const tiles = pathLineTiles(map, tool.drag.startTile, cur);
-        tool.drag = { startTile: tool.drag.startTile, endTile: pathLineEnd(map, tool.drag.startTile, cur), tiles, cost: pathLineCost(map, tiles, kind) };
+        const end = pathLineEnd(map, tool.drag.startTile, cur);
+        const preview = pathLinePreview(game.world, kind, tool.drag.startTile, end, pathCommandHeight(tool));
+        tool.drag = { startTile: tool.drag.startTile, endTile: end, tiles, cost: preview.cost, reason: preview.reason };
         tool.hoverTile = tool.drag.endTile;
         break;
       }
@@ -328,20 +339,29 @@ export class InputController {
         else game.dispatch({ type: 'placeStall', defId: g.defId, x: gx, y: gy, rotation: g.rotation });
         return;
       }
-      case 'demolish':
-        if (tile !== null) game.dispatch({ type: 'demolish', x: tile % w, y: Math.floor(tile / w) });
+      case 'demolish': {
+        // An elevated deck under the pointer goes by its height (Phase 4 §6 `demolish { z }`); else the ground tile.
+        const deck = this.deckAt(x, y);
+        if (deck) game.dispatch({ type: 'demolish', x: deck.x, y: deck.y, z: deck.z });
+        else if (tile !== null) game.dispatch({ type: 'demolish', x: tile % w, y: Math.floor(tile / w) });
         return;
+      }
       case 'patrol':
         // A tap is a stroke of one brush stamp.
         this.strokeStart(x, y);
         this.strokeEnd();
         return;
-      case 'pathItem':
-        if (tile === null) return;
-        tool.hoverTile = tile;
-        game.dispatch(pathItemCommand(game.world, pathItemAction(tool), tile));
+      case 'pathItem': {
+        // On an elevated footpath under the pointer the item goes on that deck (`buildPathItem { level }`).
+        const deck = this.deckAt(x, y);
+        const target = deck ? deck.y * w + deck.x : tile;
+        if (target === null) return;
+        tool.hoverTile = target;
+        this.hoverDeckId = deck ? deck.id : -1;
+        game.dispatch(pathItemCommand(game.world, pathItemAction(tool), target, deck));
         this.refreshGhost();
         return;
+      }
       default:
         // Touch has no hover: the highlight follows the tapped tile (Phase 0 §10).
         tool.hoverTile = tile;
@@ -399,7 +419,7 @@ export class InputController {
     refreshTrackTool(this.game, this.opts.viewport(), this.tileAtClampedFn);
     if (t.tool === 'track') return;
     if (t.tool === 'pathItem') {
-      t.ghost = t.hoverTile === null ? null : pathItemGhost(this.game.world, pathItemAction(t), t.hoverTile);
+      t.ghost = t.hoverTile === null ? null : pathItemGhost(this.game.world, pathItemAction(t), t.hoverTile, this.hoverDeck(t.hoverTile));
       return;
     }
     if ((t.tool !== 'placeRide' && t.tool !== 'placeStall') || !t.defId) {
@@ -416,6 +436,27 @@ export class InputController {
   /** Track tool helpers, bound once (no per-frame closures). */
   private readonly tileAtFn = (x: number, y: number): number | null => this.tileAt(x, y);
   private readonly tileAtClampedFn = (x: number, y: number): number => this.tileAtClamped(x, y);
+
+  /** Tools that act on the elevated deck under the pointer. */
+  private decksPicked(): boolean {
+    const t = this.game.tool.tool;
+    return t === 'demolish' || t === 'pathItem';
+  }
+
+  /** The elevated path drawn under screen point (x, y), or null (W3-B picking, through the view rotation). */
+  private deckAt(x: number, y: number): ElevatedPath | null {
+    if (this.game.world.state.elevatedPaths.length === 0) return null;
+    const v = this.opts.viewport();
+    const p = screenToWorld(this.game.camera, x, y, v.width, v.height);
+    return pickElevatedPath(this.game.world, p.x, p.y, this.game.camera.rotation);
+  }
+
+  /** The hovered deck when it still stands on `tile`, else null. */
+  private hoverDeck(tile: number): ElevatedPath | null {
+    if (this.hoverDeckId < 0) return null;
+    const w = this.game.world.state.map.width;
+    return this.game.world.state.elevatedPaths.find((e) => e.id === this.hoverDeckId && e.y * w + e.x === tile) ?? null;
+  }
 
   private tileAt(x: number, y: number): number | null {
     const v = this.opts.viewport();

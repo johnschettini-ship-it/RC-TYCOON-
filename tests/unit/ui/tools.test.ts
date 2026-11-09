@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, placeRideDirect, placeStallDirect } from '../../helpers/world';
 import { tileIndex } from '../../../src/sim/map';
+import { executeCommand } from '../../../src/sim/commands';
 import {
   PATH_TILE_COST,
   computeGhost,
-  pathLineCost,
   pathLineEnd,
+  pathLinePreview,
   pathLineTiles,
   pickEntity,
 } from '../../../src/input/tools';
@@ -41,16 +42,44 @@ describe('path line cost', () => {
     expect(PATH_TILE_COST).toEqual({ footpath: 1000, queue: 1200 });
   });
 
-  it('sums the tiles that change; tiles that already have that path are free', () => {
+  it('sums the tiles that change; tiles that already have that path are free (the command\'s own dry run)', () => {
     const w = makeTestWorld();
     const m = w.state.map;
-    const tiles = pathLineTiles(m, tileIndex(m, 10, 20), tileIndex(m, 14, 20));
-    expect(pathLineCost(m, tiles, 'footpath')).toBe(5000);
-    expect(pathLineCost(m, tiles, 'queue')).toBe(6000);
+    const a = tileIndex(m, 10, 20);
+    const b = tileIndex(m, 14, 20);
+    const cost = (kind: 'footpath' | 'queue'): number => pathLinePreview(w, kind, a, b).cost;
+    expect(cost('footpath')).toBe(5000);
+    expect(cost('queue')).toBe(6000);
     placeFootpath(w, 11, 20);
     placeQueue(w, 12, 20);
-    expect(pathLineCost(m, tiles, 'footpath')).toBe(4000);
-    expect(pathLineCost(m, tiles, 'queue')).toBe(4800);
+    expect(cost('footpath')).toBe(4000);
+    expect(cost('queue')).toBe(4800);
+    expect(pathLinePreview(w, 'footpath', a, b).reason).toBeNull();
+  });
+
+  it('elevated lines cost their supports ($2 per m down to the ground, Phase 4 §4.2), as the command charges', () => {
+    const w = makeTestWorld();
+    const m = w.state.map;
+    const a = tileIndex(m, 10, 24);
+    const b = tileIndex(m, 13, 24);
+    const ground = m.heights[a] as number;
+    // 4 decks 3 steps above the ground: $10 + 3 × $2 each.
+    expect(pathLinePreview(w, 'footpath', a, b, { z: ground + 3 })).toEqual({ cost: 4 * (1000 + 3 * 200), reason: null });
+    // A ramp up from 1 step: 1, 2, 3, 4 steps of support.
+    expect(pathLinePreview(w, 'footpath', a, b, { z: ground + 1, ramp: 'up' }).cost).toBe(4 * 1000 + (1 + 2 + 3 + 4) * 200);
+    const before = w.state.park.cash;
+    const r = executeCommand(w, { type: 'buildPathLine', x0: 10, y0: 24, x1: 13, y1: 24, kind: 'footpath', z: ground + 3 });
+    expect(r).toMatchObject({ ok: true, cost: 4 * 1600 });
+    expect(w.state.park.cash).toBe(before - 4 * 1600);
+  });
+
+  it('a line the command would refuse shows its reason and no cost', () => {
+    const w = makeTestWorld();
+    const m = w.state.map;
+    const a = tileIndex(m, 10, 26);
+    expect(pathLinePreview(w, 'footpath', a, tileIndex(m, 12, 26), { z: m.heights[a] as number })).toEqual({ cost: 0, reason: 'The path is below the land' });
+    w.state.park.cash = 100;
+    expect(pathLinePreview(w, 'footpath', a, tileIndex(m, 12, 26))).toEqual({ cost: 0, reason: 'Not enough cash' });
   });
 });
 

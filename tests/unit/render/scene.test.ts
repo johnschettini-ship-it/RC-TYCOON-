@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { QUEUE_SLOTS_PER_TILE, createQueueWalker, queueSlot } from '../../../src/render/queue';
 import { entranceOuterDir, fenceSegments, fenceEdgeDepth } from '../../../src/render/fence';
 import { JOIN_E, JOIN_N, JOIN_S, JOIN_W, pathJoinMask } from '../../../src/render/paths';
-import { GUEST_WALK_TICKS_PER_TILE, guestPosition, type GuestPos } from '../../../src/render/guestPos';
+import { GUEST_WALK_TICKS_PER_TILE, guestPosition, walkerHeights, type GuestPos } from '../../../src/render/guestPos';
+import { staffPosition, type StaffPos } from '../../../src/render/management/staffPos';
+import { executeCommand } from '../../../src/sim/commands';
+import type { World } from '../../../src/sim/types';
 import { SHIRT_COLOURS, shirtIndex, temperamentTint, TINT_STEPS, tintStep } from '../../../src/render/palette';
 import { Content, Owned, generateMap, tileIndex } from '../../../src/sim/map';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, placeRideDirect, placeStallDirect } from '../../helpers/world';
@@ -184,6 +187,64 @@ describe('guest position', () => {
     expect(Math.floor(out.fx)).toBe(5);
     expect(out.fy).toBeCloseTo(6.5, 6);
     expect(out.tile).toBe(t);
+  });
+});
+
+describe('walkers on path nodes (Phase 4 §4.2: drawn at their node height, W3-B)', () => {
+  /**
+   * Row 10: ground footpath at (20, 10) and (23, 10), height 8; a channel 2 steps deep on (21–22, 10) with a bridge
+   * (elevated footpath at 8) over it. Row 12: an elevated ramp rising east, x 24–26, z 9, 10, 11.
+   */
+  function bridgeWorld(): World {
+    const w = makeTestWorld();
+    const map = w.state.map;
+    for (const x of [21, 22]) map.heights[tileIndex(map, x, 10)] = 6;
+    placeFootpath(w, 20, 10);
+    placeFootpath(w, 23, 10);
+    const ok = (cmd: Parameters<typeof executeCommand>[1]): void => {
+      const r = executeCommand(w, cmd);
+      if (!r.ok) throw new Error(r.reason);
+    };
+    ok({ type: 'buildPathLine', x0: 21, y0: 10, x1: 22, y1: 10, kind: 'footpath', z: 8 });
+    ok({ type: 'buildPathLine', x0: 24, y0: 12, x1: 26, y1: 12, kind: 'footpath', z: 9, ramp: 'up' });
+    return w;
+  }
+  const at = (w: World, progress: number, from: [number, number], to: [number, number], z: number): number => {
+    const map = w.state.map;
+    const g = addGuestDirect(w, tileIndex(map, ...from), { z, nextTile: tileIndex(map, ...to), progress, lane: 1, dir: 1 });
+    const out: GuestPos = { fx: 0, fy: 0, z: 0, tile: -1 };
+    return guestPosition(map, g, 0, out, walkerHeights(w)).z;
+  };
+
+  it('a guest stepping from the bank onto a bridge stays at deck height (no dip into the channel)', () => {
+    const w = bridgeWorld();
+    for (const p of [0, 2.5, 5, 7.5, 9.9]) expect(at(w, p, [20, 10], [21, 10], 8), `progress ${p}`).toBe(8);
+    // Across the bridge and off it at the far bank.
+    for (const p of [0, 5, 9]) expect(at(w, p, [21, 10], [22, 10], 8)).toBe(8);
+    for (const p of [0, 5, 9]) expect(at(w, p, [22, 10], [23, 10], 8)).toBe(8);
+    // The map-only height (no node heights) dips to the channel floor past the edge: what this fixes.
+    const g = addGuestDirect(w, tileIndex(w.state.map, 20, 10), { z: 8, nextTile: tileIndex(w.state.map, 21, 10), progress: 7.5, lane: 1, dir: 1 });
+    expect(guestPosition(w.state.map, g, 0, { fx: 0, fy: 0, z: 0, tile: -1 }).z).toBe(6);
+  });
+
+  it('a guest walking up an elevated ramp rises continuously with the deck', () => {
+    const w = bridgeWorld();
+    // Standing at the centre of the middle ramp tile: half a step above its base.
+    expect(at(w, 0, [25, 12], [25, 12], 10)).toBeCloseTo(10.5, 9);
+    const heights = [0, 2.5, 5, 7.5].map((p) => at(w, p, [24, 12], [25, 12], 9));
+    expect(heights[0]).toBeCloseTo(9.5, 9);
+    expect(heights[1]).toBeCloseTo(9.75, 9);
+    expect(heights[2]).toBeCloseTo(10, 9);
+    expect(heights[3]).toBeCloseTo(10.25, 9);
+  });
+
+  it('staff use the same node heights', () => {
+    const w = bridgeWorld();
+    const map = w.state.map;
+    const out: StaffPos = { fx: 0, fy: 0, z: 0 };
+    const s = { tile: tileIndex(map, 20, 10), nextTile: tileIndex(map, 21, 10), progress: 9, z: 8 };
+    expect(staffPosition(map, s, 12, 0, out, walkerHeights(w)).z).toBe(8);
+    expect(staffPosition(map, s, 12, 0, out).z).toBe(6);
   });
 });
 

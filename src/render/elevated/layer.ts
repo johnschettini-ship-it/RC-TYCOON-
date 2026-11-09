@@ -29,6 +29,8 @@ export const ELEVATED_COLOURS = {
   supportDark: '#4d4032',
   ghostOk: 'rgba(120, 220, 140, 0.45)',
   ghostEdge: 'rgba(40, 120, 60, 0.9)',
+  ghostBad: 'rgba(229, 72, 77, 0.4)',
+  ghostBadEdge: 'rgba(160, 30, 36, 0.9)',
 } as const;
 
 /** View corner offsets [N', E', S', W'] of a view tile's top face: (du, dv). */
@@ -180,6 +182,8 @@ export function createElevatedPathLayer(): WorldLayer {
       dir = b === a - map.width ? 0 : b === a + 1 ? 1 : b === a + map.width ? 2 : 3;
     }
     const mode = dir < 0 ? 'flat' : tool.pathHeight.ramp;
+    // The build command's dry run (`pathLinePreview` in the controller) refuses this line: blocked colours.
+    const blocked = !!tool.drag?.reason;
     for (let k = 0; k < count; k++) {
       const tile = tiles ? (tiles[k] as number) : (tool.hoverTile as number);
       if (tile < 0 || tile >= map.width * map.height) continue;
@@ -188,10 +192,10 @@ export function createElevatedPathLayer(): WorldLayer {
       GHOST.x = tile % map.width;
       GHOST.y = Math.floor(tile / map.width);
       corners(world, GHOST, f, z, ramp);
-      ctx.fillStyle = ELEVATED_COLOURS.ghostOk;
+      ctx.fillStyle = blocked ? ELEVATED_COLOURS.ghostBad : ELEVATED_COLOURS.ghostOk;
       quad(ctx, px[0] as number, deckY[0] as number, px[1] as number, deckY[1] as number, px[2] as number, deckY[2] as number, px[3] as number, deckY[3] as number);
       ctx.fill();
-      ctx.strokeStyle = ELEVATED_COLOURS.ghostEdge;
+      ctx.strokeStyle = blocked ? ELEVATED_COLOURS.ghostBadEdge : ELEVATED_COLOURS.ghostEdge;
       ctx.lineWidth = Math.max(1, f.scale);
       ctx.stroke();
       // A guide line from the deck down to the ground at the front corner.

@@ -20,7 +20,7 @@ import { clampCameraToMap, zoomBucket, type ZoomBucket } from './camera';
 import { canvasPixelRatio } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
-import { guestPosition, type GuestPos } from './guestPos';
+import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
 import { STEP_PX, TILE_H, TILE_W } from './iso';
 import { mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
 import { createQueueWalker, queueSlot } from './queue';
@@ -473,6 +473,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     // Umbrellas open in rain and storms (Phase 3 §4.9); balloons show whenever a guest holds one.
     const weather = s.management.weather.current;
     const wet = weather === 'rain' || weather === 'storm';
+    const heights = walkerHeights(world);
     for (let gi = 0; gi < guests.length; gi++) {
       const g = guests[gi]!;
       if (g.state === 'riding' || g.tile < 0) continue;
@@ -495,7 +496,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         z = qz[gi] as number;
         facing = (qdir[gi] as number) as Dir;
       } else {
-        guestPosition(map, g, alpha, pos);
+        guestPosition(map, g, alpha, pos, heights);
         fx = pos.fx;
         fy = pos.fy;
         z = pos.z;
@@ -616,6 +617,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
 
   function dragColours(tool: ToolState): { fill: string; stroke: string } {
+    // A path line the build command would refuse (W3-B dry run) shows in the blocked colours.
+    if (tool.drag?.reason && (tool.tool === 'footpath' || tool.tool === 'queue')) return { fill: 'rgba(229,72,77,0.4)', stroke: '#ff8a8a' };
     switch (tool.tool) {
       case 'footpath':
         return { fill: 'rgba(220,199,156,0.75)', stroke: '#fff4d6' };
@@ -757,7 +760,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         fy = qfy[gi] as number;
         z = qz[gi] as number;
       } else {
-        guestPosition(map, g, alpha, pos);
+        guestPosition(map, g, alpha, pos, walkerHeights(world));
         fx = pos.fx;
         fy = pos.fy;
         z = pos.z;

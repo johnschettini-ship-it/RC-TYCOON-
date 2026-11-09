@@ -7,7 +7,8 @@ import { getFlatRideDef, getStallDef } from '../data/catalog';
 import { text } from '../data/strings/en';
 import { extent, footprintTiles } from '../sim/footprint';
 import { Content, Owned, type Dir, type MapState } from '../sim/map';
-import type { PathKind } from '../sim/commands/types';
+import type { PathKind, RampMode } from '../sim/commands/types';
+import { previewPathCommand } from '../sim/commands/build/paths';
 import type { World } from '../sim/types';
 import type { Cents } from '../sim/units';
 import type { GhostState, ToolState } from '../render/types';
@@ -46,12 +47,16 @@ export function pathLineTiles(map: MapState, start: number, current: number): nu
   return out;
 }
 
-/** Estimated cost of a path line: tiles that already hold this path kind are free. */
-export function pathLineCost(map: MapState, tiles: readonly number[], kind: PathKind): Cents {
-  const same = kind === 'footpath' ? Content.Footpath : Content.Queue;
-  let n = 0;
-  for (const i of tiles) if (map.content[i] !== same) n++;
-  return n * PATH_TILE_COST[kind];
+/**
+ * Cost of the path line from `startTile` to `endTile` (already projected with `pathLineEnd`), or the reason the
+ * build command would refuse it now, from the command's own dry run (W3-B `previewPathCommand`, Phase 4 §7): ground
+ * paths (tiles that already have that path are free), elevated paths at the tool's height with supports and ramps,
+ * ownership, slopes, water, clearance, and cash. One source of truth for the ghost cost and the command.
+ */
+export function pathLinePreview(world: World, kind: PathKind, startTile: number, endTile: number, height: { z?: number; ramp?: RampMode } = {}): { cost: Cents; reason: string | null } {
+  const w = world.state.map.width;
+  const r = previewPathCommand(world, { type: 'buildPathLine', x0: startTile % w, y0: Math.floor(startTile / w), x1: endTile % w, y1: Math.floor(endTile / w), kind, ...height });
+  return r.ok ? { cost: r.cost, reason: null } : { cost: 0, reason: r.reason };
 }
 
 export function pathKindOf(tool: ToolState['tool']): PathKind | null {

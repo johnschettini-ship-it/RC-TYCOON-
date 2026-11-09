@@ -234,6 +234,64 @@ describe('demolish tool', () => {
   });
 });
 
+describe('elevated paths (Phase 4 §4.2, §6–7: W3-B picking and the path preview)', () => {
+  /** Screen point at the centre of the deck surface of tile (x, y) at height z. */
+  function atZ(game: Game, x: number, y: number, z: number): { x: number; y: number } {
+    const w = tileToScreen(x + 0.5, y + 0.5, z);
+    return worldToScreen(game.camera, w.sx, w.sy, VW, VH);
+  }
+  /** Decks 3 steps above the ground on (30–32, 30). */
+  function withDecks(): ReturnType<typeof setup> & { z: number } {
+    const t = setup();
+    const z = (t.game.world.state.map.heights[tileIndex(t.game.world.state.map, 30, 30)] as number) + 3;
+    expect(t.game.dispatch({ type: 'buildPathLine', x0: 30, y0: 30, x1: 32, y1: 30, kind: 'footpath', z }).ok).toBe(true);
+    t.cmds.length = 0;
+    return { ...t, z };
+  }
+
+  it('a drag at a path height shows the command\'s cost with supports; a line it would refuse shows the reason', () => {
+    const { game, ctl, at, ev } = setup();
+    game.tool.tool = 'footpath';
+    ctl.update(0);
+    const ground = game.world.state.map.heights[tileIndex(game.world.state.map, 30, 30)] as number;
+    game.tool.pathHeight = { z: ground + 2, ramp: 'flat' };
+    ev({ type: 'down', ...at(30, 30) });
+    ev({ type: 'move', ...at(33, 30), t: 50 });
+    expect(game.tool.drag).toMatchObject({ cost: 4 * (1000 + 2 * 200), reason: null });
+    game.tool.pathHeight = { z: ground, ramp: 'flat' };
+    ev({ type: 'move', ...at(34, 30), t: 60 });
+    expect(game.tool.drag).toMatchObject({ cost: 0, reason: 'The path is below the land' });
+  });
+
+  it('demolish on a deck sends demolish { z } for that deck; the deck goes, the ground stays', () => {
+    const { game, cmds, ev, z } = withDecks();
+    game.tool.tool = 'demolish';
+    const p = atZ(game, 31, 30, z);
+    ev({ type: 'down', ...p });
+    ev({ type: 'up', ...p, t: 30 });
+    expect(cmds).toEqual([{ type: 'demolish', x: 31, y: 30, z }]);
+    expect(game.world.state.elevatedPaths.map((e) => e.x)).toEqual([30, 32]);
+  });
+
+  it('the path item tool builds on the deck under the pointer (buildPathItem { level })', () => {
+    const { game, ctl, cmds, ev, z } = withDecks();
+    game.tool.tool = 'pathItem';
+    game.tool.defId = 'bench';
+    ctl.update(0);
+    const deck = game.world.state.elevatedPaths.find((e) => e.x === 32)!;
+    const p = atZ(game, 32, 30, z);
+    // Mouse hover first: the ghost is for the deck (valid: a deck footpath, though the ground below has no path).
+    ctl.pointer({ id: 1, x: p.x, y: p.y, t: 0, pointerType: 'mouse', button: 0, type: 'move' });
+    ctl.update(10);
+    expect(game.tool.hoverTile).toBe(tileIndex(game.world.state.map, 32, 30));
+    expect(game.tool.ghost).toMatchObject({ kind: 'pathItem', valid: true });
+    ev({ type: 'down', ...p, t: 20 });
+    ev({ type: 'up', ...p, t: 40 });
+    expect(cmds).toEqual([{ type: 'buildPathItem', x: 32, y: 30, itemType: 'bench', level: deck.id }]);
+    expect(game.world.state.map.pathItemLevel[tileIndex(game.world.state.map, 32, 30)]).toBe(deck.id);
+  });
+});
+
 describe('keyboard', () => {
   it('Space pauses and resumes the last speed; 1/2/3 pick 1×/2×/4×', () => {
     const { game, ctl } = setup();

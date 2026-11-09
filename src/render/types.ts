@@ -56,6 +56,11 @@ export interface DragState {
   /** Tiles the drag covers (path line, patrol stroke). */
   tiles: number[];
   cost: number;
+  /**
+   * Path lines: why the build command would fail now (W3-B `previewPathCommand`), or null when it would succeed.
+   * Absent for other drags.
+   */
+  reason?: string | null;
 }
 
 /** Land tool modes (Phase 4 §7). */

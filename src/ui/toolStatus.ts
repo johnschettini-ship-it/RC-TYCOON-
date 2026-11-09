@@ -90,7 +90,11 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
       } else if (path) {
         const d = t.drag;
         setText(msg, text(t.tool === 'footpath' ? 'ui.tool.footpath' : 'ui.tool.queue'));
-        if (d) setText(detail, d.tiles.length === 1 ? text('ui.status.pathTile', { cost: formatMoney(d.cost) }) : text('ui.status.pathTiles', { count: d.tiles.length, cost: formatMoney(d.cost) }));
+        // The cost and the refusal come from the build command's dry run (`pathLinePreview`).
+        if (d?.reason) {
+          valid = false;
+          setText(detail, d.reason);
+        } else if (d) setText(detail, d.tiles.length === 1 ? text('ui.status.pathTile', { cost: formatMoney(d.cost) }) : text('ui.status.pathTiles', { count: d.tiles.length, cost: formatMoney(d.cost) }));
         else setText(detail, text('ui.status.pathHint'));
       } else {
         setText(msg, text('ui.tool.demolish'));

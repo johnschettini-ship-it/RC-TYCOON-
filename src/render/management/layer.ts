@@ -19,7 +19,7 @@ import type { Staff } from '../../sim/staff/types';
 import type { World } from '../../sim/types';
 import type { ZoomBucket } from '../camera';
 import { Layer, viewPointDepth } from '../depth';
-import type { GuestPos } from '../guestPos';
+import { walkerHeights, type GuestPos } from '../guestPos';
 import { STEP_PX, TILE_H, TILE_W } from '../iso';
 import { mix32 } from '../palette';
 import { pathJoinMask } from '../paths';
@@ -234,6 +234,7 @@ export class ManagementLayer {
   private collectStaff(world: World, alpha: number, sink: DrawSink): void {
     const s = world.state;
     const map = s.map;
+    const heights = walkerHeights(world);
     const members = s.staff.members;
     const w = map.width;
     const pos = this.spos;
@@ -242,7 +243,7 @@ export class ManagementLayer {
       const m = members[si] as Staff;
       if (m.tile < 0) continue;
       const tpt = TICKS_PER_TILE[m.type];
-      staffPosition(map, m, tpt, alpha, pos);
+      staffPosition(map, m, tpt, alpha, pos, heights);
       const ax = viewPointSX(this.va, pos.fx, pos.fy);
       const ay = viewPointSY(this.va, pos.fx, pos.fy, pos.z);
       if (ax < this.view.x0 - 14 || ax > this.view.x1 + 14 || ay < this.view.y0 - 6 || ay > this.view.y1 + 32) continue;
@@ -427,7 +428,7 @@ export class ManagementLayer {
       ctx.stroke();
     }
     // Ring and marker on the staff member.
-    staffPosition(map, m, TICKS_PER_TILE[m.type], alpha, this.spos);
+    staffPosition(map, m, TICKS_PER_TILE[m.type], alpha, this.spos, walkerHeights(world));
     const x = this.dx(viewPointSX(this.va, this.spos.fx, this.spos.fy));
     const y = this.dy(viewPointSY(this.va, this.spos.fx, this.spos.fy, this.spos.z));
     const k = this.scale;

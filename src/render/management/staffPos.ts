@@ -1,7 +1,7 @@
 /** Staff draw positions in continuous map coordinates (interpolated like guests). Owner: W2-B. Pure. */
 import type { MapState } from '../../sim/map';
 import type { Staff } from '../../sim/staff/types';
-import { walkerHeight } from '../guestPos';
+import { stepHeight, type WalkerHeights } from '../guestPos';
 
 /** Output record, reused by the caller. `fx`, `fy`: map coordinates; `z`: height steps. */
 export interface StaffPos {
@@ -13,7 +13,8 @@ export interface StaffPos {
 /**
  * A staff member walks from `tile` toward `nextTile`; the sim adds 1 to `progress` per tick and
  * arrives at `ticksPerTile` (catalog walk speed). Position = (progress + alpha) / ticksPerTile, clamped.
- * Staff walk on the path centre line (guests use lanes beside it). Height: `walkerHeight` (Phase 4 §5 `Staff.z`).
+ * Staff walk on the path centre line (guests use lanes beside it). Height: the walking surface of the path node
+ * (Phase 4 §5 `Staff.z`; `stepHeight` with the world's `heights`, as for guests).
  */
 export function staffPosition(
   map: MapState,
@@ -21,6 +22,7 @@ export function staffPosition(
   ticksPerTile: number,
   alpha: number,
   out: StaffPos,
+  heights?: WalkerHeights,
 ): StaffPos {
   const w = map.width;
   const n = w * map.height;
@@ -28,11 +30,12 @@ export function staffPosition(
   const y = (s.tile - x) / w;
   let fx = x + 0.5;
   let fy = y + 0.5;
+  let t = 0;
   const inMap = s.tile >= 0 && s.tile < n;
   if (s.nextTile >= 0 && s.nextTile !== s.tile && s.nextTile < n) {
     const nx = s.nextTile % w;
     const ny = (s.nextTile - nx) / w;
-    let t = (s.progress + alpha) / Math.max(1, ticksPerTile);
+    t = (s.progress + alpha) / Math.max(1, ticksPerTile);
     if (t < 0) t = 0;
     else if (t > 1) t = 1;
     fx += (nx - x) * t;
@@ -40,6 +43,6 @@ export function staffPosition(
   }
   out.fx = fx;
   out.fy = fy;
-  out.z = inMap ? walkerHeight(map, s.tile, s.z, fx, fy) : 0;
+  out.z = inMap ? stepHeight(map, heights, s.tile, s.z, s.nextTile, t, fx, fy) : 0;
   return out;
 }
