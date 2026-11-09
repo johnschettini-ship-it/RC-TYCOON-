@@ -1,15 +1,26 @@
 /**
- * `show:N` destinations (Phase 6 §4.4, Wave 4.0 contract in `sim/pathing`): the field starts from every guest-walkable
- * node on the site's viewing tiles. `viewingTiles` is W4-C's; here a fake gives the tiles.
+ * `show:N` destinations (Phase 6 §4.4, Wave 4.0 contract in `sim/pathing` and `guests/update.ts`): the field starts
+ * from every guest-walkable node on the site's viewing tiles, and a walker that reaches one calls `arriveAtShow`.
+ * W4-C's functions are faked here, so the contract test holds whatever W4-C builds.
  */
 import { describe, expect, it, vi } from 'vitest';
 
 const viewing = vi.hoisted(() => new Map<number, number[]>());
+const arrivals = vi.hoisted(() => [] as Array<{ guest: number; site: number; tile: number }>);
 
 vi.mock('../../../src/sim/shows/api', async (orig) => ({
   ...(await orig<object>()),
   viewingTiles: (_w: unknown, id: number) => viewing.get(id) ?? [],
   showTargetValid: () => true,
+}));
+
+vi.mock('../../../src/sim/shows/guests', () => ({
+  arriveAtShow: (_w: unknown, g: { id: number; tile: number; target: unknown; showTarget: number }, site: number) => {
+    arrivals.push({ guest: g.id, site, tile: g.tile });
+    g.target = null;
+    g.showTarget = -1;
+  },
+  updateWatchingShow: () => {},
 }));
 
 import { atDestination, distanceTo, markNetworkDirty, nextStep } from '../../../src/sim/pathing';
@@ -40,22 +51,15 @@ describe('show destinations (multi-seed fields)', () => {
     expect(distanceTo(w, tileIndex(w.state.map, 31, 50), 'show:9')).toBeNull();
   });
 
-  it('a guest heading for a show walks there and arrives (the W4-C stub then sends it back to deciding)', () => {
+  it('a guest heading for a show walks the shortest route and arrives once, on the viewing node', () => {
     const w = makeTestWorld();
     for (let y = 40; y <= 60; y++) placeFootpath(w, 31, y);
     const at = (y: number): number => tileIndex(w.state.map, 31, y);
     viewing.set(5, [at(44)]);
     markNetworkDirty(w);
+    arrivals.length = 0;
     const g = addGuestDirect(w, at(48), { target: 'show:5', showTarget: 5, nextDecisionTick: 1e9 });
-    let reached = false;
-    for (let i = 0; i < 200 && !reached; i++) {
-      runTicks(w, 1);
-      if (g.tile === at(44)) reached = true;
-    }
-    expect(reached).toBe(true);
-    // `arriveAtShow` (neutral) clears the show target and re-plans.
-    runTicks(w, 1);
-    expect(g.showTarget).toBe(-1);
-    expect(g.target).not.toBe('show:5');
+    runTicks(w, 200);
+    expect(arrivals).toEqual([{ guest: g.id, site: 5, tile: at(44) }]);
   });
 });

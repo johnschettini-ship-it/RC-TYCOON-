@@ -1,6 +1,8 @@
 /**
  * Wave 4.0 contracts (Build 3, Phase 6): schema 3 start values, stub neutrality, sound cues, catalog rows, strings,
  * display prefs, and the client registries. Each stub's real behaviour is tested by its owner card (W4-A … W4-G).
+ * Named hunks: W4-C replaces the block "W4-C stubs" (its stubs become real); W4-D replaces the test "all Phase 6
+ * content stays locked …" when it raises `BUILD_MAX_PHASE`.
  */
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES, getFlatRideDef, getShowSiteDef, getStallDef, getTrackRideDef, SHOW_SITES, STALLS, TRACK_RIDES } from '../../../src/data/catalog';
@@ -82,7 +84,7 @@ describe('new games are schema 3 (Phase 6 §5)', () => {
   });
 });
 
-describe('Build 3 stubs are neutral until their owner fills them', () => {
+describe('W4-C stubs are neutral until W4-C fills them (W4-C replaces this block)', () => {
   const SHOW_COMMANDS: Command[] = [
     { type: 'placeShowSite', defId: 'lightshow_tower', x: 20, y: 20, rotation: 0 },
     { type: 'setShowSchedule', id: 1, hour: 21, minute: 30, everyNDays: 2 },
@@ -200,8 +202,8 @@ describe('strings and localization contract (Phase 6 §4.8)', () => {
     expect(text('money.format', { amount: '1,200' })).toBe('$1,200');
   });
 
-  it('t() equals text() for string ids; English is the only locale until W4-G', () => {
-    expect(LOCALES.map((l) => l.code)).toEqual(['en']);
+  it('t() equals text() for string ids; English is the first locale and the fallback', () => {
+    expect(LOCALES[0]?.code).toBe('en');
     expect(currentLocale()).toBe('en');
     expect(t('ui.slot.label', { n: 2 })).toBe(text('ui.slot.label', { n: 2 }));
     expect(t('no.such.key')).toBe('no.such.key');
@@ -226,7 +228,7 @@ describe('strings and localization contract (Phase 6 §4.8)', () => {
     expect(text('ui.hud.cash')).toBe(en['ui.hud.cash']);
   });
 
-  it('the client helpers keep the Build 2 output (neutral)', () => {
+  it('in English the client helpers keep the Build 2 output', () => {
     expect(formatGameDate(5_100)).toBe(formatDate(5_100));
     expect(localizeReason('Not enough cash')).toBe('Not enough cash');
   });
@@ -250,15 +252,17 @@ describe('client contracts (Wave 4.0)', () => {
     expect(SFX.filter((s) => s.loop).map((s) => s.id)).toEqual(['coaster_chain', 'coaster_rumble', 'rain', 'crowd']);
   });
 
-  it('registries hold the Build 3 entries and the stubs use nothing', () => {
+  it('registries hold the Build 3 entries', () => {
     const game = new Game(makeTestWorld());
-    for (const h of KEY_HANDLERS) expect(h.keyDown(game, 'c', { shift: false, repeat: false })).toBe(false);
+    expect(KEY_HANDLERS).toHaveLength(2);
+    // Keys no handler uses fall through to the Build 1 key map.
+    for (const h of KEY_HANDLERS) expect(h.keyDown(game, 'p', { shift: false, repeat: false })).toBe(false);
     expect(routerOf('placeShowSite')).toBeDefined();
     const names = createWorldLayers().map((l) => l.name);
     expect(names.slice(-2)).toEqual(['shows', 'a11y']);
     expect(createWorldLayers().find((l) => l.name === 'shows')?.kinds).toEqual([LAYER_KIND.showSite]);
     expect(UI_EXTENSIONS.length).toBe(11);
-    expect(extensionPanel('showSite')).toBeUndefined();
+    expect(typeof extensionPanel).toBe('function');
   });
 
   it('Game has an in-memory settings store with the defaults', () => {
