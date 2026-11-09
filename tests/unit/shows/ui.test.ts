@@ -3,8 +3,11 @@
  * registration; strings (master R4). Owner: W4-C.
  */
 import { describe, expect, it } from 'vitest';
-import { showStrings } from '../../../src/data/strings/shows';
-import { text } from '../../../src/data/strings/en';
+import { SHOW_ERR, showStrings } from '../../../src/data/strings/shows';
+import { en, text } from '../../../src/data/strings/en';
+import { pseudoLocalize } from '../../../src/data/strings/en-XA';
+import { setLocale } from '../../../src/data/strings/index';
+import { localizeReason, reasonId } from '../../../src/i18n';
 import { Game } from '../../../src/game';
 import { executeCommand } from '../../../src/sim/commands';
 import { extensionPanel, toolbarEntries, UI_EXTENSIONS } from '../../../src/ui/extensions';
@@ -14,12 +17,31 @@ import { makeTestWorld } from '../../helpers/world';
 import { at, placeSite, runTo, scheduleSite, showWorld } from './helpers';
 
 describe('show strings (master R4)', () => {
-  it('every key starts with shows. and no text ends with a period', () => {
+  it('every key starts with shows. or reason.shows. and no text ends with a period', () => {
     for (const [k, v] of Object.entries(showStrings)) {
-      expect(k.startsWith('shows.')).toBe(true);
+      expect(k.startsWith('shows.') || k.startsWith('reason.shows.'), k).toBe(true);
       expect(v.endsWith('.'), k).toBe(false);
     }
     expect(text('shows.notEnoughCash')).toBe('Not enough cash for the show');
+  });
+
+  it('every show command reason maps back to a string id with the same English text, and en-XA translates it', () => {
+    for (const [k, reason] of Object.entries(SHOW_ERR)) {
+      const m = reasonId(reason);
+      expect(m, k).not.toBeNull();
+      expect(en[m!.id], k).toBe(reason);
+      expect(m!.id.startsWith('reason.'), `${k}: ${m!.id}`).toBe(true);
+    }
+    setLocale('en-XA');
+    try {
+      expect(localizeReason(SHOW_ERR.inWater)).toBe(pseudoLocalize(SHOW_ERR.inWater));
+      expect(localizeReason(SHOW_ERR.hour)).toBe(pseudoLocalize(SHOW_ERR.hour));
+      expect(text('shows.notEnoughCash')).toBe(pseudoLocalize('Not enough cash for the show'));
+      // The toolbar label is read at mount time, so it follows the locale chosen at boot.
+      expect(toolbarEntries().find((e) => e.id === 'shows')?.label).toBe(pseudoLocalize('Shows'));
+    } finally {
+      setLocale('en');
+    }
   });
 });
 

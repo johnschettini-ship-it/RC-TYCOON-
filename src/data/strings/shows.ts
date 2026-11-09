@@ -1,7 +1,7 @@
 /**
- * Owner: W4-C. After Dark show strings (Phase 6 §4.4, §6, §7). Keys start with `shows.`. Master R4: no final period.
- * Texts the spec gives are exact. Command reasons (`SHOW_ERR`) are table entries too, so the client can map a reason
- * back to its id (`localizeReason`, W4-G); the block strings shared with terrain keep the Phase 4 §4.1 text.
+ * Owner: W4-C. After Dark show strings (Phase 6 §4.4, §6, §7). Keys start with `shows.` (UI) or `reason.shows.`
+ * (command reasons). Master R4: no final period. Texts the spec gives are exact. Every reason `SHOW_ERR` returns has
+ * a string id, so the client maps it back with `localizeReason` (W4-G) and en-XA translates it.
  */
 import { TERRAIN_ERR } from './terrain';
 
@@ -9,26 +9,16 @@ export const showStrings: Record<string, string> = {
   // Phase 6 §4.4: the toast when a show is cancelled at its start.
   'shows.notEnoughCash': 'Not enough cash for the show',
 
-  // Command reasons (Phase 6 §6). "Not in the spec" ones answer bad command data or rules the spec leaves open.
-  'shows.err.unknown': 'Unknown show site',
-  'shows.err.notUnlocked': 'Not unlocked',
-  'shows.err.badRotation': 'Unknown rotation',
-  'shows.err.outsidePark': TERRAIN_ERR.outsidePark,
-  'shows.err.onlyRights': TERRAIN_ERR.onlyRights,
-  'shows.err.pathInWay': TERRAIN_ERR.pathInWay,
-  'shows.err.rideOrStallInWay': TERRAIN_ERR.rideOrStallInWay,
-  'shows.err.trackInWay': TERRAIN_ERR.trackInWay,
-  'shows.err.entranceInWay': TERRAIN_ERR.entranceInWay,
-  'shows.err.sceneryInWay': TERRAIN_ERR.sceneryInWay,
-  'shows.err.notFlat': TERRAIN_ERR.landNotFlat,
-  'shows.err.inWater': 'Show sites cannot go in water',
-  'shows.err.noClearance': TERRAIN_ERR.noClearance,
-  'shows.err.notEnoughCash': TERRAIN_ERR.notEnoughCash,
-  'shows.err.noSite': 'No such show site',
-  'shows.err.hour': 'Shows start between 20:00 and 23:30',
-  'shows.err.minute': 'Shows start on the hour or at half past',
-  'shows.err.days': 'Shows run every 1, 2, or 3 days',
-  'shows.err.badValue': 'Unknown setting',
+  // Command reasons of the show commands (Phase 6 §6; master R27: the sim returns this English text and the client
+  // maps it back with `localizeReason`). `reason.*` ids, as W4-G names reasons; texts shared with other commands
+  // (land, blocks, cash, lock, rotation) keep their existing reason ids. None of these texts is in the spec.
+  'reason.shows.unknown': 'Unknown show site',
+  'reason.shows.inWater': 'Show sites cannot go in water',
+  'reason.shows.noSite': 'No such show site',
+  'reason.shows.hour': 'Shows start between 20:00 and 23:30',
+  'reason.shows.minute': 'Shows start on the hour or at half past',
+  'reason.shows.days': 'Shows run every 1, 2, or 3 days',
+  'reason.shows.badValue': 'Unknown setting',
 
   // Toolbar and picker (Phase 6 §7).
   'shows.tool': 'Shows',
@@ -94,11 +84,15 @@ export const showStrings: Record<string, string> = {
   'shows.toast.announced': '{name} show at {time}: guests are gathering',
 };
 
-/** Command reasons of the show commands (the same texts as the table entries above). */
+/**
+ * Command reasons of the show commands. Show-only texts are the `reason.shows.*` entries above; the others are the
+ * shared texts that already have reason ids (Phase 4 §4.1 blocks in `TERRAIN_ERR`, and the Build 1 build reasons
+ * "Not unlocked" and "Unknown rotation", `reason.build.*`).
+ */
 export const SHOW_ERR = {
-  unknown: showStrings['shows.err.unknown'] as string,
-  notUnlocked: showStrings['shows.err.notUnlocked'] as string,
-  badRotation: showStrings['shows.err.badRotation'] as string,
+  unknown: showStrings['reason.shows.unknown'] as string,
+  notUnlocked: 'Not unlocked',
+  badRotation: 'Unknown rotation',
   outsidePark: TERRAIN_ERR.outsidePark,
   onlyRights: TERRAIN_ERR.onlyRights,
   pathInWay: TERRAIN_ERR.pathInWay,
@@ -107,12 +101,12 @@ export const SHOW_ERR = {
   entranceInWay: TERRAIN_ERR.entranceInWay,
   sceneryInWay: TERRAIN_ERR.sceneryInWay,
   notFlat: TERRAIN_ERR.landNotFlat,
-  inWater: showStrings['shows.err.inWater'] as string,
+  inWater: showStrings['reason.shows.inWater'] as string,
   noClearance: TERRAIN_ERR.noClearance,
   notEnoughCash: TERRAIN_ERR.notEnoughCash,
-  noSite: showStrings['shows.err.noSite'] as string,
-  hour: showStrings['shows.err.hour'] as string,
-  minute: showStrings['shows.err.minute'] as string,
-  days: showStrings['shows.err.days'] as string,
-  badValue: showStrings['shows.err.badValue'] as string,
+  noSite: showStrings['reason.shows.noSite'] as string,
+  hour: showStrings['reason.shows.hour'] as string,
+  minute: showStrings['reason.shows.minute'] as string,
+  days: showStrings['reason.shows.days'] as string,
+  badValue: showStrings['reason.shows.badValue'] as string,
 } as const;

@@ -10,7 +10,8 @@ import type { ShowGhost } from '../../render/shows/ghost';
 import { isUnlocked } from '../../sim/research/api';
 import { viewingTiles } from '../../sim/shows/api';
 import type { ShowSchedule, ShowSite } from '../../sim/shows/types';
-import { clockOf, dayIndexOf } from '../../sim/time';
+import { dayIndexOf } from '../../sim/time';
+import { formatClock } from '../../i18n';
 import type { World } from '../../sim/types';
 import { formatMoney } from '../format';
 
@@ -23,10 +24,9 @@ export function scheduleTime(s: Pick<ShowSchedule, 'hour' | 'minute'>): string {
   return `${pad2(s.hour)}:${pad2(s.minute)}`;
 }
 
-/** "21:30" of a tick. */
+/** The clock of a tick in the locale's format ("21:30", or "9:30 PM" with a 12 h clock; W4-G `formatClock`). */
 export function tickTime(tick: number): string {
-  const { hour, minute } = clockOf(tick);
-  return `${pad2(hour)}:${pad2(minute)}`;
+  return formatClock(tick);
 }
 
 /** "today at 21:00", "tomorrow at 21:00", "in 2 days at 21:00". */

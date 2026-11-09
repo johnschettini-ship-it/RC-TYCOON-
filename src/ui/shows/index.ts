@@ -68,7 +68,10 @@ export const showsUi: UiExtension = {
   toolbar: [
     {
       id: 'shows',
-      label: text('shows.tool'),
+      // Read when the toolbar mounts (after the locale is chosen), not when this module loads.
+      get label(): string {
+        return text('shows.tool');
+      },
       icon: burstIcon,
       onClick: (ctx) => openTool(ctx),
       pressed: (ctx) => ctx.game.tool.tool === 'placeShowSite' || (pickers.get(ctx.game)?.isOpen() ?? false),
