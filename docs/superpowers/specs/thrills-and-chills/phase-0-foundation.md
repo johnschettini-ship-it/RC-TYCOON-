@@ -89,7 +89,7 @@ Nothing.
 ### 4.8 Renderer
 - Canvas size = CSS size × `devicePixelRatio`. Resize on `ResizeObserver`.
 - `Renderer` interface: `resize(w, h, dpr)`, `draw(state, camera, toolState, alpha)`.
-- **Terrain cache:** 16 × 16-tile chunks. Each chunk is drawn once into an offscreen canvas per zoom bucket (0.5, 1, 2). A chunk redraws only when its dirty flag is set.
+- **Terrain cache:** 8 × 8-tile chunks (16 × 16 until Phase 6; `docs/adr/0001-renderer.md` halved them). Each chunk is drawn once into an offscreen canvas per zoom bucket (0.5, 1, 2). A chunk redraws only when its dirty flag is set.
 - **Frame order:**
   1. Clear to the sky/background colour.
   2. Draw visible terrain chunks.
@@ -170,7 +170,7 @@ None. Phase 1 adds the command system.
 | `DAYS_PER_MONTH` | 3 |
 | `MAX_TICKS_PER_FRAME` | 10 |
 | `MAP_SIZE_BUILD1` | 64 |
-| `CHUNK_SIZE` | 16 |
+| `CHUNK_SIZE` | 8 (16 until Phase 6, `docs/adr/0001-renderer.md`) |
 | `ZOOM_MIN` / `ZOOM_MAX` | 0.25 / 2.0 |
 | `ZOOM_BUCKETS` | 0.5, 1, 2 |
 | `WHEEL_ZOOM_FACTOR` | 1.15 |
