@@ -8,6 +8,7 @@ import { uiStrings } from './ui';
 import { trackStrings } from './track';
 import { staffStrings } from './staff';
 import { managementStrings } from './management';
+import { trackUiStrings } from './trackUi';
 
 export const en: Record<string, string> = {
   ...guestStrings,
@@ -15,6 +16,7 @@ export const en: Record<string, string> = {
   ...trackStrings,
   ...staffStrings,
   ...managementStrings,
+  ...trackUiStrings,
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {

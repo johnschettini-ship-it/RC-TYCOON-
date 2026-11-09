@@ -24,6 +24,7 @@ import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { TerrainLayer, grassShade, type ViewRect } from './terrain';
+import { KIND_TRACK, TrackLayer } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 
 const HW = TILE_W / 2;
@@ -118,6 +119,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
   const bank = new SpriteBank();
   const terrain = new TerrainLayer();
+  const track = new TrackLayer();
   const list = new DrawList();
   const walker = createQueueWalker(64 * 64);
   const chain: number[] = [];
@@ -383,6 +385,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         case KIND_ARCH:
           blit(bank.entrance((list.sub[i] as number) as 0 | 1, outerDir, bucket), ax, ay);
           break;
+        case KIND_TRACK:
+          track.drawItem(ctx as CanvasRenderingContext2D, list.ref[i] as number, list.sub[i] as number);
+          break;
       }
     }
   }
@@ -567,6 +572,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       else outlineTiles(map, single, 'rgba(255,224,102,0.22)', '#ffe066', Math.max(1, 1.5 * scale));
     }
     drawGhost(world, tool);
+    track.drawOverlay(ctx as CanvasRenderingContext2D, world, tool);
   }
 
   function drawDebug(world: World, drawn: number): void {
@@ -631,6 +637,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       collectEntrance(map);
       collectRides(world);
       collectStalls(world);
+      track.collect(world, list, view, bucket, scale, offX, offY, alpha, cam.rotation);
       placeQueues(world);
       collectGuests(world, tool, alpha);
       list.sort();

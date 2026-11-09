@@ -24,6 +24,7 @@ import { toastForResult } from './toasts';
 import { createToastView } from './toastView';
 import { createToolbar } from './toolbar';
 import { createToolStatus } from './toolStatus';
+import { mountTrackUi } from './track';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -134,6 +135,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   const status = createToolStatus(ctx);
   const title = createTitleScreen(ctx);
   root.append(hud.el, toolbar.el, status.el, panels.el, toastView.el, fileInput, title.el);
+  mountTrackUi(ctx);
 
   const applyLayout = (): void => {
     const layout = toolbarPlacement(window.innerWidth);

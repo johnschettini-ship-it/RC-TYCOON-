@@ -13,6 +13,7 @@ import { KEY_ZOOM_FACTOR, centerOnMap, clampToMap, panCamera, wheelZoomFactor } 
 import { GestureRecognizer, type DragMode, type GestureAction, type GesturePointerEvent, type PointerKind } from './gestures';
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
 import { computeGhost, pathKindOf, pathLineCost, pathLineEnd, pathLineTiles, pickEntity } from './tools';
+import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
 
 /** Requests for the UI layer (it owns panels). */
 export type UiIntent = 'finance' | 'closePanel';
@@ -85,6 +86,7 @@ export class InputController {
 
   /** Returns true when the key was used (the caller then prevents the browser default). */
   keyDown(key: string): boolean {
+    if (this.game.tool.tool === 'track' && trackKeyDown(this.game, key)) return true;
     const a = keyAction(key);
     if (!a) return false;
     const game = this.game;
@@ -170,6 +172,7 @@ export class InputController {
   }
 
   private act(a: GestureAction): void {
+    if (this.game.tool.tool === 'track' && trackGesture(this.game, a, this.tileAtFn)) return;
     const game = this.game;
     const tool = game.tool;
     const map = game.world.state.map;
@@ -280,6 +283,8 @@ export class InputController {
   /** Ghost for place tools at the hover tile, or at the screen centre before any pointer input. */
   private refreshGhost(): void {
     const t = this.game.tool;
+    refreshTrackTool(this.game, this.opts.viewport(), this.tileAtClampedFn);
+    if (t.tool === 'track') return;
     if ((t.tool !== 'placeRide' && t.tool !== 'placeStall') || !t.defId) {
       t.ghost = null;
       return;
@@ -288,6 +293,10 @@ export class InputController {
     const anchor = t.hoverTile ?? this.tileAtClamped(v.width / 2, v.height / 2);
     t.ghost = computeGhost(this.game.world, t.tool === 'placeRide' ? 'ride' : 'stall', t.defId, anchor, t.rotation);
   }
+
+  /** Track tool helpers, bound once (no per-frame closures). */
+  private readonly tileAtFn = (x: number, y: number): number | null => this.tileAt(x, y);
+  private readonly tileAtClampedFn = (x: number, y: number): number => this.tileAtClamped(x, y);
 
   private tileAt(x: number, y: number): number | null {
     const v = this.opts.viewport();

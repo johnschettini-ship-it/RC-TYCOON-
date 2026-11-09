@@ -9,6 +9,7 @@ import { isUnlocked } from '../../sim/research/api';
 import type { PanelView, UiContext } from '../context';
 import { h } from '../dom';
 import { formatMoney, formatPrice, formatRating } from '../format';
+import { ridePickerTabs } from '../track/picker';
 
 const PREVIEW_W = 112;
 const PREVIEW_H = 80;
@@ -93,7 +94,8 @@ export function createPicker(ctx: UiContext, which: 'ridePicker' | 'stallPicker'
     which === 'ridePicker'
       ? FLAT_RIDES.filter((d) => isUnlocked(world, d.id)).map((d) => rideCard(ctx, d))
       : STALLS.filter((d) => isUnlocked(world, d.id)).map((d) => stallCard(ctx, d));
-  const body = h('div', { class: 'panel-content' }, cards.length ? h('div', { class: 'card-grid' }, ...cards) : h('p', { class: 'muted', text: text('ui.picker.empty') }));
+  const content = h('div', { class: 'panel-content' }, cards.length ? h('div', { class: 'card-grid' }, ...cards) : h('p', { class: 'muted', text: text('ui.picker.empty') }));
+  const body = which === 'ridePicker' ? ridePickerTabs(ctx, content) : content;
   return {
     kind: which,
     id: null,
