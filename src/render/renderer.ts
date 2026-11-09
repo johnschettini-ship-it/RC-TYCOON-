@@ -109,7 +109,8 @@ function debugEnabled(): boolean {
 }
 
 export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
-  const ctx = canvas.getContext('2d');
+  // Opaque: every frame clears to the sky colour first.
+  const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D is not available');
   let cssW = 1;
   let cssH = 1;
@@ -623,7 +624,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         outerDir = entranceOuterDir(map);
         fenceVersion = terrain.tracker.version;
       }
-      bank.cache.beginFrame();
+      bank.beginFrame();
       ensureGuestScratch(s.guests.length);
       list.n = 0;
       collectFence(map);

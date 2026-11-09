@@ -353,7 +353,7 @@ export function chunkBounds(map: MapState, cx: number, cy: number): ChunkGeom {
 
 const CHUNK_PAD = 2;
 /** Chunks built per frame when an image at another bucket can stand in. */
-const MAX_REFINES_PER_FRAME = 2;
+const MAX_REFINES_PER_FRAME = 1;
 
 export class TerrainLayer {
   readonly tracker = new TerrainTracker();

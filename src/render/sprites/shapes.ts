@@ -178,5 +178,24 @@ export function head(ctx: Ctx, x: number, y: number, r: number, skin: string, ha
   ctx.fill();
 }
 
+/**
+ * Add a rounded rectangle to the current path. Uses a manual path so older browsers without
+ * `CanvasRenderingContext2D.roundRect` (iOS Safari 15) draw the same shape.
+ */
+export function rrect(ctx: Ctx, x: number, y: number, w: number, h: number, rTop: number, rBottom = rTop): void {
+  const t = Math.min(rTop, w / 2, h / 2);
+  const b = Math.min(rBottom, w / 2, h / 2);
+  ctx.moveTo(x + t, y);
+  ctx.lineTo(x + w - t, y);
+  if (t > 0) ctx.arcTo(x + w, y, x + w, y + t, t);
+  ctx.lineTo(x + w, y + h - b);
+  if (b > 0) ctx.arcTo(x + w, y + h, x + w - b, y + h, b);
+  ctx.lineTo(x + b, y + h);
+  if (b > 0) ctx.arcTo(x, y + h, x, y + h - b, b);
+  ctx.lineTo(x, y + t);
+  if (t > 0) ctx.arcTo(x, y, x + t, y, t);
+  ctx.closePath();
+}
+
 export const SKIN_TONES: readonly string[] = ['#f6d3b3', '#e0ac85', '#b97d55', '#7a4a2e'];
 export const HAIR_COLOURS: readonly string[] = ['#3b2a1e', '#6b4226', '#d9b26a', '#1f1f24'];

@@ -4,7 +4,7 @@
 import type { Dir } from '../../sim/map';
 import { shade } from '../palette';
 import type { ArtBounds } from './rides';
-import { box, cylinder, line3, poly3, sx, sy, type Ctx } from './shapes';
+import { box, cylinder, line3, poly3, rrect, sx, sy, type Ctx } from './shapes';
 
 const TAU = Math.PI * 2;
 
@@ -52,7 +52,7 @@ export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
   ctx.fillRect(3.4, -11.5, 1.6, 5);
   ctx.fillStyle = g.shirt;
   ctx.beginPath();
-  ctx.roundRect(-4, -12.5, 8, 7.5, 1.8);
+  rrect(ctx, -4, -12.5, 8, 7.5, 1.8);
   ctx.fill();
   ctx.fillStyle = g.skin;
   ctx.fillRect(-5, -6.8, 1.6, 1.4);

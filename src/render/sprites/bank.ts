@@ -17,6 +17,7 @@ export const GHOST_TINT_VALID = 'rgba(70, 205, 95, 0.5)';
 export const GHOST_TINT_INVALID = 'rgba(235, 60, 60, 0.55)';
 
 const GUEST_HASH = defHash('guest');
+const STAND_IN_ORDER: readonly number[] = [1, 0, 2];
 
 /** Skin and hair pairs: 4 looks keep the number of guest sprites small. */
 const LOOKS: ReadonlyArray<readonly [number, number]> = [
@@ -36,11 +37,20 @@ export function guestSpriteKey(facing: number, frame: number, bucket: ZoomBucket
   return ((GUEST_HASH * 4 + (facing & 3)) * FRAME_SPAN + frame) * 4 + bucketIndex(bucket);
 }
 
+/** New guest sprites per frame; past this, a cached sprite from another zoom bucket stands in. */
+export const GUEST_BUILDS_PER_FRAME = 48;
+
 export class SpriteBank {
   readonly cache: SpriteCache;
+  private guestBuilds = 0;
 
   constructor(budgetPixels = 16_000_000) {
     this.cache = new SpriteCache(budgetPixels);
+  }
+
+  beginFrame(): void {
+    this.cache.beginFrame();
+    this.guestBuilds = 0;
   }
 
   ride(defId: string, w: number, d: number, rotation: Dir, frame: number, bucket: ZoomBucket): Sprite {
@@ -73,6 +83,15 @@ export class SpriteBank {
   guest(key: number, facing: Dir, frame: number, bucket: ZoomBucket): Sprite {
     let sp = this.cache.get(key);
     if (sp) return sp;
+    if (this.guestBuilds >= GUEST_BUILDS_PER_FRAME) {
+      // Spread a zoom-bucket change over several frames: draw another bucket's sprite scaled.
+      const base = key - bucketIndex(bucket);
+      for (const b of STAND_IN_ORDER) {
+        const alt = this.cache.get(base + b);
+        if (alt) return alt;
+      }
+    }
+    this.guestBuilds++;
     const colour = frame & 15;
     const tinted = (frame & 256) !== 0;
     const look = LOOKS[(frame >> 6) & 3] as readonly [number, number];

@@ -9,7 +9,7 @@ import type { RideTag } from '../../data/catalog/types';
 import { extent, footprintTile, frontDir } from '../../sim/footprint';
 import type { Dir } from '../../sim/map';
 import { TAG_COLOURS, mix32, shade } from '../palette';
-import { box, circlePt, cone, cylinder, disc, head, line3, nearness, poly3, sx, sy, HAIR_COLOURS, SKIN_TONES, type Ctx } from './shapes';
+import { box, circlePt, cone, cylinder, disc, head, line3, nearness, poly3, rrect, sx, sy, HAIR_COLOURS, SKIN_TONES, type Ctx } from './shapes';
 
 export interface ArtBounds {
   left: number;
@@ -260,7 +260,7 @@ function drawBigWheel(ctx: Ctx, ex: number, ey: number, st: RideArtState): void 
     ctx.fillRect(p.x - 0.75, p.y, 1.5, 3);
     ctx.fillStyle = c;
     ctx.beginPath();
-    ctx.roundRect(p.x - 5, p.y + 3, 10, 8, 2.5);
+    rrect(ctx, p.x - 5, p.y + 3, 10, 8, 2.5);
     ctx.fill();
     ctx.fillStyle = shade(c, 0.65);
     ctx.fillRect(p.x - 5, p.y + 3, 10, 2);
@@ -302,7 +302,7 @@ function drawSwingTower(ctx: Ctx, ex: number, ey: number, st: RideArtState): voi
         const c = colours[i % colours.length] as string;
         ctx.fillStyle = c;
         ctx.beginPath();
-        ctx.roundRect(x - 3.5, y - 1, 7, 5, 1.5);
+        rrect(ctx, x - 3.5, y - 1, 7, 5, 1.5);
         ctx.fill();
         ctx.fillStyle = shade(c, 0.65);
         ctx.fillRect(x - 3.5, y + 3, 7, 1.5);
@@ -439,7 +439,7 @@ function drawGenericRide(ctx: Ctx, defId: string, ex: number, ey: number, st: Ri
   const dy = sy(door.u, door.v, 3);
   ctx.fillStyle = shade(c.dark, 0.7);
   ctx.beginPath();
-  ctx.roundRect(dx - 6, dy - 15, 12, 15, [6, 6, 0, 0]);
+  rrect(ctx, dx - 6, dy - 15, 12, 15, 6, 0);
   ctx.fill();
   const roofTop = h + 26 + r * 10;
   cone(ctx, cu, cv, r + 0.12, h, roofTop, [c.main, '#fff6ea'], 12);
