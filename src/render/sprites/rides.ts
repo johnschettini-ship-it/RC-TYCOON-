@@ -10,6 +10,7 @@ import { extent, footprintTile, frontDir } from '../../sim/footprint';
 import type { Dir } from '../../sim/map';
 import { TAG_COLOURS, mix32, shade } from '../palette';
 import { box, circlePt, cone, cylinder, disc, head, line3, nearness, poly3, rrect, sx, sy, HAIR_COLOURS, SKIN_TONES, type Ctx } from './shapes';
+import { CONTENT_RIDE_ART } from './content';
 
 export interface ArtBounds {
   left: number;
@@ -48,7 +49,7 @@ function genericHeight(defId: string): number {
 /** Map extent and art bounds (world px from the anchor) for a w × d ride at `rotation`. */
 export function rideArtBounds(defId: string, w: number, d: number, rotation: Dir): ArtBounds {
   const { ex, ey } = extent(w, d, rotation);
-  const height = HEIGHTS[defId] ?? genericHeight(defId);
+  const height = HEIGHTS[defId] ?? CONTENT_RIDE_ART[defId]?.height ?? genericHeight(defId);
   return { left: -ey * 32, right: ex * 32, top: (ex + ey) * 8 - height - 6, bottom: (ex + ey) * 16 + 4 };
 }
 
@@ -484,8 +485,12 @@ export function drawRideArt(ctx: Ctx, defId: string, w: number, d: number, st: R
       case 'teacup_twirl':
         drawTeacups(ctx, ex, ey, st);
         break;
-      default:
-        drawGenericRide(ctx, defId, ex, ey, st);
+      default: {
+        // Phase 3 research rides have their own art (W2-C, ./content); anything else gets the fallback.
+        const art = CONTENT_RIDE_ART[defId];
+        if (art) art.draw(ctx, ex, ey, st);
+        else drawGenericRide(ctx, defId, ex, ey, st);
+      }
     }
   });
 }
