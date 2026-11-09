@@ -313,6 +313,8 @@ describe('placeRide (Phase 1 §4.1)', () => {
   it('a 3×5 ride covers 5 × 3 tiles at rotations 1 and 3', () => {
     for (const [rot, ex, ey] of [[0, 3, 5], [1, 5, 3], [2, 3, 5], [3, 5, 3]] as [Dir, number, number][]) {
       const w = makeTestWorld();
+      // Pendulum Ship is a Phase 3 research item: unlock it as research would.
+      w.state.management.research.unlocked.push('pendulum_ship');
       expect(executeCommand(w, { type: 'placeRide', defId: 'pendulum_ship', x: 20, y: 20, rotation: rot }).ok).toBe(true);
       let count = 0;
       for (let y = 18; y <= 28; y++) for (let x = 18; x <= 28; x++) if (content(w, x, y) === Content.Building) count++;
