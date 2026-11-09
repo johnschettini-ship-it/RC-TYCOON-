@@ -226,16 +226,43 @@ describe('a whole show night', () => {
     expect(validateState(w.state)).toBeNull();
   });
 
-  it('walkers keep their show target through decisions (the show hook) until they arrive', () => {
+  it('walkers make no other plans on the way: their next decision waits for the end of the show', () => {
     const { w, site } = nightWithWatchers();
+    runTo(w, at(0, 20));
+    for (const g of w.state.guests) g.nextDecisionTick = at(0, 20) + 10;
     runTo(w, at(0, 20) + 1);
     const walkers = w.state.guests.filter((g) => g.showTarget === site.id && g.state === 'walking');
     expect(walkers.length).toBeGreaterThan(0);
+    for (const g of walkers) expect(g.nextDecisionTick).toBeGreaterThanOrEqual(at(0, 21) + defOf('lightshow_tower').showTicks);
     runTicks(w, 20);
     for (const g of walkers) {
+      if (g.state !== 'walking') continue;
       expect(g.showTarget).toBe(site.id);
       expect(g.target).toBe(`show:${site.id}`);
     }
+  });
+
+  it('released walkers decide at once; a walker whose show target went stale forgets it at the next hour start', () => {
+    const { w, site } = nightWithWatchers();
+    // A 21:30 show: announced at 20:30, so the 21:00 hour start falls while guests gather.
+    executeCommand(w, { type: 'setShowSchedule', id: site.id, hour: 21, minute: 30, everyNDays: 1 });
+    runTo(w, at(0, 20, 30) + 1);
+    const walkers = w.state.guests.filter((g) => g.showTarget === site.id && g.state === 'walking');
+    expect(walkers.length).toBeGreaterThan(1);
+    // One walker loses its way (the walking code drops the target of a guest with no route).
+    const lost = walkers[0] as Guest;
+    lost.target = null;
+    runTicks(w, 1);
+    expect(lost.showTarget).toBe(site.id);
+    runTo(w, at(0, 21) + 1);
+    expect(lost.showTarget).toBe(-1);
+    expect(lost.nextDecisionTick).toBeLessThanOrEqual(at(0, 21) + 1);
+    expect(site.status).toBe('announced');
+    // Turning the shows off drops the announced show: the other walkers decide at once.
+    executeCommand(w, { type: 'setShowEnabled', id: site.id, enabled: false });
+    const now = w.state.tick;
+    for (const g of w.state.guests) expect(g.showTarget).toBe(-1);
+    for (const g of walkers) if (g.state === 'walking') expect(g.nextDecisionTick).toBeLessThanOrEqual(now);
   });
 
   it('demolish while in use (Review Focus 1): watchers and walkers re-plan at once, no dangling target', () => {

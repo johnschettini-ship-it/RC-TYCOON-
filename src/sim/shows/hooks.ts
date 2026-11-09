@@ -1,20 +1,24 @@
 /**
  * Guest hooks of the show system (Phase 6 §4.4). Owner: W4-C. Registered last in `sim/hooks.ts`.
- * `beforeDecision`: a guest heading for a show that is still gathering or running keeps going (the hook takes the
- * decision); any other guest with a stale `showTarget` (a lost guest that dropped its target, a guest who sat down on
- * the way) forgets the show and decides as usual.
+ *
+ * A guest heading for a show keeps going because gathering holds its next decision until the show's end
+ * (`gatherWatchers`), and every way out of a show (the show ends or is dropped, the site goes) releases it with a
+ * decision at once (`releaseFromShow`). So there is no `beforeDecision` hook (it would run for every decision of every
+ * guest). One `perHour` sweep catches the rest: a guest whose show target went stale on the way (lost, its target
+ * dropped, sat down on a bench) forgets the show and decides at once, so no guest waits out a show it is not going to.
  */
 import type { GuestHooks } from '../hookTypes';
 import { showDest } from '../guests/state';
 import { showTargetValid } from './api';
 
 export const showHooks: Partial<GuestHooks> = {
-  beforeDecision: [
+  perHour: [
     (world, guest) => {
-      if (guest.showTarget < 0) return false;
-      if (guest.target === showDest(guest.showTarget) && showTargetValid(world, guest.showTarget)) return true;
+      const id = guest.showTarget;
+      if (id < 0 || guest.state === 'watchingShow') return;
+      if (guest.target === showDest(id) && showTargetValid(world, id)) return;
       guest.showTarget = -1;
-      return false;
+      if (guest.state === 'walking' && guest.nextDecisionTick > world.state.tick) guest.nextDecisionTick = world.state.tick;
     },
   ],
 };

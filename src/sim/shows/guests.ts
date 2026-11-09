@@ -1,8 +1,8 @@
 /**
  * Show watchers (Phase 6 §4.4). Owner: W4-C. Called by the guest system (`guests/update.ts`) and the show system.
  *
- * Flow: gathering (`updateShows`) sets `showTarget = N`, `target = 'show:N'` on a walking guest. The guest walks with
- * the normal walking code (the `showHooks` decision hook keeps it from choosing anything else); on a viewing node
+ * Flow: gathering (`updateShows`) sets `showTarget = N`, `target = 'show:N'` on a walking guest and holds its next
+ * decision until the show's end. The guest walks with the normal walking code; on a viewing node
  * `arriveAtShow` turns it into `watchingShow` (standing still on the node). `updateWatchingShow` runs each tick for
  * such a guest: +1 happiness per 20 ticks of the running show (`watchGain`: cap +40 per show, ×1.3 for a matching
  * group). When the show ends, `updateShows` gives every watcher `greatShow` and sends it back to walking; a show that
@@ -19,11 +19,15 @@ import type { World } from '../types';
 import type { EntityId } from '../units';
 import { findShowSite, showMatches, showTargetValid, watchGain } from './api';
 
-/** Back to deciding: no show target; a watcher steps off the show state; a walker drops its show target. */
+/**
+ * Back to deciding: no show target; a watcher steps off the show state; a walker drops its show target. A walking
+ * guest decides at once (gathering held its decisions back until the show's end); other states keep their timers.
+ */
 export function releaseFromShow(world: World, guest: Guest): void {
   const heading = guest.target !== null && guest.target === showDest(guest.showTarget);
   guest.showTarget = -1;
   if (guest.state === 'watchingShow' || (guest.state === 'walking' && heading)) replan(world, guest);
+  else if (guest.state === 'walking' && guest.nextDecisionTick > world.state.tick) guest.nextDecisionTick = world.state.tick;
 }
 
 /** Release every guest heading for or watching site `id`. With `thought`, watchers think it first (in id order). */

@@ -6,7 +6,9 @@
  *   Gathering: every guest who is walking (not queueing, riding, buying, sitting, leaving, or already heading for a
  *   show), has energy ≥ 40, and is within 20 tiles of walking distance of a viewing tile decides with the sim RNG
  *   (ascending id order): chance 0.5, +0.2 for the matching temperament group (master R6). Watchers walk to the
- *   viewing tiles (`show:N` field). With After Dark off the show is skipped: the next one is `everyNDays` later.
+ *   viewing tiles (`show:N` field) and make no other decision until the show is over (their next decision moves to
+ *   the show's end; every release decides at once). With After Dark off the show is skipped: the next one is
+ *   `everyNDays` later.
  * - `announced` → `running` at `nextShowTick`: the cost per show goes to the `shows` ledger line. With cash below the
  *   cost (and money not unlimited) the show is cancelled instead: nothing is charged, a `show` event `cancelled`
  *   (the UI toasts "Not enough cash for the show"), and the gathered guests go back to deciding. After Dark turned off
@@ -60,6 +62,8 @@ export function gatherWatchers(world: World, site: ShowSite, def: ShowSiteDef): 
     g.target = dest;
     g.activityId = -1;
     g.lostSinceTick = -1;
+    // No other plans until the show is over: the release (end, drop, demolish) gives a decision at once.
+    g.nextDecisionTick = Math.max(g.nextDecisionTick, site.nextShowTick + def.showTicks);
     n++;
   }
   return n;

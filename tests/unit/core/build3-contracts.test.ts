@@ -140,6 +140,8 @@ describe('W4-C show commands and queries are registered and implemented (W4-C re
     expect(watcher.state).toBe('walking');
     expect(watcher.showTarget).toBe(-1);
     expect(walker.target).not.toBe(`show:${site.id}`);
+    // The stale show target goes at the next hour start (W4-C's hourly sweep).
+    runTicks(w, 50);
     expect(walker.showTarget).toBe(-1);
     expect(validateState(w.state)).toBeNull();
   });
