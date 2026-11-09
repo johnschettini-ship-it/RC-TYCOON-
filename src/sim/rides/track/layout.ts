@@ -20,6 +20,12 @@ export interface CircuitLayout {
   /** Front positions where trains hold (mm, ascending). [0] is the station stop; the rest are block brake exits. */
   blockPoints: number[];
   blockBrakeCount: number;
+  /**
+   * Station runs after the first (Phase 6 Monorail stops, master R26): piece index ranges [start, end) and the front
+   * position where a train stops in each (mm, ascending; 0.5 m before the run's exit joint, as in the first station).
+   */
+  stopRuns: Array<{ start: number; end: number }>;
+  stops: number[];
 }
 
 interface CacheEntry {
@@ -58,7 +64,16 @@ export function buildLayout(pieces: TrackPieceInstance[]): CircuitLayout {
       blockPoints.push(startMm[i + 1] as number);
     }
   });
-  return { pieces, statics, startMm, lengthMm: total, stationCount, stationEndMm, stopFrontMm, blockPoints, blockBrakeCount };
+  const stopRuns: Array<{ start: number; end: number }> = [];
+  const stops: number[] = [];
+  for (let i = stationCount; i < statics.length; i++) {
+    if (statics[i]?.def.special !== 'station') continue;
+    const start = i;
+    while (i < statics.length && statics[i]?.def.special === 'station') i++;
+    stopRuns.push({ start, end: i });
+    stops.push((startMm[i] as number) - STATION_STOP_MARGIN_MM);
+  }
+  return { pieces, statics, startMm, lengthMm: total, stationCount, stationEndMm, stopFrontMm, blockPoints, blockBrakeCount, stopRuns, stops };
 }
 
 /** Layout of a ride's current pieces (cached until the piece list changes). */

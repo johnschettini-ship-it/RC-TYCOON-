@@ -5,6 +5,7 @@
  *   cocoa thought. None takes the decision; First Aid and Cash Machine set a target.
  * - perTick: the step work (lost count → impulse buy → wrong turn) once per step, then balloons.
  * - afterPurchase: souvenir and map thoughts, Cash Machine withdrawals.
+ * - stallWant (W4-D): the Photo Booth's ×2 near an exciting ride's exit (Phase 6 §4.5).
  */
 import type { GuestHooks } from '../hooks';
 import { stepBeganThisPass } from '../guests/movement';
@@ -12,6 +13,7 @@ import type { Guest } from '../guests/types';
 import type { World } from '../types';
 import { isOnTheMove } from './common';
 import { impulseAtStep } from './impulse';
+import { photoBoothWant } from './photo';
 import { cashMachineDecision, firstAidDecision } from './services';
 import { balloonPerTick, cocoaThought, facilityAfterPurchase } from './souvenirs';
 import { lostDecision, resetWayfinding, trackProgress, wrongTurnAtStep } from './wayfinding';
@@ -34,4 +36,5 @@ export const facilityHooks: Partial<GuestHooks> = {
   beforeDecision: [firstAidDecision, cashMachineDecision, lostDecision, cocoaThought],
   perTick: [facilityStepTick, balloonPerTick],
   afterPurchase: [facilityAfterPurchase],
+  stallWant: [photoBoothWant],
 };

@@ -34,6 +34,7 @@ function unlockMessageId(itemId: string): string {
   if (kind === 'trackRide') return MSG.researchTrackRide;
   if (kind === 'stall') return MSG.researchStall;
   if (kind === 'sceneryTheme') return MSG.researchScenery;
+  if (kind === 'showSite') return MSG.researchShow;
   return MSG.researchRide;
 }
 

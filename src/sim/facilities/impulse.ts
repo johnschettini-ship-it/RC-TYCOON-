@@ -20,6 +20,7 @@ import type { World } from '../types';
 import type { Cents } from '../units';
 import { weatherHooks } from '../weather/hooks';
 import { stallsServing, targetStall, willPay } from './common';
+import { photoBoothWant } from './photo';
 import { isWayLost } from './wayfinding';
 
 /** 1 up to the catalog price, then max(0, 1 − (price − catalog) / catalog). A free item is wanted only while free. */
@@ -35,11 +36,12 @@ export function hasUrgentNeed(guest: Guest): boolean {
   return n.hunger >= NEED_URGENT || n.thirst >= NEED_URGENT || n.bladder >= NEED_URGENT || n.nausea >= NAUSEA_URGENT;
 }
 
-/** Product of the weather and campaign `stallWant` hooks (facilities add none of their own). */
+/** Product of the weather and campaign `stallWant` hooks and the facilities' own (Photo Booth, Phase 6). */
 export function stallWantFactor(world: World, guest: Guest, stall: Stall): number {
   let f = 1;
   for (const hook of litterHooks.stallWant ?? []) f *= hook(world, guest, stall);
   for (const hook of weatherHooks.stallWant ?? []) f *= hook(world, guest, stall);
+  f *= photoBoothWant(world, guest, stall);
   return f;
 }
 

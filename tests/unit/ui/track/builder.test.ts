@@ -65,9 +65,10 @@ describe('palette filtering (§7.1 step 3)', () => {
     const ids = (g: string): string[] => pal.find((x) => x.id === g)!.pieces.map((p) => p.id);
     expect(ids('straight')).toEqual(['station', 'straight']);
     expect(ids('slopes')).toEqual(['flat_to_gentle_up', 'flat_to_gentle_down']);
-    expect(ids('turns')).toEqual(['turn_small_left', 'turn_small_right', 'turn_medium_left', 'turn_medium_right']);
+    // Phase 6 (W4-D): the Steel Coaster also builds the helix (Turns) and the corkscrew (Special).
+    expect(ids('turns')).toEqual(['turn_small_left', 'turn_small_right', 'turn_medium_left', 'turn_medium_right', 'helix_left_up', 'helix_left_down', 'helix_right_up', 'helix_right_down']);
     expect(ids('banking')).toEqual(['bank_left_in', 'bank_right_in']);
-    expect(ids('special')).toEqual(['brakes', 'block_brake', 'vertical_loop_left', 'vertical_loop_right']);
+    expect(ids('special')).toEqual(['brakes', 'block_brake', 'vertical_loop_left', 'vertical_loop_right', 'corkscrew_left', 'corkscrew_right']);
   });
 
   it('after a slope only slope pieces fit; the junior coaster has no steep pieces and no loops', () => {

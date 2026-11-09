@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TRACK_PIECES, TRACK_TYPES, getTrackPieceDef, type TrackBank, type TrackSlope } from '../../../src/data/track';
+import { ALL_TRACK_PIECES, TRACK_PIECES, TRACK_TYPES, getTrackPieceDef, type TrackBank, type TrackSlope } from '../../../src/data/track';
 import {
   bankAngle,
   entryJointLocal,
@@ -162,8 +162,9 @@ describe('palette (pieces that fit an end state)', () => {
       for (const slope of slopes) {
         for (const bank of banks) {
           const got = piecesForEnd(type.id, slope, bank).map((p) => p.id).sort();
-          const expected = TRACK_PIECES.filter(
-            (p) => type.groups.includes(p.group) && p.entry.slope === slope && p.entry.bank === bank && p.id !== 'station',
+          // Every rail piece of the type's groups: the 29 Phase 2 pieces plus the Phase 6 corkscrew and helix (W4-D).
+          const expected = ALL_TRACK_PIECES.filter(
+            (p) => p.set === 'rail' && type.groups.includes(p.group) && p.entry.slope === slope && p.entry.bank === bank && p.id !== 'station',
           ).map((p) => p.id).sort();
           expect(got).toEqual(expected);
         }

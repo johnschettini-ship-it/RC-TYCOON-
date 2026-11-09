@@ -10,6 +10,7 @@ import { priceAcceptable } from '../../../src/sim/facilities/common';
 import { cashMachineDecision, firstAidDecision } from '../../../src/sim/facilities/services';
 import { balloonPerTick, cocoaThought, facilityAfterPurchase } from '../../../src/sim/facilities/souvenirs';
 import { lostDecision } from '../../../src/sim/facilities/wayfinding';
+import { photoBoothWant } from '../../../src/sim/facilities/photo';
 import { stallPriceReject } from '../../../src/sim/guests/buying';
 import { guestHooks } from '../../../src/sim/hooks';
 import { makeTestWorld, placeStallDirect } from '../../helpers/world';
@@ -21,7 +22,8 @@ describe('facility hooks', () => {
     expect(facilityHooks.afterPurchase).toEqual([facilityAfterPurchase]);
     expect(facilityHooks.rideScore ?? []).toEqual([]);
     expect(facilityHooks.rideScoreFactor ?? []).toEqual([]);
-    expect(facilityHooks.stallWant ?? []).toEqual([]);
+    // Phase 6 (W4-D): the Photo Booth want (tests/unit/facilities/photoBooth.test.ts).
+    expect(facilityHooks.stallWant ?? []).toEqual([photoBoothWant]);
   });
 
   it('runs after the litter and weather hooks in the merged guest hook list', () => {

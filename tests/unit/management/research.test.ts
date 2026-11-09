@@ -90,6 +90,18 @@ describe('research points', () => {
     expect(w.state.management.messages[1]).toMatchObject({ textId: MSG.researchStall, params: { itemId: 'ice_cream_cart', name: 'Ice Cream Cart' } });
   });
 
+  it('a show site unlock says "New show available"', () => {
+    const w = makeTestWorld();
+    const r = w.state.management.research;
+    r.current = 'lightshow_tower';
+    r.level = 'high';
+    r.progress = 299;
+    runHours(w, TICKS_PER_MONTH, 1);
+    expect(r.unlocked).toContain('lightshow_tower');
+    const msg = w.state.management.messages.find((m) => m.params?.itemId === 'lightshow_tower');
+    expect(msg?.textId).toBe(MSG.researchShow);
+  });
+
   it('a scenery theme unlock says "New scenery available"', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
@@ -124,7 +136,8 @@ describe('research item choice and focus', () => {
     expect(pickNextResearch(r)).toBe('pendulum_ship');
     r.focus.thrill = false;
     expect(pickNextResearch(r)).toBe('spinning_mouse');
-    r.unlocked.push('spinning_mouse', 'wooden_coaster');
+    // Build 3 (W4-D, BUILD_MAX_PHASE 6) adds the Bobsled Run and the Inverted Coaster to the Coasters category.
+    r.unlocked.push('spinning_mouse', 'wooden_coaster', 'bobsled_run', 'inverted_coaster');
     expect(pickNextResearch(r)).toBe('spiral_slide');
   });
 
@@ -198,7 +211,7 @@ describe('research completion', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    // The last item of the default order (Build 2: the Starport theme, 240 points).
+    // The last item of the default order (Build 3: the Inverted Coaster, 650 points).
     const last = RESEARCH_ORDER[RESEARCH_ORDER.length - 1]!;
     r.unlocked = RESEARCH_ORDER.slice(0, -1).map((i) => i.id);
     r.current = last.id;
@@ -213,7 +226,7 @@ describe('research completion', () => {
     const done = w.state.management.messages.filter((m) => m.textId === MSG.researchComplete);
     expect(done).toHaveLength(1);
     expect(done[0]?.category).toBe('research');
-    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'starport', name: 'Starport' });
+    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'inverted_coaster', name: 'Inverted Coaster' });
   });
 });
 

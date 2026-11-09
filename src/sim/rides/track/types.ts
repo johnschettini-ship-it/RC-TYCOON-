@@ -61,7 +61,8 @@ export interface TestResult {
   passed: boolean;
   /** 1-based piece number where the test train stopped, or null. */
   failPiece: number | null;
-  failKind: 'stop' | 'loop' | null;
+  /** 'corkscrew' (Phase 6): the train entered a corkscrew below its minimum entry speed. */
+  failKind: 'stop' | 'loop' | 'corkscrew' | null;
   /** Ticks from dispatch to the station stop (passed) or to the failure. */
   ticks: number;
   vMaxMms: number;

@@ -1,6 +1,7 @@
 /**
- * Owner: W2-C. Phase 3 stalls and facilities (catalog §3): Pizza Slice, Ice Cream Cart, Cocoa Hut,
- * Balloon Stand, Umbrella Stand, Info Kiosk, First Aid, Cash Machine. Each has its own silhouette and
+ * Owner: W2-C, W4-D. Phase 3 stalls and facilities (catalog §3): Pizza Slice, Ice Cream Cart, Cocoa Hut,
+ * Balloon Stand, Umbrella Stand, Info Kiosk, First Aid, Cash Machine; Phase 6 (W4-D): Noodle Bar, Smoothie Bar,
+ * Photo Booth. Each has its own silhouette and
  * a big kind icon on top so it reads at 0.5× zoom. Anchor and service side as in `../stalls.ts`:
  * the service side faces `rotation` (0 = N, 1 = E, 2 = S, 3 = W); only the S and E faces are visible.
  * Stalls do not animate (the renderer draws frame 0).
@@ -380,7 +381,122 @@ function drawCashMachine(ctx: Ctx, rotation: Dir): void {
   star(ctx, x + 10, y - 9, 3, 1, 4, '#fff3b0');
 }
 
+// ------------------------------------------------------------------ Noodle Bar (Phase 6, W4-D)
+
+function drawNoodleBar(ctx: Ctx, rotation: Dir): void {
+  booth(ctx, rotation, '#fff3e0', '#c43a2a', '#c43a2a', '#ffd166', '#e8503a');
+  box(ctx, 0.12, 0.12, 0.88, 0.88, 23, 26, '#a8321c', '#8a2716', '#701f12');
+  // Round paper lanterns on the two front roof corners.
+  for (const [u, v] of [
+    [0.88, 0.5],
+    [0.5, 0.88],
+  ] as const) {
+    const x = sx(u, v);
+    const y = sy(u, v, 22);
+    line2(ctx, x, y - 4, x, y + 1, '#2c2420', 1);
+    oval(ctx, x, y + 5, 3.6, 4.4, '#e8503a');
+    line2(ctx, x - 3.4, y + 5, x + 3.4, y + 5, '#ffd166', 0.8);
+  }
+  // A big bowl of noodles with chopsticks and steam.
+  const x = CX;
+  const y = CY - 38;
+  line2(ctx, x + 2, y - 18, x + 12, y + 2, '#c9832e', 2);
+  line2(ctx, x + 6, y - 19, x + 13, y + 1, '#a86b3c', 2);
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(x, y, 15, 9, 0, 0, Math.PI);
+  ctx.fill();
+  oval(ctx, x, y, 15, 4.5, '#f3c34a');
+  for (let k = -2; k <= 2; k++) {
+    ctx.strokeStyle = '#e0a52b';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x + k * 5 - 2, y - 1.5);
+    ctx.quadraticCurveTo(x + k * 5, y + 2, x + k * 5 + 2, y - 1.5);
+    ctx.stroke();
+  }
+  line2(ctx, x - 15, y, x + 15, y, '#c43a2a', 2);
+  for (let k = 0; k < 3; k++) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x - 6 + k * 6, y - 6);
+    ctx.quadraticCurveTo(x - 9 + k * 6, y - 11, x - 6 + k * 6, y - 15);
+    ctx.stroke();
+  }
+}
+
+// ------------------------------------------------------------------ Smoothie Bar (Phase 6, W4-D)
+
+function drawSmoothieBar(ctx: Ctx, rotation: Dir): void {
+  booth(ctx, rotation, '#e9fbf4', '#2fb39a', '#ff7aa8', '#ffffff', '#7fd8c8');
+  // Fruit baskets on the roof.
+  box(ctx, 0.2, 0.2, 0.5, 0.5, 23, 27, '#c9832e', '#a86b3c', '#8f5a32');
+  for (const [dx, dy, c] of [
+    [-3, -3, '#ff9f1c'],
+    [2, -4, '#e8503a'],
+    [0, -1, '#8fd14f'],
+  ] as const) {
+    dot(ctx, sx(0.35, 0.35) + dx, sy(0.35, 0.35, 30) + dy, 2.6, c);
+  }
+  // A tall layered smoothie cup with a bent straw and an orange slice.
+  const x = CX + 2;
+  const y = CY - 40;
+  poly2(ctx, [x - 9, y - 12, x + 9, y - 12, x + 6, y + 14, x - 6, y + 14], '#ffffff');
+  poly2(ctx, [x - 8.4, y - 8, x + 8.4, y - 8, x + 7.6, y - 1, x - 7.6, y - 1], '#ff7aa8');
+  poly2(ctx, [x - 7.6, y - 1, x + 7.6, y - 1, x + 6.6, y + 7, x - 6.6, y + 7], '#ffb347');
+  poly2(ctx, [x - 6.6, y + 7, x + 6.6, y + 7, x + 6, y + 13, x - 6, y + 13], '#8fd14f');
+  oval(ctx, x, y - 12, 9, 2.6, '#ffd1e3');
+  line2(ctx, x + 2, y - 12, x + 4, y - 24, '#3d9be0', 2);
+  line2(ctx, x + 4, y - 24, x + 9, y - 26, '#3d9be0', 2);
+  dot(ctx, x - 9, y - 13, 5, '#ff9f1c');
+  dot(ctx, x - 9, y - 13, 3.4, '#ffd166');
+  line2(ctx, x - 12, y - 13, x - 6, y - 13, '#ff9f1c', 0.8);
+}
+
+// ------------------------------------------------------------------ Photo Booth (Phase 6, W4-D)
+
+function drawPhotoBooth(ctx: Ctx, rotation: Dir): void {
+  shadow(ctx);
+  // A tall cabin with a curtain on the service face and a flash on top.
+  const wall = '#6f5bd6';
+  box(ctx, 0.2, 0.2, 0.8, 0.8, 0, 30, shade(wall, 1.15), wall, shade(wall, 0.78));
+  box(ctx, 0.2, 0.2, 0.8, 0.8, 0, 3, '#ffd166', '#f5c03b', '#d9a82c');
+  box(ctx, 0.16, 0.16, 0.84, 0.84, 30, 33, '#ffd166', '#f5c03b', '#d9a82c');
+  // Curtain with folds on the visible service face.
+  const folds = 5;
+  for (let k = 0; k < folds; k++) {
+    const a = 0.3 + (0.4 * k) / folds;
+    const b = 0.3 + (0.4 * (k + 1)) / folds;
+    const c = k % 2 ? '#e8503a' : '#c43a2a';
+    if (rotation === 2) poly3(ctx, [a, 0.8, 4, b, 0.8, 4, b, 0.8, 24, a, 0.8, 24], c);
+    else if (rotation === 1) poly3(ctx, [0.8, a, 4, 0.8, b, 4, 0.8, b, 24, 0.8, a, 24], c);
+  }
+  // A strip of photos on the other visible face.
+  for (let k = 0; k < 3; k++) {
+    const h = 8 + k * 7;
+    if (rotation === 1) poly3(ctx, [0.42, 0.8, h, 0.58, 0.8, h, 0.58, 0.8, h + 5.5, 0.42, 0.8, h + 5.5], '#f4f8ff', '#2c2420', 0.6);
+    else poly3(ctx, [0.8, 0.42, h, 0.8, 0.58, h, 0.8, 0.58, h + 5.5, 0.8, 0.42, h + 5.5], '#e4ebf5', '#2c2420', 0.6);
+  }
+  // Camera sign: body, lens, and a flash star.
+  const x = CX;
+  const y = CY - 50;
+  ctx.fillStyle = '#2c2f38';
+  ctx.beginPath();
+  rrect(ctx, x - 13, y - 8, 26, 17, 3);
+  ctx.fill();
+  ctx.fillStyle = '#2c2f38';
+  ctx.fillRect(x - 5, y - 12, 10, 5);
+  dot(ctx, x, y + 1, 6.5, '#d9e2ec');
+  dot(ctx, x, y + 1, 4.2, '#3d9be0');
+  dot(ctx, x - 1.5, y - 0.5, 1.4, '#ffffff');
+  star(ctx, x + 14, y - 13, 6, 2, 4, '#fff3b0');
+}
+
 export const STALL_DRAW: Readonly<Record<string, (ctx: Ctx, rotation: Dir) => void>> = {
+  noodle_bar: drawNoodleBar,
+  smoothie_bar: drawSmoothieBar,
+  photo_booth: drawPhotoBooth,
   pizza_slice: drawPizzaSlice,
   ice_cream_cart: drawIceCreamCart,
   cocoa_hut: drawCocoaHut,

@@ -1,8 +1,8 @@
 /**
  * Wave 4.0 contracts (Build 3, Phase 6): schema 3 start values, stub neutrality, sound cues, catalog rows, strings,
  * display prefs, and the client registries. Each stub's real behaviour is tested by its owner card (W4-A … W4-G).
- * Named hunks: W4-C replaces the block "W4-C stubs" (its stubs become real); W4-D replaces the test "all Phase 6
- * content stays locked …" when it raises `BUILD_MAX_PHASE`.
+ * Named hunks: W4-C replaced the block "W4-C stubs" (its stubs are real now); W4-D replaced the test "all Phase 6
+ * content stays locked …" with "Phase 6 content unlocks by research" when it raised `BUILD_MAX_PHASE`.
  */
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES, getFlatRideDef, getShowSiteDef, getStallDef, getTrackRideDef, SHOW_SITES, STALLS, TRACK_RIDES } from '../../../src/data/catalog';
@@ -84,40 +84,53 @@ describe('new games are schema 3 (Phase 6 §5)', () => {
   });
 });
 
-describe('W4-C stubs are neutral until W4-C fills them (W4-C replaces this block)', () => {
+describe('W4-C show commands and queries are registered and implemented (W4-C replaced the stub block)', () => {
+  // Real behaviour is tested in tests/unit/shows/ (W4-C).
   const SHOW_COMMANDS: Command[] = [
     { type: 'placeShowSite', defId: 'lightshow_tower', x: 20, y: 20, rotation: 0 },
     { type: 'setShowSchedule', id: 1, hour: 21, minute: 30, everyNDays: 2 },
     { type: 'setShowEnabled', id: 1, enabled: true },
   ];
   for (const cmd of SHOW_COMMANDS) {
-    it(`${cmd.type} is registered, answers "Not implemented yet", and changes nothing (W4-C)`, () => {
+    it(`${cmd.type} is registered and implemented (no stub reply)`, () => {
       const w = makeTestWorld();
-      const before = stateHash(w);
-      expect(executeCommand(w, cmd)).toEqual({ ok: false, reason: NOT_IMPLEMENTED });
-      expect(stateHash(w)).toBe(before);
+      const r = executeCommand(w, cmd);
+      if (!r.ok) {
+        expect(r.reason).not.toBe(NOT_IMPLEMENTED);
+        expect(r.reason.startsWith('Unknown command')).toBe(false);
+      }
     });
   }
 
-  it('demolish on a show site tile reaches W4-C (stub: not implemented, nothing removed)', () => {
+  it('placeShowSite builds in setup mode (Phase 6 content stays locked until W4-D raises the build phase)', () => {
     const w = makeTestWorld();
-    const site = addShowSiteDirect(w);
-    const before = stateHash(w);
-    expect(executeCommand(w, { type: 'demolish', x: 40, y: 40 })).toEqual({ ok: false, reason: NOT_IMPLEMENTED });
-    expect(stateHash(w)).toBe(before);
-    expect(w.state.shows).toEqual([site]);
+    expect(executeCommand(w, SHOW_COMMANDS[0] as Command)).toEqual({ ok: false, reason: 'Not unlocked' });
+    const r = executeCommand(w, SHOW_COMMANDS[0] as Command, { setup: true });
+    expect(r.ok).toBe(true);
+    expect(validateState(w.state)).toBeNull();
   });
 
-  it('show queries return their neutral values', () => {
+  it('demolish on a show site tile removes it for a 50% refund', () => {
     const w = makeTestWorld();
+    addShowSiteDirect(w);
+    expect(executeCommand(w, { type: 'demolish', x: 40, y: 40 })).toEqual({ ok: true, cost: -125_000, warnings: [] });
+    expect(w.state.shows).toEqual([]);
+    expect(validateState(w.state)).toBeNull();
+  });
+
+  it('show queries answer for a real site: viewing tiles, target validity, asset value; arrivals stay 1 by day', () => {
+    const w = makeTestWorld();
+    for (let y = 36; y <= 60; y++) placeFootpath(w, 38, y);
     const site = addShowSiteDirect(w);
-    expect(viewingTiles(w, site.id)).toEqual([]);
+    expect(viewingTiles(w, site.id).length).toBeGreaterThan(0);
     expect(showTargetValid(w, site.id)).toBe(false);
+    site.status = 'announced';
+    expect(showTargetValid(w, site.id)).toBe(true);
     expect(showArrivalFactor(w)).toBe(1);
-    expect(showSitesAssetValue(w)).toBe(0);
+    expect(showSitesAssetValue(w)).toBe(250_000);
   });
 
-  it('a watching guest and a guest heading for a show go back to deciding (no guest is stuck)', () => {
+  it('a watching guest and a guest heading for a show that is not on go back to deciding (no guest is stuck)', () => {
     const w = makeTestWorld();
     for (let y = 40; y <= 60; y++) placeFootpath(w, 31, y);
     const site = addShowSiteDirect(w);
@@ -127,6 +140,9 @@ describe('W4-C stubs are neutral until W4-C fills them (W4-C replaces this block
     expect(watcher.state).toBe('walking');
     expect(watcher.showTarget).toBe(-1);
     expect(walker.target).not.toBe(`show:${site.id}`);
+    // The stale show target goes at the next hour start (W4-C's hourly sweep).
+    runTicks(w, 50);
+    expect(walker.showTarget).toBe(-1);
     expect(validateState(w.state)).toBeNull();
   });
 });
@@ -178,13 +194,14 @@ describe('Phase 6 catalog rows (phase-6-polish.md §4.5)', () => {
     expect(getShowSiteDef('lightshow_tower')).toMatchObject({ w: 2, d: 2, costPerShow: 15_000, radius: 8, showTicks: 300 });
   });
 
-  it('all Phase 6 content stays locked while BUILD_MAX_PHASE < 6, even when researched', () => {
-    expect(BUILD_MAX_PHASE).toBeLessThan(6);
+  it('Phase 6 content unlocks by research (W4-D raised BUILD_MAX_PHASE to 6)', () => {
+    expect(BUILD_MAX_PHASE).toBe(6);
     const w = makeTestWorld();
     const ids = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS, ...SHOW_SITES].filter((d) => d.phase === 6).map((d) => d.id);
     expect(ids).toHaveLength(12);
-    w.state.management.research.unlocked.push(...ids);
     for (const id of ids) expect(isUnlocked(w, id), id).toBe(false);
+    w.state.management.research.unlocked.push(...ids);
+    for (const id of ids) expect(isUnlocked(w, id), id).toBe(true);
   });
 
   it('show sites are content of the Scenery research category', () => {
