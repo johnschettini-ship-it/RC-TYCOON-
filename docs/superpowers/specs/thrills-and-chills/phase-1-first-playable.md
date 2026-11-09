@@ -30,20 +30,20 @@ Phase 0.
 - **Tools:** Inspect, Footpath, Queue path, Place ride, Place stall, Demolish.
 - **Paths:** drag draws a straight line along the x or y axis, whichever has the larger distance from the start tile. The ghost shows the total cost before release. On touch, the line follows the finger and builds on release. A tap builds one tile.
 - **Rides and stalls:** a ghost follows the pointer. `R` or the Rotate button turns it 90°. The ghost is green with a check icon when valid, red with a cross icon when not. Click places it. On touch: tap moves the ghost, the Confirm button places it, the Cancel button removes it.
-- **Ride gates:** catalog legend rule. The tile outside the entrance gate needs a queue path. The tile outside the exit gate needs a footpath.
+- **Ride gates:** catalog legend rule. The tile outside the entrance gate needs a queue path. The tile outside the exit gate needs a footpath. That footpath tile is the ride's **service tile** (staff use it in Phase 3).
 - **Stalls:** the service side faces one edge. The tile outside it needs a footpath.
 - **Demolish:** refunds 50% of build cost (paths 0%). Riders finish their cycle first; the queue empties; guests re-plan.
 
 **Command results (exact strings)**
 | Case | Result |
 |---|---|
-| Cash below cost | Block: "Not enough cash." |
-| Tile not empty | Block: "Something is in the way." |
-| Tile not owned | Block: "You do not own this land." |
-| Ride entrance has no queue path | Warning: "The entrance needs a queue path." |
-| Ride exit has no footpath | Warning: "The exit needs a footpath." |
-| Stall faces no footpath | Warning: "This stall must face a footpath." |
-| Demolish the park entrance | Block: "You cannot remove the park entrance." |
+| Cash below cost | Block: "Not enough cash" |
+| Tile not empty | Block: "Something is in the way" |
+| Tile not owned | Block: "You do not own this land" |
+| Ride entrance has no queue path | Warning: "The entrance needs a queue path" |
+| Ride exit has no footpath | Warning: "The exit needs a footpath" |
+| Stall faces no footpath | Warning: "This stall must face a footpath" |
+| Demolish the park entrance | Block: "You cannot remove the park entrance" |
 
 Warnings do not block the command. The ride or stall panel keeps showing the warning until it is fixed.
 
@@ -54,13 +54,13 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 - **Distance fields:** one `Uint16Array` per destination (ride entrance, stall service tile, park entrance). BFS from the destination over walkable tiles. Fields for stalls and the park entrance exclude queue tiles.
 - Fields rebuild only when the network changes. A rebuild of all fields on a 64 × 64 map must take < 5 ms.
 - **Movement:** a guest steps to the neighbour with the smallest distance. Ties break in the order N, E, S, W.
-- **No route:** the guest wanders (random neighbour, no immediate reversal) and gets the thought "I am lost." After 2 game hours lost, the guest heads for the exit if it is reachable.
+- **No route:** the guest wanders (random neighbour, no immediate reversal) and gets the thought "I am lost" After 2 game hours lost, the guest heads for the exit if it is reachable.
 
 ### 4.3 Guests
 
 **Spawn and entry**
 - Guests appear outside the park entrance at the arrival rate (4.6).
-- **Entrance fee tolerance** = ($5 + $2.50 × open rides) × random factor 0.8–1.2.
+- **Entrance fee tolerance** = ($5 + $2.50 × open rides) × random factor 0.8–1.2 × `modifiers.priceTolerance`.
 - Fee above tolerance: the guest turns away. The park counts it as "turned away: too expensive".
 
 **Temperament**
@@ -101,9 +101,9 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 **Ride score**
 | Term | Rule |
 |---|---|
-| Hard reject | Intensity > max intensity → thought "That looks too intense for me." |
-| Hard reject | Price > ride value × 1.5 → thought "That ride costs too much." Ride value = excitement × $1.00. |
-| Hard reject | Queue length ≥ 25 guests → thought "That queue is far too long." |
+| Hard reject | Intensity > max intensity → thought "That looks too intense for me" |
+| Hard reject | Price > ride value × 1.5 → thought "That ride costs too much" Ride value = excitement × $1.00. |
+| Hard reject | Queue length ≥ 25 guests → thought "That queue is far too long" |
 | Hard reject | Nausea ≥ 120 and ride nausea ≥ 2.0 |
 | Excitement | + excitement × 0.6 |
 | Tag fit | + tag fit × 1.5 |
@@ -116,26 +116,26 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 **Queueing**
 - Guests in a queue form a FIFO list. They stand on queue tiles in order, spaced 4 per tile.
 - Happiness −1 per 100 ticks in the queue.
-- A guest leaves the queue after 1,200 ticks (1 game day) of waiting. Thought: "I waited too long."
+- A guest leaves the queue after 1,200 ticks (1 game day) of waiting. Thought: "I waited too long"
 
 **Riding**
 - Boarding: the guest pays the price. Ledger: ride tickets.
 - After the ride: happiness + round(12 × excitement / 5 × (1 + max(0, tag fit) × 0.5)), capped at 255.
 - Nausea + round(ride nausea × 15 × nausea gain multiplier).
 - Energy −5.
-- Intensity below min intensity: happiness gain halves. Thought: "That was a bit tame."
-- Thoughts after a good ride (gain ≥ 15): "That was amazing!" Otherwise: "That was nice."
+- Intensity below min intensity: happiness gain halves. Thought: "That was a bit tame"
+- Thoughts after a good ride (gain ≥ 15): "That was amazing!" Otherwise: "That was nice"
 
 **Buying**
 - Item value: food $3, drink $2, toilet $0.
-- Price > value × 2 → no purchase, thought "Too expensive for a snack." (or "...for a drink.").
+- Price > value × 2 → no purchase, thought "Too expensive for a snack" (or "Too expensive for a drink").
 - Sale takes 20 ticks. Restrooms take 60 ticks.
 - Effects come from catalog section 3.
 
 **Thoughts**
-- Each guest keeps the newest 5 thoughts with their tick.
-- The same thought does not repeat within 2 game hours.
-- Phase 1 list: "I am hungry." / "I am thirsty." / "I need a restroom." / "I am tired." / "I feel a bit sick." / "I am lost." / "That was amazing!" / "That was nice." / "That was a bit tame." / "That looks too intense for me." / "That ride costs too much." / "Too expensive for a snack." / "Too expensive for a drink." / "That queue is far too long." / "I waited too long." / "Time to go home." / "What a great park!" (happiness ≥ 220 on leaving).
+- Each guest keeps the newest 5 thoughts as `{ id, tick, params? }` (master R5). The text comes from `src/data/strings/en.ts`.
+- The same thought does not repeat within 1 game day.
+- Phase 1 list: "I am hungry" / "I am thirsty" / "I need a restroom" / "I am tired" / "I feel a bit sick" / "I am lost" / "That was amazing!" / "That was nice" / "That was a bit tame" / "That looks too intense for me" / "That ride costs too much" / "Too expensive for a snack" / "Too expensive for a drink" / "That queue is far too long" / "I waited too long" / "Time to go home" / "What a great park!" (happiness ≥ 220 on leaving).
 
 **Leaving**
 - The guest walks to the park entrance and despawns.
@@ -158,7 +158,7 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 - Invariant (tested): cash change over a month = sum of that month's ledger lines.
 
 ### 4.6 Park rating and arrival rate
-- **Rating (0–1000)**, updated once per game hour:
+- **Rating (0–1000)**, updated at every hour start. The Phase 3 formula replaces this one when Phase 3 lands (master R8):
 
 | Term | Max points | Rule |
 |---|---|---|
@@ -169,7 +169,7 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 | Short queues | 150 | 150 × (1 − rides with queue ≥ 20 / open rides). With no open rides: 0. |
 
 - The "with no data" values are documented formula choices, not missing-data fill-ins. They are shown in the rating tooltip.
-- **Arrivals per game hour** = 4 × rating factor × ride factor × clock factor.
+- **Arrivals per game hour** = 4 × rating factor × ride factor × clock factor × `modifiers.arrivals`.
   - Rating factor = clamp(rating / 500, 0.2, 2.0).
   - Ride factor = 0 with no open rides; else min(1.5, 0.25 + open rides × 0.25).
   - Clock factor: 06–10 = 0.6, 10–18 = 1.0, 18–22 = 0.6, 22–06 = 0.1.

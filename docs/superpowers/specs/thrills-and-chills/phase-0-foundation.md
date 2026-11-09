@@ -58,14 +58,15 @@ Nothing.
 
 ### 4.4 Time
 - Pure functions from master spec 6.2: `clockOf(tick)`, `dayOf(tick)`, `monthOf(tick)`, `yearOf(tick)`, `seasonOf(tick)`.
-- Start: tick 0 = 1 March, Year 1, 09:00. The functions add this offset.
+- Tick 0 = 00:00, 1 March, Year 1 (master rule R1). A new game starts at tick 450 (09:00). The functions use the formulas in master 6.2 with no offset.
 - `formatDate(tick)` returns, for example, `Mar · Year 1 · 09:00`.
 
 ### 4.5 Map generator
 - Input: `{ width: 64, height: 64, seed }`.
-- Output: all tiles grass, height 0, slope 0, water 0, owned = 1 inside the border.
-- The outer ring of tiles is the fence (`content = fence`, `owned = 0`).
-- The park entrance is on the south fence, at `x = 31`. A 3-tile footpath stub leads north into the park (Phase 1 uses it; Phase 0 draws it).
+- Output: all tiles grass, height 8 (ground level, master R2), slope 0, water 0.
+- The outer ring of tiles is not owned (`owned = 0`). All other tiles are owned (`owned = 1`).
+- The renderer draws the park fence on every edge between an owned tile and a tile that is not owned (master R3).
+- The south edge is the row `y = 63`. The park entrance tile is `(31, 63)`: `content = parkEntrance`, `owned = 1`. A 3-tile footpath stub `(31, 62)`, `(31, 61)`, `(31, 60)` leads into the park (Phase 1 uses it; Phase 0 draws it).
 - Terrain colour varies per tile from a seeded noise value (two grass shades) so the ground is not flat-looking.
 
 ### 4.6 Game loop
@@ -143,10 +144,11 @@ interface GameState {
   schemaVersion: 1;
   seed: number;
   rng: number;          // mulberry32 state
-  tick: number;
+  tick: number;         // starts at 450 (09:00)
   nextId: number;
   map: MapState;        // master spec 6.3
   park: { name: string; cash: number /* cents */ };
+  modifiers: Modifiers; // master rule R7, all neutral in Build 1
 }
 ```
 - Start cash: $15,000 (Phase 1 value, shown in the HUD now).
@@ -179,8 +181,8 @@ None. Phase 1 adds the command system.
 ## 9. Tests
 **Unit (Vitest)**
 - RNG: same seed gives the same sequence; `int` stays in range; distribution check over 100,000 draws (each bucket within 2% of expected).
-- Time: tick 0 → `Mar · Year 1 · 09:00`; tick 3,600 → April; tick 43,200 → March, Year 2; season boundaries.
-- Map generator: size, border fence, entrance position, stub path, all owned flags.
+- Time: tick 0 → `Mar · Year 1 · 00:00`; tick 450 → `Mar · Year 1 · 09:00`; tick 3,600 → April; tick 43,200 → March, Year 2; season boundaries.
+- Map generator: size, ground height 8, outer ring not owned, entrance position and ownership, stub path.
 - Iso: `tileToScreen` and `screenToTileFlat` round-trip for every tile; `pickTile` equals the flat result on a flat map for 10,000 random points.
 - Loop: `advance` gives the right tick count for each speed; cap of 10 ticks; paused gives 0.
 - Camera: bounds clamp; `zoomAt` keeps the anchor point fixed (error < 0.5 px).

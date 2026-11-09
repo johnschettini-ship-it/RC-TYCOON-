@@ -8,7 +8,7 @@
 - **Phase:** the phase that adds the item.
 - **Unlock:** `start` = available at game start. Otherwise the research category (Phase 3) that unlocks it. Before Phase 3 exists, every item of an implemented phase is available at start.
 - **Tag:** `thrill`, `family`, or `chill`. It drives guest temperament matching (Phase 1).
-- **Flags:** `covered` (no rain penalty, Phase 3), `spooky` (After Dark bonus, Phase 4), `lit` (gives light at night, Phase 4).
+- **Flags:** `covered` (no rain penalty, Phase 3), `spooky` (After Dark bonus, Phase 4), `tall` (closes during storms, Phase 3). Every open ride and stall gives light at night (Phase 4), so there is no light flag.
 - **Gates (flat rides):** the footprint is `w × d`. The front edge has length `w`. The entrance gate is front-edge tile `floor((w − 1) / 2)`. The exit gate is the matching tile on the back edge.
 
 ---
@@ -18,19 +18,19 @@
 | id | Name | Ph | Unlock | Tag | Flags | Size | Exc | Int | Nau | Cap | Cycle | Build | Run/mo | Price |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `carousel` | Carousel | 1 | start | family | covered | 3×3 | 2.50 | 1.00 | 0.50 | 16 | 20 | $1,200 | $40 | $2 |
-| `big_wheel` | Big Wheel | 1 | start | chill | — | 3×3 | 3.00 | 0.80 | 0.30 | 24 | 30 | $1,800 | $60 | $3 |
-| `swing_tower` | Swing Tower | 1 | start | thrill | — | 3×3 | 4.50 | 4.00 | 2.00 | 20 | 25 | $2,400 | $80 | $3 |
+| `big_wheel` | Big Wheel | 1 | start | chill | tall | 3×3 | 3.00 | 0.80 | 0.30 | 24 | 30 | $1,800 | $60 | $3 |
+| `swing_tower` | Swing Tower | 1 | start | thrill | tall | 3×3 | 4.50 | 4.00 | 2.00 | 20 | 25 | $2,400 | $80 | $3 |
 | `teacup_twirl` | Teacup Twirl | 1 | start | family | covered | 3×3 | 3.50 | 3.50 | 4.50 | 18 | 20 | $1,500 | $50 | $2 |
 | `bumper_cars` | Bumper Cars | 3 | Gentle | family | covered | 4×4 | 4.00 | 2.50 | 0.50 | 12 | 25 | $2,000 | $70 | $2 |
 | `rocket_rounds` | Rocket Rounds | 3 | Gentle | family | — | 3×3 | 2.80 | 1.50 | 1.00 | 16 | 20 | $1,400 | $45 | $2 |
 | `spiral_slide` | Spiral Slide | 3 | Gentle | chill | — | 2×2 | 2.00 | 1.50 | 0.20 | 4 | 15 | $900 | $30 | $1 |
-| `observation_tower` | Observation Tower | 3 | Gentle | chill | covered | 2×2 | 3.00 | 0.50 | 0.20 | 20 | 40 | $3,500 | $90 | $3 |
+| `observation_tower` | Observation Tower | 3 | Gentle | chill | covered, tall | 2×2 | 3.00 | 0.50 | 0.20 | 20 | 40 | $3,500 | $90 | $3 |
 | `mirror_maze` | Mirror Maze | 3 | Gentle | chill | covered | 3×3 | 2.50 | 0.50 | 0.00 | 15 | 40 | $1,400 | $35 | $2 |
 | `haunted_manor` | Haunted Manor | 3 | Gentle | chill | covered, spooky | 4×4 | 4.00 | 2.00 | 0.50 | 20 | 40 | $3,200 | $80 | $3 |
 | `pendulum_ship` | Pendulum Ship | 3 | Thrill | thrill | — | 3×5 | 5.00 | 5.50 | 3.50 | 24 | 25 | $3,000 | $90 | $3 |
 | `thunder_disc` | Thunder Disc | 3 | Thrill | thrill | — | 4×4 | 5.50 | 6.50 | 4.50 | 24 | 25 | $4,000 | $110 | $4 |
-| `drop_tower` | Drop Tower | 3 | Thrill | thrill | — | 2×2 | 6.00 | 7.50 | 3.00 | 12 | 20 | $4,500 | $120 | $4 |
-| `flip_arm` | Flip Arm | 3 | Thrill | thrill | — | 3×3 | 6.50 | 8.00 | 6.00 | 16 | 25 | $5,000 | $140 | $4 |
+| `drop_tower` | Drop Tower | 3 | Thrill | thrill | tall | 2×2 | 6.00 | 7.50 | 3.00 | 12 | 20 | $4,500 | $120 | $4 |
+| `flip_arm` | Flip Arm | 3 | Thrill | thrill | tall | 3×3 | 6.50 | 8.00 | 6.00 | 16 | 25 | $5,000 | $140 | $4 |
 
 Phase 6 adds more flat rides (section 8).
 
@@ -38,7 +38,7 @@ Phase 6 adds more flat rides (section 8).
 
 ## 2. Track ride types (7 in Build 1, 9 after Build 2)
 
-Track pieces, piece costs, physics, and rating formulas are in `phase-2-coasters.md`. Water piece sets are in `phase-4-land-scenery-after-dark.md`.
+Track pieces, piece costs, build and running costs, extra-train costs, physics, and rating formulas are in `phase-2-coasters.md` (§4 and §8). A track ride counts as `tall` when its highest point is 20 m or more above ground. Water piece sets are in `phase-4-land-scenery-after-dark.md`.
 
 | id | Name | Ph | Unlock | Tag | Flags | Drive | Seats/car | Cars/train | Max trains | Max height | Piece set | Price |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -100,8 +100,8 @@ Each footpath tile holds one path item. Angry guests can break path items (Phase
 
 | Costume | Mascot | Bonus |
 |---|---|---|
-| Frost | Friendly yeti | ×1.5 for guests with temperament ≤ 40 |
-| Spark | Fire fox | ×1.5 for guests with temperament ≥ 60 |
+| Frost | Friendly yeti | ×1.5 for Chill guests (temperament ≤ 35) |
+| Spark | Fire fox | ×1.5 for Thrill guests (temperament ≥ 65) |
 | Boo | Small ghost | ×1.5 for all guests at night or within 6 tiles of a spooky ride (Phase 4) |
 
 ---
@@ -140,21 +140,21 @@ Item lists, sizes, prices, and Calm/Buzz values are in `phase-4-land-scenery-aft
 | Track rides | Inverted Coaster (thrill), Bobsled Run (thrill), Monorail (chill, multi-station transport) |
 | Track pieces | Corkscrew (Steel, Inverted), helix (Steel, Bobsled) |
 | Stalls | Noodle Bar (food), Smoothie Bar (drink), Photo Booth (souvenir) |
-| Shows | After Dark Lightshow, Fireworks Finale |
+| Show sites | Lightshow Tower (`lightshow_tower`), Fireworks Launcher (`fireworks_launcher`) |
 
-Phase 6 finalizes the stats for these items.
+`phase-6-polish.md` §4 holds the final stats for these items. Copy them into sections 1–3 when Build 3 starts.
 
 ---
 
 ## 9. Research categories (Phase 3)
 
-| Category | Build 1 items | Build 2 items |
-|---|---|---|
-| Gentle | Bumper Cars, Rocket Rounds, Spiral Slide, Observation Tower, Mirror Maze, Haunted Manor, Ghost Train | — |
-| Thrill | Pendulum Ship, Thunder Disc, Drop Tower, Flip Arm, Go-Kart Track | — |
-| Coasters | Wooden Coaster, Spinning Mouse | — |
-| Shops | Pizza Slice, Ice Cream Cart, Cocoa Hut, Balloon Stand, Umbrella Stand, First Aid, Cash Machine | — |
-| Water | — | Log Flume, Rapids Raft |
-| Scenery | — | Frost Peaks, Volcano Ridge, Spooky Hollow, Jungle Lagoon, Starport |
+| Category | Build 1 items | Build 2 items | Build 3 items |
+|---|---|---|---|
+| Gentle | Bumper Cars, Rocket Rounds, Spiral Slide, Observation Tower, Mirror Maze, Haunted Manor, Ghost Train | — | Monorail, Kiddie Cars, Merry Mill |
+| Thrill | Pendulum Ship, Thunder Disc, Drop Tower, Flip Arm, Go-Kart Track | — | Magic Carpet, Gyro Globe |
+| Coasters | Wooden Coaster, Spinning Mouse | — | Inverted Coaster, Bobsled Run |
+| Shops | Pizza Slice, Ice Cream Cart, Cocoa Hut, Balloon Stand, Umbrella Stand, First Aid, Cash Machine | — | Noodle Bar, Smoothie Bar, Photo Booth |
+| Water | — | Log Flume, Rapids Raft | — |
+| Scenery | — | Frost Peaks, Volcano Ridge, Spooky Hollow, Jungle Lagoon, Starport | — |
 
-Research costs and order are in `phase-3-management.md`.
+Research costs and order are in `phase-3-management.md` (Build 1), `phase-4-land-scenery-after-dark.md` (Build 2), and `phase-6-polish.md` (Build 3). Phase 6 places its items into categories; this table follows it.

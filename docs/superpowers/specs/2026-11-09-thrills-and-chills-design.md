@@ -162,6 +162,8 @@ tests/
 - `executeCommand(state, cmd)` returns `{ ok: true, cost, warnings }` or `{ ok: false, reason }`.
 - A failed command changes nothing. The UI shows `reason` in a toast.
 - Commands are the only way to change the world from outside `sim/`.
+- Signature: `executeCommand(world, cmd, opts?: { setup?: boolean })`. Setup mode skips cash checks and ledger lines. Only scenario setup (Phase 5) and tests use it.
+- **Events:** systems push `SimEvent` objects to `world.events`. The client drains the list once per frame for toasts, messages, sounds, and autosave.
 
 ### 5.4 Determinism
 - The same start state plus the same commands at the same ticks give the same end state.
@@ -195,21 +197,23 @@ tests/
 - **1 month = 3 days = 3,600 ticks** (3 min at 1×, 45 s at 4×).
 - **1 year = 12 months.** Seasons: winter = Dec–Feb, spring = Mar–May, summer = Jun–Aug, autumn = Sep–Nov.
 - The HUD shows month, year, and clock, for example `Mar · Year 1 · 14:30`. Day numbers are not shown.
-- A new game starts on 1 March, Year 1, at 09:00.
+- **Tick 0 is 00:00 on 1 March, Year 1.** A new game starts at tick 450 (09:00).
+- Formulas: `hour = floor(tick / 50) mod 24`, `dayIndex = floor(tick / 1200)`, `monthIndex = floor(tick / 3600)` (0 = March, Year 1), `year = floor(monthIndex / 12) + 1`.
 - Guests arrive more in the day than at night (arrival curve in Phase 1). The park is open 24 hours. Guests do not leave at a closing time.
 - All values live in `data/tuning.ts`.
 
 ### 6.3 Map
 - Size: 64 × 64 in Build 1. Up to 256 × 256 from Phase 4.
 - Struct-of-arrays, index `i = y × width + x`:
-  - `terrain: Uint8Array` — grass, sand, dirt, rock, snow, water bed.
-  - `height: Uint8Array` — base height in steps (0–63).
+  - `terrain: Uint8Array` — grass, sand, dirt, rock, snow. A tile under water keeps its terrain type and is drawn as a bed.
+  - `height: Uint8Array` — base height in steps (0–63). **Ground level is 8** on new maps, so players can dig lakes later.
   - `slope: Uint8Array` — 4-bit mask of raised corners (N, E, S, W). Flat = 0.
   - `water: Uint8Array` — water surface height, 0 = none.
-  - `content: Uint8Array` — empty, footpath, queue, building, track, parkEntrance, fence, scenery.
+  - `content: Uint8Array` — empty, footpath, queue, building, track, parkEntrance, scenery. There is no fence value: the renderer draws the park fence on every edge between an owned tile and a tile that is not owned.
   - `contentRef: Int32Array` — entity id, or −1.
-  - `owned: Uint8Array` — 0 not owned, 1 owned, 2 for sale, 3 construction rights only.
-- Build 1 keeps all heights at 0 and all slopes flat. The renderer, picking, and pathing are height-aware from Phase 0, so Phase 4 adds editing without a rewrite.
+  - `owned: Uint8Array` — 0 not owned, 1 owned, 2 land for sale, 3 construction rights owned, 4 construction rights for sale.
+  - Phase 3 adds `pathItem`, `pathItemFlags`, `binFill`, `litter`, `mess` (all `Uint8Array`; see Phase 3 §5).
+- Build 1 keeps all ground at height 8 and all slopes flat. The renderer, picking, and pathing are height-aware from Phase 0, so Phase 4 adds editing without a rewrite.
 - Above-ground objects (track pieces, elevated paths) use their own height ranges and a per-tile **occupancy list** for clearance checks.
 
 ### 6.4 Isometric projection
@@ -225,10 +229,9 @@ tests/
 | `Ride` (flat) | 1 | id, defId, x, y, rotation, gates, price, status, cycle, riders, queue, stats, totals, age, reliability (Phase 3). |
 | `TrackRide` | 2 | Ride fields + track pieces, stations, trains, test results. |
 | `Stall` | 1 | id, defId, x, y, rotation, service side, price, totals. |
-| `Guest` | 1 | id, position, state, target, cash, needs, temperament, thoughts, items (map, umbrella, balloon), history. |
+| `Guest` | 1 | id, position, state, target, cash, needs, temperament, thoughts (ids, not text), items (map, umbrella, balloon), history. |
 | `Staff` | 3 | id, type, position, state, patrol area, wage, costume. |
-| `PathItem` | 3 | bench, bin, lamp: tile, edge, status (ok, broken), fill level. |
-| `Litter` / `Mess` | 3 | tile, sub-position, type. |
+| Path items, litter, mess | 3 | Per-tile map arrays, not entities (Phase 3 §5). |
 | `Scenery` | 4 | id, defId, tile, height, rotation. |
 | `Park` | 1 | name, entrance fee, open, rating, cash, loan, value, research, weather, scenario. |
 
@@ -245,7 +248,7 @@ tests/
   - Newer version → error: "This save comes from a newer version of the game."
   - Older version → run migrations in order.
   - Any failed check → show the error and keep the current game. **Never** load a partial state or fill in defaults for missing data.
-- **Storage:** 3 manual slots and 1 autosave in `localStorage`, plus file export and import (`.tcsave.json`). Autosave runs at the start of each game month. If `localStorage` fails, show an error and offer file export.
+- **Storage:** 3 manual slots (`tc.save.1`–`tc.save.3`) and 1 autosave (`tc.save.auto`) in `localStorage`, plus file export and import (`.tcsave.json`). Autosave runs at the start of each game month. If `localStorage` fails, show an error and offer file export.
 
 ---
 
@@ -294,3 +297,28 @@ tests/
 1. **Build 1 boundary.** Recommended: Phases 0–3. Alternative: all 7 phases in one build (higher risk, much later first release).
 2. **License.** The owner chooses. No license file is added until then.
 3. **GitHub Pages.** The owner sets Settings → Pages → Source to "GitHub Actions" once.
+
+---
+
+## 13. Cross-phase rules
+These rules settle conflicts between phase specs. They win over any phase text.
+
+| # | Rule |
+|---|---|
+| R1 | **Time:** tick 0 = 00:00, 1 March, Year 1. A new game starts at tick 450. Formulas in 6.2. |
+| R2 | **Ground level** is 8 on every new map (Build 1 included). No height shift in save migrations. |
+| R3 | **Fence** is derived from `owned`. No `fence` content value. The park entrance tile is owned and sits in the gap of the border. |
+| R4 | **Strings:** player-facing messages, errors, and thoughts have no final period. `!` and `?` stay. |
+| R5 | **Thoughts** are stored as `{ id, tick, params? }`. Text comes from the string table `src/data/strings/en.ts`. A guest shows the same thought at most once per game day. |
+| R6 | **Temperament groups:** Chill = T ≤ 35, Family = 36–64, Thrill = T ≥ 65. Every system uses these groups: variety, costume matches, goals, Calm and Buzz effects. |
+| R7 | **Modifiers:** `GameState.modifiers = { arrivals: 1, priceTolerance: 1, happinessDecay: 1, researchSpeed: 1, breakdownChance: 1, loanInterest: 1, ratingBonus: 0 }` in Build 1. Phase 5 changes them. Formulas multiply by the factors and add `ratingBonus`. |
+| R8 | **Park rating:** the Phase 3 formula replaces the Phase 1 formula. Phase 4 adds an Atmosphere term (100 points) and lowers Happiness from 400 to 300. The rating updates at every hour start. |
+| R9 | **Hourly charge rule** (Phase 3 §4.1) covers running costs, wages, and the research budget. |
+| R10 | **Research points** use the Phase 3 scale. Phase 4 costs: Log Flume 480, Rapids Raft 540, each scenery theme 240. |
+| R11 | **Catalog flags:** `covered`, `spooky`, `tall`. Every open ride and stall gives light at night (Phase 4), so there is no `lit` flag. |
+| R12 | **State slices:** `GameState` groups fields by owning module (`park`, `guests`, `rides`, `stalls`, `economy`, `track`, `staff`, `management`, …). Spec text such as "Park (added)" means "add to the owning slice". |
+| R13 | **Tick order** (one tick): month-end pipeline at month start (ledger close → monthly tasks such as loan interest → awards → objectives → lose checks → metric resets → `monthEnded` event) → weather → arrivals → guests → staff → flat rides → track rides → stalls → shows → hour-start work (hourly charges, research points, campaign expiry, auto-repair, park value, rating, Calm and Buzz refresh) → message pruning → `tick + 1`. |
+| R14 | **Asset value** (input to park value): `assetValue = totalBuildCost × max(0.30, 1 − 0.7 × ageMonths / 120)`. One formula for flat rides, track rides, and stalls. "Ride value" (excitement × $1.00) is a different term: it only drives guest price checks. |
+| R15 | **Demolish refund** is 50% of build cost. Exception: a track ride that has never opened refunds 100%. Paths refund 0%. |
+| R16 | **Breakdowns** may stop a train only at a station or a block brake. Trains never touch (Phase 2 safety guarantee). |
+| R17 | **Track geometry** (Phase 2 wins): gentle slope 2 m per tile, steep slope 6 m per tile, bank 35°, path clearance under track ≥ 4 m. |
