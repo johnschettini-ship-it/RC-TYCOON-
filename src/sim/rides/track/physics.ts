@@ -124,28 +124,30 @@ export function waterCurrentAt(type: TrackTypeDef, def: TrackPieceDef | undefine
   return vc * (1 + ROUGH_AMPLITUDE * tsin((TAU * uMm) / ROUGH_WAVELENGTH_MM));
 }
 
+/** Speed after one tick of the water current (a = −g·sinθ − k·(v − vCurrent)). */
+function currentStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: SamplePoint, v: number, uMm: number): number {
+  const a = -G * sm.sinT - (type.water?.k ?? 0) * (v - waterCurrentAt(type, def, uMm));
+  return v + a * DT;
+}
+
 /**
- * Water drives (Phase 4 §4.4): speed after one tick for the piece under the boat's centre.
- * `controlled`: a conveyor sets the speed (a boat there never counts as stalled).
+ * Water drives (Phase 4 §4.4): speed after one tick for the piece under the boat's centre. A conveyor sets the speed
+ * (the caller treats the boat as controlled there, so it never counts as stalled). No allocation: this runs per boat
+ * per tick.
  */
-function waterStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: SamplePoint, v: number, uMm: number, pieceEndM: number): { v1: number; controlled: boolean } {
-  const drive = def?.water?.drive ?? 'current';
-  const current = (): number => {
-    const a = -G * sm.sinT - (type.water?.k ?? 0) * (v - waterCurrentAt(type, def, uMm));
-    return v + a * DT;
-  };
-  switch (drive) {
+function waterStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: SamplePoint, v: number, uMm: number, pieceEndM: number): number {
+  switch (def?.water?.drive ?? 'current') {
     case 'conveyor':
-      return { v1: (def?.water?.conveyorMms ?? 0) / 1000, controlled: true };
+      return (def?.water?.conveyorMms ?? 0) / 1000;
     case 'gravity':
-      return { v1: v + gravityAccel(type, sm, v) * DT, controlled: false };
+      return v + gravityAccel(type, sm, v) * DT;
     case 'splash':
       // Splash brake at 12 m/s², or harder when needed, so the boat always leaves the piece at ≤ 4 m/s.
-      return { v1: v > SPLASH_MAX_V ? toward(v, SPLASH_MAX_V, pieceEndM, 0, SPLASH_DECEL) : current(), controlled: false };
+      return v > SPLASH_MAX_V ? toward(v, SPLASH_MAX_V, pieceEndM, 0, SPLASH_DECEL) : currentStep(type, def, sm, v, uMm);
     case 'whirlpool':
-      return { v1: Math.min(current(), WHIRLPOOL_MAX_V), controlled: false };
+      return Math.min(currentStep(type, def, sm, v, uMm), WHIRLPOOL_MAX_V);
     default:
-      return { v1: current(), controlled: false };
+      return currentStep(type, def, sm, v, uMm);
   }
 }
 
@@ -171,9 +173,8 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
   let controlled = false;
   if (type.drive === 'waterCurrent') {
     const sm = sampleAt(layout, t.s + v * DT * 500, SP);
-    const w = waterStep(type, def, sm, v, wrapMm(layout, t.s) - (layout.startMm[pi] as number), pieceEndM);
-    v1 = w.v1;
-    controlled = w.controlled;
+    v1 = waterStep(type, def, sm, v, wrapMm(layout, t.s) - (layout.startMm[pi] as number), pieceEndM);
+    controlled = def?.water?.drive === 'conveyor';
   } else if (type.drive === 'gravity') {
     const sm = sampleAt(layout, t.s + v * DT * 500, SP);
     v1 = v + gravityAccel(type, sm, v) * DT;

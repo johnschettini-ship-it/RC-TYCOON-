@@ -169,7 +169,8 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
     return { min: Math.round((d?.operation.minDwellTicks ?? 0) / TICKS_PER_S), max: Math.round((d?.operation.maxDwellTicks ?? 0) / TICKS_PER_S), laps: d?.operation.laps ?? 1 };
   };
   const setOp = (o: { min: number; max: number; laps: number }): void => dispatch({ type: 'setTrackOperation', rideId, minDwellS: o.min, maxDwellS: o.max, laps: o.laps });
-  const trains = stepper(text('ui.track.trains'), 'track-trains', () => dispatch({ type: 'setTrainConfig', rideId, trains: cfg().trains - 1, carsPerTrain: cfg().cars }), () => dispatch({ type: 'setTrainConfig', rideId, trains: cfg().trains + 1, carsPerTrain: cfg().cars }));
+  // Water rides run boats (Phase 4 §4.4): one car each, so the stepper counts boats.
+  const trains = stepper(text(type?.medium === 'water' ? 'ui.track.boats' : 'ui.track.trains'), 'track-trains', () => dispatch({ type: 'setTrainConfig', rideId, trains: cfg().trains - 1, carsPerTrain: cfg().cars }), () => dispatch({ type: 'setTrainConfig', rideId, trains: cfg().trains + 1, carsPerTrain: cfg().cars }));
   const cars = stepper(text('ui.track.cars'), 'track-cars', () => dispatch({ type: 'setTrainConfig', rideId, trains: cfg().trains, carsPerTrain: cfg().cars - 1 }), () => dispatch({ type: 'setTrainConfig', rideId, trains: cfg().trains, carsPerTrain: cfg().cars + 1 }));
   const minDwell = stepper(text('ui.track.minDwell'), 'track-min-dwell', () => setOp({ ...op(), min: op().min - 1 }), () => setOp({ ...op(), min: op().min + 1 }));
   const maxDwell = stepper(text('ui.track.maxDwell'), 'track-max-dwell', () => setOp({ ...op(), max: op().max - 5 }), () => setOp({ ...op(), max: op().max + 5 }));

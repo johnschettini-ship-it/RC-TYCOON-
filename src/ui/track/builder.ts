@@ -1,11 +1,14 @@
 /**
- * Track builder logic (phase-2 §7.1–7.3). Owner: W2-A. Pure: no DOM.
+ * Track builder logic (phase-2 §7.1–7.3; water rides Phase 4 §4.4). Owner: W2-A; water types W3-C. Pure: no DOM.
  * The builder panel (`panel.ts`) and the map/key routing (`src/input/track`) both drive the builder through
  * these functions; the shared state is `TrackToolState` (`src/render/track/toolState.ts`).
  * Every world change is a command; a failed command shows its reason in a toast (the command is the final word).
  */
-import { getTrackPieceDef, getTrackTypeDef, TRACK_TYPES, type PieceGroup, type TrackPieceDef, type TrackTypeDef } from '../../data/track';
+import { ALL_TRACK_TYPES, getTrackPieceDef, getTrackTypeDef, type PieceGroup, type TrackPieceDef, type TrackTypeDef } from '../../data/track';
+import { TERRAIN_ERR } from '../../data/strings/terrain';
 import { TRACK_ERR, TRACK_WARN } from '../../data/strings/track';
+import { groundOwnershipBlock } from '../../sim/land/api';
+import { maxCorner } from '../../sim/terrain/corners';
 import { BRAKE_SPEED, STATION_MAX_TILES, TILE_MM } from '../../data/tuning/track';
 import type { Command, CommandResult } from '../../sim/commands/types';
 import { Content, inBounds, isOwned, tileIndex, type Dir, type MapState } from '../../sim/map';
@@ -50,7 +53,7 @@ export const PALETTE_GROUPS: readonly PaletteGroupDef[] = Object.freeze([
   { id: 'slopes', groups: ['G', 'X'] },
   { id: 'turns', groups: ['Ts', 'Tm'] },
   { id: 'banking', groups: ['B'] },
-  { id: 'special', groups: ['Br', 'BB', 'L', 'Sp'] },
+  { id: 'special', groups: ['Br', 'BB', 'L', 'Sp', 'W'] },
 ]);
 
 export function paletteGroupOf(group: PieceGroup): PaletteGroupId {
@@ -126,9 +129,11 @@ export function conflictTiles(world: World, rideId: number, piece: TrackPieceIns
     const i = tileIndex(map, t.x, t.y);
     const c = map.content[i];
     let hit = false;
-    if (reason === TRACK_ERR.outsidePark) hit = !isOwned(map, i);
+    if (reason === TRACK_ERR.outsidePark || reason === TERRAIN_ERR.onlyRights) hit = !isOwned(map, i);
     else if (reason === TRACK_ERR.hitsPath) hit = c === Content.Footpath || c === Content.Queue;
-    else if (reason === TRACK_ERR.hitsBuilding) hit = c === Content.Building || c === Content.ParkEntrance || c === Content.Scenery;
+    else if (reason === TRACK_ERR.hitsBuilding) hit = c === Content.Building || c === Content.ParkEntrance;
+    else if (reason === TERRAIN_ERR.sceneryInWay) hit = c === Content.Scenery;
+    else if (reason === TERRAIN_ERR.trackBelowLand) hit = t.railMin < maxCorner(map, i);
     else if (occ) {
       const envs = occ.get(i) ?? [];
       const want = reason === TRACK_ERR.hitsOwnTrack;
@@ -176,9 +181,9 @@ export function minStationTiles(type: TrackTypeDef, cars: number): number {
   return Math.max(1, Math.min(STATION_MAX_TILES, Math.ceil((cars * type.vehicle.carLengthMm) / TILE_MM)));
 }
 
-/** Cost of a station run (type base cost + one station piece per tile), cents. */
+/** Cost of a station run (type base cost + one station piece of the type per tile), cents. */
 export function stationCost(type: TrackTypeDef, length: number): number {
-  const def = getTrackPieceDef('station');
+  const def = getTrackPieceDef(type.stationPiece);
   return type.costs.base + length * (def ? pieceCost(type, def, false, 0) : 0);
 }
 
@@ -210,7 +215,8 @@ export function stationGhostAt(world: World, typeId: string, anchor: number, dir
     const i = tileIndex(map, tx, ty);
     tiles.push(i);
     if (reason) continue;
-    if (!isOwned(map, i)) reason = TRACK_ERR.outsidePark;
+    const own = groundOwnershipBlock(map, i);
+    if (own) reason = own;
     else if ((map.heights[i] as number) !== ground || (map.slope[i] as number) !== 0) reason = TRACK_ERR.stationOnGround;
     else reason = contentReason(map.content[i]);
   }
@@ -249,7 +255,8 @@ export function gateGhostAt(world: World, rideId: number, kind: 'entrance' | 'ex
   const y = Math.floor(tile / map.width);
   let reason: string | null = null;
   if (!data) reason = TRACK_ERR.noRide;
-  else if (!inBounds(map, x, y) || !isOwned(map, tile)) reason = TRACK_ERR.outsidePark;
+  else if (!inBounds(map, x, y)) reason = TRACK_ERR.outsidePark;
+  else if (groundOwnershipBlock(map, tile)) reason = groundOwnershipBlock(map, tile);
   else if (!stationPieces(data).some((p) => [(p.dir + 1) % 4, (p.dir + 3) % 4].some((s) => p.x + (TRACK_DX[s] as number) === x && p.y + (TRACK_DY[s] as number) === y))) {
     reason = TRACK_ERR.gateBesideStation;
   } else if (map.content[tile] !== Content.Empty) reason = TRACK_ERR.tileNotEmpty;
@@ -262,9 +269,12 @@ function bump(st: TrackToolState): void {
   st.rev++;
 }
 
-/** Track types the Rides picker lists: rail types that are unlocked (Phase 3 types once researched). */
+/**
+ * Track types the Rides picker lists: every unlocked type (Phase 3 types once researched; the Phase 4 water rides once
+ * researched and `BUILD_MAX_PHASE` reaches 4).
+ */
 export function pickableTrackTypes(world: World): TrackTypeDef[] {
-  return TRACK_TYPES.filter((t) => t.medium === 'rail' && isUnlocked(world, t.id));
+  return ALL_TRACK_TYPES.filter((t) => isUnlocked(world, t.id));
 }
 
 /** Pick a track type: the station ghost follows the pointer (§7.1 steps 1–2). */
@@ -314,8 +324,9 @@ export function placeStationNow(host: BuilderHost): number | null {
   const r = host.dispatch({ type: 'placeStation', typeId: g.typeId, x: g.x, y: g.y, dir: g.dir });
   if (!r.ok || r.id === undefined) return null;
   const rideId = r.id;
+  const stationPiece = getTrackTypeDef(g.typeId)?.stationPiece ?? 'station';
   for (let k = 1; k < g.length; k++) {
-    if (!host.dispatch({ type: 'addTrackPiece', rideId, defId: 'station' }).ok) break;
+    if (!host.dispatch({ type: 'addTrackPiece', rideId, defId: stationPiece }).ok) break;
   }
   enterPieces(host, rideId);
   return rideId;

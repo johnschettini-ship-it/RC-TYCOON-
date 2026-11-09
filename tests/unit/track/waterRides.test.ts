@@ -13,6 +13,7 @@ import { canOpenTrackRide, checkTrackRideForLoad } from '../../../src/sim/rides/
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { addWaterExtras, computeRatings, ratingInputsOf, waterRatingExtras } from '../../../src/sim/rides/track/ratings';
 import type { World } from '../../../src/sim/types';
+import { deserialize, serialize, validateState } from '../../../src/save';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, runTicks, stateHash } from '../../helpers/world';
 import { add, addAll, dataOf, EAST, expectOk, place, rideOf, type PieceSpec } from './helpers';
 
@@ -202,6 +203,33 @@ describe('boats and stations (1 boat per station tile)', () => {
       return stateHash(w);
     };
     expect(run()).toBe(run());
+  });
+});
+
+describe('saves (schema 2 track slice)', () => {
+  it('a raft moving with seated guests and a wet guest round-trips and plays on identically', () => {
+    const w = makeTestWorld();
+    const id = build(w, 'rapids');
+    expectOk(executeCommand(w, { type: 'setTrainConfig', rideId: id, trains: 2, carsPerTrain: 1 }, { setup: true }));
+    testAndWait(w, id);
+    expectOk(executeCommand(w, { type: 'setRideOpen', rideId: id, open: true }));
+    const queue = tileIndex(w.state.map, 10, 8);
+    for (let k = 0; k < 20; k++) rideOf(w, id).queue.push(addGuestDirect(w, queue, { state: 'queueing', activityId: id, cash: 5_000 }).id);
+    const d = dataOf(w, id);
+    let n = 0;
+    while (n < 5000 && !(d.trains.some((t) => t.state === 'running' && t.v > 0 && t.seats.some((s) => s >= 0)) && w.state.guests.some((g) => g.wetUntilTick >= w.state.tick))) {
+      runTicks(w, 1);
+      n++;
+    }
+    expect(n).toBeLessThan(5000);
+    expect(validateState(w.state)).toBeNull();
+    const r = deserialize(serialize(w, '0.2.0', '2026-11-09T10:15:00.000Z'));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.world.state).toStrictEqual(w.state);
+    runTicks(w, 800);
+    runTicks(r.world, 800);
+    expect(stateHash(r.world)).toBe(stateHash(w));
+    expect(checkTrackRideForLoad(dataOf(r.world, id), r.world.state)).toBeNull();
   });
 });
 
