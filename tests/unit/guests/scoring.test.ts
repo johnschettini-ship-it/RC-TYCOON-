@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { text } from '../../../src/data/strings/en';
 import { isRideReject, rideValue, scoreRide } from '../../../src/sim/guests/scoring';
 import { THOUGHT } from '../../../src/sim/guests/thoughts';
-import { QUEUE_MAX_JOIN } from '../../../src/data/tuning/guests';
+import { QUEUE_MAX_JOIN, SCORE_BORING, SCORE_REPEAT } from '../../../src/data/tuning/guests';
 import { addGuestDirect, makeTestWorld, placeRideDirect } from '../../helpers/world';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
@@ -95,7 +95,7 @@ describe('ride score terms (Phase 1 §4.3)', () => {
     carousel.price = 300; // $0.50 above value
     g.ridden[String(carousel.id)] = 2;
     const s = scoreRide(w, g, carousel, 10, 0.25);
-    const expected = 2.5 * 0.6 + 0.3 * 1.5 - (4.0 - 1.0) * 0.8 - 0.5 * 0.5 - 10 * 0.02 - 2 * 1.5 + 0.25;
+    const expected = 2.5 * 0.6 + 0.3 * 1.5 - (4.0 - 1.0) * SCORE_BORING - 0.5 * 0.5 - 10 * 0.02 - 2 * SCORE_REPEAT + 0.25;
     expect(s).toBeCloseTo(expected, 10);
   });
 

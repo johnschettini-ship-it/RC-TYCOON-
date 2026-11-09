@@ -14,6 +14,7 @@ import { START_CASH, TICKS_PER_MONTH } from '../../src/data/tuning/core';
 import { RATING_MAX, RATING_MIN } from '../../src/data/tuning/economy';
 import { deserialize, GAME_VERSION, serialize, validateState } from '../../src/save';
 import { fixFactor } from '../../src/sim/breakdowns/reliability';
+import { breakDown } from '../../src/sim/breakdowns/api';
 import { executeCommand } from '../../src/sim/commands';
 import { staffDistanceTo } from '../../src/sim/pathing';
 import { isHourStart } from '../../src/sim/time';
@@ -81,6 +82,12 @@ function monthScript(world: World, monthIndex: number, log: Phase3Log): void {
   for (const cmd of cmds) {
     const r = executeCommand(world, cmd);
     if (!r.ok) log.commandFailures.push(`${cmd.type}: ${r.reason}`);
+  }
+  // Natural breakdowns depend on the seeded random stream, which every new system shifts. Force one
+  // scripted breakdown so the mechanic repair path is always exercised (odds are covered by unit tests).
+  if (monthIndex === 2) {
+    const ride = world.state.rides.find((r) => r.kind === 'flat' && r.status === 'open');
+    if (ride) breakDown(world, ride, 'stopped');
   }
 }
 

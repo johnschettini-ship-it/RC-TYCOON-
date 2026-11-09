@@ -2,7 +2,8 @@
  * Owner: W1-H. Phase 3 §4.5 per-tick breakdown work: reference integrity, the pending queue,
  * stuck riders, and bookkeeping for bench sitters and recent fixes.
  */
-import { RECENT_BREAK_TICKS, STUCK_RIDER_HAPPY, STUCK_RIDER_INTERVAL } from '../../data/tuning/staff';
+import { EVACUATE_TICKS, RECENT_BREAK_TICKS, STUCK_RIDER_HAPPY, STUCK_RIDER_INTERVAL } from '../../data/tuning/staff';
+import { unloadRiders } from '../rides/flat/api';
 import { THOUGHT, addThought } from '../guests/thoughts';
 import { pruneSitters } from '../litter/benches';
 import { changeHappiness } from '../staff/guestEffects';
@@ -14,6 +15,7 @@ export function updateBreakdowns(world: World): void {
   checkReferences(world);
   dispatchPending(world);
   stuckRiders(world);
+  evacuateUnattended(world);
   pruneSitters(world);
   pruneRecentFixes(world);
 }
@@ -82,6 +84,16 @@ function stuckRiders(world: World): void {
     if (!stuck.has(rideId)) continue;
     changeHappiness(g, -STUCK_RIDER_HAPPY);
     addThought(world, g, THOUGHT.stuck);
+  }
+}
+
+/** Let riders off a broken flat ride that no Mechanic has been assigned to for EVACUATE_TICKS. */
+function evacuateUnattended(world: World): void {
+  const s = world.state;
+  for (const ride of s.rides) {
+    if (ride.kind !== 'flat' || ride.status !== 'broken' || ride.breakdownType === 'slow_running') continue;
+    if (ride.assignedMechanicId !== null || ride.riders.length === 0) continue;
+    if (s.tick - ride.lastBreakdownTick >= EVACUATE_TICKS) unloadRiders(world, ride);
   }
 }
 

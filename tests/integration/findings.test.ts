@@ -11,7 +11,7 @@ import { buildPhase1Park } from './scenario';
 
 describe('finding: a broken ride in a park without a Mechanic', { timeout: 60_000 }, () => {
   /**
-   * KNOWN GAP (Phase 1 §9 vs Phase 3 §4.5). Riders of a `stopped` or `gate_stuck` flat ride stay on board until a
+   * FIXED (EVACUATE_TICKS in src/sim/breakdowns/update.ts). Was a known gap (Phase 1 §9 vs Phase 3 §4.5). Riders of a `stopped` or `gate_stuck` flat ride stay on board until a
    * Mechanic fixes it. A park with no Mechanic (every Phase 1-style park) never fixes it, so the riders stay in
    * `riding` forever and break the Phase 1 rule "no guest stuck in one state for > 2 game days". It happens in
    * about 1 in 5 three-month Phase 1 games (for example seed 777 of the Phase 1 integration park).
@@ -23,7 +23,7 @@ describe('finding: a broken ride in a park without a Mechanic', { timeout: 60_00
    * `broken`. Riders keep the "We are stuck!" happiness loss they already had. Track rides would need the same
    * rule at their station (W1-G).
    */
-  it.fails('riders get off within 2 game days even when nobody can fix the ride', () => {
+  it('riders get off within 2 game days even when nobody can fix the ride', () => {
     const w = makeTestWorld(12345);
     const park = buildPhase1Park(w);
     const ride = w.state.rides.find((r) => r.id === park.carousel);

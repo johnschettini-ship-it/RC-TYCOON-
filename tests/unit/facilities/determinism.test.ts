@@ -1,5 +1,6 @@
 /**
- * A park with every Phase 3 facility and ride, real arrivals and weather, run with `stepTick`:
+ * A park with every Phase 3 facility and ride, real arrivals and weather, run with `stepTick` for one game month
+ * (needs rise slowly after the W2-D tuning, so 2,000 ticks was too short for purchases):
  * same seed → same state hash; every saved state stays valid; facilities see use.
  */
 import { describe, expect, it } from 'vitest';
@@ -46,17 +47,17 @@ function run(w: World, ticks: number): void {
 }
 
 describe('facilities determinism', () => {
-  it('a 2,000-tick run with every facility gives the same state hash for the same seed', () => {
+  it('a one-month run with every facility gives the same state hash for the same seed', () => {
     const a = build(8080);
     const b = build(8080);
-    run(a, 2000);
-    run(b, 2000);
+    run(a, 3600);
+    run(b, 3600);
     expect(stateHash(a)).toBe(stateHash(b));
     expect(a.state.guests.length).toBeGreaterThan(0);
     const sales = a.state.stalls.reduce((n, s) => n + s.totals.sales, 0);
     expect(sales).toBeGreaterThan(0);
     const c = build(8081);
-    run(c, 2000);
+    run(c, 3600);
     expect(stateHash(c)).not.toBe(stateHash(a));
   });
 });

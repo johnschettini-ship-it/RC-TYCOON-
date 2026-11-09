@@ -27,6 +27,7 @@ import { trackHighestPointM } from '../../../src/sim/rides/track/api';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
 import type { Guest } from '../../../src/sim/guests/types';
+import { BASE_THIRST_PER_100, HOT_THIRST_FACTOR } from '../../../src/data/tuning/management';
 
 const SEASONS: Season[] = ['winter', 'spring', 'summer', 'autumn'];
 
@@ -322,8 +323,8 @@ describe('guest weather effects (hooks)', () => {
     run(1000, 1000);
     expect([g.needs.thirst, g.needs.energy]).toEqual([40, 230]);
     setWeather(w, 'hot');
-    run(1000, 1000); // 10 × (8 × 0.5)
-    expect(g.needs.thirst).toBe(80);
+    run(1000, 1000); // 10 × extra hot thirst per 100 ticks (read from tuning, master §8)
+    expect(g.needs.thirst).toBe(40 + 10 * Math.round(BASE_THIRST_PER_100 * (HOT_THIRST_FACTOR - 1)));
     setWeather(w, 'cold');
     run(1000, 1000); // 2 × 5 × 3 × 0.2 × drain 1.0
     expect(g.needs.energy).toBe(224);

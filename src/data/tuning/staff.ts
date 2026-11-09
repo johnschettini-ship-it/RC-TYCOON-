@@ -112,3 +112,10 @@ export const BREAKDOWNS: readonly BreakdownDef[] = Object.freeze([
 export const SLOW_CYCLE_FACTOR = 1.5;
 export const SLOW_POWERED_FACTOR = 0.6;
 export const SLOW_EXCITEMENT_PENALTY = 100;
+
+/**
+ * Riders of a broken flat ride with no Mechanic assigned get off after this many ticks (8 game hours),
+ * so no guest stays in `riding` forever in a park without Mechanics (Phase 1 §9 rule; W2-D finding).
+ * The ride stays broken.
+ */
+export const EVACUATE_TICKS = 400;
