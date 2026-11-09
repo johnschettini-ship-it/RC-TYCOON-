@@ -90,6 +90,18 @@ describe('research points', () => {
     expect(w.state.management.messages[1]).toMatchObject({ textId: MSG.researchStall, params: { itemId: 'ice_cream_cart', name: 'Ice Cream Cart' } });
   });
 
+  it('a show site unlock says "New show available"', () => {
+    const w = makeTestWorld();
+    const r = w.state.management.research;
+    r.current = 'lightshow_tower';
+    r.level = 'high';
+    r.progress = 299;
+    runHours(w, TICKS_PER_MONTH, 1);
+    expect(r.unlocked).toContain('lightshow_tower');
+    const msg = w.state.management.messages.find((m) => m.params?.itemId === 'lightshow_tower');
+    expect(msg?.textId).toBe(MSG.researchShow);
+  });
+
   it('a scenery theme unlock says "New scenery available"', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
