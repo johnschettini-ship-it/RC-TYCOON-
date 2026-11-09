@@ -21,6 +21,8 @@ async function newPark(page: Page): Promise<string[]> {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
   await page.getByTestId('title-new').click();
+  // The classic 64 × 64 Build 1 layout these tile coordinates use (New Park starts on 96 × 96).
+  await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
   return errors;

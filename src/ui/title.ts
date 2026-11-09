@@ -5,8 +5,8 @@
  * 64–256). Owner: W3-I (Build 2; W1-B built the Build 1 screen).
  *
  * Map sizes: 64 keeps the Build 1 park layout (every tile owned inside the fence), which Build 1 flows and their
- * end-to-end tests use; 96–256 use the Phase 4 free-play layout (`layout: 'freePlay'`, W3-G). Phase 4 names 96 as the
- * default; the form starts on 64 until those flows move (integration note).
+ * end-to-end tests use (they pick 64 on the form); 96–256 use the Phase 4 free-play layout (`layout: 'freePlay'`,
+ * W3-G). The form starts on 96, the Phase 4 / Phase 5 §4.5 default.
  */
 import { text } from '../data/strings/en';
 import type { SlotInfo } from '../save';
@@ -23,7 +23,7 @@ import { progressStore, randomSeed, registerTitle, settings, type TitleView } fr
 import { injectScenarioStyles } from './scenario/styles';
 
 /** Free-play map size the form starts on (see the file comment). */
-export const NEW_PARK_DEFAULT_SIZE = 64;
+export const NEW_PARK_DEFAULT_SIZE = 96;
 /** The size that keeps the Build 1 layout. */
 const CLASSIC_SIZE = 64;
 const LARGE_MAP = 192;

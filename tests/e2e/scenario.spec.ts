@@ -108,7 +108,9 @@ test.describe('Scenario flow: desktop', () => {
     await page.goto('/');
     await page.getByTestId('title-new').click();
     for (const n of [64, 96, 128, 192, 256]) await expect(page.getByTestId(`title-size-${n}`)).toBeVisible();
-    await expect(page.getByTestId('title-size-64')).toHaveAttribute('aria-checked', 'true');
+    // Phase 4 §4.9 / Phase 5 §4.5: New Park starts on 96 × 96.
+    await expect(page.getByTestId('title-size-96')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('title-size-64')).toHaveAttribute('aria-checked', 'false');
     await page.getByTestId('title-size-256').click();
     await expect(page.getByTestId('title-size-warning')).toHaveText('Large maps can run slowly on phones');
     await page.getByTestId('title-size-128').click();

@@ -10,6 +10,8 @@ function cents(text: string): number {
 async function newPark(page: Page): Promise<void> {
   await page.goto('/');
   await page.locator('[data-testid=title-new]').click();
+  // The classic 64 × 64 Build 1 layout these tile coordinates use (New Park starts on 96 × 96).
+  await page.locator('[data-testid=title-size-64]').click();
   await page.locator('[data-testid=title-start]').click();
   await expect(page.locator('.title-screen')).toBeHidden();
   // Pause so hourly costs do not move the cash during the checks.
