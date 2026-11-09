@@ -25,6 +25,7 @@ import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { TerrainLayer, grassShade, type ViewRect } from './terrain';
 import type { Camera, Renderer, ToolState } from './types';
+import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 
 const HW = TILE_W / 2;
 const HH = TILE_H / 2;
@@ -122,6 +123,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const walker = createQueueWalker(64 * 64);
   const chain: number[] = [];
   const pos: GuestPos = { fx: 0, fy: 0, z: 0, tile: -1 };
+  // Phase 3 (W2-B): staff, path items, litter, weather, markers. Created below once `blit` exists.
+  let mgmt: ManagementLayer;
   const columnsMemo = new Map<number, ColumnTile[]>();
   let rideSprites: Array<Sprite | null> = [];
   let rideEy = new Int32Array(64);
@@ -173,6 +176,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const y1 = Math.round(devY(wy) + (sp.h - sp.oy) * f);
     (ctx as CanvasRenderingContext2D).drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
   }
+
+  mgmt = new ManagementLayer(bank, blit);
 
   /** Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
   function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
@@ -323,7 +328,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       let z: number;
       let facing: Dir;
       let walk = 0;
-      if (qStamp[gi] === frameNo) {
+      const sitDir = g.state === 'sitting' ? mgmt.sitter(gi, pos) : -1;
+      if (sitDir >= 0) {
+        // On a bench (Phase 3): seat position and the sitting pose.
+        fx = pos.fx;
+        fy = pos.fy;
+        z = pos.z;
+        facing = sitDir as Dir;
+        walk = 3;
+      } else if (qStamp[gi] === frameNo) {
         fx = qfx[gi] as number;
         fy = qfy[gi] as number;
         z = qz[gi] as number;
@@ -383,6 +396,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         case KIND_ARCH:
           blit(bank.entrance((list.sub[i] as number) as 0 | 1, outerDir, bucket), ax, ay);
           break;
+        case KIND_STAFF:
+        case KIND_PATH_ITEM:
+          mgmt.drawEntry(list.kind[i] as number, list.sub[i] as number, ax, ay, list.skey[i] as number);
+          break;
       }
     }
   }
@@ -434,7 +451,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       case 'demolish':
         return { fill: 'rgba(229,72,77,0.45)', stroke: '#ffb3b5' };
       case 'patrol':
-        return { fill: 'rgba(124,92,255,0.4)', stroke: '#d6ccff' };
+        return mgmt.strokeColours(tool);
       default:
         return { fill: 'rgba(255,255,255,0.3)', stroke: '#ffffff' };
     }
@@ -552,6 +569,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
   function drawOverlays(world: World, tool: ToolState, alpha: number): void {
     const map = world.state.map;
+    mgmt.drawOverlays(ctx as CanvasRenderingContext2D, world, tool, alpha);
     if (tool.drag && tool.drag.tiles.length > 0) {
       const col = dragColours(tool);
       outlineTiles(map, tool.drag.tiles, col.fill, col.stroke, Math.max(1, scale));
@@ -617,6 +635,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       terrain.sync(map);
       const env = { seed: s.seed, rides: s.rides, stalls: s.stalls };
       const chunks = terrain.draw(ctx, map, env, view, bucket, scale, offX, offY);
+      mgmt.begin(scale, offX, offY, dpr, bucket, view);
+      mgmt.drawGround(world);
 
       // Objects.
       if (fenceVersion !== terrain.tracker.version) {
@@ -632,9 +652,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       collectRides(world);
       collectStalls(world);
       placeQueues(world);
+      mgmt.collect(world, alpha, list);
       collectGuests(world, tool, alpha);
       list.sort();
       drawList(world);
+      mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
 
       drawOverlays(world, tool, alpha);
       bank.cache.trim();

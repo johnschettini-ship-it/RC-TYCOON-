@@ -12,11 +12,16 @@ import { drawEntranceArt, drawFenceArt, drawGuestArt, entranceBounds, fenceBound
 import { drawRideArt, rideArtBounds } from './rides';
 import { HAIR_COLOURS, SKIN_TONES } from './shapes';
 import { drawStallArt, stallArtBounds } from './stalls';
+import { decodeStaffFrame, drawStaffArt, STAFF_BOUNDS } from './staff';
+import { drawLitterArt, drawMessArt, drawPathItemArt, LITTER_BOUNDS, MESS_BOUNDS, PATH_ITEM_BOUNDS } from './litter';
 
 export const GHOST_TINT_VALID = 'rgba(70, 205, 95, 0.5)';
 export const GHOST_TINT_INVALID = 'rgba(235, 60, 60, 0.55)';
 
 const GUEST_HASH = defHash('guest');
+const STAFF_HASH = defHash('staff');
+const PATH_ITEM_HASH = defHash('path_item');
+const DECAL_HASH = defHash('decal');
 const STAND_IN_ORDER: readonly number[] = [1, 0, 2];
 
 /** Skin and hair pairs: 4 looks keep the number of guest sprites small. */
@@ -36,6 +41,22 @@ export function guestFrame(colour: number, walk: number, look: number, tinted: b
 export function guestSpriteKey(facing: number, frame: number, bucket: ZoomBucket): number {
   return ((GUEST_HASH * 4 + (facing & 3)) * FRAME_SPAN + frame) * 4 + bucketIndex(bucket);
 }
+
+/** Staff sprite key (Phase 3): pre-hashed like guests; `frame` from `staffFrame`. */
+export function staffSpriteKey(facing: number, frame: number, bucket: ZoomBucket): number {
+  return ((STAFF_HASH * 4 + (facing & 3)) * FRAME_SPAN + frame) * 4 + bucketIndex(bucket);
+}
+
+/** Path item sprite key; `frame` from `pathItemFrame`. */
+export function pathItemSpriteKey(frame: number, bucket: ZoomBucket): number {
+  return (PATH_ITEM_HASH * 4 * FRAME_SPAN + frame) * 4 + bucketIndex(bucket);
+}
+
+/** Ground decal frame: litter variants 0–3, mess variants 8–9; `flip` uses the rotation slot. */
+export function decalSpriteKey(frame: number, flip: number, bucket: ZoomBucket): number {
+  return ((DECAL_HASH * 4 + (flip & 1)) * FRAME_SPAN + frame) * 4 + bucketIndex(bucket);
+}
+export const DECAL_MESS = 8;
 
 /** New guest sprites per frame; past this, a cached sprite from another zoom bucket stands in. */
 export const GUEST_BUILDS_PER_FRAME = 48;
@@ -106,6 +127,37 @@ export class SpriteBank {
         ring: tinted ? shirt : null,
       }),
     );
+    this.cache.set(key, sp);
+    return sp;
+  }
+
+  /** `key` must come from `staffSpriteKey(facing, frame, bucket)`. */
+  staff(key: number, facing: Dir, frame: number, bucket: ZoomBucket): Sprite {
+    let sp = this.cache.get(key);
+    if (sp) return sp;
+    const f = decodeStaffFrame(frame);
+    sp = buildSprite(STAFF_BOUNDS, bucket, (ctx) => drawStaffArt(ctx, { ...f, facing }));
+    this.cache.set(key, sp);
+    return sp;
+  }
+
+  /** `key` must come from `pathItemSpriteKey(frame, bucket)`. */
+  pathItem(key: number, frame: number, bucket: ZoomBucket): Sprite {
+    let sp = this.cache.get(key);
+    if (sp) return sp;
+    sp = buildSprite(PATH_ITEM_BOUNDS, bucket, (ctx) => drawPathItemArt(ctx, frame & 3, (frame >> 2) & 3, (frame >> 4) & 3, (frame & 64) !== 0));
+    this.cache.set(key, sp);
+    return sp;
+  }
+
+  /** `key` must come from `decalSpriteKey(frame, flip, bucket)`. */
+  decal(key: number, frame: number, flip: number, bucket: ZoomBucket): Sprite {
+    let sp = this.cache.get(key);
+    if (sp) return sp;
+    sp =
+      frame >= DECAL_MESS
+        ? buildSprite(MESS_BOUNDS, bucket, (ctx) => drawMessArt(ctx, frame - DECAL_MESS, flip))
+        : buildSprite(LITTER_BOUNDS, bucket, (ctx) => drawLitterArt(ctx, frame, flip));
     this.cache.set(key, sp);
     return sp;
   }

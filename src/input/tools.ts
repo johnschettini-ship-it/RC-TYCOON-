@@ -96,7 +96,7 @@ export function computeGhost(world: World, kind: 'ride' | 'stall', defId: string
 
 export type PickedEntity = NonNullable<ToolState['selectedEntity']>;
 
-/** What Inspect opens on a tile: a ride or stall building first, then a guest standing there. */
+/** What Inspect opens on a tile: a ride or stall building first, then a staff member, then a guest standing there. */
 export function pickEntity(world: World, tile: number | null): PickedEntity | null {
   if (tile === null || tile < 0) return null;
   const s = world.state;
@@ -106,6 +106,9 @@ export function pickEntity(world: World, tile: number | null): PickedEntity | nu
     if (s.rides.some((r) => r.id === ref)) return { kind: 'ride', id: ref };
     if (s.stalls.some((st) => st.id === ref)) return { kind: 'stall', id: ref };
   }
+  // Phase 3 §7.3: a tap or long-press on a staff member opens the staff panel.
+  const member = s.staff.members.find((m) => m.tile === tile);
+  if (member) return { kind: 'staff', id: member.id };
   const guest = s.guests.find((g) => g.tile === tile);
   if (guest) return { kind: 'guest', id: guest.id };
   return null;

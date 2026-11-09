@@ -12,10 +12,13 @@ import type { Dir } from '../sim/map';
 import { KEY_ZOOM_FACTOR, centerOnMap, clampToMap, panCamera, wheelZoomFactor } from './camera';
 import { GestureRecognizer, type DragMode, type GestureAction, type GesturePointerEvent, type PointerKind } from './gestures';
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
+import { PatrolStroke, brushTiles, strokeLine } from './patrol';
+import { pathItemCommand, pathItemGhost } from './pathItemTool';
 import { computeGhost, pathKindOf, pathLineCost, pathLineEnd, pathLineTiles, pickEntity } from './tools';
+import { pathItemAction, toolOptions } from '../render/management/toolOptions';
 
 /** Requests for the UI layer (it owns panels). */
-export type UiIntent = 'finance' | 'closePanel';
+export type UiIntent = 'finance' | 'closePanel' | 'staff' | 'office' | 'messages';
 
 export interface InputControllerOptions {
   /** Canvas size in CSS px. */
@@ -33,6 +36,11 @@ export class InputController {
   private lastUpdate: number | null = null;
   private readonly held = new Set<PanDir>();
   private lastPointer: PointerKind = 'mouse';
+  /** Shift was held when the current press started (patrol: other mode). */
+  private shiftPress = false;
+  /** Patrol paint stroke in progress (Phase 3 §7.2), or null. */
+  private stroke: PatrolStroke | null = null;
+  private strokeLast = -1;
 
   constructor(
     private readonly game: Game,
@@ -42,13 +50,15 @@ export class InputController {
     this.lastTool = game.tool.tool;
   }
 
-  /** Path tools build with a primary drag; every other tool pans. */
+  /** Path tools build and the patrol tool paints with a primary drag; every other tool pans. */
   primaryDrag(): DragMode {
-    return pathKindOf(this.game.tool.tool) ? 'build' : 'pan';
+    const tool = this.game.tool.tool;
+    return pathKindOf(tool) || tool === 'patrol' ? 'build' : 'pan';
   }
 
   pointer(ev: GesturePointerEvent): void {
     this.lastPointer = ev.pointerType;
+    if (ev.type === 'down' && !this.gestures.active) this.shiftPress = ev.pointerType === 'mouse' && ev.shift === true;
     this.apply(this.gestures.handle(ev));
   }
 
@@ -124,6 +134,14 @@ export class InputController {
       case 'finance':
         this.opts.onIntent?.('finance');
         break;
+      case 'panel':
+        this.opts.onIntent?.(a.panel);
+        break;
+      case 'pathItem':
+        this.setTool('pathItem');
+        game.tool.defId = a.item;
+        this.refreshGhost();
+        break;
     }
     return true;
   }
@@ -142,7 +160,7 @@ export class InputController {
   setTool(tool: ToolId): void {
     const t = this.game.tool;
     t.tool = tool;
-    if (tool !== 'placeRide' && tool !== 'placeStall') t.defId = null;
+    if (tool !== 'placeRide' && tool !== 'placeStall' && tool !== 'pathItem') t.defId = null;
     this.toolChanged();
   }
 
@@ -158,6 +176,7 @@ export class InputController {
     const t = this.game.tool;
     this.lastTool = t.tool;
     this.apply(this.gestures.reset());
+    this.stroke = null;
     t.drag = null;
     t.ghost = null;
     // Touch has no hover: a new placement starts at the screen centre, not at an old tap.
@@ -197,6 +216,10 @@ export class InputController {
         break;
       }
       case 'dragStart': {
+        if (tool.tool === 'patrol') {
+          this.strokeStart(a.x, a.y);
+          break;
+        }
         const kind = pathKindOf(tool.tool);
         if (!kind) break;
         const start = this.tileAtClamped(a.x, a.y);
@@ -205,6 +228,10 @@ export class InputController {
         break;
       }
       case 'dragMove': {
+        if (tool.tool === 'patrol') {
+          this.strokeMove(a.x, a.y);
+          break;
+        }
         const kind = pathKindOf(tool.tool);
         if (!kind || !tool.drag) break;
         const cur = this.tileAtClamped(a.x, a.y);
@@ -214,6 +241,10 @@ export class InputController {
         break;
       }
       case 'dragEnd': {
+        if (tool.tool === 'patrol') {
+          this.strokeEnd();
+          break;
+        }
         const kind = pathKindOf(tool.tool);
         const drag = tool.drag;
         tool.drag = null;
@@ -230,6 +261,9 @@ export class InputController {
         break;
       }
       case 'dragCancel':
+        // A second finger drops the stroke (Phase 3 §7.2): nothing is sent.
+        this.stroke = null;
+        toolOptions(tool).strokeMode = null;
         tool.drag = null;
         break;
       default:
@@ -269,6 +303,17 @@ export class InputController {
       case 'demolish':
         if (tile !== null) game.dispatch({ type: 'demolish', x: tile % w, y: Math.floor(tile / w) });
         return;
+      case 'patrol':
+        // A tap is a stroke of one brush stamp.
+        this.strokeStart(x, y);
+        this.strokeEnd();
+        return;
+      case 'pathItem':
+        if (tile === null) return;
+        tool.hoverTile = tile;
+        game.dispatch(pathItemCommand(game.world, pathItemAction(tool), tile));
+        this.refreshGhost();
+        return;
       default:
         // Touch has no hover: the highlight follows the tapped tile (Phase 0 §10).
         tool.hoverTile = tile;
@@ -277,9 +322,56 @@ export class InputController {
     }
   }
 
+  /** Patrol stroke: paint or erase (Shift + mouse uses the other mode) for the patrol tool's staff member. */
+  private strokeStart(x: number, y: number): void {
+    const tool = this.game.tool;
+    const opts = toolOptions(tool);
+    this.stroke = null;
+    tool.drag = null;
+    const staffId = opts.patrolStaffId;
+    if (staffId < 0 || !this.game.world.state.staff.members.some((m) => m.id === staffId)) return;
+    const mode = this.shiftPress ? (opts.patrolMode === 'paint' ? 'erase' : 'paint') : opts.patrolMode;
+    this.stroke = new PatrolStroke(staffId, mode);
+    opts.strokeMode = mode;
+    this.strokeLast = -1;
+    this.strokeMove(x, y);
+  }
+
+  private strokeMove(x: number, y: number): void {
+    const stroke = this.stroke;
+    if (!stroke) return;
+    const tile = this.tileAt(x, y);
+    if (tile === null) return;
+    const map = this.game.world.state.map;
+    const brush = toolOptions(this.game.tool).brush;
+    const centres = this.strokeLast < 0 ? [tile] : strokeLine(map, this.strokeLast, tile);
+    for (const c of centres) stroke.stamp(brushTiles(map, c, brush, stroke.mode));
+    this.strokeLast = tile;
+    const tool = this.game.tool;
+    tool.hoverTile = tile;
+    if (stroke.tiles.length > 0) {
+      const first = stroke.tiles[0] as number;
+      tool.drag = { startTile: first, endTile: tile, tiles: stroke.tiles, cost: 0 };
+    }
+  }
+
+  /** One `editPatrol` per stroke, sent at the end of the drag (Phase 3 §6). */
+  private strokeEnd(): void {
+    const stroke = this.stroke;
+    this.stroke = null;
+    toolOptions(this.game.tool).strokeMode = null;
+    this.game.tool.drag = null;
+    const cmd = stroke?.command();
+    if (cmd) this.game.dispatch(cmd);
+  }
+
   /** Ghost for place tools at the hover tile, or at the screen centre before any pointer input. */
   private refreshGhost(): void {
     const t = this.game.tool;
+    if (t.tool === 'pathItem') {
+      t.ghost = t.hoverTile === null ? null : pathItemGhost(this.game.world, pathItemAction(t), t.hoverTile);
+      return;
+    }
     if ((t.tool !== 'placeRide' && t.tool !== 'placeStall') || !t.defId) {
       t.ghost = null;
       return;

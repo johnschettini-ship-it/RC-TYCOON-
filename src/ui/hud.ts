@@ -9,6 +9,7 @@ import type { UiContext } from './context';
 import { h, setAttr, setText, toggleClass } from './dom';
 import { formatMoney, sharePercents, temperamentShares } from './format';
 import { icon } from './icons';
+import { createWeatherBadge } from './management/weatherBadge';
 
 const SPEEDS: readonly Speed[] = [0, 1, 2, 4];
 const BALANCE_MS = 500;
@@ -25,6 +26,9 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
   const segFamily = h('i', { class: 'seg seg-family' });
   const segThrill = h('i', { class: 'seg seg-thrill' });
   const balance = h('div', { class: 'balance', role: 'img', 'data-testid': 'hud-balance' }, segChill, segFamily, segThrill);
+
+  // Phase 3 §7.1: weather icon with the forecast.
+  const weather = createWeatherBadge(ctx);
 
   const speedButtons = SPEEDS.map((s) =>
     h(
@@ -43,6 +47,7 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
     h('div', { class: 'hud-item hud-rating', title: text('ui.hud.rating') }, icon('star'), h('span', { class: 'sr-only', text: text('ui.hud.rating') }), rating),
     h('div', { class: 'hud-item hud-balance' }, h('span', { class: 'balance-end chill', text: text('ui.tag.chill'), 'aria-hidden': 'true' }), balance, h('span', { class: 'balance-end thrill', text: text('ui.tag.thrill'), 'aria-hidden': 'true' })),
     h('div', { class: 'hud-item hud-clock', title: text('ui.hud.date') }, date),
+    weather.el,
     h('div', { class: 'speed', role: 'group', 'aria-label': text('ui.speed.label') }, ...speedButtons),
   );
 
@@ -58,6 +63,7 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
       setText(guests, String(s.guests.length));
       setText(rating, String(s.park.rating));
       setText(date, formatDate(s.tick));
+      weather.update();
       for (const b of speedButtons) {
         const on = Number(b.dataset.speed) === game.speed;
         setAttr(b, 'aria-pressed', on ? 'true' : 'false');

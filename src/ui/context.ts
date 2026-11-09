@@ -3,7 +3,22 @@ import type { Game } from '../game';
 import type { SaveActions } from './saves';
 import type { ToastKind } from './toasts';
 
-export type PanelKind = 'ride' | 'stall' | 'guest' | 'park' | 'finance' | 'ridePicker' | 'stallPicker';
+export type PanelKind =
+  | 'ride'
+  | 'stall'
+  | 'guest'
+  | 'park'
+  | 'finance'
+  | 'ridePicker'
+  | 'stallPicker'
+  // Phase 3 (W2-B)
+  | 'staff'
+  | 'research'
+  | 'marketing'
+  | 'messages';
+
+/** Panels that show one entity; opening one selects that entity on the map. */
+export type EntityPanelKind = 'ride' | 'stall' | 'guest' | 'staff';
 
 export interface UiContext {
   game: Game;
@@ -24,7 +39,7 @@ export interface UiContext {
 /** One panel view inside the panel host. */
 export interface PanelView {
   kind: PanelKind;
-  /** Entity id for ride, stall, and guest panels. */
+  /** Entity id for ride, stall, and guest panels (the staff panel tracks its member itself). */
   id: number | null;
   title: string;
   body: HTMLElement;

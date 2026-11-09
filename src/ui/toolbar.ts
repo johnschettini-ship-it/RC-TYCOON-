@@ -6,13 +6,16 @@
 import { text } from '../data/strings/en';
 import type { ToolId } from '../render/types';
 import type { PanelKind, UiContext } from './context';
-import { h, setAttr } from './dom';
+import { h, setAttr, setText } from './dom';
 import { icon, type IconName } from './icons';
+import { mgmtIcon, type MgmtIconName } from './management/icons';
+import { pathItemAction } from '../render/management/toolOptions';
+import { unreadCount } from '../sim/notifications';
 
 interface ButtonDef {
   id: string;
   label: string;
-  icon: IconName;
+  icon: IconName | { mgmt: MgmtIconName };
   onClick: () => void;
   pressed: () => boolean;
 }
@@ -38,9 +41,27 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
     { id: 'queue', label: text('ui.tool.queue'), icon: 'queue', onClick: () => setTool('queue'), pressed: () => game.tool.tool === 'queue' },
     { id: 'rides', label: text('ui.tool.rides'), icon: 'rides', onClick: () => togglePanel('ridePicker'), pressed: () => game.tool.tool === 'placeRide' || panelIs('ridePicker') },
     { id: 'stalls', label: text('ui.tool.stalls'), icon: 'stalls', onClick: () => togglePanel('stallPicker'), pressed: () => game.tool.tool === 'placeStall' || panelIs('stallPicker') },
+    {
+      id: 'pathItems',
+      label: text('ui.tool.pathItems'),
+      icon: { mgmt: 'pathItems' },
+      onClick: () => {
+        // Phase 3 path item tool: keeps the last choice (Bench by default).
+        const action = pathItemAction(game.tool);
+        setTool('pathItem');
+        game.tool.defId = action;
+        // Phones: the bottom sheet would cover the path item bar and the map.
+        if (ctx.root.dataset.layout === 'bottom') ctx.closePanel();
+      },
+      pressed: () => game.tool.tool === 'pathItem',
+    },
     { id: 'demolish', label: text('ui.tool.demolish'), icon: 'demolish', onClick: () => setTool('demolish'), pressed: () => game.tool.tool === 'demolish' },
+    { id: 'staff', label: text('ui.tool.staff'), icon: { mgmt: 'staff' }, onClick: () => togglePanel('staff'), pressed: () => panelIs('staff') || game.tool.tool === 'patrol' },
+    { id: 'research', label: text('ui.tool.research'), icon: { mgmt: 'research' }, onClick: () => togglePanel('research'), pressed: () => panelIs('research') },
+    { id: 'marketing', label: text('ui.tool.marketing'), icon: { mgmt: 'marketing' }, onClick: () => togglePanel('marketing'), pressed: () => panelIs('marketing') },
     { id: 'finance', label: text('ui.tool.finance'), icon: 'finance', onClick: () => togglePanel('finance'), pressed: () => panelIs('finance') },
     { id: 'park', label: text('ui.tool.park'), icon: 'park', onClick: () => togglePanel('park'), pressed: () => panelIs('park') },
+    { id: 'messages', label: text('ui.tool.messages'), icon: { mgmt: 'messages' }, onClick: () => togglePanel('messages'), pressed: () => panelIs('messages') },
     {
       id: 'temperament',
       label: text('ui.tool.temperament'),
@@ -57,8 +78,8 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
     const ariaLabel = d.id === 'temperament' ? text('ui.tool.temperamentLong') : d.label;
     const b = h(
       'button',
-      { type: 'button', class: 'tool-btn', 'data-tool': d.id, 'aria-label': ariaLabel, title: ariaLabel, 'aria-pressed': 'false', onclick: d.onClick },
-      icon(d.icon),
+      { type: 'button', class: 'tool-btn', 'data-tool': d.id, 'data-testid': `tool-${d.id}`, 'aria-label': ariaLabel, title: ariaLabel, 'aria-pressed': 'false', onclick: d.onClick },
+      typeof d.icon === 'string' ? icon(d.icon) : mgmtIcon(d.icon.mgmt),
       h('span', { class: 'tool-label', text: d.label, 'aria-hidden': 'true' }),
     );
     return { def: d, el: b };
@@ -70,6 +91,12 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
     menu.el.setAttribute('aria-haspopup', 'dialog');
   }
 
+  // Unread badge on Messages (Phase 3 §4.14: `messagesReadUpTo` drives it).
+  const badge = h('span', { class: 'tool-badge', 'data-testid': 'messages-badge', 'aria-hidden': 'true', hidden: true });
+  const messages = buttons.find((b) => b.def.id === 'messages');
+  messages?.el.append(badge);
+  let lastUnread = -1;
+
   const el = h('nav', { class: 'toolbar', role: 'toolbar', 'aria-label': text('ui.toolbar.label') }, ...buttons.map((b) => b.el));
   return {
     el,
@@ -77,6 +104,15 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
       for (const b of buttons) {
         if (b.def.id === 'menu') continue;
         setAttr(b.el, 'aria-pressed', b.def.pressed() ? 'true' : 'false');
+      }
+      const unread = unreadCount(game.world);
+      if (unread !== lastUnread && messages) {
+        lastUnread = unread;
+        badge.hidden = unread === 0;
+        setText(badge, unread > 99 ? '99+' : String(unread));
+        const label = unread > 0 ? text('ui.tool.messagesUnread', { count: unread }) : text('ui.tool.messages');
+        setAttr(messages.el, 'aria-label', label);
+        setAttr(messages.el, 'title', label);
       }
     },
   };

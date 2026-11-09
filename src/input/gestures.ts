@@ -28,6 +28,8 @@ export interface GesturePointerEvent {
   pointerType: PointerKind;
   /** Mouse button on `down`: 0 left, 1 middle, 2 right. */
   button: number;
+  /** Shift held (patrol painting: Shift + left drag uses the other mode). Optional. */
+  shift?: boolean;
 }
 
 export type GestureAction =

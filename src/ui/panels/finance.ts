@@ -6,6 +6,8 @@ import { h, toggleClass } from '../dom';
 import { financeSummary, monthLabel, profitHistory } from '../finance';
 import { formatMoney } from '../format';
 import { section } from '../widgets';
+import { isFinancing } from '../../sim/finance/ledger';
+import { createLoanSection } from '../management/loanSection';
 
 export function createFinancePanel(ctx: UiContext): PanelView {
   const { game } = ctx;
@@ -30,7 +32,12 @@ export function createFinancePanel(ctx: UiContext): PanelView {
     tfoot,
   );
   const chart = h('div', { class: 'profit-chart', role: 'list', 'aria-label': text('ui.finance.history') });
-  const body = h('div', { class: 'panel-content' }, section(null, table, empty), section(text('ui.finance.history'), chart));
+  // Phase 3 §7.1: financing rows (loan borrowed − repaid) apart from profit; the loan block.
+  const finBody = h('tbody');
+  const finTable = h('table', { class: 'finance-table' }, finBody);
+  const financing = section(text('ui.finance.financing'), finTable);
+  const loan = createLoanSection(ctx);
+  const body = h('div', { class: 'panel-content' }, section(null, table, empty), financing, loan.el, section(text('ui.finance.history'), chart));
   let lastKey = '';
 
   const money = (v: number): HTMLElement => {
@@ -46,17 +53,24 @@ export function createFinancePanel(ctx: UiContext): PanelView {
     body,
     update() {
       const s = game.world.state;
+      loan.update();
       const m = monthIndexOf(s.tick);
       const sum = financeSummary(s.economy.ledger, m);
       const hist = profitHistory(s.economy.ledger, m);
       const key = JSON.stringify([m, sum, hist]);
       if (key === lastKey) return true;
       lastKey = key;
+      const profitRows = sum.rows.filter((r) => !isFinancing(r.category));
+      const financingRows = sum.rows.filter((r) => isFinancing(r.category));
       tbody.replaceChildren(
-        ...sum.rows.map((r) => h('tr', {}, h('th', { scope: 'row', text: text(`ui.ledger.${r.category}`) }), money(r.thisMonth), money(r.lastMonth))),
+        ...profitRows.map((r) => h('tr', {}, h('th', { scope: 'row', text: text(`ui.ledger.${r.category}`) }), money(r.thisMonth), money(r.lastMonth))),
       );
+      finBody.replaceChildren(
+        ...financingRows.map((r) => h('tr', {}, h('th', { scope: 'row', text: text('ui.finance.loanFlow') }), money(r.thisMonth), money(r.lastMonth))),
+      );
+      financing.hidden = financingRows.length === 0;
       tfoot.replaceChildren(h('tr', {}, h('th', { scope: 'row', text: text('ui.finance.profit') }), money(sum.thisTotal), money(sum.lastTotal)));
-      empty.hidden = sum.rows.length > 0;
+      empty.hidden = profitRows.length > 0;
       const maxAbs = Math.max(1, ...hist.map((p) => Math.abs(p.profit)));
       chart.replaceChildren(
         ...hist.map((p) => {
