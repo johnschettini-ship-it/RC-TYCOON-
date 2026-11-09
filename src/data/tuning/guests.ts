@@ -23,8 +23,9 @@ export const FIRST_AID_TICKS = 60;
 export const ITEM_VALUE: Readonly<Record<string, number>> = Object.freeze({ food: 300, drink: 200, toilet: 0 });
 export const ITEM_PRICE_FACTOR = 2;
 
-// Sitting (Phase 3 §4.3 benches: 60 ticks, energy from the catalog).
-export const SIT_TICKS = 60;
+// Sitting (Phase 3 §4.3). The bench owner (W1-H, a perTick hook) ends a sit and gives the energy.
+/** Safety net: a guest still sitting after this many ticks stands up (no energy). */
+export const SIT_MAX_TICKS = 600;
 
 // Spawn (Phase 1 §4.3, §4.6).
 export const ARRIVAL_CARRY_UNIT = 1_000;

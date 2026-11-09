@@ -3,13 +3,12 @@
  * Per guest and tick: needs → state work (safety, target checks, decision, movement, queue, buying)
  * → guestHooks.perTick. Guests who reach the exit are removed after the loop.
  */
-import { BENCH_ENERGY } from '../../data/catalog';
 import {
   GUEST_DECISION_INTERVAL,
   GUEST_WALK_TICKS_PER_TILE,
   QUEUE_HAPPINESS_TICKS,
   RECENT_LEAVERS_MAX,
-  SIT_TICKS,
+  SIT_MAX_TICKS,
 } from '../../data/tuning/guests';
 import { emit } from '../events';
 import { guestHooks } from '../hooks';
@@ -151,17 +150,15 @@ function updateRiding(world: World, guest: Guest): void {
   if (!tileOk(world, guest.tile)) relocate(world, guest);
 }
 
+/**
+ * A sitting guest stays put. The bench owner (W1-H perTick hook) ends the sit and gives the energy;
+ * as a safety net the guest stands up (no energy) after SIT_MAX_TICKS or when the tile is gone.
+ */
 function updateSitting(world: World, guest: Guest): void {
-  if (!tileOk(world, guest.tile)) {
-    relocate(world, guest);
-    setState(guest, 'walking');
-    guest.nextDecisionTick = world.state.tick;
-    return;
-  }
-  if (guest.stateTicks < SIT_TICKS) return;
-  changeNeed(guest, 'energy', BENCH_ENERGY);
-  setState(guest, 'walking');
   stopWalking(guest);
+  if (!tileOk(world, guest.tile)) relocate(world, guest);
+  else if (guest.stateTicks < SIT_MAX_TICKS) return;
+  setState(guest, 'walking');
   guest.nextDecisionTick = world.state.tick;
 }
 

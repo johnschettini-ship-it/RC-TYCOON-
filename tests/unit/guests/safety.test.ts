@@ -5,7 +5,7 @@ import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { guestHooks } from '../../../src/sim/hooks';
 import { text } from '../../../src/data/strings/en';
 import { Content, neighbour, tileIndex, type Dir } from '../../../src/sim/map';
-import { GUEST_DECISION_INTERVAL, LOST_EXIT_TICKS } from '../../../src/data/tuning/guests';
+import { GUEST_DECISION_INTERVAL, LOST_EXIT_TICKS, SIT_MAX_TICKS } from '../../../src/data/tuning/guests';
 import { addGuestDirect, makeTestWorld, placeFootpath } from '../../helpers/world';
 import { buildPark, type TestPark } from './park';
 import { fake, isWalkable, resetFake } from './fakePathing';
@@ -21,6 +21,7 @@ vi.mock('../../../src/sim/hooks', () => ({
 beforeEach(() => {
   resetFake();
   guestHooks.beforeDecision.length = 0;
+  guestHooks.perTick.length = 0;
 });
 
 function tickGuests(w: World, n: number): void {
@@ -271,6 +272,50 @@ describe('Review Focus 2: lost guest heads for exit', () => {
     fake.unreachable.clear();
     tickGuests(w, 400);
     expect(w.state.guests).not.toContain(g);
+  });
+});
+
+describe('sitting (Phase 3 §4.3; the bench owner W1-H ends it)', () => {
+  it('holds a sitting guest still and lets a perTick hook end the sit', () => {
+    const { w, p } = setup();
+    guestHooks.perTick.push((_w, g) => {
+      if (g.state === 'sitting' && g.stateTicks >= 60) {
+        g.needs.energy += 60;
+        g.state = 'walking';
+        g.stateTicks = 0;
+      }
+    });
+    const g = calmGuest(w, p.main(30), { state: 'sitting', nextDecisionTick: 1e9 });
+    g.needs.energy = 100;
+    tickGuests(w, 59);
+    expect(g.state).toBe('sitting');
+    expect(g.tile).toBe(p.main(30));
+    expect(g.nextTile).toBe(-1);
+    tickGuests(w, 1);
+    expect(g.state).toBe('walking');
+    expect(g.needs.energy).toBeGreaterThan(150); // +60 from the hook, minus normal drain
+    guestHooks.perTick.length = 0;
+  });
+
+  it('stands a guest up without energy when nothing ends the sit for SIT_MAX_TICKS', () => {
+    const { w, p } = setup();
+    const g = calmGuest(w, p.main(30), { state: 'sitting', nextDecisionTick: 1e9 });
+    g.needs.energy = 100;
+    tickGuests(w, SIT_MAX_TICKS - 1);
+    expect(g.state).toBe('sitting');
+    tickGuests(w, 1);
+    expect(g.state).toBe('walking');
+    expect(g.needs.energy).toBeLessThanOrEqual(100);
+    expect(g.nextDecisionTick).toBe(w.state.tick - 1);
+  });
+
+  it('a sitter whose tile is removed stands up on a walkable tile', () => {
+    const { w, p } = setup();
+    const g = calmGuest(w, p.main(30), { state: 'sitting' });
+    w.state.map.content[p.main(30)] = Content.Empty;
+    tickGuests(w, 1);
+    expect(g.state).toBe('walking');
+    expect(allOnWalkable(w)).toBe(true);
   });
 });
 
