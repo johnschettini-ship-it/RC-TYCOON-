@@ -1,7 +1,9 @@
 /**
- * Owner: W1-D. Phase 1 §4.3. Guests in ascending id order.
+ * Owners: W1-D, W3-B (path nodes). Phase 1 §4.3, Phase 4 §4.2. Guests in ascending id order.
  * Per guest and tick: needs → state work (safety, target checks, decision, movement, queue, buying)
  * → guestHooks.perTick. Guests who reach the exit are removed after the loop.
+ * Guests walk on path nodes `(tile, z)`: a step must follow a node link, its speed has the ramp factor
+ * (up × 0.75, down × 1.10), and `z` becomes the height of the node entered.
  */
 import {
   GUEST_DECISION_INTERVAL,
@@ -14,11 +16,13 @@ import { emit } from '../events';
 import { guestHooks, hookFactor } from '../hooks';
 import { isHourStart } from '../time';
 import { distanceTo, nextStep, queueOwner } from '../pathing';
+import { gateNode, nodeZOf } from '../paths/nodes';
+import { nodeZAfterStep, rampSpeedFactor } from '../paths/api';
 import type { World } from '../types';
 import { joinQueue, leaveQueue } from './api';
 import { updateBuying, startBuying } from './buying';
 import { becomeLost, decide } from './decide';
-import { beginStep, relocate, stepOffQueue, stopWalking, tileOk, wanderStep } from './movement';
+import { beginStep, keepOnNode, relocate, stepAllowed, stepOffQueue, stopWalking, tileOk, wanderStep } from './movement';
 import { changeNeed, ditherStep, updateNeeds } from './needs';
 import { findRide, findStall, parseDest, replan, setState, targetValid } from './state';
 import { THOUGHT } from './thoughts';
@@ -34,16 +38,27 @@ function despawn(world: World, guest: Guest, gone: Set<number>): void {
   gone.add(guest.id);
 }
 
-/** True when the guest stands where its target is served. */
+/** True when the guest is on `outside`, at the height of the path node that the gate `inside` connects to. */
+function atGate(world: World, guest: Guest, inside: number, outside: number): boolean {
+  if (guest.tile !== outside) return false;
+  const node = gateNode(world, inside, outside);
+  return node < 0 || nodeZOf(world, node) === guest.z;
+}
+
+/** True when the guest stands where its target is served (at the destination's path node, Phase 4 §4.2). */
 function atTarget(world: World, guest: Guest): boolean {
   const target = guest.target;
   if (target === null) return false;
   const p = parseDest(target);
   if (p.kind === 'exit') return guest.tile === world.state.map.entranceTile;
-  if (p.kind === 'stall') return findStall(world, p.id)?.serviceTile === guest.tile;
+  if (p.kind === 'stall') {
+    const stall = findStall(world, p.id);
+    return !!stall && atGate(world, guest, stall.y * world.state.map.width + stall.x, stall.serviceTile);
+  }
   const ride = findRide(world, p.id);
   if (!ride) return false;
-  return guest.tile === ride.entrance?.outside || queueOwner(world, guest.tile) === ride.id;
+  const e = ride.entrance;
+  return (!!e && atGate(world, guest, e.gate, e.outside)) || queueOwner(world, guest.tile, guest.z) === ride.id;
 }
 
 /** Act on arrival. Returns true when the guest left the park. */
@@ -68,13 +83,13 @@ function arrive(world: World, guest: Guest, gone: Set<number>): boolean {
 /** Choose the next tile: toward the target, or wander. −1 = stand still; −2 = already at the target. */
 function chooseNextTile(world: World, guest: Guest): number {
   if (guest.target !== null) {
-    const n = nextStep(world, guest.tile, guest.target);
+    const n = nextStep(world, guest.tile, guest.target, guest.z);
     if (n !== null && tileOk(world, n)) {
       if (guest.state === 'leaving') guest.lostSinceTick = -1;
       return n;
     }
     // `nextStep` is null both at the destination and when unreachable (W1-C): distance 0 means arrived.
-    if (n === null && distanceTo(world, guest.tile, guest.target) === 0) return AT_TARGET;
+    if (n === null && distanceTo(world, guest.tile, guest.target, guest.z) === 0) return AT_TARGET;
     // No route (Phase 1 §4.2): wander and think "I am lost". Walking guests drop the target.
     becomeLost(world, guest);
     if (guest.state !== 'leaving') guest.target = null;
@@ -91,13 +106,24 @@ function move(world: World, guest: Guest, gone: Set<number>): boolean {
     if (next < 0) return false;
     beginStep(world, guest, next);
   }
+  // Phase 4 §4.2: a step follows a node link. Routes and wandering only pick linked nodes; a hook may change
+  // `nextTile` on the way (a wrong turn toward a cliff), so the link is checked when the step ends: without
+  // one the guest stays where it is.
   if (!tileOk(world, guest.nextTile)) {
     stopWalking(guest);
     return false;
   }
-  // Build 2 walking factors (Calm, Buzz) through the guest hooks; 1 with no hooks.
-  guest.progress += guestHooks.walkSpeed.length === 0 ? 1 : hookFactor(guestHooks.walkSpeed, world, guest);
+  // Build 2 walking factors (Calm, Buzz) through the guest hooks; 1 with no hooks. Ramps: Phase 4 §4.2.
+  const hooks = guestHooks.walkSpeed.length === 0 ? 1 : hookFactor(guestHooks.walkSpeed, world, guest);
+  const slope = world.state.map.slope;
+  const flat = world.state.elevatedPaths.length === 0 && slope[guest.tile] === 0 && slope[guest.nextTile] === 0;
+  guest.progress += flat ? hooks : hooks * rampSpeedFactor(world, guest.tile, guest.z, guest.nextTile);
   if (guest.progress < GUEST_WALK_TICKS_PER_TILE) return false;
+  if (!stepAllowed(world, guest, guest.nextTile)) {
+    stopWalking(guest);
+    return false;
+  }
+  guest.z = nodeZAfterStep(world, guest.tile, guest.z, guest.nextTile);
   guest.tile = guest.nextTile;
   stopWalking(guest);
   if (atTarget(world, guest)) return arrive(world, guest, gone);
@@ -110,7 +136,7 @@ function updateWalking(world: World, guest: Guest, gone: Set<number>): boolean {
     despawn(world, guest, gone);
     return true;
   }
-  if (!tileOk(world, guest.tile)) relocate(world, guest);
+  if (!keepOnNode(world, guest)) relocate(world, guest);
   if (guest.target !== null && !targetValid(world, guest.target)) replan(world, guest);
   if (guest.state === 'arriving') setState(guest, 'walking');
   if (guest.state === 'walking' && tick >= guest.nextDecisionTick) {
@@ -127,10 +153,10 @@ function updateQueueing(world: World, guest: Guest): void {
     // The ride is gone or someone removed the guest from its queue without telling us.
     stepOffQueue(world, guest);
     replan(world, guest);
-    if (!tileOk(world, guest.tile)) relocate(world, guest);
+    if (!keepOnNode(world, guest)) relocate(world, guest);
     return;
   }
-  if (!tileOk(world, guest.tile)) {
+  if (!keepOnNode(world, guest)) {
     leaveQueue(world, guest, ride, null);
     relocate(world, guest);
     return;
@@ -149,7 +175,7 @@ function updateRiding(world: World, guest: Guest): void {
   // The ride vanished with the guest on board: put the guest back on the paths.
   guest.seat = null;
   replan(world, guest);
-  if (!tileOk(world, guest.tile)) relocate(world, guest);
+  if (!keepOnNode(world, guest)) relocate(world, guest);
 }
 
 /**
@@ -158,14 +184,14 @@ function updateRiding(world: World, guest: Guest): void {
  */
 function updateSitting(world: World, guest: Guest): void {
   stopWalking(guest);
-  if (!tileOk(world, guest.tile)) relocate(world, guest);
+  if (!keepOnNode(world, guest)) relocate(world, guest);
   else if (guest.stateTicks < SIT_MAX_TICKS) return;
   setState(guest, 'walking');
   guest.nextDecisionTick = world.state.tick;
 }
 
 function updateBuyingState(world: World, guest: Guest): void {
-  if (!tileOk(world, guest.tile)) {
+  if (!keepOnNode(world, guest)) {
     const stall = findStall(world, guest.activityId);
     if (stall && stall.servingGuest === guest.id) stall.servingGuest = -1;
     replan(world, guest);

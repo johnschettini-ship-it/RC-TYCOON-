@@ -18,6 +18,10 @@ import { WATERING_TICKS } from '../../data/tuning/scenery';
 import { Content, neighbour, PathItem, type Dir, type MapState } from '../map';
 import { notify } from '../notifications';
 import { isWalkable } from '../pathing';
+import { nodeZAfterStep, rampSpeedFactor, stepLinks } from '../paths/api';
+import { firstElevatedOnTile, nextElevatedOnTile, nodeIdAt, nodeIdsOn, nodeZOf } from '../paths/nodes';
+import type { ElevatedPath } from '../paths/types';
+import { clearBfsOrigin, setBfsOrigin } from './bfs';
 import { rngInt } from '../rng';
 import { invalidateGuestIndex } from '../spatial';
 import { dayIndexOf, hourOfMonth, isMonthStart } from '../time';
@@ -94,14 +98,44 @@ function timed(world: World, s: Staff): void {
 
 function walk(world: World, s: Staff): void {
   if (s.nextTile !== -1) {
-    s.progress += 1;
+    // Phase 4 §4.2: up a ramp × 0.75, down × 1.10 (the same factors as guests).
+    s.progress += rampSpeedFactor(world, s.tile, s.z, s.nextTile);
     if (s.progress < staffDef(s.type).ticksPerTile) return;
+    s.z = nodeZAfterStep(world, s.tile, s.z, s.nextTile);
     s.prevTile = s.tile;
     s.tile = s.nextTile;
     s.nextTile = -1;
     s.progress = 0;
   }
   atTile(world, s);
+}
+
+/**
+ * Keep the staff member on a node of its tile (Phase 4 §4.2): when `(tile, z)` is no node but the tile has one,
+ * take the node nearest in height (the lower on a tie).
+ */
+function settleZ(world: World, s: Staff): void {
+  if (nodeIdAt(world, s.tile, s.z) >= 0) return;
+  let best = -1;
+  let gap = Infinity;
+  for (const node of nodeIdsOn(world, s.tile)) {
+    const g = Math.abs(nodeZOf(world, node) - s.z);
+    if (g < gap) {
+      best = node;
+      gap = g;
+    }
+  }
+  if (best >= 0) s.z = nodeZOf(world, best);
+}
+
+/** Plan with the staff member's node as the search start (its height picks the node on a shared tile). */
+function plan(world: World, s: Staff): ReturnType<typeof planFor> {
+  setBfsOrigin(s.tile, s.z);
+  try {
+    return planFor(world, s);
+  } finally {
+    clearBfsOrigin();
+  }
 }
 
 function arrived(s: Staff): boolean {
@@ -120,15 +154,16 @@ function atTile(world: World, s: Staff): void {
     recover(world, s);
     return;
   }
+  settleZ(world, s);
   if (arrived(s)) {
     if (startWork(world, s)) return;
     s.task = 'none';
   }
   const performerReady = s.type === 'performer' && s.task === 'wander' && s.walkTicksLeft === 0;
   if (s.task === 'none' || (s.task !== 'wander' && s.route.length === 0) || performerReady) {
-    applyPlan(world, s, planFor(world, s));
+    applyPlan(world, s, plan(world, s));
   } else if (now >= s.nextRecheckTick && shouldRecheck(s)) {
-    const p = planFor(world, s);
+    const p = plan(world, s);
     if (s.task === 'wander' || groundskeeperPriority(p.task) < groundskeeperPriority(s.task)) applyPlan(world, s, p);
     else s.nextRecheckTick = now + STAFF_RECHECK_TICKS;
   }
@@ -149,7 +184,8 @@ function stepNext(world: World, s: Staff): void {
   let next = -1;
   if (s.route.length > 0) {
     next = s.route[0] as number;
-    if (!isWalkable(world, next, 'staff') || !DIRS.some((d) => neighbour(map, s.tile, d) === next)) {
+    const linked = DIRS.some((d) => neighbour(map, s.tile, d) === next) && stepLinks(world, s.tile, s.z, next);
+    if (!isWalkable(world, next, 'staff') || !linked) {
       // The path changed under the route: plan again at the next tick.
       s.route = [];
       s.task = 'none';
@@ -172,7 +208,7 @@ function wanderStep(world: World, s: Staff): number {
   const opts: number[] = [];
   for (const d of DIRS) {
     const n = neighbour(map, s.tile, d);
-    if (n >= 0 && inPatrol(area, n) && isWalkable(world, n, 'staff')) opts.push(n);
+    if (n >= 0 && inPatrol(area, n) && isWalkable(world, n, 'staff') && stepLinks(world, s.tile, s.z, n)) opts.push(n);
   }
   if (opts.length === 0) return -1;
   const forward = opts.filter((t) => t !== s.prevTile);
@@ -196,6 +232,8 @@ function recover(world: World, s: Staff): void {
   }
   s.prevTile = -1;
   s.tile = staffSpawnTile(world);
+  s.z = world.state.map.heights[s.tile] as number;
+  settleZ(world, s);
 }
 
 function startWork(world: World, s: Staff): boolean {
@@ -257,26 +295,40 @@ export function hourlyStaff(world: World): void {
  */
 function clearOrphans(world: World): void {
   const map = world.state.map;
-  const { content, pathItem, pathItemFlags, binFill, litter, mess } = map;
+  const { content, pathItem, pathItemFlags, binFill, litter, mess, pathItemLevel } = map;
   // Local copies keep the hourly 4,096-tile scan tight (master §10 hour-start budget).
   const footpath = Content.Footpath;
   const queue = Content.Queue;
   const none = PathItem.None;
+  const elevated = world.state.elevatedPaths.length > 0;
   const n = content.length;
   for (let i = 0; i < n; i++) {
     const c = content[i];
-    if (c === footpath) continue; // every item, litter and mess may stay on a footpath
-    if (pathItem[i] !== none) {
+    const level = pathItemLevel[i] as number;
+    if (c === footpath && level === 0) continue; // every item, litter and mess may stay on a footpath
+    // Phase 4 §4.2: an item may stand on the elevated footpath its level names.
+    if (pathItem[i] !== none && !(level === 0 ? c === footpath : elevatedFootpathHolds(world, i, level))) {
       if (pathItem[i] === PathItem.Bench) standUpFromBench(world, i);
       pathItem[i] = none;
       pathItemFlags[i] = 0;
       binFill[i] = 0;
+      pathItemLevel[i] = 0;
     }
-    if (c !== queue && ((litter[i] as number) > 0 || (mess[i] as number) > 0)) {
+    const pathHere = c === footpath || c === queue || (elevated && firstElevatedOnTile(world, i) >= 0);
+    if (!pathHere && ((litter[i] as number) > 0 || (mess[i] as number) > 0)) {
       litter[i] = 0;
       mess[i] = 0;
     }
   }
+}
+
+/** True when elevated footpath `id` stands on tile `i`. */
+function elevatedFootpathHolds(world: World, i: number, id: number): boolean {
+  for (let k = firstElevatedOnTile(world, i); k >= 0; k = nextElevatedOnTile(world, k)) {
+    const p = world.state.elevatedPaths[k] as ElevatedPath;
+    if (p.id === id) return p.kind === 'footpath';
+  }
+  return false;
 }
 
 function chargeWages(world: World): void {
