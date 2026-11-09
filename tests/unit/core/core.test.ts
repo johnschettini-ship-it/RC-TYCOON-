@@ -2,8 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { rngInt, rngNext } from '../../../src/sim/rng';
 import { formatDate, isMonthStart, monthIndexOf, seasonOf, hourOfMonth } from '../../../src/sim/time';
 import { Content, Owned, tileIndex } from '../../../src/sim/map';
-import { executeCommand } from '../../../src/sim/commands';
-import { NOT_IMPLEMENTED } from '../../../src/sim/commands/types';
+import { executeCommand, type Command } from '../../../src/sim/commands';
 import { stepTick } from '../../../src/sim/tick';
 import { hourlyShare, recordLedger, currentLedger } from '../../../src/sim/economy/ledger';
 import { advance } from '../../../src/loop';
@@ -78,11 +77,11 @@ describe('world, commands, tick', () => {
     expect(w.state.park.cash).toBe(1_500_000);
   });
 
-  it('an unimplemented command fails and changes nothing', () => {
+  it('an unknown command fails and changes nothing', () => {
     const w = makeTestWorld();
     const before = stateHash(w);
-    const r = executeCommand(w, { type: 'setParkOpen', open: true });
-    expect(r).toEqual({ ok: false, reason: NOT_IMPLEMENTED });
+    const r = executeCommand(w, { type: 'noSuchCommand' } as unknown as Command);
+    expect(r).toEqual({ ok: false, reason: 'Unknown command noSuchCommand' });
     expect(stateHash(w)).toBe(before);
   });
 
