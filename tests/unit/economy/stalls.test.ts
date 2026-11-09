@@ -37,6 +37,19 @@ describe('sellItem (Phase 1 §4.5)', () => {
     expect(stall.totals.incomeThisMonth).toBe(700);
   });
 
+  it('a price of $0: the guest pays nothing and the park still pays the stock cost', () => {
+    const w = makeTestWorld();
+    const stall = placeStallDirect(w, 'snack_shack', 20, 20);
+    stall.price = 0;
+    const guest = addGuestDirect(w, stall.serviceTile, { cash: 1_000 });
+    const cash0 = w.state.park.cash;
+    sellItem(w, stall, guest);
+    expect(guest.cash).toBe(1_000);
+    expect(currentLedger(w).lines.stallSales).toBe(0);
+    expect(w.state.park.cash - cash0).toBe(-getStallDef('snack_shack')!.stockCost);
+    expect(stall.totals.sales).toBe(1);
+  });
+
   it('a free facility moves no money but counts the visit', () => {
     const w = makeTestWorld();
     const stall = placeStallDirect(w, 'restrooms', 20, 20);

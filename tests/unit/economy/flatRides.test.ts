@@ -196,6 +196,18 @@ describe('loading rules (Phase 1 §4.4)', () => {
     expect(ride.riders).toEqual([id]);
   });
 
+  it('a guest who cannot board and re-joins at once is tried only once per tick', () => {
+    const { world, ride } = setup();
+    board.mockReturnValue(false);
+    leave.mockImplementation((_w, g, r) => {
+      r.queue.push(g.id);
+    });
+    const [id] = queueGuests(world, ride, 1);
+    update(world);
+    expect(board).toHaveBeenCalledTimes(1);
+    expect(ride.queue).toEqual([id]);
+  });
+
   it('does not double-remove when boardRide or leaveQueue already removed the guest from the queue', () => {
     const { world, ride } = setup();
     board.mockImplementation((_w, g, r) => {

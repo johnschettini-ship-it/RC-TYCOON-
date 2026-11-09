@@ -125,6 +125,15 @@ describe('hourly running costs (Phase 3 §4.1, master R9, R20)', () => {
     expect(ride.hoursThisMonth).toBe(41);
   });
 
+  it('charges running costs while cash is negative', () => {
+    const w = worldAtMonthStart();
+    w.state.park.cash = -50_000;
+    placeRideDirect(w, 'carousel', 10, 10);
+    chargeFullMonth(w);
+    expect(w.state.park.cash).toBe(-54_000);
+    expect(currentLedger(w).lines.rideRunning).toBe(-4_000);
+  });
+
   it('a track ride uses the Phase 2 running cost and its month total is exact', () => {
     const w = worldAtMonthStart();
     const ride = makeTrackRide(w, 'steel_coaster', 37, 3);
@@ -138,7 +147,7 @@ describe('hourly running costs (Phase 3 §4.1, master R9, R20)', () => {
     expect(currentLedger(w).lines.rideRunning).toBe(-expected);
   });
 
-  it('several items sum to the exact total over a month of stepTick', () => {
+  it('ledger month totals exact with remainder (Review Focus 5): several items over a month of stepTick', () => {
     const w = worldAtMonthStart();
     placeRideDirect(w, 'carousel', 10, 10);
     placeRideDirect(w, 'swing_tower', 14, 10);
@@ -156,6 +165,18 @@ describe('hourly running costs (Phase 3 §4.1, master R9, R20)', () => {
 });
 
 describe('closeMonth (master R13)', () => {
+  it('runs once at the month start in stepTick, before the hour-0 charges of the new month', () => {
+    const w = worldAtMonthStart();
+    const ride = placeRideDirect(w, 'carousel', 10, 10);
+    w.state.tick = MONTH_START + TICKS_PER_MONTH - 1;
+    ride.hoursThisMonth = 71;
+    ride.totals.ridersThisMonth = 9;
+    runTicks(w, 2);
+    expect(ride.totals.ridersThisMonth).toBe(0);
+    expect(ride.hoursThisMonth).toBe(1);
+    expect(currentLedger(w).monthIndex).toBe(MONTH + 1);
+  });
+
   it('opens the new ledger month and resets the monthly counters', () => {
     const w = worldAtMonthStart();
     const ride = placeRideDirect(w, 'carousel', 10, 10);

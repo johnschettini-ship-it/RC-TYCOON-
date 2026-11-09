@@ -60,9 +60,13 @@ export function runTicks(ride: Ride, def: FlatRideDef): number {
   return isSlowRunning(ride) ? Math.ceil(def.cycleTicks * SLOW_RUNNING_CYCLE_FACTOR) : def.cycleTicks;
 }
 
-/** Board guests from the queue front until the ride is full or the queue is empty. */
+/**
+ * Board guests from the queue front until the ride is full or the queue is empty.
+ * At most one attempt per guest queued at the start of the tick, so a guest who re-joins at once cannot loop.
+ */
 function board(world: World, ride: Ride, capacity: number): void {
-  while (ride.riders.length < capacity && ride.queue.length > 0) {
+  let attempts = ride.queue.length;
+  while (ride.riders.length < capacity && ride.queue.length > 0 && attempts-- > 0) {
     const id = ride.queue[0] as number;
     const guest = findGuest(world, id);
     if (!guest) {
