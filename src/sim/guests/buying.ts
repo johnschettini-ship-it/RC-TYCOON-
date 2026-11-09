@@ -7,7 +7,7 @@ import type { StallDef } from '../../data/catalog/types';
 import { FIRST_AID_TICKS, ITEM_PRICE_FACTOR, ITEM_VALUE, RESTROOM_TICKS, SALE_TICKS } from '../../data/tuning/guests';
 import { guestHooks } from '../hooks';
 import { rngInt } from '../rng';
-import { sellItem } from '../stalls/api';
+import { salePrice, sellItem } from '../stalls/api';
 import type { Stall } from '../stalls/types';
 import type { World } from '../types';
 import type { Cents } from '../units';
@@ -21,9 +21,12 @@ export function itemValue(def: StallDef): Cents {
   return ITEM_VALUE[def.kind] ?? def.defaultPrice;
 }
 
-/** Thought for a stall price above item value × 2 (× modifiers.priceTolerance), or undefined when acceptable. */
+/**
+ * Thought for a price above item value × 2 (× modifiers.priceTolerance), or undefined when acceptable.
+ * The price is what the guest would pay now (`salePrice`, W1-E: Snack Deal halves it).
+ */
 export function stallPriceReject(world: World, stall: Stall, def: StallDef): ThoughtId | null | undefined {
-  if (stall.price <= itemValue(def) * ITEM_PRICE_FACTOR * world.state.modifiers.priceTolerance) return undefined;
+  if (salePrice(world, stall) <= itemValue(def) * ITEM_PRICE_FACTOR * world.state.modifiers.priceTolerance) return undefined;
   if (def.kind === 'food') return THOUGHT.snackTooExpensive;
   if (def.kind === 'drink') return THOUGHT.drinkTooExpensive;
   return null;
@@ -44,7 +47,7 @@ function willBuy(world: World, guest: Guest, stall: Stall, def: StallDef): boole
     if (reject) addThought(world, guest, reject);
     return false;
   }
-  if (guest.cash < stall.price) {
+  if (guest.cash < salePrice(world, stall)) {
     addThought(world, guest, THOUGHT.needCash);
     return false;
   }

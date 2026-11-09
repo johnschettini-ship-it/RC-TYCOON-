@@ -18,6 +18,7 @@ import { guestHooks } from '../hooks';
 import { distanceTo } from '../pathing';
 import type { Ride } from '../rides/types';
 import { rngNext } from '../rng';
+import { salePrice } from '../stalls/api';
 import type { Stall } from '../stalls/types';
 import type { World } from '../types';
 import type { Cents } from '../units';
@@ -37,7 +38,11 @@ const NEED_STALLS: readonly { need: 'hunger' | 'thirst' | 'bladder'; kind: Stall
 export function cheapestOpenPrice(world: World): Cents | null {
   let min: Cents | null = null;
   for (const r of world.state.rides) if (rideChoosable(r) && (min === null || r.price < min)) min = r.price;
-  for (const s of world.state.stalls) if (s.open && (min === null || s.price < min)) min = s.price;
+  for (const s of world.state.stalls) {
+    if (!s.open) continue;
+    const p = salePrice(world, s);
+    if (min === null || p < min) min = p;
+  }
   return min;
 }
 
@@ -66,7 +71,7 @@ export function nearestStall(world: World, guest: Guest, kind: StallKind): Stall
       if (reject) addThought(world, guest, reject);
       continue;
     }
-    if (guest.cash < stall.price) {
+    if (guest.cash < salePrice(world, stall)) {
       addThought(world, guest, THOUGHT.needCash);
       continue;
     }

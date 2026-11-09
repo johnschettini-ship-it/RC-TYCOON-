@@ -7,7 +7,6 @@ import { START_HAPPINESS } from '../../../src/data/tuning/guests';
 import { makeTestWorld, placeRideDirect } from '../../helpers/world';
 
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
-vi.mock('../../../src/sim/stalls/api', () => import('./fakeStalls'));
 vi.mock('../../../src/sim/park/arrivals', () => ({ arrivalsPerHour: vi.fn(() => 0) }));
 vi.mock('../../../src/sim/hooks', () => ({
   guestHooks: { beforeDecision: [], perTick: [], rideScore: [], stallWant: [], afterPurchase: [] },
@@ -120,6 +119,34 @@ describe('entrance fee (Phase 1 §4.3 Spawn and entry)', () => {
     spawnGuests(w, 50);
     expect(w.state.park.turnedAway).toBe(50);
     expect(w.state.guests).toHaveLength(50);
+  });
+});
+
+describe('marketing effects on arrivals (Phase 3 §4.7, W1-I helpers)', () => {
+  it('charges no fee during Open Gate Day', () => {
+    const w = openWorld(5000);
+    w.state.management.campaigns.push({ type: 'open_gate_day', targetId: -1, endTick: w.state.tick + 1200 });
+    const guests = spawnGuests(w, 20);
+    expect(guests).toHaveLength(20);
+    expect(w.state.park.turnedAway).toBe(0);
+    expect(currentLedger(w).lines.entranceTickets).toBe(0);
+    for (const g of guests) expect(g.spent).toBe(0);
+  });
+
+  it('shifts temperament +20 during Thrill Weekend and −20 during Chill Weekend', () => {
+    const plain = openWorld();
+    const thrill = openWorld();
+    const chill = openWorld();
+    thrill.state.management.campaigns.push({ type: 'thrill_weekend', targetId: -1, endTick: 99_999 });
+    chill.state.management.campaigns.push({ type: 'chill_weekend', targetId: -1, endTick: 99_999 });
+    const a = spawnGuests(plain, 200);
+    const b = spawnGuests(thrill, 200);
+    const c = spawnGuests(chill, 200);
+    for (let i = 0; i < 200; i++) {
+      const t = (a[i] as (typeof a)[number]).temperament;
+      expect((b[i] as (typeof b)[number]).temperament).toBe(Math.min(100, t + 20));
+      expect((c[i] as (typeof c)[number]).temperament).toBe(Math.max(0, t - 20));
+    }
   });
 });
 

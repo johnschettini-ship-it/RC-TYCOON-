@@ -2,6 +2,7 @@
  * Owner: W1-D. Spawn guests at the park entrance using `arrivalsPerHour` (W1-E).
  * Phase 1 §4.3 Spawn and entry, §4.6 (spawn side): every tick while the park is open,
  * `park.arrivalCarry` (thousandths of a guest) grows by arrivalsPerHour × 1000 / 50; one guest per 1000.
+ * The fee comes from `effectiveEntranceFee` and temperament from `arrivalTemperament` (W1-I campaigns).
  */
 import { TICKS_PER_HOUR } from '../../data/tuning/core';
 import {
@@ -22,6 +23,7 @@ import {
 import { recordLedger } from '../economy/ledger';
 import { emit } from '../events';
 import { allocId } from '../ids';
+import { arrivalTemperament, effectiveEntranceFee } from '../marketing/campaigns';
 import { arrivalsPerHour } from '../park/arrivals';
 import { rngInt, rngNext } from '../rng';
 import type { World } from '../types';
@@ -45,12 +47,12 @@ export function spawnGuest(world: World): Guest | null {
   const map = s.map;
   const factor = FEE_FACTOR_MIN + rngNext(s) * (FEE_FACTOR_MAX - FEE_FACTOR_MIN);
   const tolerance = feeToleranceBase(world) * factor * s.modifiers.priceTolerance;
-  const fee = s.park.entranceFee;
+  const fee = effectiveEntranceFee(world);
   if (fee > tolerance) {
     s.park.turnedAway += 1;
     return null;
   }
-  const temperament = drawTemperament(s);
+  const temperament = arrivalTemperament(world, drawTemperament(s));
   const hunger = rngInt(s, START_HUNGER.min, START_HUNGER.max);
   const thirst = rngInt(s, START_THIRST.min, START_THIRST.max);
   const bladder = rngInt(s, START_BLADDER.min, START_BLADDER.max);
