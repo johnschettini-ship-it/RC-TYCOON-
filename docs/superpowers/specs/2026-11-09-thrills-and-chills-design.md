@@ -329,3 +329,8 @@ These rules settle conflicts between phase specs. They win over any phase text.
 | R22 | **Path items:** one path item per tile column (ground path or one elevated path) in Build 2. |
 | R23 | **Build phase limit:** when Build 2 raises `BUILD_MAX_PHASE` to 4, Phase 4 items (lamps start unlocked; water rides and scenery themes via research) become available in every park, including Build 1 saves after migration. |
 | R24 | **Slow-running rides operate:** a ride `broken` with breakdown `slow_running` keeps carrying guests (Phase 3 §4.5). Guests may choose it, and arrivals and the park rating count it as an open ride. |
+| R25 | **Build 3 research costs** are the provisional Wave 4.0 values (4,200 points total), logged in `tuning-log.md` for play-testing. |
+| R26 | **Monorail extra stations** are stops only: a ride keeps one entrance and one exit. |
+| R27 | **Command reasons** stay English text in the simulation; the client translates them with `localizeReason`. Show-site running costs go to the `shows` ledger line. |
+| R28 | **Languages:** Build 3 ships English plus a pseudo-locale (accented English) that proves the localization pipeline. A real second language is an owner decision for later. |
+
