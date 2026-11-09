@@ -1,15 +1,17 @@
 /**
- * Input controller (Phase 0 §4.10, Phase 1 §4.1 and §7). Owner: W1-B.
+ * Input controller (Phase 0 §4.10, Phase 1 §4.1 and §7, Phase 4 §4.8). Owner: W1-B, W3-G.
  * Turns gestures, wheel, and keys into camera moves, ToolState changes, and commands.
  * No DOM access: `index.ts` feeds it browser events, tests feed it plain objects.
  * It talks to the UI only through the shared ToolState and the `onIntent` callback.
+ * View rotation: picking runs through the inverse table (`pickTile(…, cam.rotation)`); the tool rotation is in view
+ * terms and ghosts and commands carry the map rotation `(viewRotation − r) mod 4`.
  */
 import type { Game } from '../game';
 import { screenToWorld, zoomAt } from '../render/camera';
 import { pickTile, screenToTileFlat } from '../render/iso';
 import { defaultToolState, type ToolId } from '../render/types';
 import type { Dir } from '../sim/map';
-import { KEY_ZOOM_FACTOR, centerOnMap, clampToMap, panCamera, wheelZoomFactor } from './camera';
+import { KEY_ZOOM_FACTOR, centerOnMap, clampToMap, panCamera, rotateView, wheelZoomFactor } from './camera';
 import { GestureRecognizer, type DragMode, type GestureAction, type GesturePointerEvent, type PointerKind } from './gestures';
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
 import { PatrolStroke, brushTiles, strokeLine } from './patrol';
@@ -20,7 +22,7 @@ import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
 import { routerOf } from './toolRouters';
 import { changePathHeight, pathCommandHeight } from './pathHeight';
 import { cycleOverlay } from './overlays';
-import { rotateCameraView } from '../render/view';
+import { mapRotationFromView, viewSize, viewToMap } from '../render/view';
 
 /** Requests for the UI layer (it owns panels). */
 export type UiIntent = 'finance' | 'closePanel' | 'staff' | 'office' | 'messages';
@@ -153,7 +155,8 @@ export class InputController {
         this.refreshGhost();
         break;
       case 'rotateView':
-        rotateCameraView(game.camera, game.world.state.map, a.dir);
+        rotateView(game.camera, game.world.state.map, a.dir);
+        this.refreshGhost();
         break;
       case 'pathHeight':
         changePathHeight(game.tool, game.world, a.delta);
@@ -405,7 +408,9 @@ export class InputController {
     }
     const v = this.opts.viewport();
     const anchor = t.hoverTile ?? this.tileAtClamped(v.width / 2, v.height / 2);
-    t.ghost = computeGhost(this.game.world, t.tool === 'placeRide' ? 'ride' : 'stall', t.defId, anchor, t.rotation);
+    // The tool rotation is what the player sees; the ghost and the command take the map rotation.
+    const rotation = mapRotationFromView(t.rotation, this.game.camera.rotation);
+    t.ghost = computeGhost(this.game.world, t.tool === 'placeRide' ? 'ride' : 'stall', t.defId, anchor, rotation);
   }
 
   /** Track tool helpers, bound once (no per-frame closures). */
@@ -415,7 +420,7 @@ export class InputController {
   private tileAt(x: number, y: number): number | null {
     const v = this.opts.viewport();
     const p = screenToWorld(this.game.camera, x, y, v.width, v.height);
-    return pickTile(this.game.world.state.map, p.x, p.y);
+    return pickTile(this.game.world.state.map, p.x, p.y, this.game.camera.rotation);
   }
 
   /** Tile under the point, clamped into the map (drags may leave the map). */
@@ -425,9 +430,11 @@ export class InputController {
     const map = this.game.world.state.map;
     const v = this.opts.viewport();
     const p = screenToWorld(this.game.camera, x, y, v.width, v.height);
+    const r = this.game.camera.rotation;
+    // Clamp in the view, then turn the view tile back into a map tile.
     const t = screenToTileFlat(p.x, p.y, map.heights[0] ?? 0);
-    const tx = Math.max(0, Math.min(map.width - 1, t.x));
-    const ty = Math.max(0, Math.min(map.height - 1, t.y));
-    return ty * map.width + tx;
+    const vs = viewSize(map, r);
+    const m = viewToMap(Math.max(0, Math.min(vs.w - 1, t.x)), Math.max(0, Math.min(vs.h - 1, t.y)), r, map.width, map.height);
+    return m.y * map.width + m.x;
   }
 }

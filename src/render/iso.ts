@@ -1,5 +1,9 @@
-/** Isometric math (Phase 0 §4.7, master 6.4). Owner: W1-A. Signatures are a contract. */
+/**
+ * Isometric math (Phase 0 §4.7, master 6.4). Owner: W1-A, W3-G (view rotation). Signatures are a contract; the
+ * optional view rotation `r` (Phase 4 §4.8) defaults to 0, so Build 1 callers keep their behaviour.
+ */
 import type { MapState } from '../sim/map';
+import { rotateSlopeMask, viewSize, viewToMap, type ViewRotation } from './view';
 
 export const TILE_W = 64;
 export const TILE_H = 32;
@@ -56,14 +60,15 @@ export function heightRange(map: MapState): { zMin: number; zMax: number } {
   return { zMin, zMax };
 }
 
-/** World-pixel box that holds every tile top face of the map. */
-export function mapScreenBox(map: MapState): { minX: number; minY: number; maxX: number; maxY: number } {
+/** World-pixel box that holds every tile top face of the map as seen with view rotation `r`. */
+export function mapScreenBox(map: MapState, r: ViewRotation = 0): { minX: number; minY: number; maxX: number; maxY: number } {
   const { zMin, zMax } = heightRange(map);
+  const vs = viewSize(map, r);
   return {
-    minX: -map.height * HALF_W,
-    maxX: map.width * HALF_W,
+    minX: -vs.h * HALF_W,
+    maxX: vs.w * HALF_W,
     minY: -zMax * STEP_PX,
-    maxY: (map.width + map.height) * HALF_H - zMin * STEP_PX,
+    maxY: (vs.w + vs.h) * HALF_H - zMin * STEP_PX,
   };
 }
 
@@ -96,31 +101,44 @@ function slopedFaceContains(x: number, y: number, c: readonly [number, number, n
   return false;
 }
 
+/** Scratch corner record for `pickTile` (no allocation per candidate). */
+const pickCorners: [number, number, number, number] = [0, 0, 0, 0];
+
 /**
- * Tile index under a world-pixel point, or null when no tile top face contains it.
- * Walks candidate tiles front-to-back along the screen column (largest x + y first) and returns the
- * first whose drawn top face (height and slope) contains the point. On a flat map this equals
- * `screenToTileFlat` at the ground height.
+ * Map tile index under a world-pixel point, or null when no tile top face contains it.
+ * Walks candidate view tiles front-to-back along the screen column (largest u + v first), turns each back into a
+ * map tile with the inverse table (Phase 4 §4.8), and returns the first whose drawn top face (height and slope as
+ * seen in the view) contains the point. On a flat map this equals `screenToTileFlat` at the ground height, then the
+ * inverse table.
  */
-export function pickTile(map: MapState, sx: number, sy: number): number | null {
+export function pickTile(map: MapState, sx: number, sy: number, r: ViewRotation = 0): number | null {
   const { zMin, zMax } = heightRange(map);
   const a = sx / HALF_W;
   const fa = Math.floor(a);
   const sHi = Math.floor((sy + zMax * STEP_PX) / HALF_H) + 1;
   const sLo = Math.floor((sy + zMin * STEP_PX) / HALF_H) - 1;
   const w = map.width;
+  const vs = viewSize(map, r);
   for (let s = sHi; s >= sLo; s--) {
-    // x − y must have the parity of s; it is floor(a) or floor(a) + 1.
+    // u − v must have the parity of s; it is floor(a) or floor(a) + 1.
     const k = ((s - fa) & 1) === 0 ? fa : fa + 1;
-    const x = (s + k) / 2;
-    const y = (s - k) / 2;
-    if (x < 0 || y < 0 || x >= w || y >= map.height) continue;
-    const i = y * w + x;
-    if ((map.slope[i] as number) === 0) {
-      const t = screenToTileExact(sx, sy, map.heights[i] as number);
-      if (Math.floor(t.x) === x && Math.floor(t.y) === y) return i;
-    } else if (slopedFaceContains(x, y, cornerHeights(map, i), sx, sy)) {
-      return i;
+    const u = (s + k) / 2;
+    const v = (s - k) / 2;
+    if (u < 0 || v < 0 || u >= vs.w || v >= vs.h) continue;
+    const m = r === 0 ? { x: u, y: v } : viewToMap(u, v, r, w, map.height);
+    const i = m.y * w + m.x;
+    const slope = map.slope[i] as number;
+    const h = map.heights[i] as number;
+    if (slope === 0) {
+      const t = screenToTileExact(sx, sy, h);
+      if (Math.floor(t.x) === u && Math.floor(t.y) === v) return i;
+    } else {
+      const vm = rotateSlopeMask(slope, r);
+      pickCorners[0] = h + (vm & 1);
+      pickCorners[1] = h + ((vm >> 1) & 1);
+      pickCorners[2] = h + ((vm >> 2) & 1);
+      pickCorners[3] = h + ((vm >> 3) & 1);
+      if (slopedFaceContains(u, v, pickCorners, sx, sy)) return i;
     }
   }
   return null;

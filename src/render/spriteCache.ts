@@ -76,6 +76,11 @@ export class SpriteCache {
     return e.sprite;
   }
 
+  /** Is `key` cached? Does not touch the LRU order. */
+  peek(key: number): boolean {
+    return this.map.has(key);
+  }
+
   set(key: number, sprite: Sprite): void {
     const old = this.map.get(key);
     if (old) {

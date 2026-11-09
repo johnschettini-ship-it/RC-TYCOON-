@@ -1,29 +1,35 @@
 /**
- * Canvas 2D renderer (Phase 0 §4.8, Phase 1 §7). Owner: W1-A.
- * Frame: background → terrain chunks → depth-sorted objects (fence, entrance, rides, stalls, guests)
- * → overlays (drag, highlight, selection, ghosts) → dev overlay.
- * All drawing happens in device pixels with integer-rounded destinations so slices do not seam.
+ * Canvas 2D renderer (Phase 0 §4.8, Phase 1 §7, Phase 4 §4.8 and §4.10). Owner: W1-A, W3-G.
+ * Frame: background → terrain chunks → ground (litter, Build 2 `drawGround`, ownership tints, far-zoom guests)
+ * → depth-sorted objects (fence, entrance, rides, stalls, guests, staff, path items, track, Build 2 kinds)
+ * → weather → Build 2 `drawAfterObjects` → overlays (drag, highlight, selection, ghosts, Build 2 `drawOverlay`)
+ * → dev overlay.
+ * View rotation (Phase 4 §4.8): every map position goes through the table in `./view.ts` (affine form) before the
+ * master 6.4 projection, depth sorts by u + v, and sprites turn by `(rotation + r) mod 4` (the sprite cache key
+ * holds the view rotation). All drawing happens in device pixels with integer-rounded destinations so slices do
+ * not seam. Frame loops write into reused arrays: no allocation per object.
  */
 import { getFlatRideDef } from '../data/catalog/flatRides';
 import { getStallDef } from '../data/catalog/stalls';
 import { extent, footprintTiles, stallServiceTile } from '../sim/footprint';
-import { Content, type Dir, type MapState } from '../sim/map';
+import { Content, Owned, type Dir, type MapState } from '../sim/map';
 import type { Guest } from '../sim/guests/types';
 import type { World } from '../sim/types';
 import { GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
 import { clampCameraToMap, zoomBucket, type ZoomBucket } from './camera';
-import { footprintColumns, Layer, packDepth, pointDepth, sortIndex, sortKey, tileDepth, type ColumnTile } from './depth';
+import { canvasPixelRatio, isPhoneScreen } from './canvas';
+import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, type GuestPos } from './guestPos';
-import { cornerHeights, STEP_PX, TILE_H, TILE_W, tileToScreen } from './iso';
-import { mix32, SHIRT_COLOURS, SKY, tintStep } from './palette';
+import { STEP_PX, TILE_H, TILE_W } from './iso';
+import { mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
 import { createQueueWalker, queueSlot } from './queue';
 import type { Sprite } from './spriteCache';
-import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SpriteBank } from './sprites/bank';
+import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE_MB, SpriteBank } from './sprites/bank';
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { TerrainLayer, grassShade, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, CHUNK_CACHE_MB_PHONE, TerrainLayer, grassShade, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
@@ -33,6 +39,20 @@ import { createElevatedPathLayer } from './elevated/layer';
 import { createSceneryLayer } from './scenery/layer';
 import { createFieldOverlayLayer } from './fields/overlay';
 import { createLightingLayer } from './lighting/layer';
+import {
+  viewAffine,
+  viewCornerHeights,
+  viewDir,
+  viewPointSX,
+  viewPointSY,
+  viewSpriteRotation,
+  viewTileSX,
+  viewTileSY,
+  viewTileU,
+  viewTileV,
+  type ViewAffine,
+  type ViewRotation,
+} from './view';
 
 const HW = TILE_W / 2;
 const HH = TILE_H / 2;
@@ -42,6 +62,14 @@ const KIND_ARCH = 2;
 const KIND_RIDE = 3;
 const KIND_STALL = 4;
 const KIND_GUEST = 5;
+
+/** Phase 4 §4.10: at camera zoom ≤ 0.5 guests are drawn as small rectangles grouped by colour. */
+export const GUEST_LOD_ZOOM = 0.5;
+/** Guest rectangle at far zoom, CSS px (Phase 4 §4.10: 2 × 3 px). */
+export const GUEST_LOD_W = 2;
+export const GUEST_LOD_H = 3;
+/** LOD colour slots: shirt colours, then temperament tint steps. */
+const LOD_COLOURS: readonly string[] = [...SHIRT_COLOURS, ...Array.from({ length: TINT_STEPS }, (_, k) => rgbCss(tintStepRgb(k)))];
 
 /** Struct-of-arrays draw list; grows by doubling, never shrinks, so frames do not allocate. */
 class DrawList {
@@ -87,6 +115,71 @@ class DrawList {
   }
 }
 
+/** Far-zoom guests (Phase 4 §4.10): device position and colour slot, bucketed by colour before drawing. */
+class GuestDots {
+  n = 0;
+  x = new Float32Array(1024);
+  y = new Float32Array(1024);
+  colour = new Uint8Array(1024);
+  /** Indices sorted by colour (counting sort). */
+  private order = new Int32Array(1024);
+  private readonly counts = new Int32Array(LOD_COLOURS.length + 1);
+  private readonly starts = new Int32Array(LOD_COLOURS.length);
+
+  push(x: number, y: number, colour: number): void {
+    if (this.n === this.x.length) {
+      const cap = this.n * 2;
+      const fx = new Float32Array(cap);
+      fx.set(this.x);
+      this.x = fx;
+      const fy = new Float32Array(cap);
+      fy.set(this.y);
+      this.y = fy;
+      const c = new Uint8Array(cap);
+      c.set(this.colour);
+      this.colour = c;
+      this.order = new Int32Array(cap);
+    }
+    const i = this.n++;
+    this.x[i] = x;
+    this.y[i] = y;
+    this.colour[i] = colour;
+  }
+
+  /** One fill per colour. `w`, `h`: rectangle size in device px. */
+  draw(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const n = this.n;
+    if (n === 0) return;
+    const counts = this.counts;
+    counts.fill(0);
+    for (let i = 0; i < n; i++) {
+      const c = (this.colour[i] as number) + 1;
+      counts[c] = (counts[c] as number) + 1;
+    }
+    for (let c = 1; c < counts.length; c++) counts[c] = (counts[c] as number) + (counts[c - 1] as number);
+    // counts[c] is now the start of colour c.
+    const start = this.starts;
+    for (let c = 0; c < start.length; c++) start[c] = counts[c] as number;
+    for (let i = 0; i < n; i++) {
+      const c = this.colour[i] as number;
+      this.order[counts[c] as number] = i;
+      counts[c] = (counts[c] as number) + 1;
+    }
+    for (let c = 0; c < LOD_COLOURS.length; c++) {
+      const a = start[c] as number;
+      const b = counts[c] as number;
+      if (b <= a) continue;
+      ctx.fillStyle = LOD_COLOURS[c] as string;
+      ctx.beginPath();
+      for (let k = a; k < b; k++) {
+        const i = this.order[k] as number;
+        ctx.rect(Math.round((this.x[i] as number) - w / 2), Math.round((this.y[i] as number) - h), w, h);
+      }
+      ctx.fill();
+    }
+  }
+}
+
 function findGuestIndex(guests: readonly Guest[], id: number): number {
   let lo = 0;
   let hi = guests.length - 1;
@@ -116,6 +209,15 @@ function debugEnabled(): boolean {
   }
 }
 
+/** Ownership tints of the Buy Land tool (Phase 4 §7), by `owned` state; owned land (1) has none. */
+const OWNED_TINTS: readonly (string | null)[] = [
+  'rgba(20,24,36,0.45)', // 0 not owned
+  null, // 1 owned
+  'rgba(255,214,82,0.38)', // 2 land for sale
+  'rgba(120,200,255,0.30)', // 3 construction rights owned
+  'rgba(90,150,255,0.42)', // 4 construction rights for sale
+];
+
 export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   // Opaque: every frame clears to the sky colour first.
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -124,8 +226,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let cssH = 1;
   let dpr = 1;
 
-  const bank = new SpriteBank();
-  const terrain = new TerrainLayer();
+  const bank = new SpriteBank((SPRITE_CACHE_MB * 1024 * 1024) / 4);
+  const terrain = new TerrainLayer((CHUNK_CACHE_MB * 1024 * 1024) / 4);
   const track = new TrackLayer();
   // Build 2 layers (Wave 3.0 contract, `./layers.ts`), called in this order at each frame stage.
   const layers: readonly WorldLayer[] = [
@@ -139,6 +241,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   for (const l of layers) for (const k of l.kinds) layerByKind.set(k, l);
   const frame: LayerFrame = { scale: 1, offX: 0, offY: 0, dpr: 1, bucket: 1, view: { x0: 0, y0: 0, x1: 0, y1: 0 }, rotation: 0, alpha: 0, width: 1, height: 1 };
   const list = new DrawList();
+  const dots = new GuestDots();
   const walker = createQueueWalker(64 * 64);
   const chain: number[] = [];
   const pos: GuestPos = { fx: 0, fy: 0, z: 0, tile: -1 };
@@ -147,6 +250,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const columnsMemo = new Map<number, ColumnTile[]>();
   let rideSprites: Array<Sprite | null> = [];
   let rideEy = new Int32Array(64);
+  const corners: [number, number, number, number] = [0, 0, 0, 0];
 
   let fence: FenceSegment[] = [];
   let fenceVersion = -1;
@@ -160,11 +264,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let qdir = new Uint8Array(256);
   let frameNo = 0;
 
-  // Frame-local camera transform (device px = world px × scale + off).
+  // Frame-local camera transform (device px = world px × scale + off) and view rotation.
   let scale = 1;
   let offX = 0;
   let offY = 0;
   let bucket: ZoomBucket = 1;
+  let rot: ViewRotation = 0;
+  const va: ViewAffine = viewAffine(0, 1, 1);
   const view: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
 
   const debug = debugEnabled();
@@ -173,6 +279,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let msAvg = 0;
   let lastZoom = '';
   let lastCamX = '';
+  let lastRot = -1;
 
   const devX = (wx: number): number => wx * scale + offX;
   const devY = (wy: number): number => wy * scale + offY;
@@ -229,6 +336,18 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     qdir = new Uint8Array(cap);
   }
 
+  /** View origin (min u, min v) of a map footprint [x, x + ex) × [y, y + ey). */
+  let footU = 0;
+  let footV = 0;
+  function footprintViewOrigin(x: number, y: number, ex: number, ey: number): void {
+    const ua = viewTileU(va, x, y);
+    const ub = viewTileU(va, x + ex - 1, y + ey - 1);
+    const vA = viewTileV(va, x, y);
+    const vB = viewTileV(va, x + ex - 1, y + ey - 1);
+    footU = ua < ub ? ua : ub;
+    footV = vA < vB ? vA : vB;
+  }
+
   // ------------------------------------------------------------------ collection
 
   function collectFence(map: MapState): void {
@@ -238,10 +357,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const x = seg.tile % w;
       const y = (seg.tile - x) / w;
       const z = map.heights[seg.tile] as number;
-      const ax = (x - y) * HW;
-      const ay = (x + y) * HH - z * STEP_PX;
+      const ax = viewTileSX(va, x, y);
+      const ay = viewTileSY(va, x, y, z);
       if (!inView(ax - HW - 2, ay - 18, ax + HW + 2, ay + TILE_H + 2)) continue;
-      list.push(KIND_FENCE, k, seg.dir, ax, ay, 0, fenceEdgeDepth(map, seg.tile, seg.dir), z, Layer.Object);
+      list.push(KIND_FENCE, k, viewDir(seg.dir, rot), ax, ay, 0, fenceEdgeDepth(map, seg.tile, seg.dir, va), z, Layer.Object);
     }
   }
 
@@ -252,11 +371,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const x = e % w;
     const y = (e - x) / w;
     const z = map.heights[e] as number;
-    const ax = (x - y) * HW;
-    const ay = (x + y) * HH - z * STEP_PX;
+    const ax = viewTileSX(va, x, y);
+    const ay = viewTileSY(va, x, y, z);
     if (!inView(ax - 40, ay - 90, ax + 40, ay + 40)) return;
-    list.push(KIND_ARCH, 0, 0, ax, ay, 0, x + y + 0.6, z, Layer.Object);
-    list.push(KIND_ARCH, 0, 1, ax, ay, 0, x + y + 1.4, z, Layer.Object);
+    const d = viewTileDepth(x, y, va) - 1;
+    list.push(KIND_ARCH, 0, 0, ax, ay, 0, d + 0.6, z, Layer.Object);
+    list.push(KIND_ARCH, 0, 1, ax, ay, 0, d + 1.4, z, Layer.Object);
   }
 
   function collectRides(world: World): void {
@@ -275,22 +395,29 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const w = def?.w ?? 1;
       const d = def?.d ?? 1;
       const { ex, ey } = extent(w, d, r.rotation);
+      const vrot = viewSpriteRotation(r.rotation, rot);
       const oi = r.y * map.width + r.x;
       const z = (map.heights[oi] as number | undefined) ?? 0;
-      const ax = (r.x - r.y) * HW;
-      const ay = (r.x + r.y) * HH - z * STEP_PX;
-      const b = rideArtBounds(r.defId, w, d, r.rotation);
-      rideEy[ri] = ey;
+      footprintViewOrigin(r.x, r.y, ex, ey);
+      const u0 = footU;
+      const v0 = footV;
+      // View extents: the map extents, swapped at r = 1 and 3.
+      const eu = rot & 1 ? ey : ex;
+      const ev = rot & 1 ? ex : ey;
+      const ax = (u0 - v0) * HW;
+      const ay = (u0 + v0) * HH - z * STEP_PX;
+      const b = rideArtBounds(r.defId, w, d, vrot);
+      rideEy[ri] = ev;
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
-      const frame = def ? rideFrameFor(r, def) : 0;
-      rideSprites[ri] = bank.ride(r.defId, w, d, r.rotation, frame, bucket);
-      const cols = columnsFor(ex, ey);
-      const left = ax - ey * HW;
+      const fr = def ? rideFrameFor(r, def) : 0;
+      rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
+      const cols = columnsFor(eu, ev);
+      const left = ax - ev * HW;
       for (let k = 0; k < cols.length; k++) {
         const colL = left + k * HW;
         if (colL + HW < view.x0 || colL > view.x1) continue;
         const c = cols[k] as ColumnTile;
-        list.push(KIND_RIDE, ri, k, ax, ay, 0, tileDepth(r.x + c.dx, r.y + c.dy), z, Layer.Object);
+        list.push(KIND_RIDE, ri, k, ax, ay, 0, u0 + c.dx + v0 + c.dy + 1, z, Layer.Object);
       }
     }
   }
@@ -302,14 +429,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     for (let si = 0; si < s.stalls.length; si++) {
       const st = s.stalls[si]!;
       const z = (map.heights[st.y * map.width + st.x] as number | undefined) ?? 0;
-      const ax = (st.x - st.y) * HW;
-      const ay = (st.x + st.y) * HH - z * STEP_PX;
+      const ax = viewTileSX(va, st.x, st.y);
+      const ay = viewTileSY(va, st.x, st.y, z);
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
-      list.push(KIND_STALL, si, 0, ax, ay, 0, tileDepth(st.x, st.y), z, Layer.Object);
+      list.push(KIND_STALL, si, viewSpriteRotation(st.rotation, rot), ax, ay, 0, viewTileDepth(st.x, st.y, va), z, Layer.Object);
     }
   }
 
-  /** Place queueing guests on their ride's queue tiles (4 per tile from the entrance outward). */
+  /** Place queueing guests on their ride's queue tiles (4 per tile from the entrance outward). Map coordinates. */
   function placeQueues(world: World): void {
     const s = world.state;
     const map = s.map;
@@ -333,7 +460,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
-  function collectGuests(world: World, tool: ToolState, alpha: number): void {
+  /**
+   * Guests: sprites in the depth list, or (camera zoom ≤ 0.5, Phase 4 §4.10) device-pixel dots grouped by colour,
+   * drawn before the objects.
+   */
+  function collectGuests(world: World, tool: ToolState, alpha: number, lod: boolean): void {
     const s = world.state;
     const map = s.map;
     const guests = s.guests;
@@ -375,16 +506,23 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           facing = g.dir;
         }
       }
-      const ax = (fx - fy) * HW;
-      const ay = (fx + fy) * HH - z * STEP_PX;
+      const ax = viewPointSX(va, fx, fy);
+      const ay = viewPointSY(va, fx, fy, z);
+      if (lod) {
+        if (ax < view.x0 - 4 || ax > view.x1 + 4 || ay < view.y0 - 2 || ay > view.y1 + 8) continue;
+        const colour = tint ? SHIRT_COLOURS.length + tintStep(g.temperament) : mix32(g.id) % SHIRT_COLOURS.length;
+        dots.push(devX(ax), devY(ay), colour);
+        continue;
+      }
       const items = (g.items.balloon ? GUEST_BALLOON : 0) | (wet && g.items.umbrella ? GUEST_UMBRELLA : 0);
       // Cull by the sprite bounds (GUEST_BOUNDS, or GUEST_ITEM_BOUNDS with a balloon or umbrella).
       const mx = items ? 14 : 10;
       if (ax < view.x0 - mx || ax > view.x1 + mx || ay < view.y0 - 6 || ay > view.y1 + (items ? 42 : 24)) continue;
       const m = mix32(g.id);
       const colour = tint ? tintStep(g.temperament) : m % SHIRT_COLOURS.length;
-      const frame = guestFrame(colour, walk, (m >>> 8) & 3, tint, items);
-      list.push(KIND_GUEST, gi, facing | (frame << 2), ax, ay, guestSpriteKey(facing, frame, bucket), pointDepth(fx, fy), z, Layer.Guest);
+      const fr = guestFrame(colour, walk, (m >>> 8) & 3, tint, items);
+      const vf = viewDir(facing, rot);
+      list.push(KIND_GUEST, gi, vf | (fr << 2), ax, ay, guestSpriteKey(vf, fr, bucket), viewPointDepth(fx, fy, va), z, Layer.Guest);
     }
   }
 
@@ -412,14 +550,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         }
         case KIND_STALL: {
           const st = s.stalls[list.ref[i] as number];
-          if (st) blit(bank.stall(st.defId, st.rotation, 0, bucket), ax, ay);
+          if (st) blit(bank.stall(st.defId, (list.sub[i] as number) as Dir, 0, bucket), ax, ay);
           break;
         }
         case KIND_FENCE:
           blit(bank.fence((list.sub[i] as number) as Dir, bucket), ax, ay);
           break;
         case KIND_ARCH:
-          blit(bank.entrance((list.sub[i] as number) as 0 | 1, outerDir, bucket), ax, ay);
+          blit(bank.entrance((list.sub[i] as number) as 0 | 1, outerDir === -1 ? -1 : viewDir(outerDir, rot), bucket), ax, ay);
           break;
         case KIND_STAFF:
         case KIND_PATH_ITEM:
@@ -437,26 +575,28 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
-  /** Path a tile's top face (with slope) in device pixels. */
-  function tilePath(map: MapState, i: number, inset = 0): void {
+  /** Add map tile `i`'s top face (with slope, as seen in the view) to the current path, in device pixels. */
+  function tileFace(map: MapState, i: number, inset: number): void {
     const c = ctx as CanvasRenderingContext2D;
     const w = map.width;
     const x = i % w;
     const y = (i - x) / w;
-    const h = cornerHeights(map, i);
-    const pt = (u: number, v: number, z: number): void => {
-      const p = tileToScreen(x + u, y + v, z);
-      c.lineTo(devX(p.sx), devY(p.sy));
-    };
-    c.beginPath();
+    const u = viewTileU(va, x, y);
+    const v = viewTileV(va, x, y);
+    const h = viewCornerHeights(map, i, rot, corners);
     const a = inset;
     const b = 1 - inset;
-    const p0 = tileToScreen(x + a, y + a, h[0]);
-    c.moveTo(devX(p0.sx), devY(p0.sy));
-    pt(b, a, h[1]);
-    pt(b, b, h[2]);
-    pt(a, b, h[3]);
+    c.moveTo(devX((u + a - v - a) * HW), devY((u + a + v + a) * HH - h[0] * STEP_PX));
+    c.lineTo(devX((u + b - v - a) * HW), devY((u + b + v + a) * HH - h[1] * STEP_PX));
+    c.lineTo(devX((u + b - v - b) * HW), devY((u + b + v + b) * HH - h[2] * STEP_PX));
+    c.lineTo(devX((u + a - v - b) * HW), devY((u + a + v + b) * HH - h[3] * STEP_PX));
     c.closePath();
+  }
+
+  /** Path a tile's top face (with slope) in device pixels. */
+  function tilePath(map: MapState, i: number, inset = 0): void {
+    (ctx as CanvasRenderingContext2D).beginPath();
+    tileFace(map, i, inset);
   }
 
   function outlineTiles(map: MapState, tiles: readonly number[], fill: string | null, stroke: string, width: number): void {
@@ -490,6 +630,55 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
+  /** Buy Land tool (Phase 4 §7): every visible tile that is not owned land gets its state's tint (one fill per state). */
+  function drawOwnershipTints(map: MapState): void {
+    const c = ctx as CanvasRenderingContext2D;
+    const w = map.width;
+    const n = w * map.height;
+    for (let state = 0; state < OWNED_TINTS.length; state++) {
+      const tint = OWNED_TINTS[state];
+      if (!tint) continue;
+      let any = false;
+      c.beginPath();
+      for (let i = 0; i < n; i++) {
+        if (map.owned[i] !== state) continue;
+        const x = i % w;
+        const y = (i - x) / w;
+        const ax = viewTileSX(va, x, y);
+        const ay = viewTileSY(va, x, y, map.heights[i] as number);
+        if (!inView(ax - HW, ay - 8, ax + HW, ay + TILE_H + 8)) continue;
+        tileFace(map, i, 0);
+        any = true;
+      }
+      if (!any) continue;
+      c.fillStyle = tint;
+      c.fill();
+    }
+  }
+
+  /** Buy Land drag rectangle: tiles that would be bought, and the rest of the rectangle lighter. */
+  function drawPurchaseRect(map: MapState, tool: ToolState): void {
+    const b = tool.brush;
+    if (!b || b.tiles.length === 0) return;
+    const c = ctx as CanvasRenderingContext2D;
+    const n = map.width * map.height;
+    for (const buy of [false, true]) {
+      c.beginPath();
+      for (const t of b.tiles) {
+        if (t < 0 || t >= n) continue;
+        const o = map.owned[t];
+        const forSale = o === Owned.LandForSale || o === Owned.RightsForSale;
+        if (forSale !== buy) continue;
+        tileFace(map, t, 0.02);
+      }
+      c.fillStyle = buy ? (b.valid ? 'rgba(70,205,95,0.45)' : 'rgba(235,60,60,0.45)') : 'rgba(255,255,255,0.12)';
+      c.fill();
+      c.strokeStyle = buy ? (b.valid ? '#7dff9a' : '#ff8a8a') : 'rgba(255,255,255,0.6)';
+      c.lineWidth = Math.max(1, scale);
+      c.stroke();
+    }
+  }
+
   function drawGhost(world: World, tool: ToolState): void {
     const g = tool.ghost;
     if (!g) return;
@@ -500,12 +689,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const x = g.tile % w;
     const y = (g.tile - x) / w;
     const z = map.heights[g.tile] as number;
-    const ax = (x - y) * HW;
-    const ay = (x + y) * HH - z * STEP_PX;
+    const ax = viewTileSX(va, x, y);
+    const ay = viewTileSY(va, x, y, z);
     const fill = g.valid ? 'rgba(70,205,95,0.35)' : 'rgba(235,60,60,0.4)';
     const stroke = g.valid ? '#7dff9a' : '#ff8a8a';
-    const frame = g.valid ? GHOST_FRAME_VALID : GHOST_FRAME_INVALID;
+    const fr = g.valid ? GHOST_FRAME_VALID : GHOST_FRAME_INVALID;
     const c = ctx as CanvasRenderingContext2D;
+    // Ghost rotations are map rotations; the sprite turns with the view.
+    const vrot = viewSpriteRotation(g.rotation, rot);
     let top = ay - 40;
     if (g.kind === 'ride') {
       const def = getFlatRideDef(g.defId);
@@ -513,13 +704,18 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const fd = def?.d ?? 1;
       const tiles = footprintTiles(map, x, y, fw, fd, g.rotation);
       if (tiles) outlineTiles(map, tiles, fill, stroke, Math.max(1, scale));
-      const sp = bank.ride(g.defId, fw, fd, g.rotation, frame, bucket);
-      c.globalAlpha = 0.85;
-      blit(sp, ax, ay);
-      c.globalAlpha = 1;
-      top = ay + rideArtBounds(g.defId, fw, fd, g.rotation).top + 10;
       const { ex, ey } = extent(fw, fd, g.rotation);
-      drawGhostIcon(c, devX(ax + ((ex - ey) * HW) / 2), devY(top), g.valid, Math.max(8, 12 * Math.min(1.5, scale)));
+      footprintViewOrigin(x, y, ex, ey);
+      const gx = (footU - footV) * HW;
+      const gy = (footU + footV) * HH - z * STEP_PX;
+      const sp = bank.ride(g.defId, fw, fd, vrot, fr, bucket);
+      c.globalAlpha = 0.85;
+      blit(sp, gx, gy);
+      c.globalAlpha = 1;
+      top = gy + rideArtBounds(g.defId, fw, fd, vrot).top + 10;
+      const eu = rot & 1 ? ey : ex;
+      const ev = rot & 1 ? ex : ey;
+      drawGhostIcon(c, devX(gx + ((eu - ev) * HW) / 2), devY(top), g.valid, Math.max(8, 12 * Math.min(1.5, scale)));
       return;
     }
     if (g.kind === 'stall') {
@@ -531,7 +727,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         c.setLineDash([]);
       }
       c.globalAlpha = 0.85;
-      blit(bank.stall(g.defId, g.rotation, frame, bucket), ax, ay);
+      blit(bank.stall(g.defId, vrot, fr, bucket), ax, ay);
       c.globalAlpha = 1;
       top = ay + stallArtBounds().top + 4;
       drawGhostIcon(c, devX(ax), devY(top), g.valid, Math.max(8, 12 * Math.min(1.5, scale)));
@@ -566,9 +762,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         fy = pos.fy;
         z = pos.z;
       }
-      const p = tileToScreen(fx, fy, z);
-      const x = devX(p.sx);
-      const y = devY(p.sy);
+      const x = devX(viewPointSX(va, fx, fy));
+      const y = devY(viewPointSY(va, fx, fy, z));
       const k = scale;
       c.strokeStyle = '#ffffff';
       c.lineWidth = Math.max(1.5, 2 * k);
@@ -613,12 +808,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const col = dragColours(tool);
       outlineTiles(map, tool.drag.tiles, col.fill, col.stroke, Math.max(1, scale));
     }
+    if (tool.tool === 'buyLand') drawPurchaseRect(map, tool);
     drawSelection(world, tool, alpha);
     if (tool.selectedTile !== null) {
       single[0] = tool.selectedTile;
       outlineTiles(map, single, null, '#ffffff', Math.max(1.5, 2 * scale));
     }
-    if (tool.hoverTile !== null && !tool.ghost) {
+    if (tool.hoverTile !== null && !tool.ghost && !(tool.tool === 'buyLand' && tool.brush)) {
       single[0] = tool.hoverTile;
       if (tool.tool === 'demolish') outlineTiles(map, single, 'rgba(229,72,77,0.35)', '#ff8a8a', Math.max(1, 1.5 * scale));
       else outlineTiles(map, single, 'rgba(255,224,102,0.22)', '#ffe066', Math.max(1, 1.5 * scale));
@@ -633,12 +829,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     c.save();
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.fillStyle = 'rgba(0,0,0,0.6)';
-    c.fillRect(cssW - 210, 52, 200, 66);
+    c.fillRect(cssW - 230, 52, 220, 84);
     c.fillStyle = '#e8f4ff';
     c.font = '12px ui-monospace, monospace';
-    c.fillText(`fps ${fpsAvg.toFixed(0)}  draw ${msAvg.toFixed(2)} ms`, cssW - 200, 70);
-    c.fillText(`objects ${list.n}  chunks ${drawn}`, cssW - 200, 88);
-    c.fillText(`guests ${world.state.guests.length}  sprites ${bank.cache.size}`, cssW - 200, 106);
+    c.fillText(`fps ${fpsAvg.toFixed(0)}  draw ${msAvg.toFixed(2)} ms`, cssW - 220, 70);
+    c.fillText(`objects ${list.n}  chunks ${drawn}  view ${rot}`, cssW - 220, 88);
+    c.fillText(`guests ${world.state.guests.length}  sprites ${bank.cache.size}`, cssW - 220, 106);
+    c.fillText(`mem chunks ${Math.round((terrain.pixels * 4) / 1048576)} MB  sprites ${Math.round((bank.cache.pixels * 4) / 1048576)} MB`, cssW - 220, 124);
     c.restore();
   }
 
@@ -646,9 +843,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     resize(w, h, d) {
       cssW = Math.max(1, w);
       cssH = Math.max(1, h);
-      dpr = d > 0 ? d : 1;
+      // Phone-sized screens: capped pixel ratio and the smaller chunk cache (Phase 4 §4.10, §11).
+      dpr = canvasPixelRatio(cssW, cssH, d);
+      terrain.budgetPixels = ((isPhoneScreen(cssW, cssH) ? CHUNK_CACHE_MB_PHONE : CHUNK_CACHE_MB) * 1024 * 1024) / 4;
       canvas.width = Math.max(1, Math.round(cssW * dpr));
       canvas.height = Math.max(1, Math.round(cssH * dpr));
+      canvas.dataset.pixelRatio = String(dpr);
     },
 
     draw(world: World, cam: Camera, tool: ToolState, alpha: number) {
@@ -656,6 +856,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const s = world.state;
       const map = s.map;
       frameNo = (frameNo + 1) >>> 0 || 1;
+      rot = (cam.rotation & 3) as ViewRotation;
+      viewAffine(rot, map.width, map.height, va);
       clampCameraToMap(cam, map);
       scale = cam.zoom * dpr;
       bucket = zoomBucket(scale);
@@ -665,6 +867,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       view.x1 = cam.centerX + cssW / 2 / cam.zoom;
       view.y0 = cam.centerY - cssH / 2 / cam.zoom;
       view.y1 = cam.centerY + cssH / 2 / cam.zoom;
+      const lod = cam.zoom <= GUEST_LOD_ZOOM;
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
@@ -678,7 +881,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       frame.dpr = dpr;
       frame.bucket = bucket;
       frame.view = view;
-      frame.rotation = cam.rotation;
+      frame.rotation = rot;
       frame.alpha = alpha;
       frame.width = canvas.width;
       frame.height = canvas.height;
@@ -686,10 +889,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       // Terrain.
       terrain.sync(map);
       const env = { seed: s.seed, rides: s.rides, stalls: s.stalls };
-      const chunks = terrain.draw(ctx, map, env, view, bucket, scale, offX, offY);
-      mgmt.begin(scale, offX, offY, dpr, bucket, view);
+      const chunks = terrain.draw(ctx, map, env, view, bucket, scale, offX, offY, rot);
+      mgmt.begin(scale, offX, offY, dpr, bucket, view, va);
       mgmt.drawGround(world);
       for (const l of layers) l.drawGround?.(ctx, world, tool, frame);
+      if (tool.tool === 'buyLand') drawOwnershipTints(map);
 
       // Objects.
       if (fenceVersion !== terrain.tracker.version) {
@@ -700,15 +904,18 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       bank.beginFrame();
       ensureGuestScratch(s.guests.length);
       list.n = 0;
+      dots.n = 0;
       collectFence(map);
       collectEntrance(map);
       collectRides(world);
       collectStalls(world);
-      track.collect(world, list, view, bucket, scale, offX, offY, alpha, cam.rotation);
+      track.collect(world, list, view, bucket, scale, offX, offY, alpha, rot);
       placeQueues(world);
       mgmt.collect(world, alpha, list);
       for (const l of layers) l.collect?.(world, list, tool, frame);
-      collectGuests(world, tool, alpha);
+      collectGuests(world, tool, alpha, lod);
+      // Far zoom: guests are dots under the objects (rides and fences in front still cover them).
+      if (lod) dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
       list.sort();
       drawList(world);
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
@@ -726,6 +933,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (camXStr !== lastCamX) {
         canvas.dataset.cameraX = camXStr;
         lastCamX = camXStr;
+      }
+      if (rot !== lastRot) {
+        canvas.dataset.rotation = String(rot);
+        lastRot = rot;
       }
 
       if (t0) {

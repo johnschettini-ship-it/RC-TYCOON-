@@ -4,6 +4,8 @@
  * (x + 0.5) + (y + 0.5) = x + y + 1; a guest uses its interpolated position; a fence uses its edge midpoint.
  */
 
+import type { ViewAffine } from './view';
+
 export const Layer = { Ground: 0, Path: 1, Object: 2, Guest: 3, Overlay: 4 } as const;
 export type LayerCode = (typeof Layer)[keyof typeof Layer];
 
@@ -25,6 +27,19 @@ export function tileDepth(x: number, y: number): number {
 /** Depth of a point in continuous map coordinates (tile (x, y) spans [x, x + 1) × [y, y + 1)). */
 export function pointDepth(fx: number, fy: number): number {
   return fx + fy;
+}
+
+/**
+ * Depth of a tile-anchored object on map tile (x, y) with view rotation (Phase 4 §4.8: depth sorts by u + v):
+ * the view tile's centre, u + v + 1. Rotation 0 equals `tileDepth`.
+ */
+export function viewTileDepth(x: number, y: number, a: ViewAffine): number {
+  return a.ux * x + a.uy * y + a.tu0 + (a.vx * x + a.vy * y + a.tv0) + 1;
+}
+
+/** Depth of a continuous map point (fx, fy) with view rotation: u + v of its view position. */
+export function viewPointDepth(fx: number, fy: number, a: ViewAffine): number {
+  return (a.ux + a.vx) * fx + (a.uy + a.vy) * fy + a.u0 + a.v0;
 }
 
 /** Depth resolution: 1/64 of a tile diagonal. */
