@@ -108,15 +108,22 @@ test.describe('After Dark: desktop', () => {
     await centerOn(page, 31, 50);
     await clockTo(page, 22);
     const night = await meanBrightness(page);
+    // The HUD shows a clear night as the moon, not the sun.
+    const weather = page.getByTestId('hud-weather');
+    await expect(weather).toHaveAttribute('data-night', 'true');
+    await expect(weather.locator('.weather-now svg')).toHaveClass(/weather-night/);
     await clockTo(page, 12);
     const noon = await meanBrightness(page);
     expect(night).toBeLessThan(noon * 0.8);
+    await expect(weather).toHaveAttribute('data-night', 'false');
+    await expect(weather.locator('.weather-now svg')).not.toHaveClass(/weather-night/);
 
     // After Dark off: 22:00 looks like the day.
     await page.evaluate(() => (window as unknown as { __tc: NightGame }).__tc.dispatch({ type: 'setAfterDark', on: false }));
     await clockTo(page, 22);
     const offNight = await meanBrightness(page);
     expect(Math.abs(offNight - noon)).toBeLessThan(noon * 0.05);
+    await expect(weather).toHaveAttribute('data-night', 'false');
     watch.expectNoErrors();
   });
 

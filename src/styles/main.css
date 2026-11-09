@@ -480,6 +480,7 @@ button { font: inherit; color: inherit; }
 .hud-weather .weather-rain { color: #7cc4ff; }
 .hud-weather .weather-storm { color: #b9a6ff; }
 .hud-weather .weather-cold { color: #bfe9ff; }
+.hud-weather .weather-night { color: #e8e4c9; }
 
 /* Shared controls */
 .button-row { display: flex; flex-wrap: wrap; gap: 8px; }

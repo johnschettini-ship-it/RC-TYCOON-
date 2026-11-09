@@ -3,7 +3,8 @@ import { executeCommand } from '../../../../src/sim/commands';
 import { tileIndex } from '../../../../src/sim/map';
 import { uiStrings } from '../../../../src/data/strings/ui';
 import { filterStaff, patrolSummary, staffStatusText, totalWages } from '../../../../src/ui/management/staffInfo';
-import { forecastText, weatherIcon } from '../../../../src/ui/management/weather';
+import { forecastText, hudWeatherIcons, weatherIcon } from '../../../../src/ui/management/weather';
+import { TICKS_PER_DAY, TICKS_PER_HOUR } from '../../../../src/data/tuning/core';
 import { MESSAGE_TOAST_MS, TOAST_PRIORITY, ToastArbiter, messageHasToast, messageToastPriority } from '../../../../src/ui/management/toastArbiter';
 import { makeTestWorld, placeRideDirect } from '../../../helpers/world';
 
@@ -48,6 +49,35 @@ describe('weather forecast', () => {
   it('reads "Rain now · Cloudy next" (Phase 3 §7.1)', () => {
     expect(forecastText({ current: 'rain', next: 'cloudy' })).toBe('Rain now · Cloudy next');
     expect(weatherIcon('storm')).toBe('weather_storm');
+  });
+
+  it('a clear sky shows the moon at night (20:00–06:00) with After Dark on, the sun by day or with it off', () => {
+    expect(weatherIcon('sunny', true)).toBe('weather_night');
+    expect(weatherIcon('rain', true)).toBe('weather_rain');
+    const w = makeTestWorld();
+    const s = w.state;
+    s.management.weather = { current: 'sunny', next: 'sunny', nextChangeTick: TICKS_PER_DAY };
+    const at = (hour: number, minute = 0): void => {
+      s.tick = TICKS_PER_DAY + hour * TICKS_PER_HOUR + Math.round((minute * TICKS_PER_HOUR) / 60);
+    };
+    s.park.afterDark = true;
+    for (const [hour, minute, night] of [[12, 0, false], [19, 59, false], [20, 0, true], [23, 0, true], [5, 59, true], [6, 0, false]] as const) {
+      at(hour, minute);
+      expect(hudWeatherIcons(s).now, `${hour}:${minute}`).toBe(night ? 'weather_night' : 'weather_sunny');
+    }
+    // The forecast icon follows the tick its state starts: midnight (night) or noon (day).
+    at(21);
+    s.management.weather.nextChangeTick = 2 * TICKS_PER_DAY;
+    expect(hudWeatherIcons(s)).toEqual({ now: 'weather_night', next: 'weather_night', night: true });
+    s.management.weather.nextChangeTick = 2 * TICKS_PER_DAY + 12 * TICKS_PER_HOUR;
+    expect(hudWeatherIcons(s).next).toBe('weather_sunny');
+    s.management.weather.current = 'cloudy';
+    expect(hudWeatherIcons(s).now).toBe('weather_cloudy');
+    // After Dark off: no night, so the sun shows at 23:00.
+    s.management.weather.current = 'sunny';
+    s.park.afterDark = false;
+    at(23);
+    expect(hudWeatherIcons(s)).toEqual({ now: 'weather_sunny', next: 'weather_sunny', night: false });
   });
 });
 

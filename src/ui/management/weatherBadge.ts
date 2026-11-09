@@ -1,12 +1,13 @@
 /**
  * HUD weather (Phase 3 §4.9, §7.1): an icon for the current state and a small forecast icon for `next`.
- * Hover shows "Rain now · Cloudy next"; a tap shows it as a toast (touch has no hover). Owner: W2-B.
+ * Hover shows "Rain now · Cloudy next"; a tap shows it as a toast (touch has no hover). At night with After Dark on
+ * a clear sky shows the moon, not the sun (`hudWeatherIcons`). Owner: W2-B.
  */
 import { text } from '../../data/strings/en';
 import type { UiContext } from '../context';
 import { h, setAttr } from '../dom';
 import { setMgmtIcon } from './icons';
-import { forecastText, weatherIcon } from './weather';
+import { forecastText, hudWeatherIcons } from './weather';
 
 export function createWeatherBadge(ctx: UiContext): { el: HTMLElement; update(): void } {
   const now = h('span', { class: 'weather-now', 'aria-hidden': 'true' });
@@ -24,18 +25,21 @@ export function createWeatherBadge(ctx: UiContext): { el: HTMLElement; update():
   );
   let key = '';
   return {
-    el,
     update() {
-      const w = ctx.game.world.state.management.weather;
-      const k = `${w.current}|${w.next}`;
+      const s = ctx.game.world.state;
+      const w = s.management.weather;
+      const icons = hudWeatherIcons(s);
+      const k = `${w.current}|${w.next}|${icons.now}|${icons.next}`;
       if (k === key) return;
       key = k;
-      setMgmtIcon(now, weatherIcon(w.current), `icon weather-${w.current}`);
-      setMgmtIcon(next, weatherIcon(w.next), `icon small weather-${w.next}`);
+      setMgmtIcon(now, icons.now, `icon weather-${w.current}${icons.now === 'weather_night' ? ' weather-night' : ''}`);
+      setMgmtIcon(next, icons.next, `icon small weather-${w.next}${icons.next === 'weather_night' ? ' weather-night' : ''}`);
       const f = forecastText(w);
       setAttr(el, 'title', f);
       setAttr(el, 'aria-label', `${text('ui.hud.weather')}: ${f}`);
       el.dataset.weather = w.current;
+      el.dataset.night = icons.night ? 'true' : 'false';
     },
+    el,
   };
 }
