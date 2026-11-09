@@ -2,8 +2,9 @@
 import { MANAGEMENT_ERRORS } from '../../data/strings/management';
 import { RESEARCH_CATEGORIES } from '../../data/research';
 import { RESEARCH_LEVELS } from '../../data/tuning/management';
-import { fail, notImplemented, ok, type HandlerMap, type ManagementCommand } from '../commands/types';
+import { fail, ok, type HandlerMap, type ManagementCommand } from '../commands/types';
 import { borrow, repay } from '../finance/loans';
+import { startCampaign } from '../marketing/campaigns';
 import { markMessagesRead } from '../notifications';
 import { setResearchLevel } from '../research/update';
 
@@ -18,7 +19,7 @@ export const managementHandlers: HandlerMap<ManagementCommand> = {
     world.state.management.research.focus[cmd.category] = cmd.on === true;
     return ok();
   },
-  startCampaign: notImplemented,
+  startCampaign: (world, cmd, ctx) => startCampaign(world, cmd.campaignType, cmd.targetId, ctx),
   borrow: (world, cmd, ctx) => borrow(world, cmd.amount, ctx),
   repay: (world, cmd, ctx) => repay(world, cmd.amount, ctx),
   markMessagesRead: (world, cmd) => {
