@@ -36,11 +36,11 @@ describe('gesture recognizer: tap vs drag', () => {
     const { send } = make('build');
     send({ type: 'down', x: 100, y: 100 });
     expect(send({ type: 'move', x: 106, y: 100, t: 30 })).toEqual([
-      { type: 'dragStart', x: 100, y: 100 },
+      { type: 'dragStart', x: 100, y: 100, pointerType: 'touch' },
       { type: 'dragMove', x: 106, y: 100 },
     ]);
     expect(send({ type: 'move', x: 140, y: 102, t: 40 })).toEqual([{ type: 'dragMove', x: 140, y: 102 }]);
-    expect(send({ type: 'up', x: 140, y: 102, t: 60 })).toEqual([{ type: 'dragEnd', x: 140, y: 102 }]);
+    expect(send({ type: 'up', x: 140, y: 102, t: 60 })).toEqual([{ type: 'dragEnd', x: 140, y: 102, pointerType: 'touch' }]);
   });
 
   it('in pan mode a drag pans by the full finger movement and fires no tap', () => {

@@ -8,6 +8,7 @@ import { InputController, type UiIntent } from './controller';
 import type { PointerKind } from './gestures';
 import { keyAction } from './keyboard';
 import { isTrackKey } from './track';
+import { routerOf } from './toolRouters';
 
 /** Window event for panel requests; the UI layer listens for it. */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -89,7 +90,11 @@ export function attachInput(canvas: HTMLCanvasElement, game: Game): void {
       return;
     }
     const action = keyAction(e.key);
-    if (!action) return;
+    if (!action) {
+      // Keys of a Build 2 tool router (e.g. Enter confirms a Buy Land rectangle) reach the active tool.
+      if (!e.repeat && routerOf(game.tool.tool)?.keyDown && ctl.keyDown(e.key)) e.preventDefault();
+      return;
+    }
     e.preventDefault();
     if (e.repeat && action.kind !== 'pan' && action.kind !== 'zoom') return;
     ctl.keyDown(e.key);
