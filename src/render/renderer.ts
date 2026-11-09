@@ -22,7 +22,7 @@ import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth,
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
 import { STEP_PX, TILE_H, TILE_W } from './iso';
-import { GHOST_INVALID, GHOST_VALID, mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
+import { GHOST_FILL_INVALID, GHOST_FILL_VALID, GHOST_INVALID, GHOST_VALID, ghostLineWidth, mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS, withAlpha } from './palette';
 import { createQueueWalker, queueSlot } from './queue';
 import { SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { Ctx } from './sprites/shapes';
@@ -185,24 +185,21 @@ class GuestDots {
   }
 }
 
-/** `#rrggbb` with alpha `a` as `rgba(…)`. */
-export function withAlpha(hex: string, a: number): string {
-  const n = parseInt(hex.slice(1, 7), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-}
+/** `#rrggbb` with alpha `a` as `rgba(…)` (moved to `./palette`; re-exported for existing importers). */
+export { withAlpha };
 
 /**
  * Valid / invalid ghost, drag, and purchase colours (Phase 6 §4.7): the colour-blind safe pair of `./palette.ts`
  * (blue = OK, vermillion = blocked); the check / cross icons and the a11y layer's hatch carry the meaning too.
  */
-const OK_FILL = withAlpha(GHOST_VALID, 0.38);
-const BAD_FILL = withAlpha(GHOST_INVALID, 0.42);
+const OK_FILL = GHOST_FILL_VALID;
+const BAD_FILL = GHOST_FILL_INVALID;
 const OK_FILL_STRONG = withAlpha(GHOST_VALID, 0.45);
 const BAD_FILL_STRONG = withAlpha(GHOST_INVALID, 0.45);
 
 /** Outline width: doubled with high contrast (Phase 6 §4.7). */
 function outlineWidth(w: number): number {
-  return displayPrefs().highContrast ? w * 2 : w;
+  return ghostLineWidth(w);
 }
 
 function findGuestIndex(guests: readonly Guest[], id: number): number {
