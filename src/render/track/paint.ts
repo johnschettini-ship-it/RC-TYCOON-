@@ -47,6 +47,10 @@ export const LOOKS: Readonly<Record<RailStyle, RailLook>> = {
   // Water channels: the sample line is the water surface; supports end under the channel floor.
   flume: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.45, spinePx: 0, road: 0, channel: 0.95, wall: 0.55 },
   rapids: { gauge: 2.0, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.5, spinePx: 0, road: 0, channel: 1.45, wall: 0.45 },
+  // Phase 6 (W4-D): see `lift`, `surface`, and `beam` in PHASE6_LOOK below.
+  inverted: { gauge: 1.0, railPx: 1.6, tieEvery: 1, tieHalf: 0.6, tiePx: 1.5, tieColour: '#434b57', spine: true, drop: 0.5, spinePx: 3.6, road: 0, channel: 0, wall: 0 },
+  bobsled: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.4, spinePx: 0, road: 0, channel: 0.85, wall: 0.6 },
+  beam: { gauge: 0.9, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 1.0, spinePx: 0, road: 0, channel: 0, wall: 0 },
 };
 
 /** Water colours (flat, cool hues: master §2.5). */

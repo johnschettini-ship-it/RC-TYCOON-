@@ -48,8 +48,11 @@ export interface StepContext {
 }
 
 export interface StepResult {
-  /** Gravity stall: the train stopped where it should not ('loop': too slow for the loop). */
-  stall: 'stop' | 'loop' | null;
+  /**
+   * Gravity stall: the train stopped where it should not ('loop': too slow for the loop; 'corkscrew': entered a piece
+   * with a minimum entry speed, the Phase 6 corkscrew, below it).
+   */
+  stall: 'stop' | 'loop' | 'corkscrew' | null;
   /** Piece under the centre after the step (or at the stall). */
   pieceIndex: number;
   /** The train halted on a stop point this tick (or stands on it). */
@@ -81,11 +84,15 @@ export function stopCentreMm(layout: CircuitLayout, trainLenMm: number): number 
   return wrapMm(layout, layout.stopFrontMm - Math.round(trainLenMm / 2));
 }
 
-/** Vertical and lateral G at a sample (phase-2 §4.9). */
+/**
+ * Vertical and lateral G at a sample (phase-2 §4.9). The lateral term also projects the vertical curvature
+ * (`(g·cosθ + v²·κv)·sinβ`, W4-D): the Phase 6 corkscrew and helix bank while they curve vertically. Phase 2 pieces
+ * never bank and curve vertically at once (κv ≠ 0 only on unbanked pieces), so their values are the §4.9 formula's.
+ */
 export function gForces(cosT: number, sinB: number, cosB: number, v: number, kv: number, kh: number): { gv: number; gl: number } {
   const v2 = v * v;
   const gv = ((G * cosT + v2 * kv) * cosB + v2 * kh * sinB) / G;
-  const glRaw = (v2 * kh * cosB - G * cosT * sinB) / G;
+  const glRaw = (v2 * kh * cosB - (G * cosT + v2 * kv) * sinB) / G;
   return { gv, gl: glRaw < 0 ? -glRaw : glRaw };
 }
 
@@ -199,6 +206,8 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
     const corner = type.drive === 'guestDriven' ? CORNER_SPEED_GUEST : CORNER_SPEED_POWERED;
     if (def?.turnKind) target = Math.min(target, corner[def.turnKind]);
     if (departing || arriving) target = Math.min(target, STATION_SPEED);
+    // Phase 6 stops (Monorail): trains pass a later station run at station speed and halt on its stop point.
+    if (onStation && pi >= layout.stationCount) target = Math.min(target, STATION_SPEED);
     v1 = v < target ? Math.min(target, v + POWERED_ACCEL * DT) : Math.max(target, v - POWERED_DECEL * DT);
   }
   if (t.release && !controlled) {
@@ -268,9 +277,19 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
       }
     }
   }
+  // Phase 6 §4.5 (W4-D): a piece with a minimum entry speed (the corkscrew) refuses a train that enters it slower.
+  let stallPiece = pi;
+  if (!stall && dsMm > 0) {
+    const npi = pieceIndexAt(layout, wrapMm(layout, t.s + dsMm));
+    const nd = npi !== pi ? layout.statics[npi]?.def : undefined;
+    if (nd && nd.minEntryMms > 0 && Math.round(v1 * 1000) < nd.minEntryMms) {
+      stall = 'corkscrew';
+      stallPiece = npi;
+    }
+  }
   if (stall) {
     t.v = 0;
-    return { stall, pieceIndex: pi, stopped: null, arrived: false };
+    return { stall, pieceIndex: stallPiece, stopped: null, arrived: false };
   }
 
   t.s = wrapMm(layout, t.s + dsMm);

@@ -1,6 +1,6 @@
 /**
- * Save validator for the track slice (Phase 2 §5; Phase 4 §4.4 water pieces). Owner: W3-C, who may extend
- * `TrackRideData` for water rides and updates this file with it. Positions and speeds are integer mm and mm/s;
+ * Save validator for the track slice (Phase 2 §5; Phase 4 §4.4 water pieces; Phase 6 test fail kind `corkscrew`).
+ * Owner: W3-C, then W4-D, who may extend `TrackRideData` and update this file with it. Positions and speeds are integer mm and mm/s;
  * G values and ratings integer hundredths.
  */
 import type { TestResult, TrackDir, TrackPieceInstance, TrackRideData, TrackSlice, TrainState } from '../../sim/rides/track/types';
@@ -8,7 +8,7 @@ import { arr, bool, every, int, nullable, obj, oneOf, record, str, type V } from
 
 const TRAIN_STATES = every<TrainState['state']>()(['loading', 'running', 'held', 'unloading', 'waiting']);
 const TRACK_DIRS = every<TrackDir>()([0, 1, 2, 3]);
-const TEST_FAIL_KINDS = every<NonNullable<TestResult['failKind']>>()(['stop', 'loop']);
+const TEST_FAIL_KINDS = every<NonNullable<TestResult['failKind']>>()(['stop', 'loop', 'corkscrew']);
 
 const trackPieceShape = obj<TrackPieceInstance>({
   defId: str,

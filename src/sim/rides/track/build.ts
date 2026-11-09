@@ -3,7 +3,7 @@
  * `planAppend` is pure, so the builder UI can use it for the ghost (valid, reason, cost, tiles).
  */
 import { getTrackPieceDef, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
-import { BRAKE_SPEED, MAX_PIECES, STATION_MAX_TILES } from '../../../data/tuning/track';
+import { BRAKE_SPEED, MAX_PIECES } from '../../../data/tuning/track';
 import { TRACK_ERR } from '../../../data/strings/track';
 import { canAfford, pay, recordLedger, type CommandContext } from '../../economy/ledger';
 import { Content, inBounds, tileIndex } from '../../map';
@@ -15,6 +15,7 @@ import { clearTest, refundShare } from './common';
 import { jointsEqual, pieceEntryJoint, pieceExitJoint, pieceWorldTiles, TRACK_DX, TRACK_DY, trackDirFromMapDir, type Joint } from './geometry';
 import { invalidateLayout } from './layout';
 import { checkPieceTiles, pieceCost, refreshGroundTiles, type TilePlan } from './placement';
+import { stationAppendBlock } from './stops';
 import type { TrackPieceInstance, TrackRideData } from './types';
 
 export interface PiecePlan {
@@ -54,7 +55,9 @@ export function planAppend(
   if (!def) return { ok: false, reason: TRACK_ERR.unknownPiece };
   if (pieces.length === 0 && def.special !== 'station') return { ok: false, reason: TRACK_ERR.mustStartWithStation };
   // A type builds only pieces of its own set (rail, flume, or rapids; Phase 4 §4.4) in its groups.
-  if (def.set !== type.pieceSet || !type.groups.includes(def.group)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
+  if (def.set !== type.pieceSet || !type.groups.includes(def.group) || type.excludePieces.includes(def.id)) {
+    return { ok: false, reason: TRACK_ERR.typeCannotUse };
+  }
   if (chain && (!type.chain || !def.chainable)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
   let bs: number | null = null;
   if (def.special === 'brakes') {
@@ -62,8 +65,9 @@ export function planAppend(
     if (!Number.isInteger(bs) || bs < BRAKE_SPEED.min || bs > BRAKE_SPEED.max) return { ok: false, reason: TRACK_ERR.brakeSpeedRange };
   }
   if (def.special === 'station') {
-    const allStations = pieces.every((p) => getTrackPieceDef(p.defId)?.special === 'station');
-    if (!allStations || pieces.length >= STATION_MAX_TILES) return { ok: false, reason: TRACK_ERR.doesNotFit };
+    // The first run (1–12 tiles); Phase 6 types with more stations may lay stop runs later (stops.ts).
+    const block = stationAppendBlock(pieces, type);
+    if (block) return { ok: false, reason: block };
   }
   const end = trackEnd(world, ride, data);
   if (def.entry.slope !== end.slope || def.entry.bank !== end.bank) return { ok: false, reason: TRACK_ERR.doesNotFit };

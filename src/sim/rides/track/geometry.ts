@@ -1,12 +1,22 @@
 /**
- * Piece geometry (phase-2-coasters.md §4.1–4.3). Owner: W1-G.
+ * Piece geometry (phase-2-coasters.md §4.1–4.3; Phase 6 §4.5 corkscrew and helix, W4-D). Owner: W1-G.
  * Each piece def gets a static sample table (one sample every 0.25 m) in its local frame:
  * entry tile (0, 0) spans metres [0, 4] × [0, 4], the entry joint is (0, 2), heading +x, entry height 0.
  * Sample tables are derived data built once per def; saves never store them.
  */
 import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, type TrackBank, type TrackPieceDef, type TrackSlope } from '../../../data/track';
-import { BANK_ANGLE_DEG, GENTLE_PITCH_RAD, SAMPLE_STEP_MM, STEEP_PITCH_RAD, TILE_M } from '../../../data/tuning/track';
-import { DEG, PI, tcos, tsin } from '../../trig';
+import {
+  BANK_ANGLE_DEG,
+  CORKSCREW_KAPPA,
+  CORKSCREW_RADIUS_M,
+  CORKSCREW_RISE_M,
+  GENTLE_PITCH_RAD,
+  HELIX_LEAD_M,
+  SAMPLE_STEP_MM,
+  STEEP_PITCH_RAD,
+  TILE_M,
+} from '../../../data/tuning/track';
+import { DEG, PI, TAU, tcos, tsin } from '../../trig';
 import type { Dir } from '../../map';
 import type { TrackDir, TrackPieceInstance } from './types';
 
@@ -130,6 +140,30 @@ function smooth(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** atan(x) for |x| ≤ 0.5 by its Taylor series (+ − × ÷ only, error < 1e-16): pitches of the Phase 6 pieces. */
+export function atanSmall(x: number): number {
+  const x2 = x * x;
+  let p = x;
+  let sum = x;
+  for (let k = 1; k <= 30; k++) {
+    p *= -x2;
+    sum += p / (2 * k + 1);
+  }
+  return sum;
+}
+
+/** asin(x) for |x| ≤ 0.5 by its Taylor series (+ − × ÷ only, error < 1e-16). */
+export function asinSmall(x: number): number {
+  const x2 = x * x;
+  let term = x;
+  let sum = x;
+  for (let k = 1; k <= 30; k++) {
+    term *= (x2 * (2 * k - 1) * (2 * k - 1)) / (2 * k * (2 * k + 1));
+    sum += term;
+  }
+  return sum;
+}
+
 function buildStatic(def: TrackPieceDef): PieceStatic {
   const L = def.lengthMm / 1000;
   const n = Math.floor((def.lengthMm - 1) / SAMPLE_STEP_MM) + 2;
@@ -154,6 +188,8 @@ function buildStatic(def: TrackPieceDef): PieceStatic {
   const H = g.kind === 'transition' ? hr(th1) : 1;
   // Loop: true arc length 16π m over four quarters (radii 12, 4, 4, 12).
   const LOOP = 16 * PI;
+  // Corkscrew and helix (Phase 6): side sign (+1 right, −1 left).
+  const side = g.kind === 'corkscrew' || g.kind === 'helix' ? (g.side === 'right' ? 1 : -1) : 0;
 
   // Straight and ramp pieces run along +x for `exit.dx` tiles (the water splashdown is 2 tiles long).
   const run = g.kind === 'straight' || g.kind === 'ramp' ? TILE_M * def.exit.dx : TILE_M;
@@ -220,6 +256,61 @@ function buildStatic(def: TrackPieceDef): PieceStatic {
         kv = 1 / R;
         const shift = TILE_M * smooth(t);
         y = g.side === 'right' ? half + shift : half - shift;
+        break;
+      }
+      case 'corkscrew': {
+        // The car rolls a full turn toward `side`; the rail spirals round the riders' heartline at radius D, so the rail
+        // sits at heartline − D × (car up). The heartline rises CORKSCREW_RISE_M and comes back (zero slope at the
+        // joints). Gravity follows the heartline (sinT = its slope), so the net work is 0; the G estimate uses a
+        // curvature toward the riders that grows as sin(π t) (κ rule): κv = κ cos β, κh = κ sin β.
+        const D = CORKSCREW_RADIUS_M;
+        const run3 = TILE_M * def.exit.dx;
+        beta = side * TAU * t;
+        const sb = tsin(beta);
+        const cb = tcos(beta);
+        const c2 = tcos(TAU * t);
+        const s2 = tsin(TAU * t);
+        x = run3 * t;
+        y = half - D * sb;
+        h = D + (CORKSCREW_RISE_M * (1 - c2)) / 2 - D * cb;
+        th = atanSmall((CORKSCREW_RISE_M * PI * s2) / run3);
+        sinT = (CORKSCREW_RISE_M * PI * s2) / L;
+        const kc = CORKSCREW_KAPPA * tsin(PI * t);
+        kv = kc * cb;
+        kh = kc * sb;
+        break;
+      }
+      case 'helix': {
+        // Lead in along the entry row, a full circle toward `side` from the tangent point, lead out along the same row.
+        // Bank rolls in over the lead in and out over the lead out; the height follows a smooth step (level joints).
+        const R = g.radiusM;
+        const circ = TAU * R;
+        const P = 2 * HELIX_LEAD_M + circ;
+        const p = P * t;
+        let bankShare: number;
+        if (p <= HELIX_LEAD_M) {
+          x = p;
+          y = half;
+          bankShare = p / HELIX_LEAD_M;
+        } else if (p <= HELIX_LEAD_M + circ) {
+          const phi = (p - HELIX_LEAD_M) / R;
+          x = HELIX_LEAD_M + R * tsin(phi);
+          y = half + side * R * (1 - tcos(phi));
+          yaw = side * phi;
+          kh = side / R;
+          bankShare = 1;
+        } else {
+          const q = p - HELIX_LEAD_M - circ;
+          x = HELIX_LEAD_M + q;
+          y = half;
+          yaw = side * TAU;
+          bankShare = 1 - q / HELIX_LEAD_M;
+        }
+        beta = side * BANK_ANGLE_DEG * DEG * bankShare;
+        h = dz * smooth(t);
+        sinT = (dz * 6 * t * (1 - t)) / L;
+        th = asinSmall(sinT);
+        kv = (dz * 6 * (1 - 2 * t)) / (L * L);
         break;
       }
     }
@@ -358,6 +449,7 @@ export function piecesForEnd(typeId: string, slope: TrackSlope, bank: TrackBank,
     (p) =>
       p.set === type.pieceSet &&
       type.groups.includes(p.group) &&
+      !type.excludePieces.includes(p.id) &&
       p.entry.slope === slope &&
       p.entry.bank === bank &&
       (p.special !== 'station' || afterStation),

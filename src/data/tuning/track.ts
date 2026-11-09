@@ -147,3 +147,32 @@ export const WET_TICKS = 50;
 /** Happiness per game hour while wet: hot weather +8, cold or rain (storm included) −8. */
 export const WET_HAPPINESS_HOT = 8;
 export const WET_HAPPINESS_COLD_OR_RAIN = -8;
+
+/**
+ * Phase 6 pieces (phase-6-polish.md §4.5, catalog §8). Owner: W4-D. Geometry numbers are not in the spec (starting
+ * values for play-testing): they fit the listed footprints and keep a corkscrew entered at 10 m/s pressing the riders
+ * into their seats at the top.
+ */
+/** Piece costs as multiples of the straight piece cost of the type (catalog §8). */
+export const CORKSCREW_COST_MULTIPLE = 3;
+export const HELIX_COST_MULTIPLE = 5;
+/** Corkscrew: lowest entry speed (m/s); the test run fails below it (`Test failed: train is too slow for the corkscrew`). */
+export const CORKSCREW_MIN_ENTRY = 10;
+/** Corkscrew: radius of the rail's spiral round the riders' heartline (m), and the heartline rise at the top (m). */
+export const CORKSCREW_RADIUS_M = 1.4;
+export const CORKSCREW_RISE_M = 1.0;
+/** Corkscrew: curvature toward the riders at the top (1/m, κ rule); it grows as sin(π t) along the piece. */
+export const CORKSCREW_KAPPA = 0.15;
+/** Helix: circle radius (m), straight lead in and out along the entry row (m), and height change (m). */
+export const HELIX_RADIUS_M = 4.8;
+export const HELIX_LEAD_M = 6;
+export const HELIX_RISE_M = 4;
+
+/**
+ * Monorail stops (Phase 6 §4.5, master R26): a train dwells this long at each extra station; nobody boards or leaves
+ * there (guests board and leave at the first station).
+ */
+export const STOP_DWELL_TICKS = 60;
+
+/** Sound cue `trainDrop` (Phase 6 §4.2 `coaster_cheer`): a train with riders finishes a drop of more than this (m). */
+export const TRAIN_DROP_CUE_M = 10;

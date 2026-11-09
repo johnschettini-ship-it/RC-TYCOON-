@@ -113,6 +113,7 @@ function toDef(r: Row, num: number, set: PieceSet): TrackPieceDef {
     cost: r.dollars * 100,
     chainable: false,
     inversions: 0,
+    minEntryMms: 0,
     turnKind: sh.turnKind,
     special: r.special ?? null,
     water: Object.freeze({ drive: r.drive, conveyorMms: conveyorMms(r), wetsRiders: r.wets === true }),

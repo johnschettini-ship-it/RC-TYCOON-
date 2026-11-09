@@ -42,6 +42,8 @@ export const TRACK_ERR = {
   trainsRange: 'This ride type takes 1 to {n} trains',
   operationRange: 'Value out of range',
   colourRange: 'Unknown colour',
+  // Phase 6 (W4-D): the Monorail takes up to 4 stations (master R26: the extra ones are stops).
+  tooManyStations: 'This ride takes at most {n} stations',
 } as const;
 
 /** Command warnings (Phase 1 §4.1 strings, reused for track gates). */
@@ -59,6 +61,8 @@ export const TRACK_RATING_WARN = {
   penalty: 'G-forces are too strong. Guests enjoy this ride less',
   testFailedStop: 'Test failed: train stops on piece {n} ({name})',
   testFailedLoop: 'Test failed: train is too slow for the loop on piece {n}',
+  // Phase 6 §4.5 (W4-D): a corkscrew needs an entry speed of at least 10 m/s.
+  testFailedCorkscrew: 'Test failed: train is too slow for the corkscrew on piece {n}',
 } as const;
 
 /**
@@ -69,6 +73,7 @@ export const trackStrings: Record<string, string> = {
   'track.testPassed': '{name}: test complete',
   'track.testFailedStop': TRACK_RATING_WARN.testFailedStop,
   'track.testFailedLoop': TRACK_RATING_WARN.testFailedLoop,
+  'track.testFailedCorkscrew': TRACK_RATING_WARN.testFailedCorkscrew,
   'track.fault': 'Ride closed after a fault. Run a new test',
 };
 
