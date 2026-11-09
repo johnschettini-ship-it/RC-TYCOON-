@@ -74,6 +74,17 @@ describe('SaveStore', () => {
     expect(stateHash(world)).toBe(before);
   });
 
+  it('never overwrites a slot with a save that could not be loaded back', () => {
+    const mem = new MemoryStore();
+    const store = new SaveStore(mem, () => NOW);
+    store.save('1', makeTestWorld(1, 'Good'));
+    const before = mem.getItem('tc.save.1');
+    const broken = makeTestWorld(2, 'Broken');
+    broken.state.park.rating = Number.NaN;
+    expect(store.save('1', broken)).toBe('Could not save. The park data has a problem: bad value at park.rating');
+    expect(mem.getItem('tc.save.1')).toBe(before);
+  });
+
   it('works without storage: save fails with the storage error, load and list report nothing', () => {
     const store = new SaveStore(null);
     expect(store.hasStore()).toBe(false);

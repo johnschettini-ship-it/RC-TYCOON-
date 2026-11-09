@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deserialize, SAVE_FORMAT, SCHEMA_VERSION, serialize } from '../../../src/save';
+import { deserialize, SAVE_FORMAT, SCHEMA_VERSION, serialize, validateState } from '../../../src/save';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeRideDirect, placeStallDirect, runTicks, stateHash } from '../../helpers/world';
 import { tileIndex } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
@@ -51,6 +51,17 @@ describe('serialize', () => {
     serialize(world, '0.1.0', SAVED_AT);
     expect(stateHash(world)).toBe(before);
     expect(world.events).toHaveLength(2);
+  });
+});
+
+describe('validateState (load checks on a live state)', () => {
+  it('passes a sound world and names the first problem of a broken one', () => {
+    const { world, ride } = makeRichWorld();
+    expect(validateState(world.state)).toBeNull();
+    ride.queue.push(123_456);
+    expect(validateState(world.state)).toBe(`ride ${ride.id} queue lists a missing guest`);
+    world.state.guests[0]!.needs.hunger = Number.POSITIVE_INFINITY;
+    expect(validateState(world.state)).toBe('bad value at guests[0].needs.hunger');
   });
 });
 

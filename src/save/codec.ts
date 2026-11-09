@@ -37,6 +37,14 @@ export interface DecodeOptions {
   migrations: Migrations;
 }
 
+/**
+ * The load checks run on any state: full structure, then ids and references. Null when sound, else a short reason.
+ * Integration tests can call it on a live world to check reference integrity.
+ */
+export function validateState(state: unknown): string | null {
+  return checkStructure(state) ?? checkIntegrity(state as GameState);
+}
+
 function fail(error: string): LoadResult {
   return { ok: false, error };
 }
@@ -79,12 +87,9 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
       }
     }
 
-    const structureError = checkStructure(state);
-    if (structureError) return fail(damaged(structureError));
-    const valid = state as GameState;
-    const integrityError = checkIntegrity(valid);
-    if (integrityError) return fail(damaged(integrityError));
-    return { ok: true, world: { state: valid, events: [] } };
+    const problem = validateState(state);
+    if (problem) return fail(damaged(problem));
+    return { ok: true, world: { state: state as GameState, events: [] } };
   } catch {
     return fail(ERR_UNREADABLE);
   }

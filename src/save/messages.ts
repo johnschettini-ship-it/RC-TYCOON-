@@ -7,6 +7,11 @@ export const ERR_SAVE_FAILED = 'Could not save. Storage is full or blocked. Use 
 export const ERR_NO_STORAGE = 'Saved games are not available in this browser. Use Import instead';
 export const ERR_EMPTY_SLOT = 'This save slot is empty';
 
+/** The live state would not load back, so the slot keeps its old save. */
+export function saveInvalid(reason: string): string {
+  return `Could not save. The park data has a problem: ${reason}`;
+}
+
 export function damaged(reason: string): string {
   return `This save is damaged: ${reason}`;
 }

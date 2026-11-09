@@ -2,12 +2,12 @@
 import { version as packageVersion } from '../../package.json';
 import type { World } from '../sim/types';
 import { formatDate } from '../sim/time';
-import { deserializeWith, SAVE_FORMAT, SCHEMA_VERSION, serializeWorld, type LoadResult } from './codec';
-import { ERR_EMPTY_SLOT, ERR_NO_STORAGE, ERR_SAVE_FAILED, ERR_UNREADABLE } from './messages';
+import { deserializeWith, SAVE_FORMAT, SCHEMA_VERSION, serializeWorld, validateState, type LoadResult } from './codec';
+import { ERR_EMPTY_SLOT, ERR_NO_STORAGE, ERR_SAVE_FAILED, ERR_UNREADABLE, saveInvalid } from './messages';
 import { migrations } from './migrations';
 import { isRecord } from './schema';
 
-export { SAVE_FORMAT, SCHEMA_VERSION, type LoadResult } from './codec';
+export { SAVE_FORMAT, SCHEMA_VERSION, validateState, type LoadResult } from './codec';
 export { migrations, type Migration, type Migrations } from './migrations';
 export * as saveMessages from './messages';
 
@@ -65,9 +65,14 @@ export class SaveStore {
     private readonly now: () => string = () => new Date().toISOString(),
   ) {}
 
-  /** Error message on failure (storage full or blocked), else null. */
+  /**
+   * Error message on failure (storage full or blocked), else null.
+   * The state is checked first with the load checks, so a slot is never overwritten by a save that would not load.
+   */
   save(slot: SlotId, world: World): string | null {
     if (this.store === null) return ERR_SAVE_FAILED;
+    const problem = validateState(world.state);
+    if (problem) return saveInvalid(problem);
     const json = serialize(world, GAME_VERSION, this.now());
     try {
       this.store.setItem(slotKey(slot), json);
