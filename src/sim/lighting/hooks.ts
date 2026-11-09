@@ -6,6 +6,9 @@
  * - energyFactor: × 1.25
  * - rideScoreFactor: spooky ride × 1.3, plus 2% per spooky scenery item within 6 tiles (max +20%)
  * - afterRide: spooky ride → happiness +5 extra
+ * Cost (2,000 guests): about 0.7 ms per night hour start; the first night hour also adds the thought to most
+ * guests on one tick (about 5 ms, once per game day). Checking each guest at its own phase of the hour through
+ * `perTick` spreads it evenly; that needs the facilities hook-order test to check relative order, not "last two".
  */
 import { DARK_PATH_PENALTY, NIGHT_ENERGY_MULT, SPOOKY_ITEM_RADIUS, SPOOKY_RIDE_NIGHT_HAPPY } from '../../data/tuning/night';
 import type { GuestHooks } from '../hookTypes';
