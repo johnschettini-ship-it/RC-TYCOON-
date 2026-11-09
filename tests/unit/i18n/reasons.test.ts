@@ -20,6 +20,7 @@ import { PRICE_ERRORS } from '../../../src/sim/commands/prices/index';
 import { NOT_IMPLEMENTED, type CommandResult } from '../../../src/sim/commands/types';
 import { executeCommand } from '../../../src/sim/commands';
 import { ONLY_RIGHTS_HERE, OUTSIDE_THE_PARK } from '../../../src/sim/land/api';
+import * as SAVE_MESSAGES from '../../../src/save/messages';
 import { toastForResult } from '../../../src/ui/toasts';
 import { makeTestWorld } from '../../helpers/world';
 
@@ -40,6 +41,7 @@ const groups: Record<string, Record<string, string>> = {
   BUILD_STRINGS,
   PRICE_ERRORS,
   sim: { OUTSIDE_THE_PARK, ONLY_RIGHTS_HERE, NOT_IMPLEMENTED },
+  save: Object.fromEntries(Object.entries(SAVE_MESSAGES as Record<string, unknown>).filter((e): e is [string, string] => typeof e[1] === 'string')),
 };
 
 describe('every reason the simulation returns has a string id', () => {
@@ -57,10 +59,15 @@ describe('every reason the simulation returns has a string id', () => {
 
   it('a real command failure maps to an id', () => {
     const world = makeTestWorld();
-    const r = executeCommand(world, { type: 'setRidePrice', rideId: 99999, price: 100 } as never);
+    const r = executeCommand(world, { type: 'setRidePrice', rideId: 99999, price: 100 });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(reasonId(r.reason)).not.toBeNull();
     expect(reasonId('Unknown command fly')).toEqual({ id: 'reason.command.unknown', params: { type: 'fly' } });
+  });
+
+  it('save and load messages map to ids, with their detail as a parameter', () => {
+    expect(reasonId(SAVE_MESSAGES.damaged('bad value at gameVersion'))).toEqual({ id: 'reason.save.damaged', params: { reason: 'bad value at gameVersion' } });
+    expect(reasonId(SAVE_MESSAGES.saveInvalid('x'))).toEqual({ id: 'reason.save.invalid', params: { reason: 'x' } });
   });
 });
 

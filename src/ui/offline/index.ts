@@ -4,6 +4,7 @@
  * side is `src/offline/` and `public/sw.js`.
  */
 import { text } from '../../data/strings/en';
+import { localizeReason } from '../../i18n';
 import { offlineController } from '../../offline';
 import { browserStore, SaveStore } from '../../save';
 import type { UiContext } from '../context';
@@ -53,7 +54,7 @@ function createUpdateToast(ctx: UiContext): UiPart {
       if (!ctl) return;
       const saved = autosaveBeforeReload(ctx.game, new SaveStore(browserStore()), titleOpen());
       if (!saved.ok) {
-        ctx.toast(text('ui.autosave.failed', { error: saved.error }), 'error');
+        ctx.toast(text('ui.autosave.failed', { error: localizeReason(saved.error) }), 'error');
         return;
       }
       reload.disabled = true;

@@ -80,10 +80,12 @@ export function createOfflineController(game: Game, env: OfflineEnv): OfflineCon
   const sw = env.serviceWorker;
   let reg: RegistrationLike | null = null;
   let enabled = false;
-  let hadController = sw !== null && sw.controller !== null && sw.controller !== undefined;
+  /** This page was controlled by a worker (so a later takeover is an update, not the first install). */
+  let hadController = (sw?.controller ?? null) !== null;
   let reloading = false;
-  /** A newer build is installed and waiting (or took over in another tab). */
+  /** The worker of a newer build, installed and waiting. */
   let pending: WorkerLike | null = null;
+  /** Another tab let the newer build take over; this page still runs the old one. */
   let externalUpdate = false;
   let dismissed: WorkerLike | null = null;
   let dismissedExternal = false;

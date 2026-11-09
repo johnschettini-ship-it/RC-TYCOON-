@@ -25,8 +25,8 @@ export const FORMAT_KEYS: Readonly<Record<string, readonly string[]>> = {
  * back to its id with `localizeReason` (`src/i18n`) and shows it in the current locale.
  *
  * Groups from the data tables are listed by reference, so a new reason in one of them gets an id automatically.
- * Reasons written in `src/sim/` (which `data/` cannot import) are copied here; `tests/unit/i18n/reasons.test.ts`
- * checks that each of them still has an id.
+ * Reasons written in `src/sim/` and save messages from `src/save/messages.ts` (which `data/` cannot import) are
+ * copied here; `tests/unit/i18n/reasons.test.ts` checks that each of them still has an id.
  */
 const DATA_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   track: TRACK_ERR,
@@ -42,8 +42,8 @@ const DATA_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>> =
   management: MANAGEMENT_ERRORS,
 };
 
-/** Copies of the reason constants in `src/sim/` (build, prices, land, command registry). */
-const SIM_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+/** Copies of the reason constants in `src/sim/` (build, prices, land, command registry) and `src/save/messages.ts`. */
+const COPIED_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   build: {
     notEnoughCash: 'Not enough cash',
     inTheWay: 'Something is in the way',
@@ -75,13 +75,25 @@ const SIM_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>> = 
     notImplemented: 'Not implemented yet',
     unknown: 'Unknown command {type}',
   },
+  save: {
+    notASave: 'This file is not a Thrills & Chills save',
+    unreadable: 'This save could not be read',
+    newer: 'This save comes from a newer version of the game',
+    tooOld: 'This save comes from an older version that this game cannot load',
+    saveFailed: 'Could not save. Storage is full or blocked. Use Export instead',
+    noStorage: 'Saved games are not available in this browser. Use Import instead',
+    emptySlot: 'This save slot is empty',
+    upgrade: 'This save could not be upgraded',
+    invalid: 'Could not save. The park data has a problem: {reason}',
+    damaged: 'This save is damaged: {reason}',
+  },
 };
 
 /** `reason.<group>.<key>` for each distinct reason text (the first group that has the text names it). */
 function reasonTable(): Record<string, string> {
   const out: Record<string, string> = {};
   const seen = new Set<string>();
-  for (const groups of [DATA_REASONS, SIM_REASONS]) {
+  for (const groups of [DATA_REASONS, COPIED_REASONS]) {
     for (const [group, entries] of Object.entries(groups)) {
       for (const [key, value] of Object.entries(entries)) {
         if (typeof value !== 'string' || seen.has(value)) continue;

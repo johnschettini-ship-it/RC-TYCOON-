@@ -73,3 +73,44 @@ test('turning Offline play off unregisters the worker and drops its cache', asyn
   await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).filter((k) => k.startsWith('tc-')).length)).toBe(0);
 });
+
+/** A new worker for the same scope, standing in for a new deploy (the preview server serves one fixed `sw.js`). */
+async function newWorker(page: Page, tag: string): Promise<void> {
+  await page.evaluate((t) => navigator.serviceWorker.register(`sw.js?e2e=${t}`, { scope: './' }).then(() => undefined), tag);
+}
+
+test('a waiting worker shows Update ready; Later hides it; Reload autosaves and hands over', async ({ page }) => {
+  // Replacing the cache per build is covered with a fake cache API in tests/unit/offline/sw.test.ts; this checks the
+  // browser side: the waiting worker, the toast, the autosave, and the takeover.
+  await page.goto('/');
+  await workerReady(page);
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true);
+  await page.getByTestId('title-new').click();
+  await page.getByTestId('title-start').click();
+  await expect(page.locator('.title-screen')).toBeHidden();
+  await expect(page.getByTestId('hud-date')).toHaveText(/\d\d:\d\d/);
+
+  const toast = page.getByTestId('update-toast');
+  await expect(toast).toBeHidden();
+  await newWorker(page, 'one');
+  await expect(toast).toBeVisible();
+  await expect(toast).toContainText('Update ready');
+  await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.scriptURL ?? '')).toContain('e2e=one');
+
+  // Later: hidden until a newer build is waiting.
+  await page.getByTestId('update-later').click();
+  await expect(toast).toBeHidden();
+  await newWorker(page, 'two');
+  await expect(toast).toBeVisible();
+
+  // Reload: the park with changes goes to the autosave slot, then the waiting worker takes over and the page reloads.
+  expect(await page.evaluate(() => localStorage.getItem('tc.save.auto'))).toBeNull();
+  await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.scriptURL ?? '')).toContain('e2e=two');
+  const reloaded = page.waitForEvent('load');
+  await page.getByTestId('update-reload').click();
+  await reloaded;
+  expect(await page.evaluate(() => localStorage.getItem('tc.save.auto'))).not.toBeNull();
+  expect(await page.evaluate(() => (navigator.serviceWorker.controller as ServiceWorker | null)?.scriptURL ?? '')).toContain('e2e=two');
+  await expect(page.getByTestId('title-continue')).toBeVisible();
+});
