@@ -21,7 +21,6 @@
 import type { DestKey } from '../guests/types';
 import type { World } from '../types';
 import type { EntityId } from '../units';
-import { markOccupancyDirty } from '../occupancy';
 import { Content } from '../map';
 import { firstElevatedOnTile, nextElevatedOnTile, nodeIdAt, nodeKindOf } from '../paths/nodes';
 import type { ElevatedPath } from '../paths/types';
@@ -154,10 +153,12 @@ export function isWalkable(world: World, tile: number, mode: WalkMode, z?: numbe
   return false;
 }
 
-/** Call after any change to paths, elevated paths, queues, gates, buildings, terrain, or water. */
+/**
+ * Call after any change to paths, elevated paths, queues, gates, buildings, terrain, water, or edge scenery.
+ * (Clearance has its own mark: `markOccupancyDirty` in `../occupancy`.)
+ */
 export function markNetworkDirty(world: World): void {
   markDirty(world);
-  markOccupancyDirty(world);
 }
 
 /**

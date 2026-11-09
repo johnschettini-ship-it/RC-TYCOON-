@@ -19,7 +19,7 @@ import { allocId } from '../../ids';
 import { aboveGroundOwnershipBlock } from '../../land/api';
 import { Content, PathItem, type Dir } from '../../map';
 import { insertById, lineTiles, ownedTileAt, setPathTile, tileAt } from '../../map-ops';
-import { clearanceBlock, pathClearanceTop } from '../../occupancy';
+import { clearanceBlock, markOccupancyDirty, pathClearanceTop } from '../../occupancy';
 import { markNetworkDirty } from '../../pathing';
 import { BAD_SLOPE, dirTo, firstElevatedOnTile, markElevatedDirty, nextElevatedOnTile, rampDirOfMask } from '../../paths/nodes';
 import type { ElevatedPath, RampDir } from '../../paths/types';
@@ -176,6 +176,7 @@ function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: Pat
   pay(world, cost, 'construction', ctx);
   if (fresh.length > 0 || convert.length > 0) {
     markElevatedDirty(world);
+    markOccupancyDirty(world);
     markNetworkDirty(world);
   }
   return ok(cost);
@@ -251,4 +252,5 @@ export function removeElevatedPath(world: World, p: ElevatedPath, onBenchRemoved
   const k = s.elevatedPaths.indexOf(p);
   if (k >= 0) s.elevatedPaths.splice(k, 1);
   markElevatedDirty(world);
+  markOccupancyDirty(world);
 }

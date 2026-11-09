@@ -22,6 +22,7 @@ import { fail, ok, type BuildCommand, type CommandContext, type CommandResult } 
 import { elevatedPathCost, pathCost, removeElevatedPath } from './paths';
 import { BUILD_STRINGS } from './strings';
 import { sceneryHandlers } from '../../scenery/commands';
+import { centreSceneryAt } from '../../scenery/api';
 
 export function refundOf(buildCost: Cents, percent: number): Cents {
   return Math.max(0, Math.floor((buildCost * percent) / 100));
@@ -121,6 +122,9 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
     return sceneryHandlers.removeScenery(world, { type: 'removeScenery', id: map.contentRef[i] as number }, ctx);
   }
   if (c === Content.Footpath || c === Content.Queue) {
+    // Phase 4 §4.5: an arch (`overPath`) stands on the path; it goes first, so it never stands over bare land.
+    const arch = centreSceneryAt(world, i);
+    if (arch) return sceneryHandlers.removeScenery(world, { type: 'removeScenery', id: arch.id }, ctx);
     clearGroundPath(world, i);
     const amount = refundOf(pathCost(c === Content.Queue ? 'queue' : 'footpath'), PATH_REFUND_PERCENT);
     refund(world, amount, ctx);
