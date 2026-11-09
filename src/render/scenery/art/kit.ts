@@ -241,7 +241,10 @@ export function panel(ctx: Ctx, u0: number, v0: number, u1: number, v1: number, 
   poly3(ctx, [u0, v0, h0, u1, v1, h0, u1, v1, h1, u0, v0, h1], fill, stroke);
 }
 
-/** Arch post positions (view tiles) and which one is in front, for an arch whose walkway runs across `facing`. */
+/**
+ * Arch post positions (view tiles) and which one is in front. Guests walk through an arch along its facing: facing
+ * 0 or 2 puts the posts on the −u and +u sides (a walkway along v), facing 1 or 3 on the −v and +v sides.
+ */
 export function archPosts(facing: Dir): { back: { u: number; v: number }; front: { u: number; v: number } } {
   return facing % 2 === 0 ? { back: { u: 0.14, v: 0.5 }, front: { u: 0.86, v: 0.5 } } : { back: { u: 0.5, v: 0.14 }, front: { u: 0.5, v: 0.86 } };
 }
