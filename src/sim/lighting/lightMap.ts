@@ -41,6 +41,11 @@ export const LightKind = { Entrance: 0, Ride: 1, Station: 2, Stall: 3, Scenery: 
 export type LightKindCode = (typeof LightKind)[keyof typeof LightKind];
 
 const BROKEN = 1;
+// Imported constants copied to module locals: the hot loops below read them per tile.
+const LAMP = PathItem.Lamp;
+const FOOTPATH = Content.Footpath;
+const LIT = LIT_THRESHOLD;
+const R_LAMP = LIGHT_RADIUS.pathLamp;
 /** Entity record kinds (diff bookkeeping). */
 const REC_RIDE = 0;
 const REC_STALL = 1;
@@ -81,6 +86,11 @@ class LightCache {
   key = -1;
   dirty = false;
   snap: LightSourceList | null = null;
+  /**
+   * Word snapshots of `pathItem`, `pathItemFlags`, and `content` (4 tiles per 32-bit word): the tile scan skips
+   * words that did not change since the last diff. Null when an array is not 4-byte aligned (byte scan instead).
+   */
+  words: WordScan | null = null;
 
   constructor(
     readonly state: GameState,
@@ -94,6 +104,50 @@ class LightCache {
     this.ground = new Uint8Array(this.n);
     this.elev = new Uint8Array(this.n);
   }
+}
+
+interface WordScan {
+  items: Uint8Array;
+  flags: Uint8Array;
+  content: Uint8Array;
+  items32: Uint32Array;
+  flags32: Uint32Array;
+  content32: Uint32Array;
+  snapItems: Uint32Array;
+  snapFlags: Uint32Array;
+  snapContent: Uint32Array;
+}
+
+function wordView(a: Uint8Array): Uint32Array | null {
+  return a.byteOffset % 4 === 0 ? new Uint32Array(a.buffer, a.byteOffset, a.length >> 2) : null;
+}
+
+/** Word views of the current map arrays (rebuilt when an array is replaced), or null when unaligned. */
+function wordScan(c: LightCache): WordScan | null {
+  const map = c.map;
+  const ws = c.words;
+  if (ws && ws.items === map.pathItem && ws.flags === map.pathItemFlags && ws.content === map.content) return ws;
+  const items32 = wordView(map.pathItem);
+  const flags32 = wordView(map.pathItemFlags);
+  const content32 = wordView(map.content);
+  if (!items32 || !flags32 || !content32) {
+    c.words = null;
+    return null;
+  }
+  const words = c.n >> 2;
+  // Fresh zero snapshots: every word that is not all zero is diffed once, which the derived arrays need anyway.
+  c.words = {
+    items: map.pathItem,
+    flags: map.pathItemFlags,
+    content: map.content,
+    items32,
+    flags32,
+    content32,
+    snapItems: new Uint32Array(words),
+    snapFlags: new Uint32Array(words),
+    snapContent: new Uint32Array(words),
+  };
+  return c.words;
 }
 
 const caches = new WeakMap<World, LightCache>();
@@ -116,8 +170,8 @@ function stamp(c: LightCache, tile: number, radius: number, sign: 1 | -1): void 
     raw[j] = nv;
     const units = (c.ground[j] as number) + (c.elev[j] as number);
     if (units > 0) {
-      const was = old >= LIT_THRESHOLD;
-      const now = nv >= LIT_THRESHOLD;
+      const was = old >= LIT;
+      const now = nv >= LIT;
       if (was !== now) c.litUnits += now ? units : -units;
     }
   }
@@ -127,7 +181,7 @@ function stamp(c: LightCache, tile: number, radius: number, sign: 1 | -1): void 
 /** A footpath unit appears (+1) or goes (−1) on `tile`. */
 function pathUnit(c: LightCache, tile: number, delta: 1 | -1): void {
   c.pathUnits += delta;
-  if ((c.raw[tile] as number) >= LIT_THRESHOLD) c.litUnits += delta;
+  if ((c.raw[tile] as number) >= LIT) c.litUnits += delta;
 }
 
 function applyRec(c: LightCache, rec: Rec, sign: 1 | -1): void {
@@ -273,19 +327,46 @@ function diffAll(c: LightCache): void {
   const content = map.content;
   const lamp = c.lamp;
   const ground = c.ground;
-  for (let i = 0; i < c.n; i++) {
-    const on = items[i] === PathItem.Lamp && ((flags[i] as number) & BROKEN) === 0 ? 1 : 0;
-    if (on !== lamp[i]) {
-      lamp[i] = on;
-      stamp(c, i, LIGHT_RADIUS.pathLamp, on ? 1 : -1);
+  const n = c.n;
+  const ws = wordScan(c);
+  let from = 0;
+  if (ws !== null) {
+    const a = ws.items32;
+    const b = ws.flags32;
+    const d = ws.content32;
+    const sa = ws.snapItems;
+    const sb = ws.snapFlags;
+    const sd = ws.snapContent;
+    const nw = sa.length;
+    for (let k = 0; k < nw; k++) {
+      const va = a[k] as number;
+      const vb = b[k] as number;
+      const vd = d[k] as number;
+      if (va === sa[k] && vb === sb[k] && vd === sd[k]) continue;
+      sa[k] = va;
+      sb[k] = vb;
+      sd[k] = vd;
+      const i0 = k << 2;
+      for (let i = i0; i < i0 + 4; i++) diffTile(c, items, flags, content, lamp, ground, i);
     }
-    const g = content[i] === Content.Footpath ? 1 : 0;
-    if (g !== ground[i]) {
-      ground[i] = g;
-      pathUnit(c, i, g ? 1 : -1);
-    }
+    from = nw << 2;
   }
+  for (let i = from; i < n; i++) diffTile(c, items, flags, content, lamp, ground, i);
   c.dirty = false;
+}
+
+/** Lamp and ground-footpath diff of one tile against the derived arrays. */
+function diffTile(c: LightCache, items: Uint8Array, flags: Uint8Array, content: Uint8Array, lamp: Uint8Array, ground: Uint8Array, i: number): void {
+  const on = items[i] === LAMP && ((flags[i] as number) & BROKEN) === 0 ? 1 : 0;
+  if (on !== lamp[i]) {
+    lamp[i] = on;
+    stamp(c, i, R_LAMP, on ? 1 : -1);
+  }
+  const g = content[i] === FOOTPATH ? 1 : 0;
+  if (g !== ground[i]) {
+    ground[i] = g;
+    pathUnit(c, i, g ? 1 : -1);
+  }
 }
 
 function cacheOf(world: World): LightCache {
@@ -334,7 +415,7 @@ export function lightValue(raw: number): number {
 
 /** Lit: `min(255, raw) ≥ 96`. */
 export function litValue(raw: number): boolean {
-  return raw >= LIT_THRESHOLD;
+  return raw >= LIT;
 }
 
 /** Light of `tile` in a synced cache (0 outside the map). */

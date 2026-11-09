@@ -5,7 +5,7 @@
  * frame, ≤ 400 visible light sprites. Owner: W3-F.
  */
 import type { WorldLayer } from '../layers';
-import { LightOverlay } from './overlay';
+import { defaultPathFactory, LightOverlay, type PathFactory } from './overlay';
 import { LightPass, type LightPassStats } from './pass';
 import { defaultCanvasFactory, type CanvasFactory } from './sprites';
 
@@ -15,17 +15,22 @@ export type { LightPassStats };
 export interface LightingLayerOptions {
   /** Canvas factory for the light canvas and sprites (tests inject a fake; default: DOM or offscreen canvas). */
   createCanvas?: CanvasFactory;
+  /** Path factory for the Light overlay's cached tile paths (default: `Path2D`). */
+  createPath?: PathFactory;
 }
 
 export interface LightingLayer extends WorldLayer {
   /** Counters of the last light pass (sprites, bulbs, redraw, time). */
   stats(): LightPassStats;
+  /** Light overlay chunks rebuilt by the last overlay frame, and whether the joined band paths were rebuilt. */
+  overlayRebuilt(): number;
+  overlayRejoined(): boolean;
 }
 
 export function createLightingLayer(opts: LightingLayerOptions = {}): LightingLayer {
   const make = opts.createCanvas ?? defaultCanvasFactory;
   const pass = new LightPass(make);
-  const overlay = new LightOverlay(make);
+  const overlay = new LightOverlay(make, opts.createPath ?? defaultPathFactory);
   return {
     name: 'lighting',
     kinds: [],
@@ -36,5 +41,7 @@ export function createLightingLayer(opts: LightingLayerOptions = {}): LightingLa
       pass.draw(ctx, world, f);
     },
     stats: () => pass.stats,
+    overlayRebuilt: () => overlay.rebuilt,
+    overlayRejoined: () => overlay.rejoined,
   };
 }

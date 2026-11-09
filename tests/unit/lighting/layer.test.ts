@@ -51,13 +51,31 @@ class FakeCtx {
   stroke(): void {
     this.rec('stroke', []);
   }
-  fill(): void {
-    this.rec('fill', [this.fillStyle]);
-  }
   save(): void {}
   restore(): void {}
+  setTransform(...a: unknown[]): void {
+    this.rec('setTransform', a);
+  }
+  fill(path?: unknown): void {
+    this.rec('fill', [this.fillStyle, path]);
+  }
   ops(name: string): Call[] {
     return this.calls.filter((c) => c.op === name);
+  }
+}
+
+class FakePath {
+  ops = 0;
+  parts: FakePath[] = [];
+  moveTo(): void {
+    this.ops++;
+  }
+  lineTo(): void {
+    this.ops++;
+  }
+  closePath(): void {}
+  addPath(p: FakePath): void {
+    this.parts.push(p);
   }
 }
 
@@ -82,6 +100,7 @@ function setup(): { layer: ReturnType<typeof createLightingLayer>; made: FakeCan
       made.push(c);
       return c;
     },
+    createPath: () => new FakePath(),
   });
   return { layer, made };
 }
@@ -153,16 +172,29 @@ describe('light pass (drawAfterObjects)', () => {
   it('draws emissive bulbs after the multiply, with lighter', () => {
     const { layer, made } = setup();
     const w = nightWorld();
-    const i = placeFootpath(w, 20, 20);
+    const i = placeFootpath(w, 31, 56);
     w.state.map.pathItem[i] = PathItem.Lamp;
     const main = new FakeCanvas(1200, 600);
-    layer.drawAfterObjects!(main.ctx as unknown as CanvasRenderingContext2D, w, tool(), frame());
+    // Zoom 1 on (31, 58): world point (−864, 1424) at the canvas centre.
+    const f = frame({ scale: 1, offX: 600 + 864, offY: 300 - 1424, view: { x0: -1464, y0: 1124, x1: -264, y1: 1724 }, bucket: 1 });
+    layer.drawAfterObjects!(main.ctx as unknown as CanvasRenderingContext2D, w, tool(), f);
     const lc = lightCanvas(made);
     const draws = main.ctx.ops('drawImage');
     const mulAt = draws.findIndex((c) => c.args[0] === lc);
     const bulbs = draws.slice(mulAt + 1);
-    expect(bulbs.length).toBeGreaterThanOrEqual(2); // the lamp head and the entrance pillar caps
+    expect(bulbs.length).toBe(5); // the lamp head and the entrance pillar caps and emblems
     expect(bulbs.every((c) => c.gco === 'lighter')).toBe(true);
+    expect(layer.stats().bulbs).toBe(5);
+  });
+
+  it('skips the emissive bulbs when zoomed far out (they would be a few pixels)', () => {
+    const { layer } = setup();
+    const w = nightWorld();
+    w.state.map.pathItem[placeFootpath(w, 31, 56)] = PathItem.Lamp;
+    const main = new FakeCanvas(1200, 600);
+    layer.drawAfterObjects!(main.ctx as unknown as CanvasRenderingContext2D, w, tool(), frame({ scale: 0.25 }));
+    expect(layer.stats().bulbs).toBe(0);
+    expect(main.ctx.ops('drawImage')).toHaveLength(1);
   });
 
   it('reuses the light canvas while lights, camera, size, and darkness stay the same', () => {
@@ -226,23 +258,58 @@ describe('light pass (drawAfterObjects)', () => {
 });
 
 describe('Light overlay (drawGround)', () => {
-  it('tints path tiles by band with a hatch, and only when the Light overlay is on', () => {
-    const { layer } = setup();
+  function overlayWorld(): World {
     const w = makeTestWorld();
     w.state.tick = at(12);
     placeFootpath(w, 10, 10);
     w.state.map.pathItem[placeFootpath(w, 30, 30)] = PathItem.Lamp;
+    return w;
+  }
+
+  it('tints path and lit tiles by band with a hatch, only when the Light overlay is on', () => {
+    const { layer } = setup();
+    const w = overlayWorld();
     const main = new FakeCanvas(1200, 600);
     const t = tool();
     layer.drawGround!(main.ctx as unknown as CanvasRenderingContext2D, w, t, frame());
     expect(main.ctx.calls).toEqual([]);
     t.overlay = 'light';
     layer.drawGround!(main.ctx as unknown as CanvasRenderingContext2D, w, t, frame());
-    const fills = main.ctx.ops('fill').map((c) => c.args[0]);
-    expect(fills).toContain('rgba(36, 40, 104, 0.6)');
-    expect(fills).toContain('rgba(255, 200, 87, 0.42)');
-    expect(fills).toContain('rgba(255, 243, 190, 0.6)');
-    expect(fills.filter((f) => typeof f === 'object')).toHaveLength(2); // dense and sparse hatches
+    const fills = main.ctx.ops('fill');
+    const colours = fills.map((c) => c.args[0]);
+    expect(colours).toContain('rgba(36, 40, 104, 0.6)');
+    expect(colours).toContain('rgba(255, 200, 87, 0.42)');
+    expect(colours).toContain('rgba(255, 243, 190, 0.6)');
+    // Dense hatch over the dark path, sparse hatch over the lit tiles.
+    expect(fills.filter((c) => typeof c.args[0] === 'object').length).toBeGreaterThanOrEqual(2);
+    // Cached tile paths filled under the camera transform, then the transform is reset.
+    expect(fills.every((c) => c.args[1] instanceof FakePath)).toBe(true);
+    const tf = main.ctx.ops('setTransform');
+    expect(tf[0]!.args).toEqual([0.25, 0, 0, 0.25, 600, 40]);
+    expect(tf[tf.length - 1]!.args).toEqual([1, 0, 0, 1, 0, 0]);
+  });
+
+  it('rebuilds only chunks whose tiles changed; panning reuses the cached paths', () => {
+    const { layer } = setup();
+    const w = overlayWorld();
+    const main = new FakeCanvas(1200, 600);
+    const t = tool();
+    t.overlay = 'light';
+    const draw = (f: LayerFrame = frame()): void => layer.drawGround!(main.ctx as unknown as CanvasRenderingContext2D, w, t, f);
+    draw();
+    expect(layer.overlayRebuilt()).toBe(16); // every 16 × 16 chunk of the 64 × 64 map, once
+    expect(layer.overlayRejoined()).toBe(true);
+    const fillsBefore = main.ctx.ops('fill').length;
+    draw(frame({ offX: 650, view: { x0: -2600, y0: -160, x1: 2200, y1: 2240 } }));
+    expect(layer.overlayRebuilt()).toBe(0);
+    expect(layer.overlayRejoined()).toBe(false);
+    // One colour fill per band plus the two hatches.
+    expect(main.ctx.ops('fill').length - fillsBefore).toBe(5);
+    w.state.map.pathItem[placeFootpath(w, 50, 10)] = PathItem.Lamp;
+    draw();
+    expect(layer.overlayRebuilt()).toBe(1);
+    draw(frame({ rotation: 1 }));
+    expect(layer.overlayRebuilt()).toBe(16);
   });
 });
 

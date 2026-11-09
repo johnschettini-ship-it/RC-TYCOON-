@@ -37,9 +37,11 @@ export function makeGlowSprite(make: CanvasFactory): CanvasLike | null {
   if (!c || !g) return null;
   const r = GLOW_SIZE / 2;
   const grad = g.createRadialGradient(r, r, 0, r, r, r);
-  grad.addColorStop(0, 'rgba(255, 214, 150, 1)');
-  grad.addColorStop(0.35, 'rgba(255, 196, 120, 0.78)');
-  grad.addColorStop(0.7, 'rgba(255, 176, 96, 0.3)');
+  // About (1 − t)^1.5: bright where the light map is lit, a soft edge where it is not.
+  grad.addColorStop(0, 'rgba(255, 214, 156, 1)');
+  grad.addColorStop(0.25, 'rgba(255, 206, 142, 0.8)');
+  grad.addColorStop(0.5, 'rgba(255, 192, 120, 0.42)');
+  grad.addColorStop(0.75, 'rgba(255, 176, 100, 0.12)');
   grad.addColorStop(1, 'rgba(255, 160, 80, 0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, GLOW_SIZE, GLOW_SIZE);

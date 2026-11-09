@@ -30,6 +30,8 @@ const DISC_HW = 32 * Math.SQRT2;
 const MAX_BULBS = MAX_LIGHT_SPRITES;
 /** Bulb glow diameter in world px at zoom 1. */
 const BULB_PX = 12;
+/** Below this device scale a bulb is a few pixels wide: skip the emissive pass (level of detail). */
+export const BULB_MIN_SCALE = 0.35;
 /** Lamp head height above the path surface (render/sprites/litter.ts lamp: box 22–26 px). */
 const LAMP_HEAD_PX = 24;
 /** Park entrance pillar caps (render/sprites/props.ts: at t = 0.1 and 0.9, 50–54 px) and emblems (66 px). */
@@ -152,7 +154,7 @@ export class LightPass {
     // Step 5: emissive sprites glow on top.
     ctx.globalCompositeOperation = 'lighter';
     ctx.globalAlpha = Math.min(1, darkness / MAX_DARKNESS);
-    this.stats.bulbs = this.drawBulbs(ctx, world, src, f);
+    this.stats.bulbs = f.scale >= BULB_MIN_SCALE ? this.drawBulbs(ctx, world, src, f) : 0;
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
     ctx.imageSmoothingEnabled = smooth;
