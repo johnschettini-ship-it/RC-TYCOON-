@@ -10,7 +10,11 @@ export type KeyAction =
   | { kind: 'tool'; tool: 'footpath' | 'queue' | 'demolish' }
   | { kind: 'rotate' }
   | { kind: 'cancel' }
-  | { kind: 'finance' };
+  | { kind: 'finance' }
+  /** Phase 3 §7.4: H Staff panel, O Office (finance), M Messages. */
+  | { kind: 'panel'; panel: 'staff' | 'office' | 'messages' }
+  /** Phase 3 §7.4: B Bench, N Bin (path item tool). */
+  | { kind: 'pathItem'; item: 'bench' | 'bin' };
 
 /** Keys are `KeyboardEvent.key` values. */
 export const KEY_BINDINGS: ReadonlyArray<{ keys: readonly string[]; action: KeyAction }> = [
@@ -31,6 +35,11 @@ export const KEY_BINDINGS: ReadonlyArray<{ keys: readonly string[]; action: KeyA
   { keys: ['Delete', 'Backspace'], action: { kind: 'tool', tool: 'demolish' } },
   { keys: ['Escape', 'Esc'], action: { kind: 'cancel' } },
   { keys: ['f', 'F'], action: { kind: 'finance' } },
+  { keys: ['h', 'H'], action: { kind: 'panel', panel: 'staff' } },
+  { keys: ['o', 'O'], action: { kind: 'panel', panel: 'office' } },
+  { keys: ['m', 'M'], action: { kind: 'panel', panel: 'messages' } },
+  { keys: ['b', 'B'], action: { kind: 'pathItem', item: 'bench' } },
+  { keys: ['n', 'N'], action: { kind: 'pathItem', item: 'bin' } },
 ];
 
 const byKey = new Map<string, KeyAction>();

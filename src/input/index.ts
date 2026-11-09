@@ -41,7 +41,7 @@ export function attachInput(canvas: HTMLCanvasElement, game: Game): void {
   };
   const send = (type: 'down' | 'move' | 'up' | 'cancel', e: PointerEvent): void => {
     const p = local(e);
-    ctl.pointer({ type, id: e.pointerId, x: p.x, y: p.y, t: e.timeStamp, pointerType: pointerKind(e.pointerType), button: e.button });
+    ctl.pointer({ type, id: e.pointerId, x: p.x, y: p.y, t: e.timeStamp, pointerType: pointerKind(e.pointerType), button: e.button, shift: e.shiftKey });
   };
 
   canvas.addEventListener('pointerdown', (e) => {
