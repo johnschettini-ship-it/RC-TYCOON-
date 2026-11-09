@@ -1,15 +1,17 @@
 /**
  * Terrain chunk cache (Phase 0 §4.8, Phase 4 §4.8 and §4.10): static tiles (ground, cliffs, water, paths, queues)
- * pre-drawn into 16 × 16-tile chunk images per zoom bucket (0.5, 1, 2) and view rotation. Owner: W1-A, W3-G.
- * A chunk is a block of map tiles; with a view rotation it is painted in view space (view corners, cliff faces
- * toward the viewer, path joins turned by r). Images are keyed by (chunk, rotation, bucket) in an LRU with a
- * memory cap (`CHUNK_CACHE_MB`, 32 MB on phones): after a rotation the visible chunks are built first, the rest
- * when they come into view, and the old rotation's images age out of the LRU.
+ * pre-drawn into chunk images per zoom bucket (0.5, 1, 2) and view rotation. Owner: W1-A, W3-G, W4-E.
+ * A chunk is a block of `CHUNK_SIZE` × `CHUNK_SIZE` map tiles (8 since Phase 6 §4.6: a 16 × 16 image was 9 MB at
+ * the phone zoom bucket and took 100+ ms to build on the throttled phone, see `docs/adr/0001-renderer.md`); with a
+ * view rotation it is painted in view space (view corners, cliff faces toward the viewer, path joins turned by r).
+ * Images are keyed by (chunk, rotation, bucket) in an LRU with a memory cap (`CHUNK_CACHE_MB`, 32 MB on phones)
+ * that also counts toward the shared sprite memory: after a rotation the visible chunks are built within a frame
+ * budget (placeholders until then), the rest when they come into view, and the old rotation's images age out.
  */
 import { Content, Terrain, type MapState } from '../sim/map';
 import type { Ride } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
-import { bucketIndex, SpriteCache, type Sprite } from './spriteCache';
+import { bucketIndex, SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { ZoomBucket } from './camera';
 import { isPhoneScreen, makeCanvas } from './canvas';
 import { STEP_PX } from './iso';
@@ -398,6 +400,18 @@ const CHUNK_PAD = 2;
 /** Chunks built per frame when an image at another bucket can stand in. */
 const MAX_REFINES_PER_FRAME = 1;
 /**
+ * Chunks with no image at all in this view rotation (a view turn, a jump across the map) are built while the frame
+ * has spent less than this on them (at least one per frame); the rest draw a flat placeholder until a later frame
+ * builds them (Phase 6 §4.6 finding: a turn rebuilt every visible chunk in one frame, 95–170 ms on desktop).
+ */
+export const FIRST_BUILD_BUDGET_MS = 6;
+/** `prefetch` works only while the chunk images use less than this share of their cap. */
+export const PREFETCH_HEADROOM = 0.6;
+/** Placeholder ground colour of a chunk not built yet. */
+const PLACEHOLDER = '#67b24b';
+/** Clock of the first-build budget (ms); tests replace `now` to make the budget deterministic. */
+export const terrainClock = { now: (): number => (typeof performance !== 'undefined' ? performance.now() : 0) };
+/**
  * Exact-scale chunk images: once the device scale (zoom × pixel ratio) has stayed the same for this many frames
  * and is not a bucket scale, visible chunks are rebuilt at that exact scale, one per frame, so they draw as 1:1
  * copies instead of filtered scaled draws (a software-rastered canvas pays about 5× for a filtered draw; measured
@@ -435,10 +449,22 @@ export class TerrainLayer {
   private rot = -1;
   /** Chunk images built since the last `draw` began (tests and the debug overlay). */
   builds = 0;
+  /** Chunks the last `draw` showed as a placeholder (not built yet). */
+  placeholders = 0;
+  /**
+   * The last `draw` showed every visible chunk with its final image and nothing is waiting to be refined: the
+   * same frame drawn again would look the same (the renderer's static layer may keep it, Phase 6 §4.6 step 4).
+   */
+  complete = false;
+  /**
+   * Exact-scale images (a 4th zoom bucket, `EXACT_SLOT`). Off on phones and at low quality: Phase 6 §4.6 caps
+   * phones at 3 zoom buckets.
+   */
+  allowExact = true;
 
   /** `budgetPixels`: image memory cap in pixels (4 bytes each); default `CHUNK_CACHE_MB`. */
   constructor(budgetPixels = (CHUNK_CACHE_MB * 1024 * 1024) / 4) {
-    this.images = new SpriteCache(budgetPixels);
+    this.images = new SpriteCache(budgetPixels, spriteMemory, 'chunks');
   }
 
   /** Image memory cap in pixels. */
@@ -513,9 +539,9 @@ export class TerrainLayer {
   private stableFrames = 0;
 
   /** Build the image of `chunk` at `scale` image px per world px (a zoom bucket, or an exact device scale). */
-  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation): Sprite {
+  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation, geom?: ChunkGeom): Sprite {
     this.builds++;
-    const g = this.bounds[chunk] as ChunkGeom;
+    const g = geom ?? (this.bounds[chunk] as ChunkGeom);
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
     const { canvas, ctx } = makeCanvas(w, h);
@@ -552,15 +578,21 @@ export class TerrainLayer {
     this.orient(map, r);
     this.images.beginFrame();
     this.builds = 0;
+    this.placeholders = 0;
     const bi = bucketIndex(bucket);
     if (scale === this.lastScale) this.stableFrames++;
     else {
       this.lastScale = scale;
       this.stableFrames = 0;
     }
-    const exact = this.stableFrames >= EXACT_SETTLE_FRAMES && scale !== bucket && scale <= MAX_EXACT_SCALE;
+    const wantsExact = this.allowExact && scale !== bucket && scale <= MAX_EXACT_SCALE;
+    const exact = wantsExact && this.stableFrames >= EXACT_SETTLE_FRAMES;
+    // Not settled yet: exact images will replace the bucket images in a few frames.
+    let complete = !(wantsExact && !exact);
     let exactBuilds = 0;
     let refines = 0;
+    let firstBuilds = 0;
+    let firstStart = 0;
     let drawn = 0;
     const n = this.order.length;
     for (let k = 0; k < n; k++) {
@@ -577,15 +609,29 @@ export class TerrainLayer {
         else {
           // Anything that can stand in while the wanted image waits for its turn to be built.
           const standIn = own ?? this.images.get(base + (bi === 1 ? 0 : 1)) ?? this.images.get(base + (bi === 2 ? 0 : 2));
-          const budgetLeft = exact ? exactBuilds < MAX_EXACT_BUILDS_PER_FRAME : refines < MAX_REFINES_PER_FRAME;
-          if (standIn && !budgetLeft) sp = standIn;
-          else {
-            sp = this.build(map, c, exact ? scale : bucket, env, r);
-            this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
-            if (standIn) {
+          if (standIn) {
+            const budgetLeft = exact ? exactBuilds < MAX_EXACT_BUILDS_PER_FRAME : refines < MAX_REFINES_PER_FRAME;
+            if (!budgetLeft) {
+              sp = standIn;
+              complete = false;
+            } else {
+              sp = this.build(map, c, exact ? scale : bucket, env, r);
+              this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
               if (exact) exactBuilds++;
               else refines++;
             }
+          } else {
+            // Nothing to stand in: build within the frame's first-build budget, else a placeholder for now.
+            if (firstBuilds === 0) firstStart = terrainClock.now();
+            if (firstBuilds > 0 && terrainClock.now() - firstStart >= FIRST_BUILD_BUDGET_MS) {
+              this.drawPlaceholder(ctx, map, c, r, scale, offX, offY);
+              this.placeholders++;
+              complete = false;
+              continue;
+            }
+            sp = this.build(map, c, exact ? scale : bucket, env, r);
+            this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+            firstBuilds++;
           }
         }
       }
@@ -598,6 +644,91 @@ export class TerrainLayer {
       drawn++;
     }
     this.images.trim();
+    this.complete = complete;
     return drawn;
+  }
+
+  /**
+   * Mark the images of the visible chunks as used this frame without drawing them (the renderer copied its static
+   * layer instead): they stay in memory for the next pan, and off-screen images go first under the budget.
+   */
+  touch(view: ViewRect, bucket: ZoomBucket, r: ViewRotation): void {
+    if (this.rot !== r) return;
+    this.images.beginFrame();
+    const bi = bucketIndex(bucket);
+    const n = this.order.length;
+    for (let k = 0; k < n; k++) {
+      const c = this.order[k] as number;
+      const g = this.bounds[c] as ChunkGeom;
+      if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      const base = c * KEYS_PER_CHUNK + r * 4;
+      this.images.get(base + EXACT_SLOT);
+      this.images.get(base + bi);
+    }
+  }
+
+  /** Chunk bounds per view rotation for `prefetch`, recomputed when the terrain changes. */
+  private turnBounds: Array<ChunkGeom[] | null> = [null, null, null, null];
+  private turnBoundsVersion = -1;
+  /** Chunk images `prefetch` built (tests and the debug overlay). */
+  prefetched = 0;
+
+  /**
+   * Idle-frame work (desktop): build one missing chunk image of view rotation `r` (another rotation than the one on
+   * screen) inside `view`, the view rectangle a turn to `r` would show. A later turn then finds its chunks ready
+   * instead of drawing placeholders. Returns true when it built one.
+   */
+  prefetch(map: MapState, env: TerrainEnv, view: ViewRect, bucket: ZoomBucket, r: ViewRotation): boolean {
+    // Only with room to spare: a prefetched image the LRU evicts again would be rebuilt on every idle frame.
+    if (this.bounds.length === 0 || this.images.pixels > this.images.budgetPixels * PREFETCH_HEADROOM) return false;
+    if (this.turnBoundsVersion !== this.tracker.version) {
+      this.turnBounds = [null, null, null, null];
+      this.turnBoundsVersion = this.tracker.version;
+    }
+    const cx = this.tracker.chunksX;
+    const n = cx * this.tracker.chunksY;
+    let bounds = this.turnBounds[r];
+    if (!bounds) {
+      bounds = new Array<ChunkGeom>(n);
+      for (let c = 0; c < n; c++) bounds[c] = chunkBounds(map, c % cx, Math.floor(c / cx), r);
+      this.turnBounds[r] = bounds;
+    }
+    const bi = bucketIndex(bucket);
+    for (let c = 0; c < n; c++) {
+      const g = bounds[c] as ChunkGeom;
+      if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      const key = c * KEYS_PER_CHUNK + r * 4 + bi;
+      if (this.images.peek(key)) continue;
+      this.images.set(key, this.build(map, c, bucket, env, r, g));
+      this.prefetched++;
+      return true;
+    }
+    return false;
+  }
+
+  /** A chunk not built yet: its ground as one flat diamond at the chunk's mean height. */
+  private drawPlaceholder(ctx: CanvasRenderingContext2D, map: MapState, chunk: number, r: ViewRotation, scale: number, offX: number, offY: number): void {
+    const cx = chunk % this.tracker.chunksX;
+    const cy = Math.floor(chunk / this.tracker.chunksX);
+    const vr = chunkViewRect(map, cx, cy, r);
+    let sum = 0;
+    let count = 0;
+    for (let y = cy * CHUNK_SIZE; y < Math.min(map.height, (cy + 1) * CHUNK_SIZE); y++) {
+      for (let x = cx * CHUNK_SIZE; x < Math.min(map.width, (cx + 1) * CHUNK_SIZE); x++) {
+        sum += map.heights[y * map.width + x] as number;
+        count++;
+      }
+    }
+    const lift = (count > 0 ? sum / count : 0) * STEP_PX;
+    const X = (u: number, v: number): number => (u - v) * HW * scale + offX;
+    const Y = (u: number, v: number): number => ((u + v) * HH - lift) * scale + offY;
+    ctx.beginPath();
+    ctx.moveTo(X(vr.u0, vr.v0), Y(vr.u0, vr.v0));
+    ctx.lineTo(X(vr.u1, vr.v0), Y(vr.u1, vr.v0));
+    ctx.lineTo(X(vr.u1, vr.v1), Y(vr.u1, vr.v1));
+    ctx.lineTo(X(vr.u0, vr.v1), Y(vr.u0, vr.v1));
+    ctx.closePath();
+    ctx.fillStyle = PLACEHOLDER;
+    ctx.fill();
   }
 }

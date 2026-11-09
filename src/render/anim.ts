@@ -63,6 +63,17 @@ export function decodeRideFrame(frame: number): { angle: number; swing: number; 
   return { angle: frame & 31, swing: (frame >> 5) & 7, occupancy: (frame >> 8) & 7 };
 }
 
+/**
+ * Phase 6 §4.6: the ride frame for a device with the 64 MB sprite budget (phones, `low` quality). A running ride
+ * cycles through 32 angles × 5 occupancy levels of large sprites, more than that budget holds, so the LRU rebuilt
+ * one every few ticks. Here: 16 angles (the even ones) and 3 occupancy levels (empty, some riders, full).
+ */
+export function coarseRideFrame(frame: number): number {
+  const f = decodeRideFrame(frame);
+  const occupancy = f.occupancy === 0 || f.occupancy === 4 ? f.occupancy : 2;
+  return encodeRideFrame(f.angle & ~1, f.swing, occupancy);
+}
+
 /** Ghost frames (outside the normal range). */
 export const GHOST_FRAME_VALID = 4094;
 export const GHOST_FRAME_INVALID = 4095;

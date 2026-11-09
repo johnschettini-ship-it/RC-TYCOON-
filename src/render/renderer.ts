@@ -15,28 +15,33 @@ import { extent, footprintTiles, stallServiceTile } from '../sim/footprint';
 import { Content, Owned, type Dir, type MapState } from '../sim/map';
 import type { Guest } from '../sim/guests/types';
 import type { World } from '../sim/types';
-import { GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
-import { clampCameraToMap, zoomBucket, type ZoomBucket } from './camera';
-import { canvasPixelRatio } from './canvas';
+import { coarseRideFrame, GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
+import { clampCameraToMap, ZOOM_BUCKETS, zoomBucket, type ZoomBucket } from './camera';
+import { makeCanvas, type AnyCanvas } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
 import { STEP_PX, TILE_H, TILE_W } from './iso';
-import { mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
+import { GHOST_INVALID, GHOST_VALID, mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS } from './palette';
 import { createQueueWalker, queueSlot } from './queue';
-import type { Sprite } from './spriteCache';
+import { SpriteCache, spriteMemory, type Sprite } from './spriteCache';
+import type { Ctx } from './sprites/shapes';
 import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE_MB, SpriteBank } from './sprites/bank';
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, TerrainLayer, grassShade, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
 import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
+import { perfProbe } from '../perf/stats';
+import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
+import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM } from '../data/tuning/perf';
 import {
+  rotateCameraView,
   viewAffine,
   viewCornerHeights,
   viewDir,
@@ -60,8 +65,11 @@ const KIND_RIDE = 3;
 const KIND_STALL = 4;
 const KIND_GUEST = 5;
 
-/** Phase 4 §4.10: at camera zoom ≤ 0.5 guests are drawn as small rectangles grouped by colour. */
-export const GUEST_LOD_ZOOM = 0.5;
+/**
+ * Phase 4 §4.10, Phase 6 §4.6 step 3: at camera zoom ≤ 0.5 guests are drawn as small rectangles grouped by colour
+ * (`data/tuning/perf.ts`; `low` render quality from 0.75).
+ */
+export { GUEST_LOD_ZOOM };
 /** Guest rectangle at far zoom, CSS px (Phase 4 §4.10: 2 × 3 px). */
 export const GUEST_LOD_W = 2;
 export const GUEST_LOD_H = 3;
@@ -177,6 +185,26 @@ class GuestDots {
   }
 }
 
+/** `#rrggbb` with alpha `a` as `rgba(…)`. */
+export function withAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+/**
+ * Valid / invalid ghost, drag, and purchase colours (Phase 6 §4.7): the colour-blind safe pair of `./palette.ts`
+ * (blue = OK, vermillion = blocked); the check / cross icons and the a11y layer's hatch carry the meaning too.
+ */
+const OK_FILL = withAlpha(GHOST_VALID, 0.38);
+const BAD_FILL = withAlpha(GHOST_INVALID, 0.42);
+const OK_FILL_STRONG = withAlpha(GHOST_VALID, 0.45);
+const BAD_FILL_STRONG = withAlpha(GHOST_INVALID, 0.45);
+
+/** Outline width: doubled with high contrast (Phase 6 §4.7). */
+function outlineWidth(w: number): number {
+  return displayPrefs().highContrast ? w * 2 : w;
+}
+
 function findGuestIndex(guests: readonly Guest[], id: number): number {
   let lo = 0;
   let hi = guests.length - 1;
@@ -215,10 +243,33 @@ const OWNED_TINTS: readonly (string | null)[] = [
   'rgba(90,150,255,0.42)', // 4 construction rights for sale
 ];
 
+/**
+ * Phase 6 §4.6 draw-call count: while the probe is on, the context's `drawImage` counts every call (the renderer's
+ * own and every layer's) into `perfProbe.countDraw`. Off again, the context's own method comes back.
+ */
+function drawCounter(ctx: CanvasRenderingContext2D): () => void {
+  const c = ctx as unknown as { drawImage: (...a: unknown[]) => void };
+  const own = Object.prototype.hasOwnProperty.call(c, 'drawImage') ? c.drawImage : null;
+  const raw = c.drawImage;
+  let on = false;
+  return () => {
+    if (perfProbe.enabled === on) return;
+    on = perfProbe.enabled;
+    if (on) {
+      c.drawImage = function (...a: unknown[]): void {
+        perfProbe.countDraw();
+        raw.apply(ctx, a);
+      };
+    } else if (own) c.drawImage = own;
+    else delete (c as { drawImage?: unknown }).drawImage;
+  };
+}
+
 export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   // Opaque: every frame clears to the sky colour first.
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D is not available');
+  const syncDrawCounter = drawCounter(ctx);
   let cssW = 1;
   let cssH = 1;
   let dpr = 1;
@@ -240,6 +291,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let mgmt: ManagementLayer;
   const columnsMemo = new Map<number, ColumnTile[]>();
   let rideSprites: Array<Sprite | null> = [];
+  /** Phase 6 §4.6: 64 MB devices animate rides with fewer frames (`render/anim.ts` `coarseRideFrame`). */
+  let coarseRides = false;
   let rideEy = new Int32Array(64);
   const corners: [number, number, number, number] = [0, 0, 0, 0];
 
@@ -400,7 +453,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const b = rideArtBounds(r.defId, w, d, vrot);
       rideEy[ri] = ev;
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
-      const fr = def ? rideFrameFor(r, def) : 0;
+      const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
       rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
@@ -604,21 +657,21 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         c.fill();
       }
       c.strokeStyle = stroke;
-      c.lineWidth = width;
+      c.lineWidth = outlineWidth(width);
       c.stroke();
     }
   }
 
   function dragColours(tool: ToolState): { fill: string; stroke: string } {
     // A path line the build command would refuse (W3-B dry run) shows in the blocked colours.
-    if (tool.drag?.reason && (tool.tool === 'footpath' || tool.tool === 'queue')) return { fill: 'rgba(229,72,77,0.4)', stroke: '#ff8a8a' };
+    if (tool.drag?.reason && (tool.tool === 'footpath' || tool.tool === 'queue')) return { fill: BAD_FILL, stroke: GHOST_INVALID };
     switch (tool.tool) {
       case 'footpath':
         return { fill: 'rgba(220,199,156,0.75)', stroke: '#fff4d6' };
       case 'queue':
         return { fill: 'rgba(169,192,210,0.8)', stroke: '#e8f4ff' };
       case 'demolish':
-        return { fill: 'rgba(229,72,77,0.45)', stroke: '#ffb3b5' };
+        return { fill: BAD_FILL_STRONG, stroke: GHOST_INVALID };
       case 'patrol':
         return mgmt.strokeColours(tool);
       default:
@@ -667,10 +720,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         if (forSale !== buy) continue;
         tileFace(map, t, 0.02);
       }
-      c.fillStyle = buy ? (b.valid ? 'rgba(70,205,95,0.45)' : 'rgba(235,60,60,0.45)') : 'rgba(255,255,255,0.12)';
+      c.fillStyle = buy ? (b.valid ? OK_FILL_STRONG : BAD_FILL_STRONG) : 'rgba(255,255,255,0.12)';
       c.fill();
-      c.strokeStyle = buy ? (b.valid ? '#7dff9a' : '#ff8a8a') : 'rgba(255,255,255,0.6)';
-      c.lineWidth = Math.max(1, scale);
+      c.strokeStyle = buy ? (b.valid ? GHOST_VALID : GHOST_INVALID) : 'rgba(255,255,255,0.6)';
+      c.lineWidth = outlineWidth(Math.max(1, scale));
       c.stroke();
     }
   }
@@ -687,8 +740,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const z = map.heights[g.tile] as number;
     const ax = viewTileSX(va, x, y);
     const ay = viewTileSY(va, x, y, z);
-    const fill = g.valid ? 'rgba(70,205,95,0.35)' : 'rgba(235,60,60,0.4)';
-    const stroke = g.valid ? '#7dff9a' : '#ff8a8a';
+    const fill = g.valid ? OK_FILL : BAD_FILL;
+    const stroke = g.valid ? GHOST_VALID : GHOST_INVALID;
     const fr = g.valid ? GHOST_FRAME_VALID : GHOST_FRAME_INVALID;
     const c = ctx as CanvasRenderingContext2D;
     // Ghost rotations are map rotations; the sprite turns with the view.
@@ -762,7 +815,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const y = devY(viewPointSY(va, fx, fy, z));
       const k = scale;
       c.strokeStyle = '#ffffff';
-      c.lineWidth = Math.max(1.5, 2 * k);
+      c.lineWidth = outlineWidth(Math.max(1.5, 2 * k));
       c.beginPath();
       c.ellipse(x, y, 8 * k, 4 * k, 0, 0, Math.PI * 2);
       c.stroke();
@@ -812,7 +865,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     if (tool.hoverTile !== null && !tool.ghost && !(tool.tool === 'buyLand' && tool.brush)) {
       single[0] = tool.hoverTile;
-      if (tool.tool === 'demolish') outlineTiles(map, single, 'rgba(229,72,77,0.35)', '#ff8a8a', Math.max(1, 1.5 * scale));
+      if (tool.tool === 'demolish') outlineTiles(map, single, BAD_FILL, GHOST_INVALID, Math.max(1, 1.5 * scale));
       else outlineTiles(map, single, 'rgba(255,224,102,0.22)', '#ffe066', Math.max(1, 1.5 * scale));
     }
     drawGhost(world, tool);
@@ -829,26 +882,177 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     c.fillStyle = '#e8f4ff';
     c.font = '12px ui-monospace, monospace';
     c.fillText(`fps ${fpsAvg.toFixed(0)}  draw ${msAvg.toFixed(2)} ms`, cssW - 220, 70);
-    c.fillText(`objects ${list.n}  chunks ${drawn}  view ${rot}`, cssW - 220, 88);
+    c.fillText(`objects ${list.n}  chunks ${drawn}  view ${rot}  static ${staticReuses}`, cssW - 220, 88);
     c.fillText(`guests ${world.state.guests.length}  sprites ${bank.cache.size}`, cssW - 220, 106);
     c.fillText(`mem chunks ${Math.round((terrain.pixels * 4) / 1048576)} MB  sprites ${Math.round((bank.cache.pixels * 4) / 1048576)} MB`, cssW - 220, 124);
     c.restore();
+  }
+
+  // ---- Phase 6 §4.6: render plan (device class, render quality) and the static terrain layer.
+  let rawDpr = 1;
+  let planVersion = -1;
+  let lodZoom = GUEST_LOD_ZOOM;
+  const device = browserDeviceEnv();
+  /** `auto` quality steps the render scale down when frames stay too slow (`../perf/quality.ts`). */
+  const autoScale = new AutoScale(BUDGET_DESKTOP_FRAME_P95_MS);
+  let lastDrawAt = -1;
+
+  /** Pixel ratio, zoom buckets, guest LOD zoom, and the shared sprite memory budget from the device and quality. */
+  function applyPlan(): void {
+    if (planVersion !== renderQualityVersion()) autoScale.reset();
+    planVersion = renderQualityVersion();
+    const cls = deviceClass(device, cssW, cssH);
+    autoScale.budgetMs = cls === 'phone' ? BUDGET_PHONE_FRAME_P95_MS : BUDGET_DESKTOP_FRAME_P95_MS;
+    const plan = renderPlan(renderQuality(), cls, rawDpr, autoScale.maxRatio);
+    dpr = plan.pixelRatio;
+    lodZoom = plan.guestLodZoom;
+    terrain.allowExact = plan.zoomBuckets > ZOOM_BUCKETS.length;
+    prefetchTurns = plan.device === 'desktop' && renderQuality() !== 'low';
+    coarseRides = plan.coarseRideFrames;
+    spriteMemory.budgetBytes = plan.budgetBytes;
+    // Phone-sized screens keep the smaller chunk cap as well (Phase 4 §4.10, §11).
+    terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
+    canvas.width = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    canvas.dataset.pixelRatio = String(dpr);
+    canvas.dataset.device = plan.device;
+    canvas.dataset.autoScale = autoScale.maxRatio === Infinity ? 'full' : String(autoScale.maxRatio);
+  }
+
+  /** Feed the frame interval to the `auto` step down; re-plan when it steps. */
+  function autoFrame(): void {
+    if (renderQuality() !== 'auto' || typeof performance === 'undefined') {
+      lastDrawAt = -1;
+      return;
+    }
+    const now = performance.now();
+    if (lastDrawAt >= 0 && autoScale.frame(now - lastDrawAt)) applyPlan();
+    lastDrawAt = now;
+  }
+
+  /**
+   * Static layer (Phase 6 §4.6 work order step 4): the sky and the terrain chunks composited into one canvas-sized
+   * image. While the view (camera centre, zoom × pixel ratio, rotation, canvas size) and the terrain (tracker
+   * version, map) stay the same, a frame copies that image 1:1 instead of drawing every visible chunk (on a
+   * software-rastered canvas a chunk costs in proportion to its whole image, not to the part on screen). The image
+   * is built on the second frame of a still view and only kept when every chunk drew its final image. It lives in a
+   * sprite cache, so it counts toward the shared sprite memory and can be evicted while the camera moves.
+   */
+  const statics = new SpriteCache(Number.MAX_SAFE_INTEGER, spriteMemory, 'static');
+  const STATIC_KEY = 0;
+  let staticImage: { canvas: AnyCanvas; ctx: Ctx } | null = null;
+  let staticValid = false;
+  /** Frames drawn from the static layer (tests and the debug overlay). */
+  let staticReuses = 0;
+  interface ViewKey {
+    cx: number;
+    cy: number;
+    scale: number;
+    rot: number;
+    w: number;
+    h: number;
+    version: number;
+    map: MapState | null;
+  }
+  const staticKey: ViewKey = { cx: NaN, cy: NaN, scale: NaN, rot: -1, w: 0, h: 0, version: -1, map: null };
+  const lastKey: ViewKey = { cx: NaN, cy: NaN, scale: NaN, rot: -1, w: 0, h: 0, version: -1, map: null };
+  const sameView = (k: ViewKey, cam: Camera, map: MapState): boolean =>
+    k.cx === cam.centerX && k.cy === cam.centerY && k.scale === scale && k.rot === rot && k.w === canvas.width && k.h === canvas.height && k.version === terrain.tracker.version && k.map === map;
+  const setKey = (k: ViewKey, cam: Camera, map: MapState): void => {
+    k.cx = cam.centerX;
+    k.cy = cam.centerY;
+    k.scale = scale;
+    k.rot = rot;
+    k.w = canvas.width;
+    k.h = canvas.height;
+    k.version = terrain.tracker.version;
+    k.map = map;
+  };
+
+  /** Desktops (memory to spare) build the chunks of the neighbouring view rotations on idle frames. */
+  let prefetchTurns = false;
+  const turned: Camera = { centerX: 0, centerY: 0, zoom: 1, rotation: 0 };
+  const turnedView: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  function prefetchTurn(cam: Camera, map: MapState, env: TerrainEnv): void {
+    for (const dir of [1, -1] as const) {
+      turned.centerX = cam.centerX;
+      turned.centerY = cam.centerY;
+      turned.zoom = cam.zoom;
+      turned.rotation = cam.rotation;
+      rotateCameraView(turned, map, dir);
+      turnedView.x0 = turned.centerX - cssW / 2 / cam.zoom;
+      turnedView.x1 = turned.centerX + cssW / 2 / cam.zoom;
+      turnedView.y0 = turned.centerY - cssH / 2 / cam.zoom;
+      turnedView.y1 = turned.centerY + cssH / 2 / cam.zoom;
+      if (terrain.prefetch(map, env, turnedView, bucket, (turned.rotation & 3) as ViewRotation)) return;
+    }
+  }
+
+  /** Sky and terrain: from the static layer when nothing changed, else drawn (and kept when the view is still). */
+  function drawStatic(world: World, cam: Camera, map: MapState): number {
+    const env = { seed: world.state.seed, rides: world.state.rides, stalls: world.state.stalls };
+    const c = ctx as CanvasRenderingContext2D;
+    // A new frame for the layer's cache first: the image used below stays protected from eviction all frame.
+    statics.beginFrame();
+    if (staticImage && !statics.peek(STATIC_KEY)) {
+      // Evicted under memory pressure while unused.
+      staticImage = null;
+      staticValid = false;
+    }
+    let chunks = 0;
+    if (staticValid && staticImage && sameView(staticKey, cam, map) && statics.get(STATIC_KEY)) {
+      c.drawImage(staticImage.canvas, 0, 0);
+      // The chunks on screen stay cached for the next pan.
+      terrain.touch(view, bucket, rot);
+      // Idle frame on a desktop: build ahead for a view turn either way.
+      if (prefetchTurns && spriteMemory.bytes < spriteMemory.budgetBytes * PREFETCH_HEADROOM) prefetchTurn(cam, map, env);
+      staticReuses++;
+    } else if (sameView(lastKey, cam, map)) {
+      // A still view: compose the static layer, then copy it.
+      const w = canvas.width;
+      const h = canvas.height;
+      if (!staticImage || staticImage.canvas.width !== w || staticImage.canvas.height !== h) {
+        statics.delete(STATIC_KEY);
+        staticImage = makeCanvas(w, h, true);
+      }
+      const sc = staticImage.ctx as unknown as CanvasRenderingContext2D;
+      sc.setTransform(1, 0, 0, 1, 0, 0);
+      sc.globalAlpha = 1;
+      sc.imageSmoothingEnabled = true;
+      sc.fillStyle = SKY;
+      sc.fillRect(0, 0, w, h);
+      chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
+      staticValid = terrain.complete;
+      setKey(staticKey, cam, map);
+      statics.set(STATIC_KEY, { image: staticImage.canvas, w, h, ox: 0, oy: 0, scale: 1 });
+      c.drawImage(staticImage.canvas, 0, 0);
+    } else {
+      // The view moves: draw the chunks straight to the canvas.
+      staticValid = false;
+      c.fillStyle = SKY;
+      c.fillRect(0, 0, canvas.width, canvas.height);
+      chunks = terrain.draw(c, map, env, view, bucket, scale, offX, offY, rot);
+    }
+    setKey(lastKey, cam, map);
+    return chunks;
   }
 
   return {
     resize(w, h, d) {
       cssW = Math.max(1, w);
       cssH = Math.max(1, h);
-      // Phone-sized screens: capped pixel ratio and the smaller chunk cache (Phase 4 §4.10, §11).
-      dpr = canvasPixelRatio(cssW, cssH, d);
-      terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
-      canvas.width = Math.max(1, Math.round(cssW * dpr));
-      canvas.height = Math.max(1, Math.round(cssH * dpr));
-      canvas.dataset.pixelRatio = String(dpr);
+      rawDpr = d;
+      autoScale.reset();
+      applyPlan();
     },
 
     draw(world: World, cam: Camera, tool: ToolState, alpha: number) {
-      const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
+      perfProbe.renderStart();
+      syncDrawCounter();
+      spriteMemory.beginFrame();
+      if (planVersion !== renderQualityVersion()) applyPlan();
+      autoFrame();
+      const t0 = debug && typeof performance !== 'undefined' ? performance.now() : 0;
       const s = world.state;
       const map = s.map;
       frameNo = (frameNo + 1) >>> 0 || 1;
@@ -863,13 +1067,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       view.x1 = cam.centerX + cssW / 2 / cam.zoom;
       view.y0 = cam.centerY - cssH / 2 / cam.zoom;
       view.y1 = cam.centerY + cssH / 2 / cam.zoom;
-      const lod = cam.zoom <= GUEST_LOD_ZOOM;
+      const lod = cam.zoom <= lodZoom;
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
       ctx.imageSmoothingEnabled = true;
-      ctx.fillStyle = SKY;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       frame.scale = scale;
       frame.offX = offX;
@@ -882,10 +1084,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       frame.width = canvas.width;
       frame.height = canvas.height;
 
-      // Terrain.
+      // Sky and terrain (the static layer when nothing changed).
       terrain.sync(map);
-      const env = { seed: s.seed, rides: s.rides, stalls: s.stalls };
-      const chunks = terrain.draw(ctx, map, env, view, bucket, scale, offX, offY, rot);
+      const chunks = drawStatic(world, cam, map);
       mgmt.begin(scale, offX, offY, dpr, bucket, view, va);
       mgmt.drawGround(world);
       for (const l of layers) l.drawGround?.(ctx, world, tool, frame);
@@ -945,6 +1146,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         lastFrameAt = t1;
       }
       if (debug) drawDebug(world, chunks);
+      perfProbe.renderEnd();
     },
   };
 }

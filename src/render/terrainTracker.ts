@@ -1,57 +1,110 @@
 /**
- * Terrain chunk dirty flags (Phase 0 §4.8). Owner: W1-A.
- * The renderer never gets change events, so it keeps a snapshot of the static map layers and
- * diffs them each frame (a few µs on 64 × 64). A changed tile dirties its chunk and the chunks of
- * its 4 neighbours (path joins and cliff faces depend on neighbours).
+ * Terrain chunk dirty flags (Phase 0 §4.8). Owner: W1-A, W4-E.
+ * The renderer never gets change events, so it keeps a snapshot of the map layers the chunk images show and diffs
+ * them each frame. A changed tile dirties its chunk and the chunks of its 4 neighbours (path joins and cliff faces
+ * depend on neighbours).
+ *
+ * Phase 6 §4.6 finding: the diff compared 9 × tiles values every frame (147,456 on 128 × 128). It now tracks only the
+ * 7 layers chunk painting reads (path items and their broken flag are sprites drawn every frame, not chunk art, so a
+ * vandalised bench no longer redraws terrain) and compares the byte layers 4 tiles at a time as 32-bit words
+ * (49,152 compares on 128 × 128); only a changed word is looked at tile by tile.
  */
 import type { MapState } from '../sim/map';
 
-export const CHUNK_SIZE = 16;
+export const CHUNK_SIZE = 8;
 
 export function chunkCount(map: Pick<MapState, 'width' | 'height'>): { cx: number; cy: number } {
   return { cx: Math.ceil(map.width / CHUNK_SIZE), cy: Math.ceil(map.height / CHUNK_SIZE) };
 }
 
 type Layer = Uint8Array | Int32Array;
-const LAYERS = ['terrain', 'heights', 'slope', 'water', 'content', 'contentRef', 'owned', 'pathItem', 'pathItemFlags'] as const;
+/** The map layers the chunk images show (`./terrain.ts` `paintTile`, `./paths.ts` join masks). */
+export const TRACKED_LAYERS = ['terrain', 'heights', 'slope', 'water', 'content', 'contentRef', 'owned'] as const;
+type LayerName = (typeof TRACKED_LAYERS)[number];
+
+/** A 32-bit word view of a byte layer, or null when its offset is not word-aligned. */
+function wordView(a: Layer): Int32Array | null {
+  if (a instanceof Int32Array) return null;
+  return a.byteOffset % 4 === 0 ? new Int32Array(a.buffer, a.byteOffset, a.length >> 2) : null;
+}
+
+interface LayerDiff {
+  /** The map's array the views below were made for. */
+  src: Layer;
+  words: Int32Array | null;
+  snap: Layer;
+  snapWords: Int32Array | null;
+}
 
 export class TerrainTracker {
   private map: MapState | null = null;
-  private snaps: Layer[] = [];
+  private diffs: LayerDiff[] = [];
   private dirty = new Uint8Array(0);
   private dirtyN = 0;
   chunksX = 0;
   chunksY = 0;
-  /** Bumps whenever any tile changes (objects derived from the map, e.g. the fence, rebuild on it). */
+  /** Bumps whenever any tracked tile changes (objects derived from the map, e.g. the fence, rebuild on it). */
   version = 0;
   /** Bumps when a new map (or a new size) replaced the snapshot; every chunk is dirty then. */
   resets = 0;
 
   /** Compare the map against the snapshot; mark changed chunks dirty. */
   sync(map: MapState): void {
-    if (map !== this.map || this.snaps.length === 0 || (this.snaps[0] as Layer).length !== map.width * map.height) {
+    if (map !== this.map || this.diffs.length === 0 || (this.diffs[0] as LayerDiff).snap.length !== map.width * map.height) {
       this.reset(map);
       return;
     }
     let changed = false;
-    for (let l = 0; l < LAYERS.length; l++) {
-      const cur = map[LAYERS[l] as (typeof LAYERS)[number]];
-      const snap = this.snaps[l] as Layer;
-      const n = cur.length;
-      for (let i = 0; i < n; i++) {
-        if (cur[i] !== snap[i]) {
-          snap[i] = cur[i] as number;
-          this.markTile(map, i);
-          changed = true;
-        }
+    for (let l = 0; l < TRACKED_LAYERS.length; l++) {
+      const cur = map[TRACKED_LAYERS[l] as LayerName];
+      const d = this.diffs[l] as LayerDiff;
+      if (d.src !== cur) {
+        d.src = cur;
+        d.words = wordView(cur);
       }
+      if (this.diffLayer(map, cur, d)) changed = true;
     }
     if (changed) this.version++;
   }
 
+  private diffLayer(map: MapState, cur: Layer, d: LayerDiff): boolean {
+    const snap = d.snap;
+    const n = cur.length;
+    let changed = false;
+    let from = 0;
+    const words = d.words;
+    const snapWords = d.snapWords;
+    if (words && snapWords) {
+      const nw = words.length;
+      for (let w = 0; w < nw; w++) {
+        if (words[w] === snapWords[w]) continue;
+        for (let i = w * 4; i < w * 4 + 4; i++) {
+          if (cur[i] !== snap[i]) {
+            snap[i] = cur[i] as number;
+            this.markTile(map, i);
+          }
+        }
+        changed = true;
+      }
+      from = nw * 4;
+    }
+    for (let i = from; i < n; i++) {
+      if (cur[i] !== snap[i]) {
+        snap[i] = cur[i] as number;
+        this.markTile(map, i);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   private reset(map: MapState): void {
     this.map = map;
-    this.snaps = LAYERS.map((k) => map[k].slice());
+    this.diffs = TRACKED_LAYERS.map((k) => {
+      const src = map[k];
+      const snap = src.slice();
+      return { src, words: wordView(src), snap, snapWords: wordView(snap) };
+    });
     const { cx, cy } = chunkCount(map);
     this.chunksX = cx;
     this.chunksY = cy;

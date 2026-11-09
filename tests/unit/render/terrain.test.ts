@@ -1,24 +1,32 @@
-import { describe, expect, it } from 'vitest';
-import { CHUNK_CACHE_MB, chunkBounds, chunkViewRect, EXACT_SETTLE_FRAMES, grassShade, TerrainLayer } from '../../../src/render/terrain';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { CHUNK_CACHE_MB, chunkBounds, chunkViewRect, EXACT_SETTLE_FRAMES, FIRST_BUILD_BUDGET_MS, grassShade, TerrainLayer, terrainClock } from '../../../src/render/terrain';
 import { generateMap, tileIndex } from '../../../src/sim/map';
+import { CHUNK_SIZE } from '../../../src/render/terrainTracker';
 import { GROUND_LEVEL } from '../../../src/data/tuning/core';
 import { mapToView, viewSize } from '../../../src/render/view';
 import { install, make } from './fakeCanvas';
+
+// The first-build budget reads this clock: frozen, every chunk builds at once unless a test moves it.
+let now = 0;
+beforeEach(() => {
+  now = 0;
+  terrainClock.now = () => now;
+});
 
 describe('terrain chunks', () => {
   it('bounds an inner chunk by its tiles at ground level', () => {
     const map = generateMap();
     const b = chunkBounds(map, 1, 1);
-    // Tiles x, y in [16, 32): left corner of (16, 31), right corner of (31, 16).
-    expect(b.left).toBe((16 - 32) * 32);
-    expect(b.right).toBe((32 - 16) * 32);
-    expect(b.top).toBe(32 * 16 - (GROUND_LEVEL + 2) * 8);
-    expect(b.bottom).toBe(64 * 16 - GROUND_LEVEL * 8);
+    // Tiles x, y in [8, 16): left corner of (8, 15), right corner of (15, 8).
+    expect(b.left).toBe((8 - 16) * 32);
+    expect(b.right).toBe((16 - 8) * 32);
+    expect(b.top).toBe(16 * 16 - (GROUND_LEVEL + 2) * 8);
+    expect(b.bottom).toBe(32 * 16 - GROUND_LEVEL * 8);
   });
 
   it('extends front-edge chunks down to height 0 for the map edge faces', () => {
     const map = generateMap();
-    const b = chunkBounds(map, 3, 3);
+    const b = chunkBounds(map, 7, 7);
     expect(b.bottom).toBe(128 * 16);
   });
 
@@ -54,11 +62,11 @@ describe('terrain chunks under view rotation (Phase 4 §4.8, §4.10)', () => {
       for (let cy = 0; cy < 2; cy++) {
         for (let cx = 0; cx < 3; cx++) {
           const vr = chunkViewRect(map, cx, cy, r);
-          expect(vr.u1 - vr.u0).toBe(16);
-          expect(vr.v1 - vr.v0).toBe(16);
+          expect(vr.u1 - vr.u0).toBe(CHUNK_SIZE);
+          expect(vr.v1 - vr.v0).toBe(CHUNK_SIZE);
           // Every map tile of the chunk lands inside the view rectangle.
-          for (let y = cy * 16; y < cy * 16 + 16; y++) {
-            for (let x = cx * 16; x < cx * 16 + 16; x++) {
+          for (let y = cy * CHUNK_SIZE; y < (cy + 1) * CHUNK_SIZE; y++) {
+            for (let x = cx * CHUNK_SIZE; x < (cx + 1) * CHUNK_SIZE; x++) {
               const t = mapToView(x, y, r, 48, 32);
               expect(t.u >= vr.u0 && t.u < vr.u1 && t.v >= vr.v0 && t.v < vr.v1).toBe(true);
             }
@@ -76,7 +84,7 @@ describe('terrain chunks under view rotation (Phase 4 §4.8, §4.10)', () => {
 
   it('draws chunks back to front in the view and keeps images per rotation until a tile changes', () => {
     install();
-    const map = generateMap({ width: 48, height: 32 });
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
     const layer = new TerrainLayer();
     expect(layer.budgetPixels).toBe((CHUNK_CACHE_MB * 1024 * 1024) / 4);
     const env = { seed: 1, rides: [], stalls: [] };
@@ -116,7 +124,7 @@ describe('terrain chunks under view rotation (Phase 4 §4.8, §4.10)', () => {
 
   it('once the zoom settles between buckets, chunks are rebuilt at the exact scale one per frame and drawn 1:1', () => {
     install();
-    const map = generateMap({ width: 48, height: 32 });
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
     const layer = new TerrainLayer();
     const env = { seed: 1, rides: [], stalls: [] };
     const view = { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 };
@@ -153,5 +161,105 @@ describe('terrain chunks under view rotation (Phase 4 §4.8, §4.10)', () => {
     layer.draw(ctx, map, env, view, 1, 0.8, 0, 0, 0);
     expect(layer.builds).toBe(0);
     expect(canvas.draws.length).toBe(6);
+  });
+});
+
+describe('terrain chunk builds per frame (Phase 6 §4.6: a view turn is not one long frame)', () => {
+  const env = { seed: 1, rides: [], stalls: [] };
+  const view = { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 };
+
+  it('chunks with no image build while the frame budget lasts; the rest draw a placeholder until later frames', () => {
+    install();
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
+    const layer = new TerrainLayer();
+    const canvas = make(100, 100);
+    const ctx = canvas.getContext() as CanvasRenderingContext2D;
+    layer.sync(map);
+    // Every build takes the whole budget: one chunk per frame.
+    terrainClock.now = () => (now += FIRST_BUILD_BUDGET_MS);
+    const built: number[] = [];
+    for (let f = 0; f < 6; f++) {
+      canvas.reset();
+      layer.draw(ctx, map, env, view, 1, 1, 0, 0, 1);
+      built.push(layer.builds);
+      expect(layer.placeholders).toBe(5 - f);
+      expect(canvas.draws.length).toBe(f + 1);
+      expect(canvas.count('fill')).toBe(5 - f);
+      expect(layer.complete).toBe(f === 5);
+    }
+    expect(built).toEqual([1, 1, 1, 1, 1, 1]);
+    // All built: nothing more to do, and the frame is complete.
+    canvas.reset();
+    layer.draw(ctx, map, env, view, 1, 1, 0, 0, 1);
+    expect(layer.builds).toBe(0);
+    expect(layer.placeholders).toBe(0);
+    expect(layer.complete).toBe(true);
+  });
+
+  it('a fast frame builds every missing chunk at once', () => {
+    install();
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
+    const layer = new TerrainLayer();
+    const canvas = make(100, 100);
+    layer.sync(map);
+    layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, env, view, 1, 1, 0, 0, 2);
+    expect(layer.builds).toBe(6);
+    expect(layer.placeholders).toBe(0);
+    expect(layer.complete).toBe(true);
+  });
+
+  it('is not complete while bucket images stand in or exact-scale images are still to come', () => {
+    install();
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
+    const layer = new TerrainLayer();
+    const canvas = make(100, 100);
+    const ctx = canvas.getContext() as CanvasRenderingContext2D;
+    layer.sync(map);
+    layer.draw(ctx, map, env, view, 1, 0.75, 0, 0, 0);
+    // Between buckets: exact images will replace these once the zoom settles.
+    expect(layer.complete).toBe(false);
+    for (let k = 0; k < EXACT_SETTLE_FRAMES + 6; k++) layer.draw(ctx, map, env, view, 1, 0.75, 0, 0, 0);
+    expect(layer.complete).toBe(true);
+    // At bucket 2 the bucket-1 images stand in, one refined per frame.
+    layer.draw(ctx, map, env, view, 2, 2, 0, 0, 0);
+    expect(layer.builds).toBe(1);
+    expect(layer.complete).toBe(false);
+  });
+
+  it('phones keep 3 zoom buckets: no exact-scale images (Phase 6 §4.6)', () => {
+    install();
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
+    const layer = new TerrainLayer();
+    layer.allowExact = false;
+    const canvas = make(100, 100);
+    const ctx = canvas.getContext() as CanvasRenderingContext2D;
+    layer.sync(map);
+    let builds = 0;
+    for (let k = 0; k < EXACT_SETTLE_FRAMES + 10; k++) {
+      layer.draw(ctx, map, env, view, 1, 0.75, 0, 0, 0);
+      builds += layer.builds;
+    }
+    // Only the 6 bucket images; the scaled draws are final.
+    expect(builds).toBe(6);
+    expect(layer.complete).toBe(true);
+    for (let c = 0; c < 6; c++) {
+      for (let r = 0; r < 4; r++) expect(layer.hasImage(c, r as 0 | 1 | 2 | 3, 0.5) || layer.hasImage(c, r as 0 | 1 | 2 | 3, 2)).toBe(false);
+    }
+  });
+
+  it('prefetch builds one image of another rotation per call, and stops when the cache has no headroom', () => {
+    install();
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
+    const layer = new TerrainLayer();
+    const canvas = make(100, 100);
+    layer.sync(map);
+    layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, env, view, 1, 1, 0, 0, 0);
+    let built = 0;
+    while (layer.prefetch(map, env, view, 1, 1)) built++;
+    expect(built).toBe(6);
+    for (let c = 0; c < 6; c++) expect(layer.hasImage(c, 1, 1)).toBe(true);
+    // Nearly full: no prefetch (it would be evicted and rebuilt on every idle frame).
+    layer.budgetPixels = layer.pixels;
+    expect(layer.prefetch(map, env, view, 1, 2)).toBe(false);
   });
 });

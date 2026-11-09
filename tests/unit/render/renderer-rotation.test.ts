@@ -8,10 +8,14 @@ import { Owned, PathItem, tileIndex } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
 import { addGuestDirect, placeFootpath, placeQueue, placeRideDirect, placeStallDirect, runTicks, stateHash } from '../../helpers/world';
 import { canvasPixelRatio, isPhoneScreen, PHONE_MAX_PIXEL_RATIO } from '../../../src/render/canvas';
-import { chunkCacheBudgetPixels } from '../../../src/render/terrain';
+import { chunkCacheBudgetPixels, terrainClock } from '../../../src/render/terrain';
 import { SpriteBank } from '../../../src/render/sprites/bank';
 
-beforeAll(() => install());
+beforeAll(() => {
+  install();
+  // Deterministic first-build budget: every missing chunk builds in its first frame.
+  terrainClock.now = () => 0;
+});
 
 const ROTS: readonly ViewRotation[] = [0, 1, 2, 3];
 const W = 1600;

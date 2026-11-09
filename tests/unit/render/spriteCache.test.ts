@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SpriteCache, bucketIndex, defHash, spriteKey, type Sprite } from '../../../src/render/spriteCache';
+import { SpriteCache, SpriteMemory, bucketIndex, defHash, spriteBudgetBytes, spriteKey, type Sprite } from '../../../src/render/spriteCache';
 import { FLAT_RIDES, STALLS } from '../../../src/data/catalog';
 import { guestFrame, guestSpriteKey } from '../../../src/render/sprites/bank';
 
@@ -106,5 +106,85 @@ describe('SpriteCache', () => {
     c.clear();
     expect(c.size).toBe(0);
     expect(c.pixels).toBe(0);
+  });
+});
+
+describe('shared sprite memory (Phase 6 §4.6: one byte budget, LRU across caches)', () => {
+  const sprite = (w: number, h = 1): Sprite => ({ image: {} as CanvasImageSource, w, h, ox: 0, oy: 0, scale: 1 });
+
+  it('counts width × height × 4 bytes of every cache that holds sprites', () => {
+    const mem = new SpriteMemory(1_000_000);
+    const a = new SpriteCache(1_000_000, mem);
+    const b = new SpriteCache(1_000_000, mem);
+    a.set(1, sprite(10, 10));
+    b.set(1, sprite(4, 5));
+    expect(a.bytes).toBe(400);
+    expect(mem.bytes).toBe(400 + 80);
+    b.delete(1);
+    expect(mem.bytes).toBe(400);
+    a.clear();
+    expect(mem.bytes).toBe(0);
+  });
+
+  it('evicts the least recently used sprites of all caches until the bytes fit, never ones used this frame', () => {
+    const mem = new SpriteMemory(1000);
+    const sprites = new SpriteCache(1_000_000, mem);
+    const chunks = new SpriteCache(1_000_000, mem);
+    sprites.beginFrame();
+    chunks.beginFrame();
+    sprites.set(1, sprite(50)); // 200 bytes, oldest
+    chunks.set(1, sprite(100)); // 400 bytes
+    sprites.set(2, sprite(50)); // 200 bytes
+    sprites.beginFrame();
+    chunks.beginFrame();
+    sprites.get(1); // now the most recent
+    chunks.set(2, sprite(100)); // 400 bytes: 1,200 in all, over the 1,000 budget
+    sprites.trim();
+    // Oldest first: chunk 1 (400 bytes) goes; sprite 2 stays because 800 bytes fit.
+    expect(chunks.peek(1)).toBe(false);
+    expect(sprites.peek(2)).toBe(true);
+    expect(mem.bytes).toBe(800);
+    // Everything in use this frame: over budget rather than dropping live sprites.
+    sprites.get(2);
+    chunks.set(3, sprite(100));
+    chunks.trim();
+    expect(mem.bytes).toBe(1200);
+    sprites.beginFrame();
+    chunks.beginFrame();
+    chunks.trim();
+    expect(mem.bytes).toBeLessThanOrEqual(1000);
+  });
+
+  it('a cache whose layer skipped the renderer frame keeps nothing alive', () => {
+    const mem = new SpriteMemory(500);
+    const chunks = new SpriteCache(1e9, mem);
+    const sprites = new SpriteCache(1e9, mem);
+    mem.beginFrame();
+    chunks.beginFrame();
+    chunks.set(1, sprite(100)); // 400 bytes
+    // Next frame: the chunk layer does not draw (its cache frame stays), the sprite layer does.
+    mem.beginFrame();
+    sprites.beginFrame();
+    sprites.set(1, sprite(50)); // 200 bytes: 600 in all
+    sprites.trim();
+    expect(chunks.peek(1)).toBe(false);
+    expect(sprites.peek(1)).toBe(true);
+  });
+
+  it('device budgets: phone 64 MB, desktop 192 MB', () => {
+    expect(spriteBudgetBytes('phone')).toBe(64 * 1024 * 1024);
+    expect(spriteBudgetBytes('desktop')).toBe(192 * 1024 * 1024);
+    const mem = new SpriteMemory(spriteBudgetBytes('phone'));
+    const c = new SpriteCache(1e12, mem);
+    c.beginFrame();
+    // 20 chunk images of 1024 × 1024 px = 80 MB.
+    for (let k = 0; k < 20; k++) c.set(k, sprite(1024, 1024));
+    c.beginFrame();
+    c.trim();
+    expect(mem.bytes).toBeLessThanOrEqual(64 * 1024 * 1024);
+    expect(c.size).toBe(16);
+    // The newest images stay.
+    expect(c.peek(19)).toBe(true);
+    expect(c.peek(0)).toBe(false);
   });
 });

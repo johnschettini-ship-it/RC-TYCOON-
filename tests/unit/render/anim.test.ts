@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANGLE_FRAMES, decodeRideFrame, encodeRideFrame, occupancyLevel, rideAnimation, rideFrameFor } from '../../../src/render/anim';
+import { ANGLE_FRAMES, coarseRideFrame, decodeRideFrame, encodeRideFrame, occupancyLevel, rideAnimation, rideFrameFor } from '../../../src/render/anim';
 import { CHUNK_SIZE, TerrainTracker, chunkCount } from '../../../src/render/terrainTracker';
 import { Content, generateMap, tileIndex } from '../../../src/sim/map';
 import { getFlatRideDef } from '../../../src/data/catalog';
@@ -67,18 +67,18 @@ describe('ride animation from ride.cycle.phase', () => {
 });
 
 describe('terrain chunk dirty flags', () => {
-  it('uses 16 × 16-tile chunks', () => {
-    expect(CHUNK_SIZE).toBe(16);
+  it('uses 8 × 8-tile chunks (Phase 6 §4.6: 16 × 16 images were 9 MB each at the phone zoom bucket)', () => {
+    expect(CHUNK_SIZE).toBe(8);
     const map = generateMap();
-    expect(chunkCount(map)).toEqual({ cx: 4, cy: 4 });
+    expect(chunkCount(map)).toEqual({ cx: 8, cy: 8 });
   });
 
   it('marks every chunk dirty on the first sync, then nothing until the map changes', () => {
     const map = generateMap();
     const t = new TerrainTracker();
     t.sync(map);
-    expect(t.dirtyCount()).toBe(16);
-    for (let c = 0; c < 16; c++) t.clean(c);
+    expect(t.dirtyCount()).toBe(64);
+    for (let c = 0; c < 64; c++) t.clean(c);
     t.sync(map);
     expect(t.dirtyCount()).toBe(0);
   });
@@ -87,22 +87,43 @@ describe('terrain chunk dirty flags', () => {
     const map = generateMap();
     const t = new TerrainTracker();
     t.sync(map);
-    for (let c = 0; c < 16; c++) t.clean(c);
+    for (let c = 0; c < 64; c++) t.clean(c);
     map.content[tileIndex(map, 20, 20)] = Content.Footpath;
     t.sync(map);
-    expect(t.dirtyList()).toEqual([1 * 4 + 1]);
-    for (let c = 0; c < 16; c++) t.clean(c);
+    expect(t.dirtyList()).toEqual([2 * 8 + 2]);
+    for (let c = 0; c < 64; c++) t.clean(c);
     // A tile on a chunk corner touches three chunks through its neighbours.
     map.owned[tileIndex(map, 16, 16)] = 0;
     t.sync(map);
-    expect(t.dirtyList()).toEqual([0 * 4 + 1, 1 * 4 + 0, 1 * 4 + 1]);
+    expect(t.dirtyList()).toEqual([1 * 8 + 2, 2 * 8 + 1, 2 * 8 + 2]);
   });
 
   it('resets when the world gets a new map', () => {
     const t = new TerrainTracker();
     t.sync(generateMap());
-    for (let c = 0; c < 16; c++) t.clean(c);
+    for (let c = 0; c < 64; c++) t.clean(c);
     t.sync(generateMap({ width: 32, height: 32 }));
-    expect(t.dirtyCount()).toBe(4);
+    expect(t.dirtyCount()).toBe(16);
+  });
+});
+
+describe('coarse ride frames (Phase 6 §4.6, 64 MB sprite budget)', () => {
+  it('16 angles and 3 occupancy levels; swing kept', () => {
+    const seen = new Set<number>();
+    for (let a = 0; a < ANGLE_FRAMES; a++) {
+      for (let o = 0; o <= 4; o++) {
+        const c = coarseRideFrame(encodeRideFrame(a, 3, o));
+        const f = decodeRideFrame(c);
+        expect(f.angle % 2).toBe(0);
+        expect(f.angle === a || f.angle === a - 1).toBe(true);
+        expect([0, 2, 4]).toContain(f.occupancy);
+        expect(f.swing).toBe(3);
+        seen.add(c);
+      }
+    }
+    expect(seen.size).toBe(16 * 3);
+    // Empty and full stay exact.
+    expect(decodeRideFrame(coarseRideFrame(encodeRideFrame(5, 0, 0))).occupancy).toBe(0);
+    expect(decodeRideFrame(coarseRideFrame(encodeRideFrame(5, 0, 4))).occupancy).toBe(4);
   });
 });
