@@ -1,6 +1,7 @@
-/** Guest draw positions in continuous map coordinates. Owner: W1-A. */
+/** Guest draw positions in continuous map coordinates. Owner: W1-A, W3-G (heights). */
 import type { MapState } from '../sim/map';
 import type { Guest } from '../sim/guests/types';
+import { surfaceHeight } from './iso';
 
 /** Phase 1 §8 `GUEST_WALK_TICKS_PER_TILE`. Mirrors the guests tuning value (W1-D) for interpolation only. */
 export const GUEST_WALK_TICKS_PER_TILE = 10;
@@ -17,10 +18,27 @@ export interface GuestPos {
 }
 
 /**
+ * Drawing height of a walker at (fx, fy) whose path node height is `z` (Phase 4 §5): a walker whose node is not
+ * the ground of its tile stands on an elevated path at `z`; otherwise it stands on the ground surface (ramps
+ * included). Records without a `z` (Build 1 test data) stand on the ground.
+ */
+export function walkerHeight(map: MapState, tile: number, z: number | undefined, fx: number, fy: number): number {
+  const n = map.width * map.height;
+  if (tile >= 0 && tile < n && z !== undefined && Number.isFinite(z) && z !== (map.heights[tile] as number)) return z;
+  return surfaceHeight(map, fx, fy);
+}
+
+/**
  * Position of a walking or standing guest: interpolated from `tile` toward `nextTile` by
  * (progress + alpha) / GUEST_WALK_TICKS_PER_TILE, plus a lane offset perpendicular to the walk.
+ * Height: `walkerHeight` (the ground surface, or the elevated path node `z`).
  */
-export function guestPosition(map: MapState, g: Pick<Guest, 'tile' | 'nextTile' | 'progress' | 'lane' | 'dir'>, alpha: number, out: GuestPos): GuestPos {
+export function guestPosition(
+  map: MapState,
+  g: Pick<Guest, 'tile' | 'nextTile' | 'progress' | 'lane' | 'dir'> & { z?: number },
+  alpha: number,
+  out: GuestPos,
+): GuestPos {
   const w = map.width;
   const x = g.tile % w;
   const y = (g.tile - x) / w;
@@ -29,7 +47,6 @@ export function guestPosition(map: MapState, g: Pick<Guest, 'tile' | 'nextTile' 
   let alongX: boolean;
   const n = map.width * map.height;
   const inMap = g.tile >= 0 && g.tile < n;
-  let z = inMap ? (map.heights[g.tile] as number) : (map.heights[map.entranceTile] ?? 0);
   if (g.nextTile >= 0 && g.nextTile !== g.tile) {
     const nx = g.nextTile % w;
     const ny = (g.nextTile - nx) / w;
@@ -39,7 +56,6 @@ export function guestPosition(map: MapState, g: Pick<Guest, 'tile' | 'nextTile' 
     fx += (nx - x) * t;
     fy += (ny - y) * t;
     alongX = nx !== x;
-    if (g.nextTile < n && inMap) z += ((map.heights[g.nextTile] as number) - z) * t;
   } else {
     alongX = g.dir === 1 || g.dir === 3;
   }
@@ -48,7 +64,7 @@ export function guestPosition(map: MapState, g: Pick<Guest, 'tile' | 'nextTile' 
   else fx += off;
   out.fx = fx;
   out.fy = fy;
-  out.z = z;
+  out.z = inMap ? walkerHeight(map, g.tile, g.z, fx, fy) : ((map.heights[map.entranceTile] as number | undefined) ?? 0);
   out.tile = g.tile;
   return out;
 }

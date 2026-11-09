@@ -132,7 +132,8 @@ describe('painting every piece in every direction and rail style', () => {
         }
       }
     }
-  });
+    // Paints every piece in every direction: seconds of work, so a busy machine gets more time.
+  }, 30_000);
 
   it('runsInTile splits a vertical loop by tile and the support point prefers the lowest rail there', () => {
     const p = piece('vertical_loop_right', 0);

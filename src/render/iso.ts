@@ -44,6 +44,28 @@ export function cornerHeights(map: MapState, i: number): [number, number, number
   return [h + (s & SLOPE_N ? 1 : 0), h + (s & SLOPE_E ? 1 : 0), h + (s & SLOPE_S ? 1 : 0), h + (s & SLOPE_W ? 1 : 0)];
 }
 
+/**
+ * Height (steps) of the ground surface at continuous map point (fx, fy): bilinear over the corners of the tile under
+ * it (the same surface the terrain painter draws paths and decals on). Points off the map use the nearest edge tile.
+ */
+export function surfaceHeight(map: Pick<MapState, 'width' | 'height' | 'heights' | 'slope'>, fx: number, fy: number): number {
+  let x = Math.floor(fx);
+  let y = Math.floor(fy);
+  if (x < 0) x = 0;
+  else if (x >= map.width) x = map.width - 1;
+  if (y < 0) y = 0;
+  else if (y >= map.height) y = map.height - 1;
+  const i = y * map.width + x;
+  const h = (map.heights[i] as number | undefined) ?? 0;
+  const s = (map.slope[i] as number | undefined) ?? 0;
+  if (s === 0) return h;
+  let u = fx - x;
+  let v = fy - y;
+  u = u < 0 ? 0 : u > 1 ? 1 : u;
+  v = v < 0 ? 0 : v > 1 ? 1 : v;
+  return h + (1 - u) * (1 - v) * (s & SLOPE_N ? 1 : 0) + u * (1 - v) * (s & SLOPE_E ? 1 : 0) + u * v * (s & SLOPE_S ? 1 : 0) + (1 - u) * v * (s & SLOPE_W ? 1 : 0);
+}
+
 /** Lowest base height and highest corner height on the map. */
 export function heightRange(map: MapState): { zMin: number; zMax: number } {
   const hs = map.heights;
