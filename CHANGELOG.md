@@ -18,6 +18,13 @@ Save schema 3. Build 1 and Build 2 saves load and upgrade; Build 2 progress file
 
 ### Changed
 - Money, numbers, and the HUD date follow the selected language (English text is unchanged).
+- Content names follow the selected language too: rides, track types and pieces, stalls, path items, staff, scenery themes and items, show sites, marketing campaigns, and scenario names and descriptions come from the string table (`content.*`), in pickers, panels, status bars, and messages. Refusal reasons in the build status bars are shown in the current language.
+- Every placement ghost uses the colour-blind safe pair (blue for OK, vermillion for blocked), including scenery, land and water tools, the track builder, show sites, elevated paths, and patrol erasing; outlines are thicker with high contrast.
+- Importing a progress file (Settings → Data) runs the same check as loading it and shows the same messages; a refused file changes nothing.
+- Terrain is drawn in 8 × 8-tile chunks (was 16 × 16), so turning the view and panning on phones stays smooth (`docs/adr/0001-renderer.md`).
+
+### Not yet checked by a person
+Before the `build-3` tag the owner runs the manual steps of `docs/release/build-3-checklist.md`: the license choice, the browser and real-phone checks, a listening check of the generated audio, a play-test of the provisional numbers in `tuning-log.md` (Build 3 research costs, show lengths), and the service worker update flow on GitHub Pages with two deploys.
 
 ## Build 2 — "The Wide World"
 Save schema 2. Build 1 saves load and upgrade.
