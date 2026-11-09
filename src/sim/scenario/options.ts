@@ -19,6 +19,18 @@ export function applySandboxOption(world: World, key: keyof SandboxOptions, opti
   }
 }
 
+/**
+ * Change one live option of a sandbox and apply its effect at once (no-op for other park kinds). The one way to
+ * change a live option: `setSandboxOption` uses it, and so does the park panel's After Dark switch (`setAfterDark`),
+ * so `options.afterDark` and `park.afterDark` never disagree.
+ */
+export function setSandboxLiveOption<K extends SandboxLiveOption>(world: World, key: K, value: SandboxOptions[K]): void {
+  const sc = world.state.scenario;
+  if (sc.kind !== 'sandbox') return;
+  sc.options = { ...sc.options, [key]: value };
+  applySandboxOption(world, key, sc.options);
+}
+
 /** All option effects at sandbox start. */
 export function applySandboxOptions(world: World, options: SandboxOptions): void {
   for (const key of ['afterDark', 'breakdowns', 'weather'] as const) applySandboxOption(world, key, options);
