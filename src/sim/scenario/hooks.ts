@@ -1,8 +1,9 @@
 /**
  * Month-metric counters fed by the guest hooks (Phase 5 §5). Owner: W3-H.
  * - onThought: distinct guests per tracked thought this month (`TRACKED_THOUGHTS`: the too-expensive and lost
- *   thoughts for the awards); every guest with a thought also counts as seen this month
+ *   thoughts for the awards); other thoughts return at once (thoughts are frequent)
  * - onBoard: queue wait sum and count of guests who board a ride
+ * The guests-seen list is kept at hour starts (`metrics.ts`).
  */
 import { TRACKED_THOUGHTS } from '../../data/tuning/scenario';
 import type { GuestHooks } from '../hookTypes';
@@ -13,9 +14,8 @@ const TRACKED = new Set(TRACKED_THOUGHTS);
 export const scenarioHooks: Partial<GuestHooks> = {
   onThought: [
     (world, guest, thoughtId) => {
-      const m = world.state.monthMetrics;
-      insertSorted(m.guestsSeen, guest.id);
       if (!TRACKED.has(thoughtId)) return;
+      const m = world.state.monthMetrics;
       const list = m.thoughtGuests[thoughtId] ?? (m.thoughtGuests[thoughtId] = []);
       insertSorted(list, guest.id);
     },

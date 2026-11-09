@@ -59,7 +59,7 @@ describe('samples', () => {
 });
 
 describe('guest hook counters', () => {
-  it('tracked thoughts record each guest once per thought id; other thoughts only mark the guest as seen', () => {
+  it('tracked thoughts record each guest once per thought id; other thoughts are not counted', () => {
     const w = park();
     const [g1, g2, g3] = w.state.guests;
     addThought(w, g2!, 'rideTooExpensive');
@@ -71,10 +71,15 @@ describe('guest hook counters', () => {
     addThought(w, g2!, 'rideTooExpensive');
     const m = w.state.monthMetrics;
     expect(m.thoughtGuests).toEqual({ rideTooExpensive: [g1!.id, g2!.id], drinkTooExpensive: [g1!.id], lost: [g3!.id] });
-    expect(m.guestsSeen).toEqual([g1!.id, g2!.id, g3!.id]);
     expect(guestsWithThoughts(m, ['rideTooExpensive', 'drinkTooExpensive', 'snackTooExpensive'])).toBe(2);
-    expect(tooExpensiveShare(m)).toBeCloseTo(2 / 3, 9);
-    expect(lostShare(m)).toBeCloseTo(1 / 3, 9);
+    // Shares are of the guests seen at hour starts (5 here), capped at 1.
+    expect(tooExpensiveShare(m)).toBe(0);
+    recordSamples(w);
+    expect(m.guestsSeen).toHaveLength(5);
+    expect(tooExpensiveShare(m)).toBeCloseTo(2 / 5, 9);
+    expect(lostShare(m)).toBeCloseTo(1 / 5, 9);
+    m.guestsSeen = [g1!.id];
+    expect(tooExpensiveShare(m)).toBe(1);
   });
 
   it('boarding adds the queue wait to the month sum and count', () => {

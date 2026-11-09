@@ -112,14 +112,24 @@ export function guestsWithThoughts(metrics: MonthMetrics, ids: readonly string[]
   return seen.size;
 }
 
-/** Share (0–1) of this month's guests with a "too expensive" thought; 0 with no guests. */
-export function tooExpensiveShare(metrics: MonthMetrics): number {
-  return metrics.guestsSeen.length > 0 ? guestsWithThoughts(metrics, TOO_EXPENSIVE_THOUGHTS) / metrics.guestsSeen.length : 0;
+/**
+ * Share (0–1) of this month's guests who had one of the thoughts. The guests seen are those in the park at an hour
+ * start of the month; a guest who came and left between two hour starts still counts for the thought, so the
+ * share is capped at 1. 0 with no guests.
+ */
+function thoughtShare(metrics: MonthMetrics, ids: readonly string[]): number {
+  if (metrics.guestsSeen.length === 0) return 0;
+  return Math.min(1, guestsWithThoughts(metrics, ids) / metrics.guestsSeen.length);
 }
 
-/** Share (0–1) of this month's guests who got lost; 0 with no guests. */
+/** Share of this month's guests with a "too expensive" thought (Rip-off Park). */
+export function tooExpensiveShare(metrics: MonthMetrics): number {
+  return thoughtShare(metrics, TOO_EXPENSIVE_THOUGHTS);
+}
+
+/** Share of this month's guests who got lost (Lost and Confused). */
 export function lostShare(metrics: MonthMetrics): number {
-  return metrics.guestsSeen.length > 0 ? guestsWithThoughts(metrics, LOST_THOUGHTS) / metrics.guestsSeen.length : 0;
+  return thoughtShare(metrics, LOST_THOUGHTS);
 }
 
 /** Mean queue wait of the guests who boarded this month, in ticks (0 with none). */
