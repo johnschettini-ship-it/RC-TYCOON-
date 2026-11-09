@@ -570,6 +570,42 @@ describe('powered, guest-driven, and spinning types', () => {
   });
 });
 
+describe('every Build 1 track type passes a test and carries guests (Phase 3 §10)', () => {
+  const c = (id: string): PieceSpec => ({ id, chain: true });
+  const times = (n: number, p: PieceSpec): PieceSpec[] => Array.from({ length: n }, () => p);
+  /** A lift straight into its drop (no flat crest to crawl over at chain speed), then a rectangle back to the station. */
+  const crestDrop = (lift: string[], drop: string[]): PieceSpec[] => [
+    'station', 'station', ...lift.map(c), ...drop, 'straight', 'straight', 'turn_medium_right', { id: 'brakes', brakeSpeed: 10 },
+    ...times(5, 'straight'), 'turn_medium_right', ...times(15, 'straight'), 'turn_medium_right', ...times(6, 'straight'), 'turn_medium_right',
+  ];
+  const loop8: PieceSpec[] = [
+    'station', 'straight', 'straight', 'turn_medium_right', 'straight', 'straight', 'straight', 'turn_medium_right',
+    'straight', 'straight', 'straight', 'straight', 'turn_medium_right', 'straight', 'straight', 'straight', 'turn_medium_right',
+  ];
+  // Steel Coaster (R1), Mini Railway, Go-Kart Track, and Spinning Mouse run in the tests above.
+  const cases: [string, PieceSpec[]][] = [
+    ['junior_coaster', crestDrop(['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up_to_flat'], ['flat_to_gentle_down', 'gentle_down', 'gentle_down', 'gentle_down', 'gentle_down_to_flat'])],
+    ['wooden_coaster', crestDrop(['flat_to_gentle_up', 'gentle_to_steep_up', 'steep_up', 'steep_to_gentle_up', 'gentle_up_to_flat'], ['flat_to_gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat'])],
+    ['ghost_train', loop8],
+  ];
+  it.each(cases)('%s', (typeId, pieces) => {
+    const w = makeTestWorld();
+    const id = readyRide(w, typeId, 4, 2, pieces, 1);
+    const ride = rideOf(w, id);
+    const d = dataOf(w, id);
+    expect(d.test?.passed).toBe(true);
+    expect(d.test?.excitement).toBeGreaterThan(0);
+    for (let k = 0; k < 30; k++) {
+      const g = addGuestDirect(w, 0, { state: 'queueing', activityId: id });
+      ride.queue.push(g.id);
+    }
+    tick(w, 3000);
+    expect(ride.status).toBe('open');
+    expect(ride.totals.riders).toBeGreaterThan(0);
+    expect(vi.mocked(finishRide).mock.calls.filter((call) => call[2] === ride).length).toBeGreaterThan(0);
+  });
+});
+
 describe('demolish, value, running cost, and load checks', () => {
   it('demolish refunds 100% if never opened and 50% once opened; tiles, gates, and guests are cleared', () => {
     const w = makeTestWorld();
