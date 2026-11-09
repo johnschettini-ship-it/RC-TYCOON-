@@ -1,11 +1,11 @@
 /**
- * Structural check of a loaded schema 2 GameState: every field present with the right type, no unknown fields,
+ * Structural check of a loaded schema 3 GameState: every field present with the right type, no unknown fields,
  * map layers of the right kind and size, tile indices inside the map. Owner: integrator.
  *
  * Each validator carries its value type, and `obj<T>` needs a validator for every key of T, so adding or
  * changing a field in a state type without updating its validator is a compile error.
- * Build 2 slices have their validators in `slices/*.ts`, owned by the Wave 3 card that owns the slice.
- * The frozen schema 1 check for the 1 → 2 migration is `v1/schema.ts`.
+ * Build 2 and Build 3 slices have their validators in `slices/*.ts`, owned by the card that owns the slice.
+ * The frozen checks for the migrations are `v1/schema.ts` (1 → 2) and `v2/schema.ts` (2 → 3).
  */
 import { Content, type Dir, type MapState } from '../sim/map';
 import type { GameState } from '../sim/types';
@@ -45,6 +45,7 @@ import { trackShape } from './slices/track';
 import { elevatedPathsShape } from './slices/elevatedPaths';
 import { sceneryListShape } from './slices/scenery';
 import { monthMetricsShape, scenarioShape } from './slices/scenario';
+import { showsShape } from './slices/shows';
 
 export { isRecord, MAX_TILES } from './validate';
 
@@ -53,7 +54,7 @@ export { isRecord, MAX_TILES } from './validate';
 const DIRS = every<Dir>()([0, 1, 2, 3]);
 const RIDE_STATUSES = every<RideStatus>()(['building', 'testing', 'closed', 'open', 'broken', 'inspecting', 'stormHold']);
 const CYCLE_PHASES = every<FlatCyclePhase>()(['waiting', 'loading', 'running', 'unloading']);
-const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing', 'riding', 'buying', 'sitting', 'leaving']);
+const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing', 'riding', 'buying', 'sitting', 'leaving', 'watchingShow']);
 const STAFF_TYPES = every<StaffType>()(['groundskeeper', 'mechanic', 'security', 'performer']);
 const STAFF_STATES = every<StaffStateName>()(['walking', 'sweeping', 'cleaning', 'emptying', 'inspecting', 'fixing', 'performing', 'watering']);
 const STAFF_TASKS = every<StaffTask>()(['none', 'wander', 'toPatrol', 'sweep', 'mess', 'bin', 'water', 'fix', 'inspect', 'roam', 'perform']);
@@ -67,7 +68,7 @@ const dir = oneOf(DIRS);
 const rideStatus = oneOf(RIDE_STATUSES);
 const weather = oneOf(WEATHER_KEYS);
 
-const DEST_RE = /^(?:(?:ride|stall):(?:0|[1-9]\d*)|exit)$/;
+const DEST_RE = /^(?:(?:ride|stall|show):(?:0|[1-9]\d*)|exit)$/;
 const destKey: V<DestKey> = when((v) => typeof v === 'string' && DEST_RE.test(v));
 
 const params = optional(record<string | number>(when((v) => typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)))));
@@ -192,7 +193,7 @@ const guestShape = obj<Guest>({
   thoughtCooldowns: record(int),
   ridden: record(int),
   spent: int,
-  items: obj<GuestItems>({ map: bool, umbrella: bool, balloon: bool }),
+  items: obj<GuestItems>({ map: bool, umbrella: bool, balloon: bool, photo: bool }),
   nextDecisionTick: int,
   lostSinceTick: int,
   noRideStreak: int,
@@ -204,6 +205,7 @@ const guestShape = obj<Guest>({
   bestDistance: int,
   lostTarget: nullable(destKey),
   wetUntilTick: int,
+  showTarget: int,
 });
 
 const economyShape = obj<EconomyState>({
@@ -277,7 +279,7 @@ const managementShape = obj<ManagementSlice>({
 });
 
 export const gameStateShape = obj<GameState>({
-  schemaVersion: literal(2),
+  schemaVersion: literal(3),
   seed: int,
   rng: int,
   tick: int,
@@ -296,9 +298,10 @@ export const gameStateShape = obj<GameState>({
   scenery: sceneryListShape,
   scenario: scenarioShape,
   monthMetrics: monthMetricsShape,
+  shows: showsShape,
 });
 
-/** Null when `raw` has the full schema 2 GameState structure, else a short reason. */
+/** Null when `raw` has the full schema 3 GameState structure, else a short reason. */
 export function checkStructure(raw: unknown): string | null {
   return checkStateWith(raw, mapCheck, gameStateShape);
 }

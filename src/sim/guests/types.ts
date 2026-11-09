@@ -1,8 +1,11 @@
 import type { EntityId, Cents } from '../units';
 import type { Dir } from '../map';
 
-/** Destinations for walking guests and staff. */
-export type DestKey = `ride:${number}` | `stall:${number}` | 'exit';
+/**
+ * Destinations for walking guests and staff. `show:N` (Phase 6 §4.4): the viewing tiles of show site N (the pathing
+ * field starts from every viewing node; `sim/shows/api.ts` `viewingTiles`, W4-C).
+ */
+export type DestKey = `ride:${number}` | `stall:${number}` | `show:${number}` | 'exit';
 
 export type GuestStateName =
   | 'arriving'
@@ -11,7 +14,9 @@ export type GuestStateName =
   | 'riding'
   | 'buying'
   | 'sitting'
-  | 'leaving';
+  | 'leaving'
+  /** Phase 6 §4.4: standing on a viewing tile of `showTarget` until the show ends (`sim/shows/guests.ts`, W4-C). */
+  | 'watchingShow';
 
 /** Needs on a 0–255 scale. Energy and happiness: high is good. Others: high is bad. */
 export interface Needs {
@@ -34,6 +39,8 @@ export interface GuestItems {
   map: boolean;
   umbrella: boolean;
   balloon: boolean;
+  /** Phase 6 §4.5, §5: a Photo Booth photo. */
+  photo: boolean;
 }
 
 export interface Guest {
@@ -90,4 +97,9 @@ export interface Guest {
   lostTarget: DestKey | null;
   /** Phase 4 §4.4: wet from a water ride until this tick (1 game hour), or −1 when dry (W3-C). */
   wetUntilTick: number;
+  /**
+   * Phase 6 §4.4, §5: the show site this guest walks to (target `show:N`) or watches (`watchingShow`), else −1.
+   * Set and cleared by W4-C only.
+   */
+  showTarget: EntityId;
 }

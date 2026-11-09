@@ -11,6 +11,7 @@ import { sceneryHandlers } from '../scenery/commands';
 import { afterDarkHandlers } from '../lighting/commands';
 import { scenarioHandlers } from '../scenario/commands';
 import { tutorialAfterCommand, tutorialHandlers } from '../tutorial/commands';
+import { showHandlers } from '../shows/commands';
 import { markFieldsDirty } from '../fields/api';
 import type { Command, CommandContext, CommandResult, Handler, HandlerMap } from './types';
 
@@ -27,6 +28,8 @@ const handlers: HandlerMap<Command> = {
   ...afterDarkHandlers,
   ...scenarioHandlers,
   ...tutorialHandlers,
+  // Build 3 (Wave 4).
+  ...showHandlers,
 };
 
 export function executeCommand(world: World, cmd: Command, opts?: { setup?: boolean }): CommandResult {

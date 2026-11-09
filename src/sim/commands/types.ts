@@ -1,5 +1,5 @@
 /**
- * Command contracts for Build 1 (Phases 1–3) and Build 2 (Phases 4–5). Owner: integrator.
+ * Command contracts for Build 1 (Phases 1–3), Build 2 (Phases 4–5), and Build 3 (Phase 6). Owner: integrator.
  * Handlers live in each owner's folder and are registered in `./index.ts`.
  */
 import type { Dir, TerrainCode } from '../map';
@@ -112,6 +112,16 @@ export type TutorialCommand =
   | { type: 'tutorialSkipStep' }
   | { type: 'tutorialSkipAll' };
 
+/**
+ * Phase 6 §6 — After Dark show sites (owner W4-C). Demolish uses `demolish` (it calls W4-C's `demolishShowSite`).
+ * `placeShowSite`: unlocked, tiles valid, cash enough; the schedule starts disabled at 21:00, every day.
+ * `setShowSchedule`: hour 20–23, minute 0 or 30, everyNDays 1–3. `setShowEnabled`: the site exists.
+ */
+export type ShowCommand =
+  | { type: 'placeShowSite'; defId: string; x: number; y: number; rotation: Dir }
+  | { type: 'setShowSchedule'; id: EntityId; hour: number; minute: number; everyNDays: number }
+  | { type: 'setShowEnabled'; id: EntityId; enabled: boolean };
+
 export type Command =
   | BuildCommand
   | PriceCommand
@@ -123,7 +133,8 @@ export type Command =
   | SceneryCommand
   | AfterDarkCommand
   | ScenarioCommand
-  | TutorialCommand;
+  | TutorialCommand
+  | ShowCommand;
 
 export type CommandResult =
   | { ok: true; cost: Cents; warnings: string[]; id?: EntityId }

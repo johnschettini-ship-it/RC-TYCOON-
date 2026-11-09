@@ -85,7 +85,7 @@ describe('impulse chance = IMPULSE[kind] × weather factor × price factor', () 
 
   it('never for a souvenir or map the guest already holds', () => {
     const { w, p } = setup();
-    const g = addGuestDirect(w, p.main(10), { items: { map: true, umbrella: true, balloon: true } });
+    const g = addGuestDirect(w, p.main(10), { items: { map: true, umbrella: true, balloon: true, photo: true } });
     pinWeather(w, 'rain');
     expect(impulseChance(w, g, p.stall('balloon_stand', 10))).toBe(0);
     expect(impulseChance(w, g, p.stall('umbrella_stand', 11))).toBe(0);

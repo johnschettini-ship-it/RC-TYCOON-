@@ -28,6 +28,7 @@ import {
 import { recordLedger } from '../economy/ledger';
 import { guestHooks } from '../hooks';
 import type { Ride } from '../rides/types';
+import { emitSound } from '../sound';
 import type { World } from '../types';
 import { changeNeed } from './needs';
 import { gateZ, relocate, stepOffQueue, stopWalking, tileOk } from './movement';
@@ -62,7 +63,10 @@ export function boardRide(world: World, guest: Guest, ride: Ride): boolean {
   const price = ride.price;
   guest.cash -= price;
   guest.spent += price;
-  if (price !== 0) recordLedger(world, 'rideTickets', price);
+  if (price !== 0) {
+    recordLedger(world, 'rideTickets', price);
+    emitSound(world, 'rideTicket', guest.tile, ride.id, price);
+  }
   setState(guest, 'riding');
   guest.activityId = ride.id;
   guest.target = rideDest(ride.id);

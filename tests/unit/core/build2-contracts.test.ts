@@ -23,10 +23,10 @@ import { mapRotationFromView, mapToView, mapToViewContinuous, rotateSlopeMask, v
 import type { Dir } from '../../../src/sim/map';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeRideDirect, runTicks, stateHash } from '../../helpers/world';
 
-describe('new games are schema 2 (Phase 4 §5, Phase 5 §5)', () => {
+describe('new games are schema 3 with every Build 2 slice (Phase 4 §5, Phase 5 §5, Phase 6 §5)', () => {
   it('has every Build 2 slice with its start value and passes the save checks', () => {
     const s = makeTestWorld().state;
-    expect(s.schemaVersion).toBe(2);
+    expect(s.schemaVersion).toBe(3);
     expect(s.park.afterDark).toBe(true);
     expect(s.park.landPrice).toBe(15_000);
     expect(s.park.rightsPrice).toBe(6_000);

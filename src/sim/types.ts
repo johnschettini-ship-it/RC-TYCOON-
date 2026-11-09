@@ -11,13 +11,15 @@ import type { ManagementSlice, MessageCategory } from './management/types';
 import type { ElevatedPath } from './paths/types';
 import type { Scenery } from './scenery/types';
 import type { AwardId, MonthMetrics, ScenarioEndReason, ScenarioState } from './scenario/types';
+import type { ShowSite } from './shows/types';
+import type { SoundCue } from './sound';
 import type { EntityId } from './units';
 
-/** Save schema of this build: Build 1 = 1, Build 2 = 2 (master §7). */
-export const STATE_SCHEMA_VERSION = 2;
+/** Save schema of this build: Build 1 = 1, Build 2 = 2, Build 3 = 3 (master §7). */
+export const STATE_SCHEMA_VERSION = 3;
 
 export interface GameState {
-  schemaVersion: 2;
+  schemaVersion: 3;
   seed: number;
   /** mulberry32 state. Only `sim/rng.ts` touches it. */
   rng: number;
@@ -44,6 +46,8 @@ export interface GameState {
   scenario: ScenarioState;
   /** Phase 5 §5: samples and counters of the current month (W3-H). */
   monthMetrics: MonthMetrics;
+  /** Phase 6 §5: After Dark show sites, sorted by id (W4-C). */
+  shows: ShowSite[];
 }
 
 /** Events for the client. Systems push; the client drains once per frame (master 5.3). */
@@ -57,7 +61,18 @@ export type SimEvent =
   /** Phase 5 §4.10: an award was won at this month end (toast and park panel). W3-I. */
   | { type: 'award'; id: AwardId; positive: boolean; monthIndex: number }
   /** Phase 5 §4.11: the tutorial moved to step `stepIndex` (or finished when `done`). W3-I. */
-  | { type: 'tutorialStep'; stepIndex: number; done: boolean };
+  | { type: 'tutorialStep'; stepIndex: number; done: boolean }
+  /**
+   * Phase 6 §2, §4.1: a sim fact the audio module turns into a sound (`./sound.ts`). Pushed with `emitSound`, which
+   * drops sound events while too many are pending (headless runs never drain). `tile` −1 = not placed on the map;
+   * `value` depends on the cue (cents for sales, metres for drops). Never read by the sim.
+   */
+  | { type: 'sound'; cue: SoundCue; tile: number; entityId: EntityId; value: number }
+  /**
+   * Phase 6 §4.4: a show site changed phase (W4-C). `cancelled` = not enough cash at the start (the UI shows
+   * "Not enough cash for the show"); `ended` carries the watcher count.
+   */
+  | { type: 'show'; siteId: EntityId; phase: 'announced' | 'started' | 'ended' | 'cancelled'; watchers: number };
 
 export interface World {
   state: GameState;

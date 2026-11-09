@@ -255,7 +255,7 @@ describe('guest weather effects (hooks)', () => {
     for (const [weather, umbrella, delta] of cases) {
       const w = makeTestWorld();
       setWeather(w, weather);
-      const g = addGuestDirect(w, 100, { items: { map: false, umbrella, balloon: false } });
+      const g = addGuestDirect(w, 100, { items: { map: false, umbrella, balloon: false, photo: false } });
       decide(w, g);
       expect(g.needs.happiness - 180).toBe(delta);
     }
@@ -280,7 +280,7 @@ describe('guest weather effects (hooks)', () => {
     const w = makeTestWorld();
     setWeather(w, 'rain');
     const g = addGuestDirect(w, 100);
-    const u = addGuestDirect(w, 100, { items: { map: false, umbrella: true, balloon: false } });
+    const u = addGuestDirect(w, 100, { items: { map: false, umbrella: true, balloon: false, photo: false } });
     decide(w, g);
     decide(w, u);
     w.state.tick += 40;
@@ -303,7 +303,7 @@ describe('guest weather effects (hooks)', () => {
     wheel.status = 'open';
     setWeather(w, 'storm');
     updateWeather(w);
-    const g = addGuestDirect(w, 100, { target: `ride:${wheel.id}`, items: { map: false, umbrella: true, balloon: false } });
+    const g = addGuestDirect(w, 100, { target: `ride:${wheel.id}`, items: { map: false, umbrella: true, balloon: false, photo: false } });
     decide(w, g);
     expect(g.thoughts.map((t) => t.id)).toContain(THOUGHT.stormClosed);
   });
@@ -354,7 +354,7 @@ describe('guest weather effects (hooks)', () => {
     const open = placeRideDirect(w, 'big_wheel', 20, 10);
     const g = addGuestDirect(w, 100, { temperament: 50 });
     const bold = addGuestDirect(w, 100, { temperament: 80 });
-    const dry = addGuestDirect(w, 100, { items: { map: false, umbrella: true, balloon: false } });
+    const dry = addGuestDirect(w, 100, { items: { map: false, umbrella: true, balloon: false, photo: false } });
     setWeather(w, 'sunny');
     expect([rideScoreFactor(w, g, covered), rideScoreFactor(w, g, open)]).toEqual([1, 1]);
     for (const weather of ['rain', 'storm'] as WeatherKey[]) {

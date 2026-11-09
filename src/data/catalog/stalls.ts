@@ -15,6 +15,11 @@ export const STALLS: readonly StallDef[] = Object.freeze([
   { id: 'info_kiosk', name: 'Info Kiosk', phase: 3, unlock: 'start', kind: 'info', buildCost: 40000, runningCostMonthly: 1500, defaultPrice: 100, stockCost: 10, effects: fx({}, 'map'), weatherFactors: {} },
   { id: 'first_aid', name: 'First Aid', phase: 3, unlock: 'shops', kind: 'facility', buildCost: 60000, runningCostMonthly: 4000, defaultPrice: 0, stockCost: 0, effects: fx({ nausea: 'reset', happiness: 5 }), weatherFactors: {} },
   { id: 'cash_machine', name: 'Cash Machine', phase: 3, unlock: 'shops', kind: 'facility', buildCost: 80000, runningCostMonthly: 2000, defaultPrice: 0, stockCost: 0, effects: fx({}, null, { belowCents: 1000, minCents: 4000, maxCents: 8000 }), weatherFactors: {} },
+  // Phase 6 §4.5 (Build 3): locked while BUILD_MAX_PHASE < 6. The Photo Booth's "want ×2 within 6 tiles of a ride
+  // exit with excitement ≥ 5.00" is behaviour (W4-D, facilities hooks), not data.
+  { id: 'noodle_bar', name: 'Noodle Bar', phase: 6, unlock: 'shops', kind: 'food', buildCost: 55000, runningCostMonthly: 2500, defaultPrice: 450, stockCost: 160, effects: fx({ hunger: -170 }), weatherFactors: { cold: 1.3, hot: 0.8 } },
+  { id: 'smoothie_bar', name: 'Smoothie Bar', phase: 6, unlock: 'shops', kind: 'drink', buildCost: 45000, runningCostMonthly: 2000, defaultPrice: 300, stockCost: 90, effects: fx({ thirst: -140, energy: 20 }), weatherFactors: { hot: 1.5, cold: 0.6 } },
+  { id: 'photo_booth', name: 'Photo Booth', phase: 6, unlock: 'shops', kind: 'souvenir', buildCost: 50000, runningCostMonthly: 2000, defaultPrice: 400, stockCost: 80, effects: fx({ happiness: 10 }, 'photo'), weatherFactors: {} },
 ]);
 
 /** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */

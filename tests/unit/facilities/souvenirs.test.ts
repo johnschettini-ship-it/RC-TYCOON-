@@ -13,7 +13,7 @@ import { facilityPark, pinWeather } from './park';
 import { nextAtLeast, nextBelow } from './rng';
 
 const ids = (g: Guest): string[] => g.thoughts.map((t) => t.id);
-const HELD = { map: false, umbrella: false, balloon: true };
+const HELD = { map: false, umbrella: false, balloon: true, photo: false };
 
 function hourStart(w: World): void {
   w.state.tick = Math.ceil((w.state.tick + 1) / TICKS_PER_HOUR) * TICKS_PER_HOUR;

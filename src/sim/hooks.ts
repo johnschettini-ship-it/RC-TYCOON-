@@ -15,6 +15,7 @@ import { fieldHooks } from './fields/hooks';
 import { nightHooks } from './lighting/hooks';
 import { waterRideHooks } from './rides/track/waterHooks';
 import { scenarioHooks } from './scenario/hooks';
+import { showHooks } from './shows/hooks';
 
 export type { GuestHooks };
 export { hookFactor };
@@ -23,10 +24,10 @@ let merged: GuestHooks | null = null;
 
 /**
  * Fixed order: litter/mess/bench/vandalism (W1-H), weather (W1-I), facilities (W2-C), then Build 2:
- * Calm and Buzz (W3-E), After Dark (W3-F), water rides (W3-C), month metrics (W3-H).
+ * Calm and Buzz (W3-E), After Dark (W3-F), water rides (W3-C), month metrics (W3-H); Build 3: shows (W4-C).
  */
 function all(): GuestHooks {
-  if (merged === null) merged = mergeGuestHooks(litterHooks, weatherHooks, facilityHooks, fieldHooks, nightHooks, waterRideHooks, scenarioHooks);
+  if (merged === null) merged = mergeGuestHooks(litterHooks, weatherHooks, facilityHooks, fieldHooks, nightHooks, waterRideHooks, scenarioHooks, showHooks);
   return merged;
 }
 

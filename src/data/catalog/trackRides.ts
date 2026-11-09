@@ -13,6 +13,11 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   { id: 'go_karts', name: 'Go-Kart Track', phase: 3, unlock: 'thrill', tag: 'thrill', flags: F(), drive: 'guestDriven', seatsPerCar: 1, carsMin: 1, carsMax: 1, maxTrains: 12, maxHeightM: 4, driveSpeedMms: 9000, driveSpeedMinMms: 6000, defaultPrice: 300 },
   { id: 'log_flume', name: 'Log Flume', phase: 4, unlock: 'water', tag: 'family', flags: F(), drive: 'waterChannel', seatsPerCar: 4, carsMin: 1, carsMax: 1, maxTrains: 6, maxHeightM: 20, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
   { id: 'rapids_raft', name: 'Rapids Raft', phase: 4, unlock: 'water', tag: 'family', flags: F(), drive: 'waterCurrent', seatsPerCar: 8, carsMin: 1, carsMax: 1, maxTrains: 8, maxHeightM: 10, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
+  // Phase 6 §4.5 (Build 3): locked while BUILD_MAX_PHASE < 6. Piece sets (corkscrew, helix), riders hanging below
+  // the track, and Monorail stations (up to 4) come with W4-D.
+  { id: 'inverted_coaster', name: 'Inverted Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 45, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
+  { id: 'bobsled_run', name: 'Bobsled Run', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 2, carsMin: 1, carsMax: 4, maxTrains: 4, maxHeightM: 25, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
+  { id: 'monorail', name: 'Monorail', phase: 6, unlock: 'gentle', tag: 'chill', flags: F(), drive: 'powered', seatsPerCar: 6, carsMin: 3, carsMax: 6, maxTrains: 4, maxHeightM: 12, driveSpeedMms: 8000, driveSpeedMinMms: null, defaultPrice: 200 },
 ]);
 
 /** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */

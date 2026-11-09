@@ -58,7 +58,8 @@ export interface TrackRideDef {
 export type StallKind = 'food' | 'drink' | 'toilet' | 'souvenir' | 'info' | 'facility';
 export type NeedKey = 'hunger' | 'thirst' | 'bladder' | 'energy' | 'happiness' | 'nausea';
 export type WeatherKey = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'hot' | 'cold';
-export type GuestItem = 'balloon' | 'umbrella' | 'map';
+/** Phase 6 §4.5, §5: the Photo Booth gives a `photo`. */
+export type GuestItem = 'balloon' | 'umbrella' | 'map' | 'photo';
 
 export interface StallEffects {
   /** Signed change to a need (0–255 scale), or 'reset' to set it to 0. */
@@ -144,4 +145,26 @@ export interface SceneryDef {
   overPath: boolean;
   /** Flag K: spooky (After Dark spooky-ride bonus within 6 tiles). */
   spooky: boolean;
+}
+
+/**
+ * After Dark show site (Phase 6 §4.4–4.5, catalog §3). Money in cents; `showTicks` at 20 ticks per second.
+ * A show site is a building (`Content.Building`, `contentRef` = its id) with no gates; its viewing tiles are the
+ * footpaths within `radius` tiles (W4-C).
+ */
+export interface ShowSiteDef {
+  id: 'lightshow_tower' | 'fireworks_launcher';
+  name: string;
+  phase: Phase;
+  unlock: Unlock;
+  /** Footprint (tiles); both sites are square, so rotation does not change the extent. */
+  w: number;
+  d: number;
+  buildCost: number;
+  runningCostMonthly: number;
+  /** Charged to the `shows` ledger line at each show start. */
+  costPerShow: number;
+  /** Viewing radius in tiles, measured from the footprint centre. */
+  radius: number;
+  showTicks: number;
 }

@@ -15,7 +15,8 @@ import {
 import { emit } from '../events';
 import { guestHooks, hookFactor } from '../hooks';
 import { isHourStart } from '../time';
-import { distanceTo, nextStep, queueOwner } from '../pathing';
+import { atDestination, distanceTo, nextStep, queueOwner } from '../pathing';
+import { arriveAtShow, updateWatchingShow } from '../shows/guests';
 import { gateNode, nodeZOf } from '../paths/nodes';
 import { nodeZAfterStep, rampSpeedFactor } from '../paths/api';
 import type { World } from '../types';
@@ -51,6 +52,8 @@ function atTarget(world: World, guest: Guest): boolean {
   if (target === null) return false;
   const p = parseDest(target);
   if (p.kind === 'exit') return guest.tile === world.state.map.entranceTile;
+  // Phase 6 §4.4: any viewing node of the show site (distance 0 in its field).
+  if (p.kind === 'show') return atDestination(world, guest.tile, guest.z, target);
   if (p.kind === 'stall') {
     const stall = findStall(world, p.id);
     return !!stall && atGate(world, guest, stall.y * world.state.map.width + stall.x, stall.serviceTile);
@@ -67,6 +70,10 @@ function arrive(world: World, guest: Guest, gone: Set<number>): boolean {
   if (p.kind === 'exit') {
     despawn(world, guest, gone);
     return true;
+  }
+  if (p.kind === 'show') {
+    arriveAtShow(world, guest, p.id);
+    return false;
   }
   if (p.kind === 'stall') {
     const stall = findStall(world, p.id);
@@ -218,6 +225,10 @@ export function updateGuest(world: World, guest: Guest, gone: Set<number>): bool
       break;
     case 'sitting':
       updateSitting(world, guest);
+      break;
+    case 'watchingShow':
+      // Phase 6 §4.4 (W4-C): stands on a viewing node until the show ends.
+      updateWatchingShow(world, guest);
       break;
     default:
       left = updateWalking(world, guest, gone);

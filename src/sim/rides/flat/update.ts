@@ -27,6 +27,7 @@ import {
 } from '../../../data/tuning/economy';
 import { onRideDispatch } from '../../breakdowns/api';
 import { boardRide, findGuest, leaveQueue } from '../../guests/api';
+import { emitSound } from '../../sound';
 import type { Ride } from '../types';
 import type { World } from '../../types';
 import { removeId, unloadRiders } from './api';
@@ -92,6 +93,8 @@ function dispatch(world: World, ride: Ride): void {
   // A ride that is already broken (slow running) does not roll again.
   if (ride.status !== 'broken' && onRideDispatch(world, ride)) return;
   ride.cycle = { phase: 'running', ticks: 0 };
+  // Phase 6 §4.2 `ride_bell` (W4-A).
+  emitSound(world, 'rideCycleStart', ride.y * world.state.map.width + ride.x, ride.id);
 }
 
 function loadStep(world: World, ride: Ride, def: FlatRideDef): void {

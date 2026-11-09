@@ -31,6 +31,11 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   ride('thunder_disc', 'Thunder Disc', 3, 'thrill', 'thrill', F(), 4, 4, 5.5, 6.5, 4.5, 24, 25, 4000, 110, 4),
   ride('drop_tower', 'Drop Tower', 3, 'thrill', 'thrill', F(false, false, true), 2, 2, 6.0, 7.5, 3.0, 12, 20, 4500, 120, 4),
   ride('flip_arm', 'Flip Arm', 3, 'thrill', 'thrill', F(false, false, true), 3, 3, 6.5, 8.0, 6.0, 16, 25, 5000, 140, 4),
+  // Phase 6 §4.5 (Build 3): locked while BUILD_MAX_PHASE < 6; research entries and art come with W4-D.
+  ride('magic_carpet', 'Magic Carpet', 6, 'thrill', 'thrill', F(), 4, 3, 5.2, 6.0, 3.8, 20, 25, 3600, 100, 3),
+  ride('kiddie_cars', 'Kiddie Cars', 6, 'gentle', 'family', F(), 3, 3, 2.2, 0.6, 0.2, 12, 20, 1000, 30, 1),
+  ride('merry_mill', 'Merry Mill', 6, 'gentle', 'chill', F(), 3, 3, 3.2, 1.2, 0.8, 16, 30, 2200, 60, 2),
+  ride('gyro_globe', 'Gyro Globe', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 7.0, 8.5, 7.0, 8, 25, 6000, 160, 5),
 ]);
 
 /** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */

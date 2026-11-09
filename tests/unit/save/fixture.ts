@@ -157,7 +157,7 @@ export function makeRichWorld(): RichWorld {
     ],
     thoughtCooldowns: { 'thinking.hungry': 500 },
     ridden: { [String(ride.id)]: 2 },
-    items: { map: true, umbrella: false, balloon: true },
+    items: { map: true, umbrella: false, balloon: true, photo: false },
     needs: { hunger: 140, thirst: 12, bladder: 99, energy: 180, happiness: 211, nausea: 3 },
   });
   const queuer = addGuestDirect(world, tileIndex(map, 12, 27), { state: 'queueing', activityId: ride.id, target: `ride:${ride.id}` });

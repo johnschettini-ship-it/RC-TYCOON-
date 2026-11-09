@@ -23,6 +23,8 @@ import { elevatedPathCost, pathCost, removeElevatedPath } from './paths';
 import { BUILD_STRINGS } from './strings';
 import { sceneryHandlers } from '../../scenery/commands';
 import { centreSceneryAt } from '../../scenery/api';
+import { findShowSite } from '../../shows/api';
+import { demolishShowSite } from '../../shows/commands';
 
 export function refundOf(buildCost: Cents, percent: number): Cents {
   return Math.max(0, Math.floor((buildCost * percent) / 100));
@@ -137,6 +139,9 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
     if (ride) return ride.kind === 'track' ? demolishTrack(world, ride, ctx) : demolishFlatRide(world, ride, ctx);
     const stall = s.stalls.find((st) => st.id === id);
     if (stall) return demolishStall(world, stall, ctx);
+    // Phase 6 §6: a show site is a building; W4-C removes it (refund, watchers, caches).
+    const site = findShowSite(world, id);
+    if (site) return demolishShowSite(world, site, ctx);
   }
   // Nothing on the ground: the top elevated path (the one the player sees) goes.
   const above = cmd.z === undefined ? elevatedOn(world, i) : [];

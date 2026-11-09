@@ -18,8 +18,8 @@ function asVersion(v: number): string {
 }
 
 describe('migrations (master §7)', () => {
-  it('the table has exactly the 1 → 2 step (Build 1 → Build 2)', () => {
-    expect(Object.keys(migrations)).toEqual(['1']);
+  it('the table has exactly the 1 → 2 and 2 → 3 steps (Build 1 → Build 2 → Build 3)', () => {
+    expect(Object.keys(migrations)).toEqual(['1', '2']);
   });
 
   it('runs every migration from the save version up, in order, on decoded state', () => {
@@ -36,7 +36,7 @@ describe('migrations (master §7)', () => {
       2: (raw) => {
         calls.push(2);
         const s = raw as { park: { name: string } };
-        return { ...s, schemaVersion: 2, park: { ...s.park, name: `${s.park.name} (3)` } };
+        return { ...s, schemaVersion: 3, park: { ...s.park, name: `${s.park.name} (3)` } };
       },
     };
     const r = deserializeWith(asVersion(1), { schemaVersion: 3, migrations: table });
@@ -51,14 +51,14 @@ describe('migrations (master §7)', () => {
 
   it('a migrated state with a dangling reference is a damaged save', () => {
     const table: Migrations = {
-      1: (raw) => {
+      2: (raw) => {
         const s = raw as { schemaVersion: number; map: { contentRef: Int32Array } };
-        s.schemaVersion = 2;
+        s.schemaVersion = 3;
         s.map.contentRef[5] = 999;
         return s;
       },
     };
-    expect(deserializeWith(asVersion(1), { schemaVersion: 2, migrations: table })).toEqual({
+    expect(deserializeWith(asVersion(2), { schemaVersion: 3, migrations: table })).toEqual({
       ok: false,
       error: 'This save is damaged: map tile 5 points to a missing ride, stall, or scenery',
     });
@@ -80,6 +80,20 @@ describe('migrations (master §7)', () => {
       },
     };
     expect(deserializeWith(asVersion(1), { schemaVersion: 2, migrations: table })).toEqual({
+      ok: false,
+      error: 'This save is damaged: bad value at park.cash',
+    });
+  });
+
+  it('a MigrationError in a later step of a chain is an upgrade failure (the earlier step made the bad state)', () => {
+    const table: Migrations = {
+      1: (raw) => ({ ...(raw as object), schemaVersion: 2 }),
+      2: () => {
+        throw new MigrationError('This save is damaged: bad value at park.cash');
+      },
+    };
+    expect(deserializeWith(asVersion(1), { schemaVersion: 3, migrations: table })).toEqual({ ok: false, error: UPGRADE });
+    expect(deserializeWith(asVersion(2), { schemaVersion: 3, migrations: table })).toEqual({
       ok: false,
       error: 'This save is damaged: bad value at park.cash',
     });

@@ -5,10 +5,10 @@
  *   ledger close → Phase 3 monthly tasks (loan interest) → awards (W3-I) → objectives (W3-H) → lose checks (W3-H)
  *   → metric resets (W3-H) → `monthEnded` event.
  * Every tick: weather → arrivals → guests (hourly guest hooks run inside, at hour start) → staff → flat rides
- *   → track rides → stalls → breakdowns → shows (Phase 6).
- * Hour start: hourly charges → staff wages → research points → campaign expiry → park value → rating
- *   → garden upkeep (W3-D) → Calm and Buzz refresh (W3-E) → day/night samples (W3-H, after the rating: the 12:00
- *   sample stores the daily rating) → tutorial checks (W3-I).
+ *   → track rides → stalls → breakdowns → shows (Phase 6, W4-C).
+ * Hour start: hourly charges → staff wages → show site running costs (W4-C) → research points → campaign expiry
+ *   → park value → rating → garden upkeep (W3-D) → Calm and Buzz refresh (W3-E) → day/night samples (W3-H, after
+ *   the rating: the 12:00 sample stores the daily rating) → tutorial checks (W3-I).
  * Then message pruning and `tick + 1`. Lighting has no tick system: the light map is derived and the darkness
  * curve is render-only (Phase 4 §4.7).
  */
@@ -38,6 +38,7 @@ import { recordSamples, resetMonthMetrics } from './scenario/metrics';
 import { hourlyScenery } from './scenery/update';
 import { hourlyFields } from './fields/update';
 import { hourlyTutorial } from './tutorial/update';
+import { hourlyShows, updateShows } from './shows/update';
 
 export function stepTick(world: World): void {
   const t = world.state.tick;
@@ -60,10 +61,12 @@ export function stepTick(world: World): void {
   updateTrackRides(world);
   updateStalls(world);
   updateBreakdowns(world);
+  updateShows(world);
 
   if (isHourStart(t)) {
     chargeRunningCosts(world);
     hourlyStaff(world);
+    hourlyShows(world);
     hourlyResearch(world);
     hourlyMarketing(world);
     updateParkValue(world);

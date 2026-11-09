@@ -12,7 +12,9 @@
  * - `stall:N` field: BFS from the footpath node at the service side (at the stall height) over footpaths and the
  *   park entrance.
  * - `exit` field: BFS from the park entrance node over footpaths and the park entrance.
- * Queue nodes never appear in stall or exit fields, and a ride's queue never appears in another ride's field.
+ * - `show:N` field (Phase 6 §4.4): BFS from every guest-walkable node on the viewing tiles of show site N
+ *   (`shows/api.ts` `viewingTiles`, W4-C) over footpaths and the park entrance. No viewing node → no field.
+ * Queue nodes never appear in stall, show, or exit fields, and a ride's queue never appears in another ride's field.
  *
  * Every query takes the walker's tile and, from Build 2, an optional `z` (the walker's node height). Without `z`
  * the tile's best node is used (its only node on Build 1 maps). Field arrays are indexed by node id: a ground
@@ -94,12 +96,16 @@ export function distanceTo(world: World, fromTile: number, dest: DestKey, fromZ?
 
 /**
  * True when the walker at `(tile, z)` stands where `dest` is served: the park entrance, the footpath node at a
- * stall's service side, or (rides) the entrance node or any node of the ride's own queue.
+ * stall's service side, (rides) the entrance node or any node of the ride's own queue, or (shows) any viewing node.
  */
 export function atDestination(world: World, tile: number, z: number, dest: DestKey): boolean {
   const c = network(world);
   const node = nodeIdAt(world, tile, z);
   if (node < 0) return false;
+  if (dest.startsWith('show:')) {
+    const field = guestField(c, dest);
+    return field !== null && field[node] === 0;
+  }
   const { seed, queue } = destinationSeed(c, dest);
   if (node === seed) return true;
   return queue >= 0 && isQueueNode(c, node) && c.owner[node] === queue;

@@ -55,4 +55,6 @@ export const guestStrings: Record<string, string> = {
   // Phase 4 §4.5, §4.7
   flowersSad: 'These flowers look sad',
   pathTooDark: 'This path is too dark',
+  // Phase 6 §4.4 (the spec names the id `thought.greatShow`; ids here have no prefix, master R5)
+  greatShow: 'What a great show!',
 };

@@ -3,6 +3,7 @@ import { TICKS_PER_MONTH } from '../../data/tuning/core';
 import { DEP_FLOOR, DEP_MONTHS, PATH_VALUE_COST, PATH_VALUE_SHARE, QUEUE_VALUE_COST } from '../../data/tuning/management';
 import { PATH_ITEMS } from '../../data/catalog';
 import { Content, PathItem } from '../map';
+import { showSitesAssetValue } from '../shows/api';
 import type { World } from '../types';
 import type { Cents } from '../units';
 
@@ -40,6 +41,8 @@ export function computeParkValue(world: World): Cents {
   let total = 0;
   for (const r of s.rides) total += assetValue(r.totalBuildCost, ageMonthsOf(world, r.builtTick));
   for (const st of s.stalls) total += assetValue(st.totalBuildCost, ageMonthsOf(world, st.builtTick));
+  // Phase 6: show sites are assets too (master R14; W4-C, 0 until then).
+  total += showSitesAssetValue(world);
 
   const { content, pathItem } = s.map;
   // Local copies keep the hourly 4,096-tile scan tight (master §10 hour-start budget).

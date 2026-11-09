@@ -4,6 +4,7 @@ export * from './trackRides';
 export * from './stalls';
 export * from './people';
 export * from './scenery';
+export * from './showSites';
 
 /** Temperament groups (master R6). */
 export type TemperamentGroup = 'chill' | 'family' | 'thrill';

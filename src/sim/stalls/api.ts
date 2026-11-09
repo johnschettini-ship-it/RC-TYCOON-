@@ -3,6 +3,7 @@ import { getStallDef } from '../../data/catalog';
 import { SNACK_DEAL_CAMPAIGN, SNACK_DEAL_PRICE_FACTOR } from '../../data/tuning/economy';
 import { recordLedger } from '../economy/ledger';
 import type { Guest } from '../guests/types';
+import { emitSound } from '../sound';
 import type { World } from '../types';
 import type { Cents } from '../units';
 import type { Stall } from './types';
@@ -25,6 +26,8 @@ export function sellItem(world: World, stall: Stall, guest: Guest): void {
   guest.spent += price;
   if (price !== 0) recordLedger(world, 'stallSales', price);
   if (stockCost !== 0) recordLedger(world, 'stock', -stockCost);
+  // Phase 6 §4.2 `cash_in` (W4-A plays it near the camera; free items are silent).
+  if (price !== 0) emitSound(world, 'sale', stall.y * world.state.map.width + stall.x, stall.id, price);
   stall.totals.sales += 1;
   stall.totals.salesThisMonth += 1;
   stall.totals.income += price;

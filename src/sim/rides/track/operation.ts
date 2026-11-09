@@ -22,6 +22,7 @@ import {
 import { isEvacuating, onRideDispatch } from '../../breakdowns/api';
 import { emit } from '../../events';
 import { boardRide, findGuest, finishRide, leaveQueue } from '../../guests/api';
+import { emitSound } from '../../sound';
 import type { World } from '../../types';
 import type { Ride } from '../types';
 import { kartSpeedMms } from './testRun';
@@ -290,6 +291,8 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
           t.driveMms = kartSpeedMms(driver ? driver.temperament : TEST_KART_TEMPERAMENT);
         }
         data.lastDispatchTick = tick;
+        // Phase 6 §4.2 `ride_bell` (W4-A): a train leaves the station.
+        emitSound(world, 'rideCycleStart', ride.y * world.state.map.width + ride.x, ride.id);
         break;
       }
       default: {

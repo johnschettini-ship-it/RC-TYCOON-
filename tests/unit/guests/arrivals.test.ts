@@ -185,7 +185,8 @@ describe('new guest record (Phase 1 §4.3)', () => {
       expect(g.cash % 100).toBe(0);
       expect(g.cash).toBeGreaterThanOrEqual(4000);
       expect(g.cash).toBeLessThanOrEqual(12000);
-      expect(g.items).toEqual({ map: false, umbrella: false, balloon: false });
+      expect(g.items).toEqual({ map: false, umbrella: false, balloon: false, photo: false });
+      expect(g.showTarget).toBe(-1);
       expect(g.nextDecisionTick).toBe(w.state.tick);
       expect(g.lostSinceTick).toBe(-1);
       expect(g.activityId).toBe(-1);

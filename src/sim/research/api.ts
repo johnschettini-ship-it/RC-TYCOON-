@@ -4,6 +4,7 @@ import {
   getSceneryDef,
   getSceneryTheme,
   PATH_ITEMS,
+  SHOW_SITES,
   STAFF,
   STALLS,
   TRACK_RIDES,
@@ -17,8 +18,11 @@ import { BUILD_MAX_PHASE, RESEARCH_POINTS_PER_HOUR } from '../../data/tuning/man
 import { scenarioContentRule } from '../scenario/api';
 import type { World } from '../types';
 
-/** `sceneryTheme`: a whole theme (its research item id = the theme id); `scenery`: one item of a theme (Phase 4). */
-export type ContentKind = 'flatRide' | 'trackRide' | 'stall' | 'pathItem' | 'staff' | 'sceneryTheme' | 'scenery';
+/**
+ * `sceneryTheme`: a whole theme (its research item id = the theme id); `scenery`: one item of a theme (Phase 4).
+ * `showSite`: an After Dark show site (Phase 6 §4.5; research in the Scenery category, W4-D).
+ */
+export type ContentKind = 'flatRide' | 'trackRide' | 'stall' | 'pathItem' | 'staff' | 'sceneryTheme' | 'scenery' | 'showSite';
 
 export interface ContentInfo {
   id: string;
@@ -38,6 +42,8 @@ export function contentInfo(id: string): ContentInfo | undefined {
   if (stall) return { id, name: stall.name, kind: 'stall', phase: stall.phase, unlock: stall.unlock };
   const item = PATH_ITEMS.find((d) => d.id === id);
   if (item) return { id, name: item.name, kind: 'pathItem', phase: item.phase, unlock: item.unlock };
+  const show = SHOW_SITES.find((d) => d.id === id);
+  if (show) return { id, name: show.name, kind: 'showSite', phase: show.phase, unlock: show.unlock };
   const staff = STAFF.find((d) => d.id === id);
   if (staff) return { id, name: staff.name, kind: 'staff', phase: 3, unlock: 'start' };
   const theme = getSceneryTheme(id as SceneryThemeId);

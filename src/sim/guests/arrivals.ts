@@ -26,6 +26,7 @@ import { allocId } from '../ids';
 import { arrivalTemperament, effectiveEntranceFee } from '../marketing/campaigns';
 import { arrivalsPerHour } from '../park/arrivals';
 import { rngInt, rngNext } from '../rng';
+import { emitSound } from '../sound';
 import type { World } from '../types';
 import type { Cents } from '../units';
 import { drawTemperament } from './temperament';
@@ -82,7 +83,7 @@ export function spawnGuest(world: World): Guest | null {
     thoughtCooldowns: {},
     ridden: {},
     spent: fee,
-    items: { map: false, umbrella: false, balloon: false },
+    items: { map: false, umbrella: false, balloon: false, photo: false },
     nextDecisionTick: s.tick,
     lostSinceTick: -1,
     noRideStreak: 0,
@@ -94,8 +95,12 @@ export function spawnGuest(world: World): Guest | null {
     bestDistance: -1,
     lostTarget: null,
     wetUntilTick: -1,
+    showTarget: -1,
   };
-  if (fee !== 0) recordLedger(world, 'entranceTickets', fee);
+  if (fee !== 0) {
+    recordLedger(world, 'entranceTickets', fee);
+    emitSound(world, 'entranceTicket', map.entranceTile, -1, fee);
+  }
   s.guests.push(guest);
   s.park.guestsArrivedTotal += 1;
   return guest;

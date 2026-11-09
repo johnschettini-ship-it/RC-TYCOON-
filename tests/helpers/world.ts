@@ -239,7 +239,7 @@ export function addGuestDirect(world: World, tile: number, patch: Partial<Guest>
     thoughtCooldowns: {},
     ridden: {},
     spent: 0,
-    items: { map: false, umbrella: false, balloon: false },
+    items: { map: false, umbrella: false, balloon: false, photo: false },
     nextDecisionTick: s.tick,
     lostSinceTick: -1,
     noRideStreak: 0,
@@ -251,6 +251,7 @@ export function addGuestDirect(world: World, tile: number, patch: Partial<Guest>
     bestDistance: -1,
     lostTarget: null,
     wetUntilTick: -1,
+    showTarget: -1,
     ...patch,
   };
   s.guests.push(guest);

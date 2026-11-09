@@ -81,7 +81,7 @@ describe('wrong turns (§4.10)', () => {
   it('never with a map, and no RNG draw', () => {
     const { w, p } = setup();
     const far = p.stall('restrooms', 50);
-    const g = addGuestDirect(w, p.main(BRANCH_X), { target: `stall:${far.id}`, items: { map: true, umbrella: false, balloon: false } });
+    const g = addGuestDirect(w, p.main(BRANCH_X), { target: `stall:${far.id}`, items: { map: true, umbrella: false, balloon: false, photo: false } });
     nextBelow(w, 0.001);
     const rng = w.state.rng;
     updateGuests(w);
@@ -136,7 +136,7 @@ describe('the lost rule (§4.10)', () => {
   it('a map holder is never lost by this rule', () => {
     const { w, p } = setup();
     const far = p.stall('restrooms', 40);
-    const g = addGuestDirect(w, p.main(30), { target: `stall:${far.id}`, items: { map: true, umbrella: false, balloon: false } });
+    const g = addGuestDirect(w, p.main(30), { target: `stall:${far.id}`, items: { map: true, umbrella: false, balloon: false, photo: false } });
     for (let k = 0; k < LOST_STEPS * 3; k++) stepAt(w, g, k % 2 ? p.main(29) : p.main(30));
     expect(g.lostSteps).toBe(0);
     expect(isWayLost(g)).toBe(false);

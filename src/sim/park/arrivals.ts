@@ -4,7 +4,7 @@
  * Arrivals per game hour = 4 × rating factor × ride factor × clock factor
  *   × weatherArrivalFactor × campaignArrivalFactor × modifiers.arrivals; 0 while the park is closed.
  * Build 2: × nightArrivalFactor (After Dark, W3-F) × scenarioArrivalFactor (sandbox, W3-H) × awardArrivalFactor
- * (awards, W3-I); each is 1 when it does not apply.
+ * (awards, W3-I); Build 3: × showArrivalFactor (After Dark shows, W4-C); each is 1 when it does not apply.
  * The guest system spawns from this rate and carries fractions between ticks (`park.arrivalCarry`).
  */
 import {
@@ -25,6 +25,7 @@ import { openRides } from './rides';
 import { nightArrivalFactor } from '../lighting/api';
 import { scenarioArrivalFactor } from '../scenario/api';
 import { awardArrivalFactor } from '../awards/api';
+import { showArrivalFactor } from '../shows/api';
 
 /** Rating factor = clamp(rating / 500, 0.2, 2.0). */
 export function ratingFactor(rating: number): number {
@@ -58,6 +59,7 @@ export function arrivalsPerHour(world: World): number {
     s.modifiers.arrivals *
     nightArrivalFactor(world) *
     scenarioArrivalFactor(world) *
-    awardArrivalFactor(world)
+    awardArrivalFactor(world) *
+    showArrivalFactor(world)
   );
 }

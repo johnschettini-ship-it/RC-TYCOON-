@@ -40,7 +40,7 @@ describe('guest thought strings (master R4, R5)', () => {
     expect(text(THOUGHT.chillWeekend)).toBe('Chill Weekend sounds perfect');
     expect(text(THOUGHT.thrillWeekend)).toBe('Thrill Weekend? Count me in!');
     expect(text(THOUGHT.tooCold)).toBe('Brr, it is cold');
-    expect(Object.keys(guestStrings)).toHaveLength(17 + 2 + 24 + 2);
+    expect(Object.keys(guestStrings)).toHaveLength(17 + 2 + 24 + 2 + 1);
   });
 
   it('matches the Phase 4 texts', () => {

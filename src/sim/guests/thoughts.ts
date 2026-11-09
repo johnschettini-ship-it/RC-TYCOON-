@@ -58,6 +58,8 @@ export const THOUGHT = {
   // Phase 4 §4.5, §4.7 (raised by W3-D and W3-F)
   flowersSad: 'flowersSad',
   pathTooDark: 'pathTooDark',
+  // Phase 6 §4.4 (raised by W4-C)
+  greatShow: 'greatShow',
 } as const;
 
 export type ThoughtId = (typeof THOUGHT)[keyof typeof THOUGHT];

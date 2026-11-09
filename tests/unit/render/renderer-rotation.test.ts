@@ -33,7 +33,7 @@ function scene(): World {
   map.pathItem[tileIndex(map, 13, 14)] = PathItem.Bin;
   map.litter[tileIndex(map, 10, 14)] = 3;
   map.mess[tileIndex(map, 12, 14)] = 1;
-  for (let k = 0; k < 40; k++) addGuestDirect(world, tileIndex(map, 6 + (k % 11), 14), { items: { map: false, umbrella: false, balloon: k % 5 === 0 } });
+  for (let k = 0; k < 40; k++) addGuestDirect(world, tileIndex(map, 6 + (k % 11), 14), { items: { map: false, umbrella: false, balloon: k % 5 === 0, photo: false } });
   // Some land for sale (ownership tints).
   for (let x = 0; x < 24; x++) map.owned[tileIndex(map, x, 0)] = Owned.LandForSale;
   return world;

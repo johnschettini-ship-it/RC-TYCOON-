@@ -8,7 +8,7 @@ import { decodeTypedArrays, encodeTypedArray } from './typedArrays';
 import { STATE_SCHEMA_VERSION } from '../sim/types';
 
 export const SAVE_FORMAT = 'thrills-and-chills-save';
-/** Schema version this build writes (Build 2 = 2, master §7). */
+/** Schema version this build writes (Build 3 = 3, master §7). */
 export const SCHEMA_VERSION: number = STATE_SCHEMA_VERSION;
 
 export type LoadResult = { ok: true; world: World } | { ok: false; error: string };
@@ -86,7 +86,9 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
       try {
         state = migrate(state);
       } catch (e) {
-        return fail(e instanceof MigrationError ? e.message : ERR_UPGRADE);
+        // Only the first step checks the save as it was written; a later step failing means an earlier step
+        // produced a bad state, which is an upgrade failure, not a damaged save.
+        return fail(e instanceof MigrationError && from === version ? e.message : ERR_UPGRADE);
       }
     }
 

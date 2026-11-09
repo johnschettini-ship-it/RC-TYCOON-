@@ -1,5 +1,6 @@
 /**
- * Migration 1 → 2 (Phase 4 §5.1, §9.1; Phase 5 §9 "Build 1 fixture save migrates to freePlay").
+ * Migration 1 → 2 (Phase 4 §5.1, §9.1; Phase 5 §9 "Build 1 fixture save migrates to freePlay"), and on to schema 3
+ * (Phase 6 §5: "A Build 1 save runs 1 → 2 → 3"; the 2 → 3 step itself: `migrate-v2.test.ts`).
  * The fixtures in tests/fixtures/ were written by the Build 1 code at commit 33ac3b5, before any Build 2 change.
  */
 import { readFileSync } from 'node:fs';
@@ -36,7 +37,7 @@ function edit(json: string, fn: (raw: Raw) => void): string {
   return JSON.stringify(raw);
 }
 
-const NEW_TOP = ['elevatedPaths', 'scenery', 'scenario', 'monthMetrics'];
+const NEW_TOP = ['elevatedPaths', 'scenery', 'scenario', 'monthMetrics', 'shows'];
 
 describe('migration 1 → 2 on the Build 1 fixtures', () => {
   for (const name of NAMES) {
@@ -47,9 +48,9 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
         expect(raw.state.schemaVersion).toBe(1);
       });
 
-      it('loads, upgrades to schema 2, and passes the schema 2 checks', () => {
+      it('loads, upgrades through schema 2 to schema 3, and passes the schema 3 checks', () => {
         const s = load(read(name)).state;
-        expect(s.schemaVersion).toBe(2);
+        expect(s.schemaVersion).toBe(3);
         expect(validateState(s)).toBeNull();
       });
 
@@ -69,6 +70,12 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
         }
         for (const m of s.staff.members) expect(m.z).toBe(m.tile >= 0 ? s.map.heights[m.tile] : 8);
         expect(s.scenario).toEqual({ kind: 'freePlay', awards: { active: [], history: [] } });
+        // 2 → 3 (Phase 6 §5).
+        expect(s.shows).toEqual([]);
+        for (const g of s.guests) {
+          expect(g.showTarget).toBe(-1);
+          expect(g.items.photo).toBe(false);
+        }
         expect(s.monthMetrics).toEqual({
           monthIndex: Math.floor(s.tick / 3600),
           daySamples: [],
@@ -92,8 +99,9 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
         stripped.map = { ...after.map };
         delete stripped.map.pathItemLevel;
         stripped.guests = after.guests.map((g: Raw) => {
-          const { z: _z, wetUntilTick: _w, ...rest } = g;
-          return rest;
+          const { z: _z, wetUntilTick: _w, showTarget: _s, ...rest } = g;
+          const { photo: _p, ...items } = rest.items;
+          return { ...rest, items };
         });
         stripped.staff = { ...after.staff, members: after.staff.members.map(({ z: _z, ...rest }: Raw) => rest) };
         expect(stripped).toEqual(before);
@@ -102,7 +110,7 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
         expect(after.map.water).toEqual(before.map.water);
       });
 
-      it('saves again as schema 2 and round-trips', () => {
+      it('saves again as schema 3 and round-trips', () => {
         const w = load(read(name));
         const again = load(serialize(w, '0.2.0', '2026-11-09T12:00:00.000Z'));
         expect(stateHash(again)).toBe(stateHash(w));
@@ -168,8 +176,8 @@ describe('migration 1 → 2 rejects bad Build 1 saves (Phase 4 §5.1 steps 1 and
     expect(reject(bad)).toMatch(/^This save is damaged: ride \d+ queue lists a missing guest$/);
   });
 
-  it('a schema 3 save is from a newer version', () => {
-    expect(reject(edit(json, (r) => (r.schemaVersion = 3)))).toBe('This save comes from a newer version of the game');
+  it('a schema 4 save is from a newer version', () => {
+    expect(reject(edit(json, (r) => (r.schemaVersion = 4)))).toBe('This save comes from a newer version of the game');
   });
 
   it('an envelope and state version mismatch is damaged', () => {

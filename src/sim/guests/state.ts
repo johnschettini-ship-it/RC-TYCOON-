@@ -1,5 +1,6 @@
 /** Small shared helpers for the guest system. Owner: W1-D. */
 import type { Ride } from '../rides/types';
+import { showTargetValid } from '../shows/api';
 import type { Stall } from '../stalls/types';
 import type { World } from '../types';
 import type { EntityId } from '../units';
@@ -28,12 +29,22 @@ export function findStall(world: World, id: EntityId): Stall | undefined {
   return byId(world.state.stalls, id);
 }
 
-export type ParsedDest = { kind: 'ride'; id: EntityId } | { kind: 'stall'; id: EntityId } | { kind: 'exit' };
+export type ParsedDest =
+  | { kind: 'ride'; id: EntityId }
+  | { kind: 'stall'; id: EntityId }
+  /** Phase 6 §4.4: the viewing tiles of show site `id` (W4-C). */
+  | { kind: 'show'; id: EntityId }
+  | { kind: 'exit' };
 
 export function parseDest(dest: DestKey): ParsedDest {
   if (dest === 'exit') return { kind: 'exit' };
   if (dest.startsWith('ride:')) return { kind: 'ride', id: Number(dest.slice(5)) };
+  if (dest.startsWith('show:')) return { kind: 'show', id: Number(dest.slice(5)) };
   return { kind: 'stall', id: Number(dest.slice(6)) };
+}
+
+export function showDest(id: EntityId): DestKey {
+  return `show:${id}`;
 }
 
 export function rideDest(id: EntityId): DestKey {
@@ -70,6 +81,7 @@ export function targetValid(world: World, dest: DestKey): boolean {
     const ride = findRide(world, p.id);
     return ride !== undefined && rideAcceptsGuests(ride);
   }
+  if (p.kind === 'show') return showTargetValid(world, p.id);
   const stall = findStall(world, p.id);
   return stall !== undefined && stall.open && stall.serviceTile >= 0;
 }

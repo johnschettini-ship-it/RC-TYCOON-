@@ -1,4 +1,4 @@
-/** World factory. Owner: integrator. New games are schema 2 (Build 2). */
+/** World factory. Owner: integrator. New games are schema 3 (Build 3). */
 import { START_CASH, START_ENTRANCE_FEE, START_TICK } from '../data/tuning/core';
 import { LAND_PRICE, RIGHTS_PRICE } from '../data/tuning/land';
 import { newLedgerMonth } from './economy/ledger';
@@ -37,7 +37,7 @@ function newMap(opts: NewWorldOptions): MapState {
 
 export function createGameState(opts: NewWorldOptions): GameState {
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     seed: opts.seed >>> 0,
     rng: opts.seed >>> 0,
     tick: START_TICK,
@@ -69,6 +69,7 @@ export function createGameState(opts: NewWorldOptions): GameState {
     scenery: [],
     scenario: freePlayScenario(),
     monthMetrics: emptyMonthMetrics(monthIndexOf(START_TICK)),
+    shows: [],
   };
 }
 

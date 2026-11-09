@@ -12,6 +12,7 @@ import type { ElevatedPath } from '../paths/types';
 import { edgeBlocked } from '../scenery/api';
 import { PATH_HEADROOM } from '../../data/tuning/paths';
 import { elevatedIndex, gateNode, groundRamp, hasGroundNode, linkedNode } from '../paths/nodes';
+import { viewingTiles } from '../shows/api';
 import type { GameState, World } from '../types';
 
 /** Field value for nodes that cannot reach the destination. */
@@ -308,7 +309,32 @@ export function destinationSeed(c: NetworkCache, dest: DestKey): { seed: number;
   return { seed: -1, queue: NO_QUEUE };
 }
 
+/**
+ * Phase 6 §4.4 (`show:N`): seeds = every guest-walkable node (ground or elevated footpath, park entrance) on the
+ * site's viewing tiles (`viewingTiles`, W4-C), in tile order then node order. No seed → no field.
+ */
+function computeShowField(c: NetworkCache, dest: DestKey): Uint16Array | null {
+  const id = parseId(dest, 'show:');
+  if (id < 0) return null;
+  let seeds = 0;
+  for (const t of viewingTiles(c.world, id)) {
+    if (!Number.isInteger(t) || t < 0 || t >= c.tiles) continue;
+    if (c.guestPass[t] === 1) c.work[seeds++] = t;
+    if (c.nodeCount > c.tiles) {
+      const idx = elevatedIndex(c.world);
+      for (let k = idx.head[t] as number; k >= 0; k = idx.next[k] as number) {
+        if (c.guestPass[c.tiles + k] === 1) c.work[seeds++] = c.tiles + k;
+      }
+    }
+  }
+  if (seeds === 0) return null;
+  const out = takeBuffer(c);
+  bfs(c, seeds, c.guestPass, NO_QUEUE, out);
+  return out;
+}
+
 function computeField(c: NetworkCache, dest: DestKey): Uint16Array | null {
+  if (dest.startsWith('show:')) return computeShowField(c, dest);
   const { seed, queue } = destinationSeed(c, dest);
   if (seed < 0) return null;
   const out = takeBuffer(c);
