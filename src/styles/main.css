@@ -485,7 +485,7 @@ button { font: inherit; color: inherit; }
 .button-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .button-row .btn { flex: 1 1 auto; }
 .btn.dim { opacity: 0.6; }
-.btn.small { min-height: 36px; min-width: 44px; padding: 4px 12px; }
+.btn.small { min-height: var(--touch); min-width: var(--touch); padding: 4px 12px; }
 .field-block { display: flex; flex-direction: column; gap: 4px; }
 .select {
   min-height: var(--touch);
