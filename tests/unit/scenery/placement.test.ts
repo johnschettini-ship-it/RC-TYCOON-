@@ -394,3 +394,30 @@ describe('removeScenery and demolish', () => {
     expect(w.state.map.content[tileIndex(w.state.map, 4, 4)]).toBe(Content.Empty);
   });
 });
+
+describe('every catalog item (Phase 4 §10)', () => {
+  it('all 85 items place and remove in all 4 rotations, with the 50% refund', () => {
+    const w = sceneryWorld();
+    const map = w.state.map;
+    w.state.park.cash = 100_000_000;
+    let placed = 0;
+    for (const def of SCENERY) {
+      for (const rotation of [0, 1, 2, 3] as const) {
+        const x = 10;
+        const y = 10;
+        if (def.overPath) map.content[tileIndex(map, x, y)] = Content.Footpath;
+        const r = place(w, def.id, x, y, rotation, def.edge ? rotation : -1);
+        expect(r.ok, `${def.id} rotation ${rotation}: ${reasonOf(r)}`).toBe(true);
+        expect(r.ok && r.cost).toBe(def.buildCost);
+        placed++;
+        const id = r.ok ? (r.id as number) : -1;
+        expect(findScenery(w, id)).toMatchObject({ defId: def.id, rotation, edge: def.edge ? rotation : -1 });
+        expect(executeCommand(w, { type: 'removeScenery', id })).toEqual({ ok: true, cost: -Math.floor(def.buildCost / 2), warnings: [] });
+        expect(w.state.scenery).toEqual([]);
+        if (def.overPath) map.content[tileIndex(map, x, y)] = Content.Empty;
+        for (let i = 0; i < map.content.length; i++) if (map.content[i] === Content.Scenery) throw new Error(`${def.id} left tile ${i}`);
+      }
+    }
+    expect(placed).toBe(85 * 4);
+  });
+});

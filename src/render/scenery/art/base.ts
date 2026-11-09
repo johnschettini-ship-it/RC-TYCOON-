@@ -8,7 +8,6 @@ import {
   edgePoint,
   flowers,
   line2,
-  oval,
   poly2,
   post,
   rock,
@@ -189,5 +188,3 @@ export const BASE_ART: Readonly<Record<string, SceneryArtFn>> = {
   rail_iron: railIron,
 };
 
-/** Re-used by other themes. */
-export { oval };
