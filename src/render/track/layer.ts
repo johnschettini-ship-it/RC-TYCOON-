@@ -55,6 +55,7 @@ import {
   newCarPose,
   pitchStep,
   projectX,
+  rollStep,
   projectY,
   tileDepthView,
   trackFrame,
@@ -92,7 +93,8 @@ export interface ViewBox {
   y1: number;
 }
 
-const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft'];
+/** Car shapes by cache index (Phase 6 shapes appended, so older indices stay). */
+const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft', 'inverted', 'bobsled', 'monorail'];
 
 export interface SliceRec {
   rideId: number;
@@ -208,13 +210,14 @@ function coloursOf(data: TrackRideData): TrackColours {
 }
 
 /** Bounds (world px around the anchor) of a slice: rails, deck, tunnel box, and the support down to the ground. */
-function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], ground: number, special: PieceSpecial): ArtBounds {
+function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], ground: number, special: PieceSpecial, lift = 0): ArtBounds {
   let l = Infinity;
   let r = -Infinity;
   let t = Infinity;
   let b = -Infinity;
   const pad = 3.2;
-  const up = special === 'spooky' ? 4.4 : 2.8;
+  // Inverted track (Phase 6): the rail, its spine, and the support arm run `lift` m above the sample line.
+  const up = special === 'spooky' ? 4.4 : Math.max(2.8, lift + 1.4);
   for (let i = 0; i < runs.length; i += 2) {
     for (let k = runs[i] as number; k <= (runs[i + 1] as number); k++) {
       const wx = s.x[k] as number;
@@ -231,6 +234,8 @@ function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], gro
   }
   return { left: Math.floor(l) - 2, right: Math.ceil(r) + 2, top: Math.floor(t) - 2, bottom: Math.ceil(b) + 2 };
 }
+
+const SUPPORT_FRAME = new Float64Array(9);
 
 /** Build the slice records of one ride (allocates; runs only when the track changes). */
 export function buildRideSlices(world: World, rideId: number, f: ViewFrame): SliceRec[] {
@@ -254,9 +259,23 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
     const ay = projectY(cx, cy, 0, f);
     const P = new Projector(f, ax, ay);
     let support: SliceRec['support'] = null;
-    if (t.support) {
+    const lift = look.lift ?? 0;
+    // Hanging cars (Phase 6 inverted): every rail tile on the track's own ground gets an arm support, stations too.
+    if (t.support || (lift > 0 && t.railMin <= t.ground)) {
       const k = supportSample(s, runs, t.x, t.y);
-      support = { wx: s.x[k] as number, wy: s.y[k] as number, yaw: s.yaw[k] as number, top: (s.z[k] as number) - look.drop };
+      if (lift > 0) {
+        // The arm holds the spine, `lift − drop` up the (possibly rolled) track frame from the sample.
+        trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, SUPPORT_FRAME);
+        const up = lift - look.drop;
+        support = {
+          wx: (s.x[k] as number) + (SUPPORT_FRAME[6] as number) * up,
+          wy: (s.y[k] as number) + (SUPPORT_FRAME[7] as number) * up,
+          yaw: s.yaw[k] as number,
+          top: (s.z[k] as number) + (SUPPORT_FRAME[8] as number) * up,
+        };
+      } else {
+        support = { wx: s.x[k] as number, wy: s.y[k] as number, yaw: s.yaw[k] as number, top: (s.z[k] as number) - look.drop };
+      }
     }
     out.push({
       rideId,
@@ -268,12 +287,12 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
       depth: tileDepthView(t.x, t.y, f),
       ax,
       ay,
-      bounds: sliceBounds(P, s, runs, t.ground, def.special),
+      bounds: sliceBounds(P, s, runs, t.ground, def.special, look.lift ?? 0),
       samples: s,
       runs,
       support,
       special: def.special,
-      water: look.channel > 0,
+      water: look.channel > 0 && !look.trough,
       conveyor: def.water?.drive === 'conveyor' && def.special !== 'station',
       look,
       supportStyle: type.render.supports,
@@ -303,6 +322,9 @@ class CarBuffer {
   yaw = new Float64Array(64);
   mapYaw = new Float64Array(64);
   pitch = new Float64Array(64);
+  /** Roll (Phase 6): sine and cosine of the track bank under the car. */
+  bankSin = new Float64Array(64);
+  bankCos = new Float64Array(64);
   shape = new Uint8Array(64);
   front = new Uint8Array(64);
   colour = new Uint8Array(64);
@@ -350,6 +372,8 @@ class CarBuffer {
     this.yaw = f(this.yaw);
     this.mapYaw = f(this.mapYaw);
     this.pitch = f(this.pitch);
+    this.bankSin = f(this.bankSin);
+    this.bankCos = f(this.bankCos);
     this.shape = u(this.shape);
     this.front = u(this.front);
     this.colour = u(this.colour);
@@ -586,6 +610,8 @@ export class TrackLayer {
     c.mapYaw[i] = yaw;
     c.yaw[i] = viewYaw(yaw, f);
     c.pitch[i] = p.pitch;
+    c.bankSin[i] = p.bankSin;
+    c.bankCos[i] = p.bankCos;
     c.shape[i] = shape < 0 ? 0 : shape;
     c.front[i] = front ? 1 : 0;
     c.colour[i] = colour;
@@ -689,9 +715,10 @@ export class TrackLayer {
       const k1 = sl.runs[r + 1] as number;
       for (let k = k0; k <= k1; k++) {
         trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
-        const wx = (s.x[k] as number) + (fr[6] as number) * 0.05;
-        const wy = (s.y[k] as number) + (fr[7] as number) * 0.05;
-        const wz = (s.z[k] as number) + (fr[8] as number) * 0.05;
+        const up = (sl.look.lift ?? 0) + 0.05;
+        const wx = (s.x[k] as number) + (fr[6] as number) * up;
+        const wy = (s.y[k] as number) + (fr[7] as number) * up;
+        const wz = (s.z[k] as number) + (fr[8] as number) * up;
         const x = this.devX(projectX(wx, wy, f));
         const y = this.devY(projectY(wx, wy, wz, f));
         if (k === k0) ctx.moveTo(x, y);
@@ -799,10 +826,11 @@ export class TrackLayer {
     const shape = c.shape[i] as number;
     const ys = yawStep(c.yaw[i] as number);
     const ps = pitchStep(c.pitch[i] as number);
+    const rs = rollStep(c.bankSin[i] as number, c.bankCos[i] as number);
     const colour = c.colour[i] as number;
     const front = c.front[i] as number;
     const bi = bucketIndex(this.bucket);
-    const key = ((((shape * 16 + ys) * 24 + ps) * 12 + (colour % 12)) * 2 + front) * 3 + bi;
+    const key = (((((shape * 16 + ys) * 24 + ps) * 16 + rs) * 12 + (colour % 12)) * 2 + front) * 3 + bi;
     let sp = this.carCache.get(key);
     if (!sp) {
       if (this.carBuilds >= MAX_CAR_BUILDS_PER_FRAME) {
@@ -814,7 +842,8 @@ export class TrackLayer {
       const hex = paletteColour(colour);
       const yaw = (ys / 16) * Math.PI * 2;
       const pitch = (ps / 24) * Math.PI * 2;
-      sp = buildSprite(CAR_BOUNDS, this.bucket, (cx) => paintCar(cx, shapeName, yaw, pitch, hex, front === 1));
+      const roll = (rs / 16) * Math.PI * 2;
+      sp = buildSprite(CAR_BOUNDS, this.bucket, (cx) => paintCar(cx, shapeName, yaw, pitch, hex, front === 1, Math.sin(roll), Math.cos(roll)));
       this.carCache.set(key, sp);
     }
     const wx = c.x[i] as number;
@@ -847,7 +876,7 @@ export class TrackLayer {
     if (!any) return;
     const f = this.frameRef;
     const fr = this.fr;
-    trackFrame(c.mapYaw[i] as number, c.pitch[i] as number, 0, 1, fr);
+    trackFrame(c.mapYaw[i] as number, c.pitch[i] as number, c.bankSin[i] as number, c.bankCos[i] as number, fr);
     const shapeName = CAR_SHAPES[c.shape[i] as number] ?? 'coaster';
     const d = carDims(shapeName, c.front[i] === 1);
     const cols = cnt >= 2 ? 2 : 1;

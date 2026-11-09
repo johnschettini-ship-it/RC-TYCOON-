@@ -50,13 +50,13 @@ export interface PaletteGroupDef {
   groups: readonly PieceGroup[];
 }
 
-/** §7.1 groups, in key order 1–5. */
+/** §7.1 groups, in key order 1–5. Phase 6 (W4-D): the helix is a turn, the corkscrew a special piece. */
 export const PALETTE_GROUPS: readonly PaletteGroupDef[] = Object.freeze([
   { id: 'straight', groups: ['S', 'St'] },
   { id: 'slopes', groups: ['G', 'X'] },
-  { id: 'turns', groups: ['Ts', 'Tm'] },
+  { id: 'turns', groups: ['Ts', 'Tm', 'Hx'] },
   { id: 'banking', groups: ['B'] },
-  { id: 'special', groups: ['Br', 'BB', 'L', 'Sp', 'W'] },
+  { id: 'special', groups: ['Br', 'BB', 'L', 'Sp', 'W', 'Cs'] },
 ]);
 
 export function paletteGroupOf(group: PieceGroup): PaletteGroupId {

@@ -1,5 +1,8 @@
 /**
- * Procedural track drawing (phase-2 §4.13, master §2.5: flat colours, chunky shapes). Owner: W2-A; water W3-C.
+ * Procedural track drawing (phase-2 §4.13, master §2.5: flat colours, chunky shapes). Owner: W2-A; water W3-C;
+ * Phase 6 styles W4-D: `inverted` (the rail and its spine run `lift` m above the riders' line and the cars hang
+ * below it; `arm` supports stand beside the track and reach over it), `bobsled` (an ice trough), `beam` (a monorail
+ * beam the cars straddle), and the cars roll with the track's bank (corkscrews, banked turns).
  * Everything here paints in world pixels (zoom 1) around an anchor; the caller caches the result as a sprite.
  * One painter per rail style: steel, wood (lattice supports), narrow (mini railway), kart (road), tunnel
  * (ghost train). Two rails (gauge per style), cross ties every metre or half metre, and a spine where the style
@@ -36,6 +39,13 @@ export interface RailLook {
   channel: number;
   /** Channel wall height above the water line (m). */
   wall: number;
+  /** Phase 6: the rail line runs this far (m) above the sample line, the riders' line (inverted coasters). */
+  lift?: number;
+  /** Phase 6: a dry trough (bobsled) with this surface colour instead of water. */
+  trough?: string;
+  /** Phase 6: half width (m) of a monorail beam under the sample line, and its depth (m). */
+  beam?: number;
+  beamDepth?: number;
 }
 
 export const LOOKS: Readonly<Record<RailStyle, RailLook>> = {
@@ -48,9 +58,10 @@ export const LOOKS: Readonly<Record<RailStyle, RailLook>> = {
   flume: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.45, spinePx: 0, road: 0, channel: 0.95, wall: 0.55 },
   rapids: { gauge: 2.0, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.5, spinePx: 0, road: 0, channel: 1.45, wall: 0.45 },
   // Phase 6 (W4-D): see `lift`, `surface`, and `beam` in PHASE6_LOOK below.
-  inverted: { gauge: 1.0, railPx: 1.6, tieEvery: 1, tieHalf: 0.6, tiePx: 1.5, tieColour: '#434b57', spine: true, drop: 0.5, spinePx: 3.6, road: 0, channel: 0, wall: 0 },
-  bobsled: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.4, spinePx: 0, road: 0, channel: 0.85, wall: 0.6 },
-  beam: { gauge: 0.9, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 1.0, spinePx: 0, road: 0, channel: 0, wall: 0 },
+  // Inverted: `drop` is negative, so the spine sits above the rails, and supports reach up to it.
+  inverted: { gauge: 1.0, railPx: 1.7, tieEvery: 1, tieHalf: 0.6, tiePx: 1.5, tieColour: '#434b57', spine: true, drop: -0.5, spinePx: 3.8, road: 0, channel: 0, wall: 0, lift: 2.4 },
+  bobsled: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.45, spinePx: 0, road: 0, channel: 0.85, wall: 0.65, trough: '#eaf5fb' },
+  beam: { gauge: 0.9, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 1.0, spinePx: 0, road: 0, channel: 0, wall: 0, beam: 0.45, beamDepth: 1.0 },
 };
 
 /** Water colours (flat, cool hues: master §2.5). */
@@ -229,6 +240,11 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
     paintChannel(ctx, P, look, col, s, k0, k1, opt);
     return;
   }
+  if (look.beam) {
+    paintBeam(ctx, P, look, col, s, k0, k1, opt);
+    return;
+  }
+  const lift = look.lift ?? 0;
   const half = look.gauge / 2;
   const lx: number[] = [];
   const ly: number[] = [];
@@ -241,9 +257,10 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
   let nearRight = 0;
   for (let k = k0; k <= k1; k++) {
     trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
-    const wx = s.x[k] as number;
-    const wy = s.y[k] as number;
-    const wz = s.z[k] as number;
+    // The rail line: the sample line, or `lift` above it along the track's up (inverted coasters).
+    const wx = (s.x[k] as number) + (fr[6] as number) * lift;
+    const wy = (s.y[k] as number) + (fr[7] as number) * lift;
+    const wz = (s.z[k] as number) + (fr[8] as number) * lift;
     const rX = fr[3] as number;
     const rY = fr[4] as number;
     const rZ = fr[5] as number;
@@ -270,9 +287,10 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
     for (let k = k0; k <= k1; k++) {
       if (k % every !== 0) continue;
       trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
-      const wx = (s.x[k] as number) - (fr[6] as number) * 0.08;
-      const wy = (s.y[k] as number) - (fr[7] as number) * 0.08;
-      const wz = (s.z[k] as number) - (fr[8] as number) * 0.08;
+      const tieUp = lift > 0 ? lift + 0.08 : -0.08;
+      const wx = (s.x[k] as number) + (fr[6] as number) * tieUp;
+      const wy = (s.y[k] as number) + (fr[7] as number) * tieUp;
+      const wz = (s.z[k] as number) + (fr[8] as number) * tieUp;
       const th = look.tieHalf;
       ctx.beginPath();
       ctx.moveTo(P.x(wx - (fr[3] as number) * th, wy - (fr[4] as number) * th), P.y(wx - (fr[3] as number) * th, wy - (fr[4] as number) * th, wz - (fr[5] as number) * th));
@@ -284,16 +302,20 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
     }
   }
 
-  if (look.spine) {
+  const spine = (): void => {
+    if (!look.spine) return;
     polyline(ctx, sx, sy, shade(track, 0.6), look.spinePx);
     polyline(ctx, sx, sy, shade(track, 0.85), Math.max(0.8, look.spinePx * 0.35));
-  }
+  };
+  // The spine is under the rails, or over them on an inverted track (then drawn last: it is nearer the eye).
+  if (lift === 0) spine();
   if (look.railPx > 0) {
     const far = nearRight > 0 ? [lx, ly] : [rx, ry];
     const near = nearRight > 0 ? [rx, ry] : [lx, ly];
     polyline(ctx, far[0] as number[], far[1] as number[], shade(track, 0.78), look.railPx);
     polyline(ctx, near[0] as number[], near[1] as number[], track, look.railPx);
   }
+  if (lift > 0) spine();
   if (opt.chain) polyline(ctx, cx, cy, '#2b2f36', 1.6);
   if (opt.special === 'brakes' || opt.special === 'blockBrake') paintBrakeFins(ctx, P, s, k0, k1, opt.special === 'blockBrake');
   if (opt.special === 'spooky') paintTunnel(ctx, P, s, k0, k1);
@@ -351,7 +373,7 @@ function paintChannel(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours,
   const farTop = rightNear ? LT : RT;
   const nearTop = rightNear ? RT : LT;
   band(ctx, farTop, rightNear ? LB : RB, shade(col.track, 0.62));
-  const surface = opt.special === 'whirlpool' ? WATER.deep : opt.special === 'splashdown' || opt.special === 'waterfall' ? WATER.light : WATER.surface;
+  const surface = look.trough ?? (opt.special === 'whirlpool' ? WATER.deep : opt.special === 'splashdown' || opt.special === 'waterfall' ? WATER.light : WATER.surface);
   band(ctx, L, R, surface);
   if (opt.conveyor) {
     // Belt cleats across the channel every half metre (by absolute sample index, so neighbouring slices line up).
@@ -395,6 +417,44 @@ function paintChannel(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours,
   band(ctx, nearTop, rightNear ? RB : LB, col.track);
   polyline(ctx, every2(farTop, 0), every2(farTop, 1), shade(col.track, 0.85), 1.2);
   polyline(ctx, every2(nearTop, 0), every2(nearTop, 1), shade(col.track, 1.15), 1.4);
+}
+
+/**
+ * Monorail beam (Phase 6): a concrete box beam under the sample line, which is the beam's top: the top face, the near
+ * side face, and a light edge line. Stations add the platform.
+ */
+function paintBeam(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours, s: WorldSamples, k0: number, k1: number, opt: RunOptions): void {
+  const w = look.beam ?? 0.45;
+  const depth = look.beamDepth ?? 1;
+  const L: number[] = [];
+  const R: number[] = [];
+  const LB: number[] = [];
+  const RB: number[] = [];
+  let nearRight = 0;
+  const push = (out: number[], wx: number, wy: number, wz: number, side: number, up: number): void => {
+    const x = wx + (fr[3] as number) * side + (fr[6] as number) * up;
+    const y = wy + (fr[4] as number) * side + (fr[7] as number) * up;
+    out.push(P.x(x, y), P.y(x, y, wz + (fr[5] as number) * side + (fr[8] as number) * up));
+  };
+  for (let k = k0; k <= k1; k++) {
+    trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
+    const wx = s.x[k] as number;
+    const wy = s.y[k] as number;
+    const wz = s.z[k] as number;
+    push(L, wx, wy, wz, -w, 0);
+    push(R, wx, wy, wz, w, 0);
+    push(LB, wx, wy, wz, -w, -depth);
+    push(RB, wx, wy, wz, w, -depth);
+    nearRight += P.vx(fr[3] as number, fr[4] as number) + P.vy(fr[3] as number, fr[4] as number) + (fr[5] as number);
+  }
+  const rightNear = nearRight > 0;
+  if (opt.special === 'station') paintPlatform(ctx, P, s, k0, k1, rightNear, w + 0.6);
+  const beam = '#c9ccd2';
+  band(ctx, rightNear ? R : L, rightNear ? RB : LB, shade(beam, 0.78));
+  band(ctx, L, R, beam);
+  // A stripe in the ride's colour along the near top edge.
+  const edge = rightNear ? R : L;
+  polyline(ctx, every2(edge, 0), every2(edge, 1), col.track, 1.6);
 }
 
 /** Station platform: a deck on both sides of the rails (or channel) from `from` m out, with a yellow safety edge. */
@@ -559,6 +619,44 @@ export function paintSupport(ctx: Ctx, P: Projector, style: SupportStyle, colour
   const x = P.x(wx, wy);
   const yb = P.y(wx, wy, ground);
   const yt = P.y(wx, wy, top);
+  if (style === 'arm') {
+    // Hanging cars (Phase 6 inverted): (wx, wy, top) is the top of the spine. A post 1.3 m beside the track on the
+    // far side rises past it; a braced arm reaches over and down onto the spine.
+    let rX = -Math.sin(yaw);
+    let rY = Math.cos(yaw);
+    if (P.vx(rX, rY) + P.vy(rX, rY) > 0) {
+      rX = -rX;
+      rY = -rY;
+    }
+    const px = wx + rX * 1.3;
+    const py = wy + rY * 1.3;
+    const armZ = top + 0.45;
+    const w = 0.55 * PX_X;
+    const sx0 = P.x(px, py);
+    const yg = P.y(px, py, ground);
+    const ya = P.y(px, py, armZ);
+    ctx.beginPath();
+    ctx.ellipse(sx0, yg, w * 0.9, w * 0.45, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#8b939d';
+    ctx.fill();
+    ctx.fillStyle = shade(colour, 1.05);
+    ctx.fillRect(sx0 - w / 2, ya, w / 2, yg - ya);
+    ctx.fillStyle = shade(colour, 0.72);
+    ctx.fillRect(sx0, ya, w / 2, yg - ya);
+    const mx = P.x(wx + rX * 0.55, wy + rY * 0.55);
+    ctx.beginPath();
+    ctx.moveTo(sx0, ya);
+    ctx.lineTo(x, P.y(wx, wy, armZ));
+    ctx.lineTo(x, yt);
+    ctx.moveTo(sx0, P.y(px, py, armZ - 1.1));
+    ctx.lineTo(mx, P.y(wx + rX * 0.55, wy + rY * 0.55, armZ));
+    ctx.strokeStyle = shade(colour, 0.8);
+    ctx.lineWidth = 3.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    return;
+  }
   if (style === 'lattice') {
     const rX = -Math.sin(yaw);
     const rY = Math.cos(yaw);
@@ -648,6 +746,13 @@ export function carDims(shape: CarShape, front: boolean): CarDims {
       return { a: 1.5, b: 0.6, h0: -0.25, h1: 0.45 };
     case 'raft':
       return { a: 1.25, b: 1.25, h0: -0.15, h1: 0.4 };
+    // Phase 6: a hanging chair row under the rail, a low sled, a long monorail car astride its beam.
+    case 'inverted':
+      return { a: 0.55, b: 0.8, h0: 0.0, h1: 0.8 };
+    case 'bobsled':
+      return { a: 1.0, b: 0.55, h0: -0.2, h1: 0.45 };
+    case 'monorail':
+      return { a: 1.42, b: 0.75, h0: -0.45, h1: 1.45 };
     default:
       return { a: 1.05, b: 0.78, h0: 0.15, h1: 0.85 };
   }
@@ -657,12 +762,16 @@ const IDENTITY: ViewFrame = { rot: 0, wm: 0, hm: 0 };
 const carP = new Projector(IDENTITY, 0, 0);
 const cf = new Float64Array(9);
 
+/** Hanging cars (Phase 6 inverted): the rail runs this far above the riders' line (the `inverted` look's lift). */
+export const HANG_M = 2.4;
+
 /**
- * A car around its rail point (0, 0, 0) in view space: `yaw` is the view-space heading, `pitch` the climb.
- * Cars are cached by yaw step, pitch step, zoom bucket, and colour (§4.13).
+ * A car around its rail point (0, 0, 0) in view space: `yaw` is the view-space heading, `pitch` the climb, and
+ * (`bankSin`, `bankCos`) the roll (Phase 6: cars roll with banked turns and corkscrews).
+ * Cars are cached by yaw step, pitch step, roll step, zoom bucket, and colour (§4.13).
  */
-export function paintCar(ctx: Ctx, shape: CarShape, yaw: number, pitch: number, colour: string, front: boolean): void {
-  trackFrame(yaw, pitch, 0, 1, cf);
+export function paintCar(ctx: Ctx, shape: CarShape, yaw: number, pitch: number, colour: string, front: boolean, bankSin = 0, bankCos = 1): void {
+  trackFrame(yaw, pitch, bankSin, bankCos, cf);
   const f = [cf[0] as number, cf[1] as number, cf[2] as number];
   const r = [cf[3] as number, cf[4] as number, cf[5] as number];
   const u = [cf[6] as number, cf[7] as number, cf[8] as number];
@@ -670,6 +779,10 @@ export function paintCar(ctx: Ctx, shape: CarShape, yaw: number, pitch: number, 
   const c: [number, number, number] = [0, 0, 0];
   if (shape === 'log' || shape === 'raft') {
     paintBoat(ctx, shape, f, r, u, d, colour);
+    return;
+  }
+  if (shape === 'inverted' || shape === 'bobsled' || shape === 'monorail') {
+    paintPhase6Car(ctx, shape, f, r, u, d, colour, front);
     return;
   }
   // Bogie under the body.
@@ -741,8 +854,48 @@ function paintBoat(ctx: Ctx, shape: 'log' | 'raft', f: number[], r: number[], u:
   }
 }
 
-/** Car sprite bounds around the rail point (world px): wide enough for any yaw, pitch, or loop inversion. */
-export const CAR_BOUNDS = { left: -30, right: 30, top: -36, bottom: 34 } as const;
+const at3 = (f: number[], r: number[], u: number[], a: number, b: number, h: number): [number, number, number] => [
+  f[0]! * a + r[0]! * b + u[0]! * h,
+  f[1]! * a + r[1]! * b + u[1]! * h,
+  f[2]! * a + r[2]! * b + u[2]! * h,
+];
+
+/**
+ * Phase 6 cars (W4-D):
+ * - `inverted`: a chair row hanging from a bogie on the rail `HANG_M` above, with a footrest; the riders face out.
+ * - `bobsled`: a low two-seat sled with a pointed nose and side runners.
+ * - `monorail`: a long rounded car with a window band, astride the beam (its skirt hides the beam top).
+ */
+function paintPhase6Car(ctx: Ctx, shape: 'inverted' | 'bobsled' | 'monorail', f: number[], r: number[], u: number[], d: CarDims, colour: string, front: boolean): void {
+  const c: [number, number, number] = [0, 0, 0];
+  if (shape === 'inverted') {
+    // A floorless row of seats hanging from a bogie on the rail: bogie, hanger, seat back, bench.
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, HANG_M), f, r, u, 0.5, 0.3, -0.12, 0.14, '#30353d');
+    paintBox(ctx, carP, at3(f, r, u, -0.25, 0, d.h1), f, r, u, 0.08, 0.08, 0, HANG_M - d.h1 - 0.1, '#30353d');
+    paintBox(ctx, carP, at3(f, r, u, -0.32, 0, 0), f, r, u, 0.1, d.b, d.h0, d.h1, colour, shade(colour, 0.55));
+    paintBox(ctx, carP, c, f, r, u, d.a * 0.6, d.b, d.h0, 0.14, shade(colour, 0.8));
+    if (front) paintBox(ctx, carP, at3(f, r, u, 0.3, 0, 0.1), f, r, u, 0.04, d.b * 0.9, 0, 0.35, '#f2c230');
+    return;
+  }
+  if (shape === 'bobsled') {
+    for (const side of [-1, 1]) paintBox(ctx, carP, at3(f, r, u, 0, side * (d.b - 0.06), 0), f, r, u, d.a * 0.95, 0.05, d.h0 - 0.08, d.h0 + 0.05, '#30353d');
+    paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h1, colour, shade(colour, 0.55));
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 + 0.01), f, r, u, d.a * 0.6, d.b * 0.65, 0, 0.001, '#2b2f36');
+    if (front) paintBox(ctx, carP, at3(f, r, u, d.a + 0.18, 0, d.h0 + 0.05), f, r, u, 0.2, d.b * 0.7, 0, d.h1 - d.h0 - 0.1, shade(colour, 1.15), shade(colour, 0.55));
+    return;
+  }
+  // Monorail: body, a dark window band, a light roof, and a rounded nose on the front car.
+  paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h1, colour, shade(colour, 0.55));
+  paintBox(ctx, carP, at3(f, r, u, 0, 0, 0.62), f, r, u, d.a * 0.92, d.b + 0.01, 0, 0.42, '#24364a');
+  paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1), f, r, u, d.a * 0.9, d.b * 0.85, 0, 0.12, '#f4f6f8');
+  if (front) paintBox(ctx, carP, at3(f, r, u, d.a + 0.25, 0, 0.1), f, r, u, 0.25, d.b * 0.8, -0.3, d.h1 - 0.3, shade(colour, 1.1), shade(colour, 0.55));
+}
+
+/**
+ * Car sprite bounds around the rail point (world px): wide enough for any yaw, pitch, roll, or loop inversion, and for a
+ * hanging car's hanger up to its rail (Phase 6) when a corkscrew rolls it sideways.
+ */
+export const CAR_BOUNDS = { left: -38, right: 38, top: -40, bottom: 38 } as const;
 
 // ---------------------------------------------------------------- gates
 

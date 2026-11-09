@@ -49,7 +49,7 @@ function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
   if (!ctx) return c;
   ctx.scale(dpr, dpr);
   const sm = pieceStatic(def.id).samples;
-  const side = def.group === 'G' || def.group === 'X' || def.group === 'L';
+  const side = def.group === 'G' || def.group === 'X' || def.group === 'L' || def.group === 'Cs';
   let u0 = Infinity;
   let u1 = -Infinity;
   let v0 = Infinity;

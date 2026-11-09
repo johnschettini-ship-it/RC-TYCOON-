@@ -1,5 +1,6 @@
 /**
- * Owner: W2-C. Art registry for the Phase 3 research content: 10 flat rides and 8 stalls.
+ * Owner: W2-C, W4-D. Art registry for the research content: Phase 3 (10 flat rides, 8 stalls) and Phase 6 (4 flat
+ * rides, 3 stalls).
  * `rides.ts` and `stalls.ts` look ids up here before their generic fallback.
  * Entries are plain objects so tests can watch the draw calls.
  */
@@ -8,6 +9,7 @@ import type { RideArtState } from '../rides';
 import type { Ctx } from '../shapes';
 import { drawBumperCars, drawHauntedManor, drawMirrorMaze, drawObservationTower, drawRocketRounds, drawSpiralSlide } from './gentleRides';
 import { STALL_DRAW } from './stalls';
+import { drawGyroGlobe, drawKiddieCars, drawMagicCarpet, drawMerryMill } from './phase6Rides';
 import { drawDropTower, drawFlipArm, drawPendulumShip, drawThunderDisc } from './thrillRides';
 
 export interface ContentRideArt {
@@ -36,6 +38,11 @@ export const CONTENT_RIDE_ART: Readonly<Record<string, ContentRideArt>> = {
   thunder_disc: ride(106, drawThunderDisc),
   drop_tower: ride(208, drawDropTower),
   flip_arm: ride(136, drawFlipArm),
+  // Phase 6 (W4-D).
+  magic_carpet: ride(132, drawMagicCarpet),
+  kiddie_cars: ride(78, drawKiddieCars),
+  merry_mill: ride(116, drawMerryMill),
+  gyro_globe: ride(148, drawGyroGlobe),
 };
 
 export const CONTENT_STALL_ART: Readonly<Record<string, ContentStallArt>> = Object.fromEntries(
