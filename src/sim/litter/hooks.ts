@@ -4,7 +4,6 @@
  * Only "keep sitting" and "bench" take the decision (return true).
  */
 import { getStallDef } from '../../data/catalog/stalls';
-import { STAFF_THOUGHTS } from '../../data/strings/staff';
 import {
   ANGRY_HAPPY,
   BENCH_TIRED,
@@ -29,12 +28,13 @@ import {
   TRASH_TIMER_MIN,
   VANDAL_CHANCE,
 } from '../../data/tuning/staff';
+import { THOUGHT, addThought, type ThoughtId } from '../guests/thoughts';
 import type { Guest } from '../guests/types';
 import type { GuestHooks } from '../hooks';
 import { Content, neighbour, PathItem, type Dir } from '../map';
 import { rngChance, rngInt } from '../rng';
 import { costumeMatches, performerBonus } from '../staff/costumes';
-import { addThought, changeHappiness, changeNeed } from '../staff/guestEffects';
+import { changeHappiness, changeNeed } from '../staff/guestEffects';
 import { performersWithin, securityWithin } from '../staff/presence';
 import type { Stall } from '../stalls/types';
 import type { World } from '../types';
@@ -116,7 +116,7 @@ function sick(world: World, guest: Guest): boolean {
   }
   changeNeed(guest, 'nausea', -SICK_NAUSEA_DROP);
   changeHappiness(guest, -SICK_HAPPY_DROP);
-  addThought(world, guest, STAFF_THOUGHTS.feelAwful);
+  addThought(world, guest, THOUGHT.feelAwful);
   return false;
 }
 
@@ -130,19 +130,19 @@ function dirt(world: World, guest: Guest): boolean {
   }
   if (d >= DIRT_BAD) {
     changeHappiness(guest, -DIRT_BAD_HAPPY);
-    addThought(world, guest, STAFF_THOUGHTS.pathFilthy);
+    addThought(world, guest, THOUGHT.filthy);
   } else if (d >= DIRT_MILD) {
     changeHappiness(guest, -DIRT_MILD_HAPPY);
   } else if (d === 0 && cleanlinessThisTick(world) >= CLEAN_PARK_THOUGHT_MIN) {
-    addThought(world, guest, STAFF_THOUGHTS.cleanPark);
+    addThought(world, guest, THOUGHT.cleanPark);
   }
   return false;
 }
 
-const BROKEN_THOUGHT: Record<number, string> = {
-  [PathItem.Bench]: STAFF_THOUGHTS.brokenBench,
-  [PathItem.Bin]: STAFF_THOUGHTS.brokenBin,
-  [PathItem.Lamp]: STAFF_THOUGHTS.brokenLamp,
+const BROKEN_THOUGHT: Record<number, ThoughtId> = {
+  [PathItem.Bench]: THOUGHT.brokeBench,
+  [PathItem.Bin]: THOUGHT.brokeBin,
+  [PathItem.Lamp]: THOUGHT.brokeLamp,
 };
 
 /** §4.4 Guests next to a broken item lose 1 happiness per decision and may think about it. */
@@ -184,9 +184,9 @@ function performers(world: World, guest: Guest): boolean {
   for (const p of near) if (performerBonus(p.costume, guest.temperament) > performerBonus(best.costume, guest.temperament)) best = p;
   changeHappiness(guest, performerBonus(best.costume, guest.temperament));
   if (costumeMatches(best.costume, guest.temperament)) {
-    addThought(world, guest, best.costume === 'frost' ? STAFF_THOUGHTS.frostCute : STAFF_THOUGHTS.sparkAwesome);
+    addThought(world, guest, best.costume === 'frost' ? THOUGHT.frostCute : THOUGHT.sparkAwesome);
   } else {
-    addThought(world, guest, STAFF_THOUGHTS.performerFun);
+    addThought(world, guest, THOUGHT.performerFun);
   }
   return false;
 }

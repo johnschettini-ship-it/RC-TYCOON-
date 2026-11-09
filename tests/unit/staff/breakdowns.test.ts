@@ -22,7 +22,8 @@ import {
   REL_MAX,
   STUCK_RIDER_INTERVAL,
 } from '../../../src/data/tuning/staff';
-import { STAFF_MESSAGES, STAFF_THOUGHTS } from '../../../src/data/strings/staff';
+import { STAFF_MESSAGES } from '../../../src/data/strings/staff';
+import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { TICKS_PER_MONTH, MONTHS_PER_YEAR } from '../../../src/data/tuning/core';
 import { addGuestDirect, makeTestWorld, placeRideDirect } from '../../helpers/world';
 import { notifyLog, pathLine, stopRideSpy } from './fakes';
@@ -212,7 +213,7 @@ describe('guests and breakdowns', () => {
     const g = addGuestDirect(world, tileIndex(world.state.map, 21, 13), { state: 'queueing', activityId: ride.id });
     ride.queue = [g.id];
     breakDown(world, ride, 'stopped');
-    expect(g.thoughts.map((t) => t.id)).toContain(STAFF_THOUGHTS.rideBrokeDown);
+    expect(g.thoughts.map((t) => t.id)).toContain(THOUGHT.rideBrokeDown);
   });
 
   it('riders on a stopped track ride lose 1 happiness per decision interval and think "We are stuck!"', () => {
@@ -227,7 +228,7 @@ describe('guests and breakdowns', () => {
     expect(g.needs.happiness).toBe(180);
     stepStaffSystems(world, 1);
     expect(g.needs.happiness).toBe(179);
-    expect(g.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.stuck]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.stuck]);
     stepStaffSystems(world, STUCK_RIDER_INTERVAL);
     expect(g.needs.happiness).toBe(178);
   });

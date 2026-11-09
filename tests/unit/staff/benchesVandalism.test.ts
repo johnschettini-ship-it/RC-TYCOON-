@@ -6,7 +6,7 @@ vi.mock('../../../src/sim/notifications', async () => (await import('./fakes')).
 import { decisionHooks, litterHooks } from '../../../src/sim/litter/hooks';
 import { PathItem, tileIndex } from '../../../src/sim/map';
 import { BENCH_ENERGY } from '../../../src/data/catalog/people';
-import { STAFF_THOUGHTS } from '../../../src/data/strings/staff';
+import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import {
   ANGRY_HAPPY,
   BENCH_SIT_TICKS,
@@ -195,12 +195,12 @@ describe('vandalism (Phase 3 §4.4)', () => {
     const g = addGuestDirect(world, at(20));
     decisionHooks.brokenItems(world, g);
     expect(g.needs.happiness).toBe(179);
-    expect(g.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.brokenBench]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.brokeBench]);
     map.pathItem[at(30)] = PathItem.Bin;
     setBroken(map, at(30), true);
     const h = addGuestDirect(world, at(30));
     decisionHooks.brokenItems(world, h);
-    expect(h.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.brokenBin]);
+    expect(h.thoughts.map((t) => t.id)).toEqual([THOUGHT.brokeBin]);
   });
 
   it('auto-repair fixes broken items at the hour start when cash allows', async () => {
@@ -293,15 +293,15 @@ describe('performers and costumes (R6)', () => {
     const a = show('spark');
     const g = addGuestDirect(a.world, a.at(21), { temperament: 80 });
     decisionHooks.performers(a.world, g);
-    expect(g.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.sparkAwesome]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.sparkAwesome]);
     const b = show('frost');
     const h = addGuestDirect(b.world, b.at(21), { temperament: 20 });
     decisionHooks.performers(b.world, h);
-    expect(h.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.frostCute]);
+    expect(h.thoughts.map((t) => t.id)).toEqual([THOUGHT.frostCute]);
     const c = show(null);
     const k = addGuestDirect(c.world, c.at(21), { temperament: 50 });
     decisionHooks.performers(c.world, k);
-    expect(k.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.performerFun]);
+    expect(k.thoughts.map((t) => t.id)).toEqual([THOUGHT.performerFun]);
   });
 
   it('at most one performer bonus per decision; a performer who is not performing gives nothing', () => {

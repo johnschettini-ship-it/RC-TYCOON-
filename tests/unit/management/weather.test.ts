@@ -11,7 +11,8 @@ import {
   WEATHER_STATES,
   WEATHER_STAY,
 } from '../../../src/data/tuning/management';
-import { MSG, WEATHER_THOUGHTS } from '../../../src/data/strings/management';
+import { MSG } from '../../../src/data/strings/management';
+import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { START_TICK, TICKS_PER_MONTH } from '../../../src/data/tuning/core';
 import { addGuestDirect, makeTestWorld, placeRideDirect, placeStallDirect } from '../../helpers/world';
 import type { World } from '../../../src/sim/types';
@@ -278,16 +279,16 @@ describe('guest weather effects (hooks)', () => {
     decide(w, u);
     w.state.tick += 40;
     decide(w, g);
-    expect(g.thoughts.map((t) => t.id)).toEqual([WEATHER_THOUGHTS.rainNoUmbrella]);
-    expect(u.thoughts.map((t) => t.id)).toEqual([WEATHER_THOUGHTS.umbrella]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.rainNoUmbrella]);
+    expect(u.thoughts.map((t) => t.id)).toEqual([THOUGHT.goodUmbrella]);
     w.state.tick += 1200;
     decide(w, g);
-    expect(g.thoughts.map((t) => t.id)).toEqual([WEATHER_THOUGHTS.rainNoUmbrella, WEATHER_THOUGHTS.rainNoUmbrella]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.rainNoUmbrella, THOUGHT.rainNoUmbrella]);
     setWeather(w, 'hot');
     decide(w, g);
     setWeather(w, 'cold');
     decide(w, g);
-    expect(g.thoughts.slice(-2).map((t) => t.id)).toEqual([WEATHER_THOUGHTS.tooHot, WEATHER_THOUGHTS.cold]);
+    expect(g.thoughts.slice(-2).map((t) => t.id)).toEqual([THOUGHT.tooHot, THOUGHT.tooCold]);
   });
 
   it('a guest heading for a storm-held ride thinks it was closed for the storm', () => {
@@ -298,7 +299,7 @@ describe('guest weather effects (hooks)', () => {
     updateWeather(w);
     const g = addGuestDirect(w, 100, { target: `ride:${wheel.id}`, items: { map: false, umbrella: true, balloon: false } });
     decide(w, g);
-    expect(g.thoughts.map((t) => t.id)).toContain(WEATHER_THOUGHTS.stormClosed);
+    expect(g.thoughts.map((t) => t.id)).toContain(THOUGHT.stormClosed);
   });
 
   it('hot weather raises thirst ×1.5 and cold weather lowers energy ×1.2 (extra over the base rate)', () => {

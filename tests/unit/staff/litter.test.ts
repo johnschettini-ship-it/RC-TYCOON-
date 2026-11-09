@@ -7,7 +7,7 @@ import { litterHooks, decisionHooks } from '../../../src/sim/litter/hooks';
 import { cleanliness } from '../../../src/sim/litter/metrics';
 import { Content, PathItem, tileIndex } from '../../../src/sim/map';
 import { BIN_CAPACITY } from '../../../src/data/catalog/people';
-import { STAFF_THOUGHTS } from '../../../src/data/strings/staff';
+import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import {
   DIRT_BAD,
   DIRT_MILD,
@@ -134,7 +134,7 @@ describe('mess (sick guests)', () => {
     expect(map.mess[at(20)]).toBe(1);
     expect(g.needs.nausea).toBe(SICK_NAUSEA - SICK_NAUSEA_DROP);
     expect(g.needs.happiness).toBe(150 - SICK_HAPPY_DROP);
-    expect(g.thoughts.map((t) => t.id)).toContain(STAFF_THOUGHTS.feelAwful);
+    expect(g.thoughts.map((t) => t.id)).toContain(THOUGHT.feelAwful);
   });
 
   it('a failed roll does nothing; mess is capped at MESS_TILE_MAX', () => {
@@ -198,7 +198,7 @@ describe('dirt effect and cleanliness', () => {
     map.litter[at(19)] = 2;
     const g = dirtCase(0, 2); // 2 + 4 × 2 = 10
     expect(g.needs.happiness).toBe(177);
-    expect(g.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.pathFilthy]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.filthy]);
   });
 
   it('diagonal tiles do not count', () => {
