@@ -7,6 +7,7 @@ import { clampToMap } from './camera';
 import { InputController, type UiIntent } from './controller';
 import type { PointerKind } from './gestures';
 import { keyAction } from './keyboard';
+import { isTrackKey } from './track';
 
 /** Window event for panel requests; the UI layer listens for it. */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -81,6 +82,12 @@ export function attachInput(canvas: HTMLCanvasElement, game: Game): void {
     // A title screen or dialog is open (set by the UI layer).
     if (document.body.dataset.tcModal) return;
     if (keyBelongsToControl(e)) return;
+    if (game.tool.tool === 'track' && isTrackKey(e.key)) {
+      // The track builder's keys (Enter, Backspace, C, 1–5, R, Esc) win over the normal map keys.
+      e.preventDefault();
+      if (!e.repeat) ctl.keyDown(e.key);
+      return;
+    }
     const action = keyAction(e.key);
     if (!action) return;
     e.preventDefault();

@@ -33,6 +33,7 @@ import { MESSAGE_TOAST_MS, TOAST_PRIORITY, ToastArbiter, messageHasToast, messag
 import { createPathItemBar, createPatrolBar } from './management/toolBars';
 import { TOAST_MS } from './toasts';
 import { toolOptions } from '../render/management/toolOptions';
+import { mountTrackUi } from './track';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -182,6 +183,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   });
   const title = createTitleScreen(ctx);
   root.append(hud.el, toolbar.el, status.el, patrolBar.el, pathItemBar.el, panels.el, toastView.el, messageToast.el, fileInput, title.el);
+  mountTrackUi(ctx);
 
   const applyLayout = (): void => {
     const layout = toolbarPlacement(window.innerWidth);

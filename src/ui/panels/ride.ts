@@ -7,6 +7,7 @@ import { formatMoney, formatPrice, formatRating } from '../format';
 import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
+import { createTrackRidePanel } from '../track/ridePanel';
 
 /** Price range $0–$20 in $0.10 steps (Phase 1 §4.5). */
 export const RIDE_PRICE_MAX = 2000;
@@ -16,6 +17,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
   const { game } = ctx;
   const find = () => game.world.state.rides.find((r) => r.id === rideId);
   const ride0 = find();
+  if (ride0?.kind === 'track') return createTrackRidePanel(ctx, rideId);
   const tag = ride0 ? (getFlatRideDef(ride0.defId) ?? getTrackRideDef(ride0.defId))?.tag ?? 'family' : 'family';
 
   const status = h('span', { class: 'chip', 'data-testid': 'ride-status' });
