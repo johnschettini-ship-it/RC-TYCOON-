@@ -27,3 +27,12 @@ export const TERRAIN_ERR = {
   /** Track (W3-C). */
   trackBelowLand: 'The track is below the land',
 } as const;
+
+/** Not in the spec text: bad command data from a caller (a UI bug or a hand-made command). No final period (R4). */
+export const TERRAIN_INPUT_ERR = {
+  brushSize: 'Unknown brush size',
+  corner: 'Unknown corner',
+  terrain: 'Unknown terrain type',
+  position: 'Unknown position',
+  height: 'Unknown height',
+} as const;
