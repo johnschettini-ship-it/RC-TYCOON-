@@ -1,9 +1,11 @@
 /**
- * Procedural track drawing (phase-2 §4.13, master §2.5: flat colours, chunky shapes). Owner: W2-A.
+ * Procedural track drawing (phase-2 §4.13, master §2.5: flat colours, chunky shapes). Owner: W2-A; water W3-C.
  * Everything here paints in world pixels (zoom 1) around an anchor; the caller caches the result as a sprite.
  * One painter per rail style: steel, wood (lattice supports), narrow (mini railway), kart (road), tunnel
  * (ghost train). Two rails (gauge per style), cross ties every metre or half metre, and a spine where the style
- * has one. Deterministic: the same inputs give the same pixels.
+ * has one. Water styles (flume, rapids; phase-2 §4.14, Phase 4 §4.4) paint a channel: two walls and a water surface,
+ * with marks for splashdowns, waterfalls, rough water, whirlpools, and lift conveyors.
+ * Deterministic: the same inputs give the same pixels.
  */
 import type { PieceSpecial, TrackTypeDef } from '../../data/track';
 import { shade } from '../palette';
@@ -30,15 +32,25 @@ export interface RailLook {
   spinePx: number;
   /** Go-kart road surface half width (m), 0 for rails. */
   road: number;
+  /** Water channel half width (m), 0 for rails and roads. */
+  channel: number;
+  /** Channel wall height above the water line (m). */
+  wall: number;
 }
 
 export const LOOKS: Readonly<Record<RailStyle, RailLook>> = {
-  steel: { gauge: 1.2, railPx: 1.7, tieEvery: 1, tieHalf: 0.72, tiePx: 1.5, tieColour: '#434b57', spine: true, drop: 0.5, spinePx: 3.2, road: 0 },
-  wood: { gauge: 1.2, railPx: 1.9, tieEvery: 0.5, tieHalf: 0.95, tiePx: 2.2, tieColour: '#6b4a2b', spine: false, drop: 0.25, spinePx: 0, road: 0 },
-  narrow: { gauge: 1.0, railPx: 1.3, tieEvery: 0.5, tieHalf: 0.8, tiePx: 2.4, tieColour: '#7a5634', spine: false, drop: 0.2, spinePx: 0, road: 0 },
-  tunnel: { gauge: 1.0, railPx: 1.3, tieEvery: 0.5, tieHalf: 0.8, tiePx: 2.4, tieColour: '#5b4a6e', spine: false, drop: 0.2, spinePx: 0, road: 0 },
-  kart: { gauge: 3.2, railPx: 0, tieEvery: 1, tieHalf: 1.6, tiePx: 0, tieColour: null, spine: false, drop: 0.3, spinePx: 0, road: 1.6 },
+  steel: { gauge: 1.2, railPx: 1.7, tieEvery: 1, tieHalf: 0.72, tiePx: 1.5, tieColour: '#434b57', spine: true, drop: 0.5, spinePx: 3.2, road: 0, channel: 0, wall: 0 },
+  wood: { gauge: 1.2, railPx: 1.9, tieEvery: 0.5, tieHalf: 0.95, tiePx: 2.2, tieColour: '#6b4a2b', spine: false, drop: 0.25, spinePx: 0, road: 0, channel: 0, wall: 0 },
+  narrow: { gauge: 1.0, railPx: 1.3, tieEvery: 0.5, tieHalf: 0.8, tiePx: 2.4, tieColour: '#7a5634', spine: false, drop: 0.2, spinePx: 0, road: 0, channel: 0, wall: 0 },
+  tunnel: { gauge: 1.0, railPx: 1.3, tieEvery: 0.5, tieHalf: 0.8, tiePx: 2.4, tieColour: '#5b4a6e', spine: false, drop: 0.2, spinePx: 0, road: 0, channel: 0, wall: 0 },
+  kart: { gauge: 3.2, railPx: 0, tieEvery: 1, tieHalf: 1.6, tiePx: 0, tieColour: null, spine: false, drop: 0.3, spinePx: 0, road: 1.6, channel: 0, wall: 0 },
+  // Water channels: the sample line is the water surface; supports end under the channel floor.
+  flume: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.45, spinePx: 0, road: 0, channel: 0.95, wall: 0.55 },
+  rapids: { gauge: 2.0, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.5, spinePx: 0, road: 0, channel: 1.45, wall: 0.45 },
 };
+
+/** Water colours (flat, cool hues: master §2.5). */
+export const WATER = { surface: '#3f9fd8', deep: '#2b78b8', light: '#9fd8f5', foam: '#f2fbff' } as const;
 
 /** Junior coasters use the steel style with a narrower gauge and a thinner spine. */
 export function lookFor(type: Pick<TrackTypeDef, 'render'>): RailLook {
@@ -199,6 +211,8 @@ export interface RunOptions {
   special: PieceSpecial;
   /** Draw the static chain base (the animated dashes are an overlay). */
   chain: boolean;
+  /** Water lift conveyor: belt cleats across the channel. */
+  conveyor?: boolean;
 }
 
 /**
@@ -207,6 +221,10 @@ export interface RunOptions {
 export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours, s: WorldSamples, k0: number, k1: number, opt: RunOptions): void {
   const m = k1 - k0 + 1;
   if (m < 2) return;
+  if (look.channel > 0) {
+    paintChannel(ctx, P, look, col, s, k0, k1, opt);
+    return;
+  }
   const half = look.gauge / 2;
   const lx: number[] = [];
   const ly: number[] = [];
@@ -277,9 +295,108 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
   if (opt.special === 'spooky') paintTunnel(ctx, P, s, k0, k1);
 }
 
-/** Station platform: a deck on both sides of the rails with a yellow safety edge. */
-function paintPlatform(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: number, rightNear: boolean): void {
+/** Every other number of a flat point list (`offset` 0: the x values, 1: the y values). */
+function every2(a: readonly number[], offset: 0 | 1): number[] {
+  const out: number[] = [];
+  for (let i = offset; i < a.length; i += 2) out.push(a[i] as number);
+  return out;
+}
+
+/** The band between two point lists of equal length (flat x, y pairs), filled. */
+function band(ctx: Ctx, a: readonly number[], b: readonly number[], fill: string): void {
+  const poly: number[] = [...a];
+  for (let i = b.length - 2; i >= 0; i -= 2) poly.push(b[i] as number, b[i + 1] as number);
+  quad(ctx, poly, fill);
+}
+
+/**
+ * Water channel (phase-2 §4.14 `medium: 'water'`): the far wall's inner face, the water surface, then the near wall's
+ * outer face and both wall tops. The sample line is the water surface. Marks: platform (station), conveyor cleats
+ * (lifts), foam chevrons (splashdown, waterfall, rough water), and a swirl (whirlpool, in the slice holding its middle).
+ */
+function paintChannel(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours, s: WorldSamples, k0: number, k1: number, opt: RunOptions): void {
+  const w = look.channel;
+  const floor = 0.35;
+  const L: number[] = [];
+  const R: number[] = [];
+  const LT: number[] = [];
+  const RT: number[] = [];
+  const LB: number[] = [];
+  const RB: number[] = [];
+  let nearRight = 0;
+  const push = (out: number[], wx: number, wy: number, wz: number, side: number, up: number): void => {
+    const x = wx + (fr[3] as number) * side + (fr[6] as number) * up;
+    const y = wy + (fr[4] as number) * side + (fr[7] as number) * up;
+    out.push(P.x(x, y), P.y(x, y, wz + (fr[5] as number) * side + (fr[8] as number) * up));
+  };
+  for (let k = k0; k <= k1; k++) {
+    trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
+    const wx = s.x[k] as number;
+    const wy = s.y[k] as number;
+    const wz = s.z[k] as number;
+    push(L, wx, wy, wz, -(w - 0.08), 0);
+    push(R, wx, wy, wz, w - 0.08, 0);
+    push(LT, wx, wy, wz, -w, look.wall);
+    push(RT, wx, wy, wz, w, look.wall);
+    push(LB, wx, wy, wz, -w, -floor);
+    push(RB, wx, wy, wz, w, -floor);
+    nearRight += P.vx(fr[3] as number, fr[4] as number) + P.vy(fr[3] as number, fr[4] as number) + (fr[5] as number);
+  }
+  const rightNear = nearRight > 0;
+  if (opt.special === 'station') paintPlatform(ctx, P, s, k0, k1, rightNear, w + 0.15);
+  const farTop = rightNear ? LT : RT;
+  const nearTop = rightNear ? RT : LT;
+  band(ctx, farTop, rightNear ? LB : RB, shade(col.track, 0.62));
+  const surface = opt.special === 'whirlpool' ? WATER.deep : opt.special === 'splashdown' || opt.special === 'waterfall' ? WATER.light : WATER.surface;
+  band(ctx, L, R, surface);
+  if (opt.conveyor) {
+    // Belt cleats across the channel every half metre (by absolute sample index, so neighbouring slices line up).
+    for (let k = k0; k <= k1; k++) {
+      if (k % 2 !== 0) continue;
+      const i = (k - k0) * 2;
+      polyline(ctx, [L[i] as number, R[i] as number], [L[i + 1] as number, R[i + 1] as number], '#2b3440', 1.1);
+    }
+  }
+  if (opt.special === 'splashdown' || opt.special === 'waterfall' || opt.special === 'rough') {
+    const step = opt.special === 'rough' ? 3 : 2;
+    for (let k = k0; k < k1; k++) {
+      if (k % step !== 0) continue;
+      const i = (k - k0) * 2;
+      const lx = L[i] as number;
+      const ly = L[i + 1] as number;
+      const rx = R[i] as number;
+      const ry = R[i + 1] as number;
+      const mx = (lx + rx) / 2;
+      const my = (ly + ry) / 2;
+      // A foam chevron pointing downstream.
+      const dx = ((L[i + 2] as number) - lx) * 0.6;
+      const dy = ((L[i + 3] as number) - ly) * 0.6;
+      polyline(ctx, [lx * 0.7 + mx * 0.3, mx + dx, rx * 0.7 + mx * 0.3], [ly * 0.7 + my * 0.3, my + dy, ry * 0.7 + my * 0.3], WATER.foam, opt.special === 'rough' ? 1.2 : 1.6);
+    }
+  }
+  if (opt.special === 'whirlpool') {
+    const mid = Math.floor((s.n - 1) / 2);
+    if (mid >= k0 && mid <= k1) {
+      const x = P.x(s.x[mid] as number, s.y[mid] as number);
+      const y = P.y(s.x[mid] as number, s.y[mid] as number, s.z[mid] as number);
+      for (const r of [0.35, 0.65, 0.9]) {
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * w * PX_X, r * w * PX_Y, 0, 0.3, Math.PI * 1.6);
+        ctx.strokeStyle = WATER.light;
+        ctx.lineWidth = 1.1;
+        ctx.stroke();
+      }
+    }
+  }
+  band(ctx, nearTop, rightNear ? RB : LB, col.track);
+  polyline(ctx, every2(farTop, 0), every2(farTop, 1), shade(col.track, 0.85), 1.2);
+  polyline(ctx, every2(nearTop, 0), every2(nearTop, 1), shade(col.track, 1.15), 1.4);
+}
+
+/** Station platform: a deck on both sides of the rails (or channel) from `from` m out, with a yellow safety edge. */
+function paintPlatform(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: number, rightNear: boolean, from = 0.85): void {
   const deck = 0.3;
+  const width = 1.1;
   const sides = rightNear ? [-1, 1] : [1, -1];
   for (const side of sides) {
     const inner: number[] = [];
@@ -290,10 +407,10 @@ function paintPlatform(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: 
       const wx = s.x[k] as number;
       const wy = s.y[k] as number;
       const wz = (s.z[k] as number) + deck;
-      const ix = wx + (fr[3] as number) * 0.85 * side;
-      const iy = wy + (fr[4] as number) * 0.85 * side;
-      const ox = wx + (fr[3] as number) * 1.95 * side;
-      const oy = wy + (fr[4] as number) * 1.95 * side;
+      const ix = wx + (fr[3] as number) * from * side;
+      const iy = wy + (fr[4] as number) * from * side;
+      const ox = wx + (fr[3] as number) * (from + width) * side;
+      const oy = wy + (fr[4] as number) * (from + width) * side;
       inner.push(P.x(ix, iy), P.y(ix, iy, wz));
       outer.push(P.x(ox, oy), P.y(ox, oy, wz));
       base.push(P.x(ox, oy), P.y(ox, oy, wz - deck));
@@ -523,6 +640,10 @@ export function carDims(shape: CarShape, front: boolean): CarDims {
       return { a: 0.85, b: 0.72, h0: 0.12, h1: 0.62 };
     case 'kart':
       return { a: 0.8, b: 0.55, h0: 0.08, h1: 0.42 };
+    case 'log':
+      return { a: 1.5, b: 0.6, h0: -0.25, h1: 0.45 };
+    case 'raft':
+      return { a: 1.25, b: 1.25, h0: -0.15, h1: 0.4 };
     default:
       return { a: 1.05, b: 0.78, h0: 0.15, h1: 0.85 };
   }
@@ -543,6 +664,10 @@ export function paintCar(ctx: Ctx, shape: CarShape, yaw: number, pitch: number, 
   const u = [cf[6] as number, cf[7] as number, cf[8] as number];
   const d = carDims(shape, front);
   const c: [number, number, number] = [0, 0, 0];
+  if (shape === 'log' || shape === 'raft') {
+    paintBoat(ctx, shape, f, r, u, d, colour);
+    return;
+  }
   // Bogie under the body.
   paintBox(ctx, carP, c, f, r, u, d.a * 0.7, d.b * 0.55, -0.15, d.h0, '#30353d');
   if (shape === 'loco' && front) {
@@ -579,6 +704,36 @@ export function paintCar(ctx: Ctx, shape: CarShape, yaw: number, pitch: number, 
     // A nose stripe on the front car.
     const nose: [number, number, number] = [f[0]! * d.a, f[1]! * d.a, f[2]! * d.a];
     paintBox(ctx, carP, nose, f, r, u, 0.05, d.b, d.h0, d.h1 * 0.7, '#f4f4f4');
+  }
+}
+
+/**
+ * Boats float in the channel (the sample line is the water surface): a hollow log with bark rings and a carved prow,
+ * or a round raft with a dark well and yellow rim handles. Riders sit in the well.
+ */
+function paintBoat(ctx: Ctx, shape: 'log' | 'raft', f: number[], r: number[], u: number[], d: CarDims, colour: string): void {
+  const c: [number, number, number] = [0, 0, 0];
+  const top = d.h1 + 0.01;
+  const well: [number, number, number] = [u[0]! * top, u[1]! * top, u[2]! * top];
+  paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h1, colour, shade(colour, 0.5));
+  if (shape === 'log') {
+    paintBox(ctx, carP, well, f, r, u, d.a * 0.78, d.b * 0.62, 0, 0.001, shade(colour, 0.45));
+    for (const sgn of [1, -1]) {
+      const e = d.a * 0.92 * sgn;
+      paintBox(ctx, carP, [f[0]! * e, f[1]! * e, f[2]! * e], f, r, u, 0.06, d.b * 1.02, d.h0, d.h1 + 0.02, shade(colour, 0.7));
+    }
+    const p = d.a - 0.2;
+    paintBox(ctx, carP, [f[0]! * p, f[1]! * p, f[2]! * p], f, r, u, 0.2, d.b * 0.5, d.h1, d.h1 + 0.35, shade(colour, 1.1), shade(colour, 0.5));
+    return;
+  }
+  paintBox(ctx, carP, well, f, r, u, d.a * 0.72, d.b * 0.72, 0, 0.001, '#2b2f36');
+  for (const [ea, eb] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+    const h: [number, number, number] = [
+      f[0]! * d.a * ea + r[0]! * d.b * eb + u[0]! * d.h1,
+      f[1]! * d.a * ea + r[1]! * d.b * eb + u[1]! * d.h1,
+      f[2]! * d.a * ea + r[2]! * d.b * eb + u[2]! * d.h1,
+    ];
+    paintBox(ctx, carP, h, f, r, u, 0.12, 0.12, 0, 0.12, '#f2c230');
   }
 }
 

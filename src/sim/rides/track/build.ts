@@ -7,6 +7,7 @@ import { BRAKE_SPEED, MAX_PIECES, STATION_MAX_TILES } from '../../../data/tuning
 import { TRACK_ERR } from '../../../data/strings/track';
 import { canAfford, pay, recordLedger, type CommandContext } from '../../economy/ledger';
 import { Content, inBounds, tileIndex } from '../../map';
+import { markOccupancyDirty } from '../../occupancy';
 import { markNetworkDirty } from '../../pathing';
 import type { World } from '../../types';
 import type { Ride } from '../types';
@@ -52,7 +53,8 @@ export function planAppend(
   const def = getTrackPieceDef(defId);
   if (!def) return { ok: false, reason: TRACK_ERR.unknownPiece };
   if (pieces.length === 0 && def.special !== 'station') return { ok: false, reason: TRACK_ERR.mustStartWithStation };
-  if (!type.groups.includes(def.group)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
+  // A type builds only pieces of its own set (rail, flume, or rapids; Phase 4 §4.4) in its groups.
+  if (def.set !== type.pieceSet || !type.groups.includes(def.group)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
   if (chain && (!type.chain || !def.chainable)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
   let bs: number | null = null;
   if (def.special === 'brakes') {
@@ -90,6 +92,7 @@ export function applyPlan(world: World, ride: Ride, data: TrackRideData, plan: P
   ride.totalBuildCost += plan.cost;
   if (plan.closes) data.circuitClosed = true;
   clearTest(ride, data);
+  markOccupancyDirty(world);
 }
 
 /** Remove the last piece (not the first station). Returns the refund in cents. */
@@ -101,6 +104,7 @@ export function removeLast(world: World, ride: Ride, data: TrackRideData, ctx: C
     .filter((t) => inBounds(map, t.x, t.y))
     .map((t) => tileIndex(map, t.x, t.y));
   refreshGroundTiles(world, tiles);
+  markOccupancyDirty(world);
   const refund = Math.floor(piece.cost * refundShare(data));
   if (!ctx.setup && refund > 0) recordLedger(world, 'demolitionRefunds', refund);
   ride.totalBuildCost -= piece.cost;

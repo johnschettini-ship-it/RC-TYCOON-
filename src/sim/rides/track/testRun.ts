@@ -19,7 +19,7 @@ import type { MapState } from '../../map';
 import { getLayout, type CircuitLayout } from './layout';
 import { newTrain, stepTrain, stopCentreMm, trainG, type StepContext } from './physics';
 import { highestAboveGround } from './placement';
-import { computeRatings, ratingInputsOf } from './ratings';
+import { addWaterExtras, computeRatings, ratingInputsOf, waterRatingExtras } from './ratings';
 import type { TestResult, TrackRideData, TrainState } from './types';
 
 /** Guest-driven target speed for a temperament (mm/s). */
@@ -194,7 +194,8 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
   res.vertGMin = negG === Infinity ? 100 : Math.round(negG * 100);
   res.latMax = Math.round(lat * 100);
   res.airtimeTicks = air;
-  const r = computeRatings(ratingInputsOf(res), type);
+  // Phase 4 §4.4: the water extras are added after the Phase 2 formula (rail circuits add nothing).
+  const r = addWaterExtras(computeRatings(ratingInputsOf(res), type), waterRatingExtras(layout.statics.map((st) => st.def)));
   res.excitement = r.excitement;
   res.intensity = r.intensity;
   res.nausea = r.nausea;

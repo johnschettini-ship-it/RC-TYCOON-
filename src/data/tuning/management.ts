@@ -13,8 +13,11 @@ export type WeatherState = 'sunny' | 'cloudy' | 'rain' | 'storm' | 'hot' | 'cold
 
 // ---------------------------------------------------------------- research (§4.6)
 
-/** Content of later phases is not part of Build 1 and is never unlocked. */
-export const BUILD_MAX_PHASE = 3;
+/**
+ * Content of later phases is not part of this build and is never unlocked. Build 2 (W3-D, master R23): 4 — lamps
+ * start unlocked; water rides and scenery themes come from research, in every park (Build 1 saves included).
+ */
+export const BUILD_MAX_PHASE = 4;
 
 export const RESEARCH_LEVELS: readonly ResearchLevelKey[] = ['none', 'low', 'medium', 'high'];
 

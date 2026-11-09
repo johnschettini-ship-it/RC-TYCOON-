@@ -211,9 +211,9 @@ describe('path item commands', () => {
     expect(executeCommand(world, { type: 'buildPathItem', x: -1, y: 3, itemType: 'bin' })).toEqual({ ok: false, reason: 'Needs a footpath' });
   });
 
-  it('lamps are not unlocked in Phase 3', () => {
+  it('lamps are unlocked from the start once Build 2 opens Phase 4 (master R23)', () => {
     const { world, x, y } = setup();
-    expect(executeCommand(world, { type: 'buildPathItem', x, y, itemType: 'lamp' })).toEqual({ ok: false, reason: 'Not unlocked' });
+    expect(executeCommand(world, { type: 'buildPathItem', x, y, itemType: 'lamp' }).ok).toBe(true);
   });
 
   it('fails with "Not enough cash" below the build cost', () => {

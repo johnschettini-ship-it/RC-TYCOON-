@@ -8,6 +8,8 @@
  * - Trains: cars at the interpolated train position every frame; car sprites cached by (shape, yaw step,
  *   pitch step, colour, zoom bucket); riders drawn as heads in shirt colours; spinning cars add a spin frame.
  * - Gates: entrance and exit booths beside the station.
+ * - Water rides (Phase 4 §4.4): channel slices; the water surface ripples per frame (an overlay like the chain);
+ *   boats on a splashdown or waterfall throw spray.
  * - Builder overlay: station, piece, and gate ghosts with cost, height tag, and reason icon.
  * Frames do not allocate in the per-slice or per-car loops: buffers grow by doubling and are reused.
  */
@@ -72,6 +74,7 @@ const SUB_SLICE = 0;
 const SUB_CHAIN = 1;
 const SUB_CAR = 2;
 const SUB_GATE = 3;
+const SUB_WATER = 4;
 
 /** §4.13: at most 20 slices rebuild per frame. */
 export const MAX_SLICE_BUILDS_PER_FRAME = 20;
@@ -89,7 +92,7 @@ export interface ViewBox {
   y1: number;
 }
 
-const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart'];
+const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft'];
 
 export interface SliceRec {
   rideId: number;
@@ -108,6 +111,9 @@ export interface SliceRec {
   runs: number[];
   support: { wx: number; wy: number; yaw: number; top: number } | null;
   special: PieceSpecial;
+  /** Water channel slice (ripple overlay) and lift conveyor (belt cleats). */
+  water: boolean;
+  conveyor: boolean;
   look: RailLook;
   supportStyle: SupportStyle;
   colours: TrackColours;
@@ -126,6 +132,8 @@ interface RideSig {
 
 const sampleCache = new WeakMap<TrackPieceInstance, WorldSamples>();
 const NO_DASH: number[] = [];
+/** Boats faster than this on a splashdown or waterfall throw spray (mm/s). */
+const SPRAY_MIN_MMS = 2500;
 const tagMemo = new Map<string, 'thrill' | 'family' | 'chill'>();
 
 /** Catalog tag of a track ride type (memoized: the gate loop runs every frame). */
@@ -265,6 +273,8 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
       runs,
       support,
       special: def.special,
+      water: look.channel > 0,
+      conveyor: def.water?.drive === 'conveyor' && def.special !== 'station',
       look,
       supportStyle: type.render.supports,
       colours,
@@ -280,7 +290,7 @@ export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRender
   const P = new Projector(f, sl.ax, sl.ay);
   if (sl.support) paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, sl.support.wx, sl.support.wy, sl.support.yaw, sl.ground, sl.support.top);
   for (let i = 0; i < sl.runs.length; i += 2) {
-    paintRun(ctx, P, sl.look, sl.colours, sl.samples, sl.runs[i] as number, sl.runs[i + 1] as number, { special: sl.special, chain: false });
+    paintRun(ctx, P, sl.look, sl.colours, sl.samples, sl.runs[i] as number, sl.runs[i + 1] as number, { special: sl.special, chain: false, conveyor: sl.conveyor });
   }
 }
 
@@ -296,6 +306,8 @@ class CarBuffer {
   shape = new Uint8Array(64);
   front = new Uint8Array(64);
   colour = new Uint8Array(64);
+  /** 1 when the boat throws spray (splashdown or waterfall at speed). */
+  spray = new Uint8Array(64);
   seatStart = new Int32Array(64);
   seatCount = new Uint8Array(64);
   seats = new Int32Array(256);
@@ -341,6 +353,7 @@ class CarBuffer {
     this.shape = u(this.shape);
     this.front = u(this.front);
     this.colour = u(this.colour);
+    this.spray = u(this.spray);
     this.seatCount = u(this.seatCount);
     const s = new Int32Array(cap);
     s.set(this.seatStart);
@@ -469,6 +482,7 @@ export class TrackLayer {
         data = s.track.rides[String(sl.rideId)];
       }
       if (data?.pieces[sl.pieceIndex]?.chain) sink.push(KIND_TRACK, i, SUB_CHAIN, sl.ax, sl.ay, 0, sl.depth, sl.railMin, Layer.Object);
+      if (sl.water) sink.push(KIND_TRACK, i, SUB_WATER, sl.ax, sl.ay, 0, sl.depth, sl.railMin, Layer.Object);
     }
 
     // Gates.
@@ -534,7 +548,7 @@ export class TrackLayer {
         const centre = interpolatedS(t.s, t.v, alpha, layout.lengthMm);
         const spin = spins ? (trainSpinFrame(t) / 16) * Math.PI * 2 : 0;
         for (let k = 0; k < n; k++) {
-          this.addCar(layout, carCentreMm(centre, n, k, carLen), carLen, shape, k === 0, data.colours.cars, spin, seatsPerCar, t.seats, k, view, sink, f);
+          this.addCar(layout, carCentreMm(centre, n, k, carLen), carLen, shape, k === 0, data.colours.cars, spin, seatsPerCar, t.seats, k, view, sink, f, t.v);
         }
       }
     }
@@ -554,10 +568,12 @@ export class TrackLayer {
     view: ViewBox,
     sink: DrawSink,
     f: ViewFrame,
+    vMms = 0,
   ): void {
     const p = carPoseAt(layout, s, this.sp, this.pose);
+    const special = layout.statics[p.pieceIndex]?.def.special;
     // Cars inside a spooky tunnel are hidden by its walls.
-    if (layout.statics[p.pieceIndex]?.def.special === 'spooky') return;
+    if (special === 'spooky') return;
     const ax = projectX(p.x, p.y, f);
     const ay = projectY(p.x, p.y, p.z, f);
     if (ax + CAR_BOUNDS.right < view.x0 || ax + CAR_BOUNDS.left > view.x1 || ay + CAR_BOUNDS.bottom < view.y0 || ay + CAR_BOUNDS.top > view.y1) return;
@@ -573,6 +589,7 @@ export class TrackLayer {
     c.shape[i] = shape < 0 ? 0 : shape;
     c.front[i] = front ? 1 : 0;
     c.colour[i] = colour;
+    c.spray[i] = (special === 'splashdown' || special === 'waterfall') && vMms > SPRAY_MIN_MMS ? 1 : 0;
     c.seatStart[i] = c.nSeats;
     let cnt = 0;
     for (let j = 0; j < seatsPerCar; j++) {
@@ -604,6 +621,9 @@ export class TrackLayer {
         break;
       case SUB_GATE:
         this.drawGate(ctx, ref);
+        break;
+      case SUB_WATER:
+        this.drawWater(ctx, ref);
         break;
     }
   }
@@ -696,6 +716,66 @@ export class TrackLayer {
     ctx.lineDashOffset = 0;
   }
 
+  /**
+   * Water surface overlay: light ripples on the channel that drift downstream by tick mod 16 (never cached, like the
+   * chain). Reuses the dash buffer; no allocation per frame.
+   */
+  private drawWater(ctx: CanvasRenderingContext2D, i: number): void {
+    const sl = this.slices[i];
+    if (!sl) return;
+    const s = sl.samples;
+    const f = this.frameRef;
+    const fr = this.fr;
+    const k = this.scale;
+    const half = sl.look.channel * 0.45;
+    for (let lane = -1; lane <= 1; lane += 2) {
+      ctx.beginPath();
+      for (let r = 0; r < sl.runs.length; r += 2) {
+        const k0 = sl.runs[r] as number;
+        const k1 = sl.runs[r + 1] as number;
+        for (let q = k0; q <= k1; q++) {
+          trackFrame(s.yaw[q] as number, s.pitch[q] as number, s.bankSin[q] as number, s.bankCos[q] as number, fr);
+          const wx = (s.x[q] as number) + (fr[3] as number) * half * lane + (fr[6] as number) * 0.03;
+          const wy = (s.y[q] as number) + (fr[4] as number) * half * lane + (fr[7] as number) * 0.03;
+          const wz = (s.z[q] as number) + (fr[5] as number) * half * lane + (fr[8] as number) * 0.03;
+          const x = this.devX(projectX(wx, wy, f));
+          const y = this.devY(projectY(wx, wy, wz, f));
+          if (q === k0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+      }
+      const period = 6 * k;
+      this.dash[0] = period * 0.35;
+      this.dash[1] = period * 0.65;
+      ctx.setLineDash(this.dash);
+      ctx.lineDashOffset = -(((this.tick + (lane > 0 ? 5 : 0)) % 16) / 16) * period;
+      ctx.strokeStyle = 'rgba(232,248,255,0.75)';
+      ctx.lineWidth = Math.max(0.6, 0.9 * k);
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+    ctx.setLineDash(NO_DASH);
+    ctx.lineDashOffset = 0;
+  }
+
+  /** Spray around a boat on a splashdown or waterfall: a few drops placed by the tick (render only, deterministic). */
+  private drawSpray(ctx: CanvasRenderingContext2D, i: number): void {
+    const c = this.cars;
+    const f = this.frameRef;
+    const k = this.scale;
+    const x = this.devX(projectX(c.x[i] as number, c.y[i] as number, f));
+    const y = this.devY(projectY(c.x[i] as number, c.y[i] as number, (c.z[i] as number) + 0.6, f));
+    ctx.fillStyle = 'rgba(240,250,255,0.85)';
+    for (let d = 0; d < 7; d++) {
+      const ph = ((this.tick * 3 + d * 37) % 64) / 64;
+      const ang = (d / 7) * Math.PI * 2 + this.tick * 0.05;
+      const rad = (6 + 14 * ph) * k;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(ang) * rad, y - (10 * ph - 6 * ph * ph) * k * 1.6 + Math.sin(ang) * rad * 0.5, Math.max(0.8, (2.2 - 1.6 * ph) * k), 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   private drawGate(ctx: CanvasRenderingContext2D, gi: number): void {
     const kind = this.gateKind[gi] === 0 ? 'entrance' : 'exit';
     const colour = this.gateColour[gi] ?? '#8a96a3';
@@ -742,6 +822,7 @@ export class TrackLayer {
     const wz = c.z[i] as number;
     this.blit(ctx, sp, projectX(wx, wy, f), projectY(wx, wy, wz, f));
     this.drawRiders(ctx, i);
+    if (c.spray[i] === 1) this.drawSpray(ctx, i);
   }
 
   private drawPlainCar(ctx: CanvasRenderingContext2D, i: number): void {

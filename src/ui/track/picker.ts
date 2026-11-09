@@ -51,7 +51,7 @@ function trackCard(ctx: UiContext, type: TrackTypeDef): HTMLElement {
     preview(type.id),
     h('span', { class: 'card-name', text: name }),
     h('span', { class: 'tag-chip', text: tag }),
-    h('span', { class: 'card-stat', text: text(`ui.track.drive.${type.drive}`) }),
+    h('span', { class: 'card-stat', text: text(`ui.track.drive.${cat?.drive ?? type.drive}`) }),
     h('span', { class: 'card-stat', text: text('ui.track.maxHeight', { n: type.maxHeightM }) }),
     h('span', { class: 'card-stat', text: text('ui.track.seats', { n: type.vehicle.seatsPerCar }) }),
     h('span', { class: 'card-cost', text: text('ui.track.from', { cost }) }),

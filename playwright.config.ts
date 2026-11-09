@@ -1,15 +1,17 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const chromiumPath = process.env.PW_CHROMIUM_PATH;
+/** Preview port. Parallel agents set PW_PORT so their servers do not collide. */
+const port = Number(process.env.PW_PORT ?? 4173);
 const launchOptions = chromiumPath ? { executablePath: chromiumPath } : {};
 
 export default defineConfig({
   testDir: 'tests/e2e',
   retries: process.env.CI ? 1 : 0,
-  use: { baseURL: 'http://localhost:4173', trace: 'off' },
+  use: { baseURL: `http://localhost:${port}`, trace: 'off' },
   webServer: {
-    command: 'npm run build && npx vite preview --port 4173 --strictPort',
-    url: 'http://localhost:4173',
+    command: `npm run build && npx vite preview --port ${port} --strictPort`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
