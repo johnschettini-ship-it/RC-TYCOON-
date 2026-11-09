@@ -39,19 +39,27 @@ function stepTo(w: World, tick: number, ended: SimEvent[] = []): SimEvent[] {
 
 const monthStart = (m: number): number => m * TICKS_PER_MONTH;
 
-/** Opens Meadow Start for business: a carousel joined to the plaza path, open, and the park open. */
+/**
+ * Opens Meadow Start for business: a carousel joined to the plaza path, open, and the park open.
+ * Everything stands on the flat entrance plaza (x 26–36, y 56–62, flattened by the scenario): flat rides need flat
+ * land (Phase 4 §4.2, W3-B), and the gentle meadow north of the plaza is one step higher with a sloped row between.
+ * Carousel (rotation 0, front to the south) at x 33–35, y 59–61: exit onto the plaza path at (34, 58), entrance
+ * from a queue along the south row (32–34, 62) that starts beside the prebuilt path at (31, 62). A Mechanic keeps
+ * the only ride running: without one its first breakdown closes the park to arrivals for good (Phase 3 §4.5), so
+ * the run would depend on when the RNG breaks it.
+ */
 function openMeadow(w: World): void {
   const ok = (cmd: Parameters<typeof executeCommand>[1]): void => {
     const r = executeCommand(w, cmd);
     if (!r.ok) throw new Error(`${cmd.type}: ${r.reason}`);
   };
   ok({ type: 'buildPathLine', x0: 27, y0: 58, x1: 35, y1: 58, kind: 'footpath' });
-  ok({ type: 'placeRide', defId: 'carousel', x: 32, y: 54, rotation: 0 });
-  ok({ type: 'buildPathLine', x0: 33, y0: 57, x1: 33, y1: 57, kind: 'queue' });
-  ok({ type: 'buildPathLine', x0: 33, y0: 53, x1: 35, y1: 53, kind: 'footpath' });
-  ok({ type: 'buildPathLine', x0: 35, y0: 54, x1: 35, y1: 57, kind: 'footpath' });
+  ok({ type: 'placeRide', defId: 'carousel', x: 33, y: 59, rotation: 0 });
+  ok({ type: 'buildPathLine', x0: 32, y0: 62, x1: 34, y1: 62, kind: 'queue' });
   ok({ type: 'setRideOpen', rideId: w.state.rides[0]!.id, open: true });
   ok({ type: 'setParkOpen', open: true });
+  ok({ type: 'hireStaff', staffType: 'mechanic' });
+  expect(executeCommand(w, { type: 'placeRide', defId: 'carousel', x: 32, y: 54, rotation: 0 })).toEqual({ ok: false, reason: 'The land must be flat here' });
 }
 
 /**

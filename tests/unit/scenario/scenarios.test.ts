@@ -10,6 +10,7 @@ import { Content, Owned, PathItem, Terrain, tileIndex } from '../../../src/sim/m
 import { isBroken } from '../../../src/sim/litter/pathItems';
 import { scenarioMaxLoan } from '../../../src/sim/scenario/api';
 import { landReachableFromEntrance } from '../../../src/sim/scenario/generate';
+import { nodeZAfterStep, pathNodesAt, stepLinks } from '../../../src/sim/paths/api';
 import { createScenarioWorld } from '../../../src/sim/scenario/start';
 import { generateTerrain } from '../../../src/sim/scenario/terrain';
 import type { World } from '../../../src/sim/types';
@@ -17,6 +18,27 @@ import { stateHash } from '../../helpers/world';
 import { cornersAt, isWetAt, terrainHash } from './helpers';
 
 const cache = new Map<string, World>();
+/**
+ * Walk the path nodes along `points` (4-neighbours) with W3-B's node links, starting on the lowest node of the first
+ * tile. Returns the node heights entered, or throws at the first step that does not link.
+ */
+function walkNodes(w: World, points: ReadonlyArray<readonly [number, number]>): number[] {
+  const map = w.state.map;
+  const [x0, y0] = points[0] as readonly [number, number];
+  let tile = tileIndex(map, x0, y0);
+  let z = pathNodesAt(w, tile)[0]?.z;
+  if (z === undefined) throw new Error(`no path node at ${x0},${y0}`);
+  const heights = [z];
+  for (const [x, y] of points.slice(1)) {
+    const next = tileIndex(map, x, y);
+    if (!stepLinks(w, tile, z, next)) throw new Error(`no link into ${x},${y} from height ${z}`);
+    z = nodeZAfterStep(w, tile, z, next);
+    tile = next;
+    heights.push(z);
+  }
+  return heights;
+}
+
 function scenario(id: string, difficulty: Difficulty = 'standard'): World {
   const key = `${id}/${difficulty}`;
   let w = cache.get(key);
@@ -196,6 +218,11 @@ describe('scenario map features (Phase 5 §4.7 map column)', () => {
     expect((map.water[tileIndex(map, 43, 12)] as number) - (map.water[tileIndex(map, 43, 15)] as number)).toBeGreaterThanOrEqual(7);
     // Owned land on both banks, and the prebuilt bridge across.
     for (let y = 38; y <= 41; y++) expect(isWetAt(map, 26, y)).toBe(true);
+    // W3-B's node links: the bank path, the elevated bridge at bank height (relative 0 = 8), the far bank.
+    const bridge: Array<[number, number]> = [];
+    for (let y = 43; y >= 36; y--) bridge.push([26, y]);
+    expect(walkNodes(scenario('frostbite_falls'), bridge)).toEqual([8, 8, 8, 8, 8, 8, 8, 8]);
+    expect(scenario('frostbite_falls').state.elevatedPaths.map((p) => [p.x, p.y, p.z])).toEqual([41, 40, 39, 38].map((y) => [26, y, 8]));
     expect(map.owned[tileIndex(map, 26, 34)]).toBe(Owned.Owned);
     expect(map.owned[tileIndex(map, 26, 45)]).toBe(Owned.Owned);
     expect(isWetAt(map, 0, 52) || isWetAt(map, 1, 51)).toBe(true);
@@ -235,6 +262,12 @@ describe('scenario map features (Phase 5 §4.7 map column)', () => {
     expect(isWetAt(map, 68, 52)).toBe(false);
     expect(s.scenery.map((sc) => [sc.defId, sc.x, sc.y])).toEqual([['star_beacon', 68, 57]]);
     for (const x of [50, 62]) for (let y = 48; y <= 54; y++) expect(isWetAt(map, x, y)).toBe(true);
+    // The piers (elevated footpaths at coast height, relative 6 = 14) link to the coastal path and run out to sea.
+    for (const x of [50, 62]) {
+      const pier: Array<[number, number]> = [];
+      for (let y = 47; y <= 54; y++) pier.push([x, y]);
+      expect(walkNodes(scenario('harbor_lights'), pier)).toEqual(Array(8).fill(14));
+    }
   });
 
   it('Fading Fairground: 6 old rides running, 4 broken benches, litter, 120 unhappy guests, park open', () => {

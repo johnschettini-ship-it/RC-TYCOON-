@@ -48,9 +48,18 @@ describe('ownership and entrance (step 7)', () => {
 
 describe('content features (step 8, list order)', () => {
   it('prebuilt commands run in setup mode (no cash, no ledger) with relative heights made absolute', () => {
+    // `z` on a path command means an elevated path at that walking height (W3-B, Phase 4 §6); a ground path has no
+    // `z`. Relative z 2 over base height 8 is absolute 10: a deck 2 steps above the flat ground.
     const { w, problems } = gen(
       spec([
-        { kind: 'prebuilt', commands: [{ type: 'buildPathLine', x0: 20, y0: 37, x1: 20, y1: 30, kind: 'footpath', z: 0 }, { type: 'placeRide', defId: 'flip_arm', x: 10, y: 10, rotation: 0 }] },
+        {
+          kind: 'prebuilt',
+          commands: [
+            { type: 'buildPathLine', x0: 20, y0: 37, x1: 20, y1: 30, kind: 'footpath' },
+            { type: 'buildPathLine', x0: 21, y0: 30, x1: 24, y1: 30, kind: 'footpath', z: 2 },
+            { type: 'placeRide', defId: 'flip_arm', x: 10, y: 10, rotation: 0 },
+          ],
+        },
       ]),
     );
     expect(problems).toEqual([]);
@@ -58,6 +67,12 @@ describe('content features (step 8, list order)', () => {
     expect(w.state.park.cash).toBe(1_500_000);
     expect(w.state.economy.ledger.at(-1)!.lines.construction).toBe(0);
     expect(w.state.map.content[tileIndex(w.state.map, 20, 30)]).toBe(Content.Footpath);
+    expect(w.state.elevatedPaths.map((p) => [p.x, p.y, p.z])).toEqual([21, 22, 23, 24].map((x) => [x, 30, 10]));
+  });
+
+  it('a prebuilt elevated path at relative height 0 over flat ground is below the land: a problem, not a silent fix', () => {
+    const { problems } = gen(spec([{ kind: 'prebuilt', commands: [{ type: 'buildPathLine', x0: 20, y0: 37, x1: 20, y1: 30, kind: 'footpath', z: 0 }] }]));
+    expect(problems).toEqual(['prebuilt command 1 (buildPathLine) failed: The path is below the land']);
   });
 
   it('a failing prebuilt command, a missing ride, a missing path item, or an unknown item are problems, not silent fixes', () => {

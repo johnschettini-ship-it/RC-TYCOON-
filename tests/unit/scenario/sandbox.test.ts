@@ -113,8 +113,12 @@ describe('sandbox options', () => {
     expect(w.state.modifiers.breakdownChance).toBe(0);
     expect(w.state.management.weather).toMatchObject({ current: 'sunny', next: 'sunny' });
     const cash = w.state.park.cash;
-    expect(executeCommand(w, { type: 'placeRide', defId: 'flip_arm', x: 40, y: 40, rotation: 0 }).ok).toBe(true);
+    // Flat rides need flat land (Phase 4 §4.2, W3-B): (40, 40) lies on a slope of this rolling-hills map, x 44–46,
+    // y 40–42 is flat.
+    expect(executeCommand(w, { type: 'placeRide', defId: 'flip_arm', x: 40, y: 40, rotation: 0 })).toEqual({ ok: false, reason: 'The land must be flat here' });
+    expect(executeCommand(w, { type: 'placeRide', defId: 'flip_arm', x: 44, y: 40, rotation: 0 }).ok).toBe(true);
     expect(w.state.park.cash).toBe(cash);
+    expect(w.state.economy.ledger.at(-1)!.lines.construction).toBeLessThan(0);
   });
 
   it('setSandboxOption changes the live options at once', () => {
