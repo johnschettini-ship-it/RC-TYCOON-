@@ -316,17 +316,18 @@ button { font: inherit; color: inherit; }
 .finance-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .finance-table th, .finance-table td { padding: 5px 4px; text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent); }
 .finance-table thead th { font-size: 12px; color: var(--muted); font-weight: 600; }
+.finance-table thead th + th { text-align: right; }
 .finance-table tbody th { font-weight: 400; }
 .finance-table td.num { text-align: right; }
 .finance-table td.neg { color: #ff9da0; }
 .finance-table tfoot th, .finance-table tfoot td { font-weight: 700; border-bottom: 0; }
-.profit-chart { display: flex; align-items: stretch; gap: 4px; height: 140px; padding: 4px 0; }
-.bar-slot { flex: 1; position: relative; min-width: 0; }
+.profit-chart { display: flex; align-items: stretch; gap: 4px; height: 150px; padding: 4px 0 18px; border-left: 1px solid var(--line); }
+.bar-slot { flex: 1; position: relative; min-width: 0; max-width: 40px; }
 .bar-slot::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--line); }
 .bar-slot .bar { position: absolute; left: 12%; right: 12%; border-radius: 3px; }
 .bar.pos { bottom: 50%; background: var(--ok); }
 .bar.neg { top: 50%; background: var(--danger); }
-.bar-label { position: absolute; bottom: -2px; left: 0; right: 0; text-align: center; font-size: 9px; color: var(--muted); }
+.bar-label { position: absolute; bottom: -16px; left: -4px; right: -4px; text-align: center; font-size: 9px; color: var(--muted); }
 
 /* Picker cards */
 .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
