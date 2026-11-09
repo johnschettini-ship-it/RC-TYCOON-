@@ -2,39 +2,39 @@
 
 The release checklist of Phase 6 §4.11 for Build 3 (version 3.0.0, save schema 3). Each item says how it is checked and its status. The integrator ticks it at the Wave 4 gate; the owner gives the go for the tag.
 
-**Automated part:** `node scripts/check-release.ts` builds `dist/`, runs the save and localization tests, and prints a table of every check (PASS, FAIL, MANUAL, OWNER). It exits with code 1 when an automated check fails. Options: `--no-build` (use the `dist/` that is there), `--no-tests` (skip the Vitest runs). Paste its table into the release notes.
+**Automated part:** `node scripts/check-release.ts` builds `dist/`, runs the save and localization tests, checks that no done-when row below is still PENDING and that the acceptance audits exist, and prints a table of every check (PASS, FAIL, MANUAL, OWNER). It exits with code 1 when an automated check fails. Options: `--no-build` (use the `dist/` that is there), `--no-tests` (skip the Vitest runs). Paste its table into the release notes.
 
 **Status words:** PASS (checked, with the commit), PENDING (waits for a Wave 4 card or the gate), MANUAL (a person runs the steps below), OWNER (the owner decides).
 
-Status as of W4-G (branch of `e366036`, before the Wave 4 gate):
+Status at the Wave 4 gate (2026-11-09, the gate branch on top of `c09c8ca`): every automated check is green; the rows still marked MANUAL or OWNER are the [owner actions](#owner-actions-before-the-build-3-tag). The audits of every "done when" line are `docs/superpowers/specs/thrills-and-chills/build-3-acceptance.md` (Phase 6) and `build-2-acceptance.md` (Phases 4–5).
 
 ## §4.11 items
 
 | # | Item | How it is checked | Status |
 |---|---|---|---|
-| 1 | Every Phase 6 "done when" item is checked. CI is green. | The [done-when table](#phase-6-done-when) below, ticked at the gate; CI (`.github/workflows/ci.yml`: typecheck, unit and integration, build, Playwright desktop and phone) green on the release commit. Script: locale completeness (`tests/unit/i18n`). | PENDING (gate) |
-| 2 | Perf runs meet the §4.6 budgets, or the gap and plan are in the release notes. | Script: initial load < 400 KB gzipped JS + CSS (master §10; 256.5 KB at W4-G). W4-E: `tests/e2e/perf-build3.spec.ts` (desktop p95 frame ≤ 20 ms, tick p95 ≤ 4 ms; phone at 4× CPU throttle p95 ≤ 40 ms) and `docs/adr/0001-renderer.md`, `0002-worker.md`. | Initial load PASS; perf runs PENDING (W4-E, gate) |
-| 3 | Accessibility scan has no serious or critical issues. | W4-F: `tests/e2e/a11y.spec.ts` (`@axe-core/playwright` on the title, HUD, and panels) green in CI. Script: the spec exists. | PENDING (W4-F) |
+| 1 | Every Phase 6 "done when" item is checked. CI is green. | The [done-when table](#phase-6-done-when) below, ticked at the gate; CI (`.github/workflows/ci.yml`: typecheck, unit and integration, build, Playwright desktop and phone) green on the release commit. Script: locale completeness (`tests/unit/i18n`). | PASS at the gate (done-when audit 7 PASS, 2 GAP owner; CI commands green locally); CI on the release commit OWNER |
+| 2 | Perf runs meet the §4.6 budgets, or the gap and plan are in the release notes. | Script: initial load < 400 KB gzipped JS + CSS (master §10; 304.3 KB at the gate). W4-E: `tests/e2e/perf-build3.spec.ts` (desktop p95 frame ≤ 20 ms, tick p95 ≤ 4 ms; phone at 4× CPU throttle p95 ≤ 40 ms) and `docs/adr/0001-renderer.md`, `0002-worker.md`. | PASS (ADR 0001: phone scene p95 33.3–33.4 ms in 3 of 3 runs; desktop frame p95 16.7–16.8 ms, tick p95 2.4–2.5 ms; real phone in item 4) |
+| 3 | Accessibility scan has no serious or critical issues. | W4-F: `tests/e2e/a11y.spec.ts` (`@axe-core/playwright` on the title, HUD, and panels) green in CI. Script: the spec exists. | PASS (green in the gate run) |
 | 4 | Manual checks pass on desktop Chrome, Firefox, and Safari, and on Android Chrome and iOS Safari. | [Manual browser check](#manual-browser-check) on each browser, on the Pages URL, with the results written in the release notes. | MANUAL |
-| 5 | Fixture saves from Build 1 and Build 2 load (1 → 2 → 3). A Build 2 progress file loads. | Script runs `tests/unit/save/migrate-v1.test.ts` (Build 1 fixtures through 1 → 2 → 3), `migrate-v2.test.ts` (`tests/fixtures/save-v2.tcsave.json`, written by the Build 2 code), and `progress-v2.test.ts` (`tests/fixtures/progress-v2.json`). | PASS (41 tests) |
+| 5 | Fixture saves from Build 1 and Build 2 load (1 → 2 → 3). A Build 2 progress file loads. | Script runs `tests/unit/save/migrate-v1.test.ts` (Build 1 fixtures through 1 → 2 → 3), `migrate-v2.test.ts` (`tests/fixtures/save-v2.tcsave.json`, written by the Build 2 code), and `progress-v2.test.ts` (`tests/fixtures/progress-v2.json`). | PASS (43 tests) |
 | 6 | The service worker update flow works on the Pages URL. | Script: `dist/` has `sw.js` stamped with the build id, `sw-manifest.json` listing every hashed asset, the web manifest, and the icons. Unit: `tests/unit/offline/` (cache rules with a fake cache API, the real `vite build`, registration and update flow). Playwright: `tests/e2e/offline.spec.ts` (the build precaches itself; offline reload loads the game; a waiting worker shows "Update ready", Later hides it, Reload autosaves and hands over; Offline play off unregisters). Then the [update flow on Pages](#service-worker-update-flow-on-pages) by hand. | Build PASS; Pages flow MANUAL (after the first Build 3 deploy) |
 | 7 | Originality review: no third-party names, art, audio, or data in the repo. | Script: every tracked file is scanned for names of other games, studios, and parks, for audio and font files, and for raster images other than the generated app icons and game screenshots. Then the [originality review](#originality-review) by hand. | Scan PASS; review MANUAL |
-| 8 | `gameVersion` is `3.0.0`. CHANGELOG and README are updated. The owner's license file exists. | Script: `package.json` version (the save envelope's `gameVersion` comes from it); `CHANGELOG.md` has a Build 3 section; `README.md` covers Build 3 and the originality statement; a `LICENSE` file exists. | Version PENDING (gate sets 3.0.0 in `package.json`); CHANGELOG PASS; README PASS; license OWNER (not chosen yet; no license file is added until then) |
+| 8 | `gameVersion` is `3.0.0`. CHANGELOG and README are updated. The owner's license file exists. | Script: `package.json` version (the save envelope's `gameVersion` comes from it); `CHANGELOG.md` has a Build 3 section; `README.md` covers Build 3 and the originality statement; a `LICENSE` file exists. | Version PASS (3.0.0); CHANGELOG PASS; README PASS; license OWNER (not chosen yet; no license file is added until then) |
 | 9 | Tag `build-3` and publish release notes. | After the owner's go: `git tag build-3` on the release commit, push the tag, publish the release notes (the CHANGELOG Build 3 section, the script table, perf numbers, manual check results). Script: the tag exists. | PENDING (owner's go) |
 
 ## Phase 6 done when
 
 | Done-when item (Phase 6 §10) | How it is checked | Card | Status |
 |---|---|---|---|
-| Every SFX in 4.2 and every music theme in 4.3 plays, with no audio files in the build. | W4-A unit tests (recipes, graph, voices) and manual check log; W4-B unit tests (themes, scale notes, form); script: no audio files in `dist/` and none tracked. | W4-A, W4-B | PENDING |
-| Both show types run on schedule, charge the ledger, and gather guests. | W4-C unit and integration tests (`tests/integration/shows.test.ts`), `tests/e2e/shows.spec.ts`. | W4-C | PENDING |
-| All extra content is in the catalog and in `src/data/`, and passes its tests. | W4-D unit tests and `tests/e2e/content.spec.ts`. | W4-D | PENDING |
-| Perf budgets in 4.6 are met, or the gap is documented with the PixiJS and worker decisions recorded. | W4-E perf run and ADRs. | W4-E | PENDING |
-| Keyboard-only play can build, inspect, and save. | W4-F `tests/e2e/keyboard.spec.ts`. | W4-F | PENDING |
-| Accessibility scan is clean of serious and critical issues. | W4-F `tests/e2e/a11y.spec.ts`. | W4-F | PENDING |
-| `en-XA` passes the layout test; adding a language follows 4.8. | `tests/unit/i18n/locales.test.ts` (every locale complete, placeholders match, `en-XA` ≥ 30% longer); `tests/e2e/i18n.spec.ts` (switching changes the HUD, reasons localized, no unexpected hard-coded text); W4-F's 175% layout test switched to `setLocale('en-XA')` at the gate; the README "Add a language" steps. | W4-G, W4-F | Pipeline PASS; layout test PENDING (gate) |
+| Every SFX in 4.2 and every music theme in 4.3 plays, with no audio files in the build. | W4-A unit tests (recipes, graph, voices) and manual check log; W4-B unit tests (themes, scale notes, form); script: no audio files in `dist/` and none tracked. | W4-A, W4-B | PASS (listening check: item 4) |
+| Both show types run on schedule, charge the ledger, and gather guests. | W4-C unit and integration tests (`tests/integration/shows.test.ts`), `tests/e2e/shows.spec.ts`. | W4-C | PASS |
+| All extra content is in the catalog and in `src/data/`, and passes its tests. | W4-D unit tests and `tests/e2e/content.spec.ts`. | W4-D | PASS |
+| Perf budgets in 4.6 are met, or the gap is documented with the PixiJS and worker decisions recorded. | W4-E perf run and ADRs. | W4-E | PASS |
+| Keyboard-only play can build, inspect, and save. | W4-F `tests/e2e/keyboard.spec.ts`. | W4-F | PASS |
+| Accessibility scan is clean of serious and critical issues. | W4-F `tests/e2e/a11y.spec.ts`. | W4-F | PASS |
+| `en-XA` passes the layout test; adding a language follows 4.8. | `tests/unit/i18n/locales.test.ts` (every locale complete, placeholders match, `en-XA` ≥ 30% longer); `tests/e2e/i18n.spec.ts` (switching changes the HUD, reasons localized, no unexpected hard-coded text); W4-F's 175% layout test boots in `en-XA` (`tests/e2e/a11y.spec.ts`); the README "Add a language" steps. | W4-G, W4-F | PASS |
 | Offline play and the update flow work on GitHub Pages. | Item 6. | W4-G | Build and tests PASS; Pages MANUAL |
-| The release checklist in 4.11 is complete. CI is green. | This file and `node scripts/check-release.ts`. | Integrator | PENDING |
+| The release checklist in 4.11 is complete. CI is green. | This file and `node scripts/check-release.ts`. | Integrator | Automated PASS; owner actions open |
 
 ## Manual browser check
 
@@ -75,8 +75,20 @@ Never acceptable: a reload online that runs the old build's code; two `tc-*` cac
 4. Check that no data file came from another game (maps, scenarios, ride stats): scenarios are in `src/data/scenarios/` and follow `phase-5-scenarios.md`.
 5. Record the result and the reviewer in the release notes.
 
+## Owner actions before the `build-3` tag
+
+Nothing below can be done by an agent; each needs the owner (or a person the owner asks).
+
+1. **License:** choose one (master §12.2) and add the file; the script then turns item 8 to PASS.
+2. **Manual browser check** (item 4) on desktop Chrome, Firefox, Safari, Android Chrome, and iOS Safari, on the Pages URL. It includes the **real-phone measurement** (frame rate on a mid-range phone; ADR 0001 used a 4× CPU proxy).
+3. **Listening check:** the title music, two theme tracks (day and night), and the sound effects (Phase 6 §10 line 1); the mix levels in `tuning-log.md` are starting values.
+4. **Play-test** of the provisional values in `docs/superpowers/specs/thrills-and-chills/tuning-log.md` (Build 3 research costs, R25; show lengths of 6–8 game hours; the show happiness cap; Build 3 track type terms), and a recorded **win on Standard** of each of the 8 scenarios (Build 2 audit G1).
+5. **GitHub Pages:** Settings → Pages → Source "GitHub Actions" (master §12.3), then **two deploys** of different builds and the [update flow on Pages](#service-worker-update-flow-on-pages) (item 6).
+6. **Originality review** by hand (item 7).
+7. CI green on the release commit on GitHub, then `git tag build-3`, push the tag, and publish the release notes (item 9).
+
 ## Known gaps carried into Build 3
 
-- Content names (rides, stalls, scenery, staff, campaigns) come from the catalog `name` fields, not the string table; `en-XA` shows them in plain English. A `nameKey` per definition is a catalog contract change (W4-G report).
-- A few UI labels are read from the string table when their module loads, before the language is set (toolbar labels of the land, water, scenery, overlays, and Buy Land tools), and two panels use the simulation's month names. `tests/e2e/i18n.spec.ts` lists them as known gaps; new hard-coded text fails the test.
+- The title logo wordmark (the brand name, `aria-hidden`) and the default park name of the boot world behind the title screen are not translated; `tests/e2e/i18n.spec.ts` lists them as known gaps, and any other plain English on screen fails the test.
+- Names stored in the game state (rides and stalls are named "Carousel 1" when built, staff names, park names) are game data like a name the player types: they stay as they were made. Catalog names (`content.<id>`) and scenario names and descriptions follow the language since the gate.
 - Text built when the UI mounts changes language at the next reload; dynamic text changes at once.

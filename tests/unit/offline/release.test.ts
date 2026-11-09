@@ -1,11 +1,11 @@
 /**
  * The automated part of the Build 3 release checklist (Phase 6 §4.11, `scripts/check-release.ts`).
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { distProblems, formatResults, initialLoadBytes, originalityProblems } from '../../../scripts/check-release';
+import { distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems } from '../../../scripts/check-release';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -79,5 +79,26 @@ describe('build checks (checklist items 2 and 6)', () => {
 
   it('prints a Markdown table', () => {
     expect(formatResults([{ item: 8, name: 'License', status: 'owner', detail: 'a | b' }])).toBe('| # | Check | Status | Detail |\n|---|---|---|---|\n| 8 | License | OWNER | a \\| b |');
+  });
+});
+
+describe('done-when rows and acceptance audits (checklist item 1)', () => {
+  const table = (status: string): string =>
+    ['# Checklist', '', '## Phase 6 done when', '', '| Done-when item (Phase 6 §10) | How | Card | Status |', '|---|---|---|---|', `| Shows run. | tests | W4-C | ${status} |`, '', '## Manual browser check', '| 1 | x | PENDING |'].join('\n');
+  const audit = '# Audit\n\n**Result: 9 lines — 7 PASS, 2 GAP.**\n';
+
+  it('passes when every row is decided and both audits have a result line', () => {
+    expect(doneWhenProblems(table('PASS'), { 'a.md': audit, 'b.md': audit })).toEqual([]);
+  });
+
+  it('flags a PENDING row (only in the done-when table), a missing audit, and an audit without a result', () => {
+    expect(doneWhenProblems(table('PENDING (gate)'), { 'a.md': null, 'b.md': '# Audit' })).toEqual(['still PENDING: Shows run.', 'a.md is missing', 'b.md has no result line']);
+    expect(doneWhenProblems('# nothing', {})).toEqual(['the checklist has no "Phase 6 done when" table']);
+  });
+
+  it('the repository checklist and audits pass', () => {
+    const read = (p: string): string => readFileSync(join(__dirname, '../../..', p), 'utf8');
+    const audits = ['docs/superpowers/specs/thrills-and-chills/build-2-acceptance.md', 'docs/superpowers/specs/thrills-and-chills/build-3-acceptance.md'];
+    expect(doneWhenProblems(read('docs/release/build-3-checklist.md'), Object.fromEntries(audits.map((p) => [p, read(p)])))).toEqual([]);
   });
 });
