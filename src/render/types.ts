@@ -52,7 +52,7 @@ export interface ToolState {
   ghost: GhostState | null;
   drag: DragState | null;
   /** Active overlay (Phase 1: temperament). */
-  overlay: 'none' | 'temperament' | 'patrol' | 'calm' | 'buzz';
+  overlay: 'none' | 'temperament' | 'patrol' | 'litter' | 'reliability' | 'calm' | 'buzz';
   /** Entity the panel shows (inspect / follow). */
   selectedEntity: { kind: 'ride' | 'stall' | 'guest' | 'staff'; id: number } | null;
 }
