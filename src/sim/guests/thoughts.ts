@@ -76,3 +76,6 @@ export function addThought(world: World, guest: Guest, id: string, params?: Reco
   while (guest.thoughts.length > THOUGHT_MAX) guest.thoughts.shift();
   return true;
 }
+
+/** Name used in the delivery plan (W1-D "Produces"); same as `addThought`. */
+export const guestThought = addThought;

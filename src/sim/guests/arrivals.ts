@@ -109,7 +109,7 @@ export function spawnArrivals(world: World): void {
   const park = world.state.park;
   if (!park.open) return;
   const perHour = arrivalsPerHour(world);
-  if (perHour > 0) park.arrivalCarry += Math.round((perHour * ARRIVAL_CARRY_UNIT) / TICKS_PER_HOUR);
+  if (perHour > 0) park.arrivalCarry += (perHour * ARRIVAL_CARRY_UNIT) / TICKS_PER_HOUR;
   let spawned = false;
   while (park.arrivalCarry >= ARRIVAL_CARRY_UNIT) {
     park.arrivalCarry -= ARRIVAL_CARRY_UNIT;

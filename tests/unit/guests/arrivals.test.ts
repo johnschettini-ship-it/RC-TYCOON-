@@ -37,7 +37,7 @@ describe('spawn rate (Phase 1 §4.6, spawn side)', () => {
     runArrivals(w, 50 * 10); // 10 game hours
     expect(w.state.guests).toHaveLength(60);
     expect(w.state.park.guestsArrivedTotal).toBe(60);
-    expect(w.state.park.arrivalCarry).toBe(0);
+    expect(w.state.park.arrivalCarry).toBeCloseTo(0, 6);
   });
 
   it('carries fractional arrivals between ticks and hours', () => {
@@ -45,9 +45,17 @@ describe('spawn rate (Phase 1 §4.6, spawn side)', () => {
     perHour.mockReturnValue(1.3); // 26 thousandths per tick
     runArrivals(w, 49);
     expect(w.state.guests).toHaveLength(1);
-    expect(w.state.park.arrivalCarry).toBe(49 * 26 - 1000);
+    expect(w.state.park.arrivalCarry).toBeCloseTo(49 * 26 - 1000, 6);
     runArrivals(w, 50 * 20 - 49);
     expect(w.state.guests).toHaveLength(26);
+  });
+
+  it('adds exactly arrivalsPerHour × 1000 / 50 per tick, without rounding', () => {
+    const w = openWorld();
+    perHour.mockReturnValue(0.37); // 7.4 thousandths per tick
+    runArrivals(w, 1000);
+    expect(w.state.guests).toHaveLength(7);
+    expect(w.state.park.arrivalCarry).toBeCloseTo(400, 6);
   });
 
   it('spawns nobody while the park is closed', () => {
