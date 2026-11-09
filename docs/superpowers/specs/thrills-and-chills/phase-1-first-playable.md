@@ -80,8 +80,8 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 **Needs** (0–255; master spec 6.1)
 | Need | Start | Change per 100 ticks | Uncomfortable | Urgent |
 |---|---|---|---|---|
-| Hunger | 30–60 | +7 | 160 | 210 |
-| Thirst | 30–60 | +8 | 160 | 210 |
+| Hunger | 30–60 | +6 | 160 | 210 |
+| Thirst | 30–60 | +6 | 160 | 210 |
 | Bladder | 10–40 | +5 | 160 | 210 |
 | Energy | 200–255 | −3 × energy drain multiplier | — | ≤ 50 → go home |
 | Nausea | 0 | −10 | 120 | 180 |
@@ -107,10 +107,10 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 | Hard reject | Nausea ≥ 120 and ride nausea ≥ 2.0 |
 | Excitement | + excitement × 0.6 |
 | Tag fit | + tag fit × 1.5 |
-| Boring | − (min intensity − intensity) × 0.8, only when intensity < min intensity |
+| Boring | − (min intensity − intensity) × 0.6, only when intensity < min intensity |
 | Price | − max(0, price − ride value) × 0.5 per dollar |
 | Distance | − 0.02 per path tile |
-| Repeat | − 1.5 per earlier ride on this ride |
+| Repeat | − 2.0 per earlier ride on this ride |
 | Noise | + uniform [−0.5, 0.5] |
 
 **Queueing**
@@ -207,7 +207,7 @@ Warnings do not block the command. The ride or stall panel keeps showing the war
 - **Accessibility:** every control has a label. Ghost state uses an icon as well as a colour.
 
 ## 8. Tuning constants (`src/data/tuning.ts`, starting values)
-All numbers in sections 4.1–4.6 are tuning constants with the values given there. Key ones:
+All numbers in sections 4.1–4.6 are tuning constants with the values given there. Key ones (balance changes since the first draft are listed with their reasons in [`tuning-log.md`](tuning-log.md)):
 
 | Name | Value |
 |---|---|
@@ -220,7 +220,7 @@ All numbers in sections 4.1–4.6 are tuning constants with the values given the
 | `SALE_TICKS` / `RESTROOM_TICKS` | 20 / 60 |
 | `BASE_ARRIVALS_PER_HOUR` | 4 |
 | `START_CASH` | $15,000 |
-| `START_ENTRANCE_FEE` | $10 |
+| `START_ENTRANCE_FEE` | $6 |
 | `PATH_COST` / `QUEUE_COST` | $10 / $12 per tile |
 | `DEMOLISH_REFUND` | 50% |
 
