@@ -23,11 +23,11 @@ import type { Ride } from '../types';
 import { planAppend, trackEnd } from './build';
 import { trainCountBlock } from './commands';
 import { findRide, refundShare, trackData } from './common';
-import { jointsEqual, pieceEntryJoint, pieceExitJoint, piecesForEnd, pieceWorldTiles } from './geometry';
+import { jointsEqual, localToWorld, pieceEntryJoint, pieceExitJoint, piecesForEnd, pieceStatic, pieceWorldTiles, worldYaw } from './geometry';
 import { buildLayout, getLayout, newSamplePoint, poseAt, type TrackPose } from './layout';
-import { highestAboveGround, refreshGroundTiles } from './placement';
+import { buildOccupancy, groundOwner, highestAboveGround, refreshGroundTiles } from './placement';
 import { ratingWarnings } from './ratings';
-import type { TrackRideData } from './types';
+import type { TrackPieceInstance, TrackRideData, TrainState } from './types';
 
 /** Null when the track ride may open, else the reason (phase-2 §4.6 strings). */
 export function canOpenTrackRide(world: World, ride: Ride): string | null {
@@ -225,4 +225,76 @@ export function checkTrackRideForLoad(data: TrackRideData, state?: GameState): s
     }
   }
   return null;
+}
+
+/** One occupied tile of one piece, for per-tile slice rendering (§4.13). */
+export interface TrackTileSlice {
+  pieceIndex: number;
+  tile: number;
+  x: number;
+  y: number;
+  /** Absolute rail range on this tile (m). */
+  railMin: number;
+  railMax: number;
+  /** The rail passes over this tile (false: reserved corner of a medium turn). */
+  rail: boolean;
+  /** A support stands under this tile, from the ground up to `railMin`. */
+  support: boolean;
+  ground: number;
+}
+
+/**
+ * Every occupied tile of a ride's pieces with its support flag. Builds the occupancy list, so call it when the
+ * track changes (cache by piece count), not every frame.
+ */
+export function trackTileSlices(world: World, rideId: number): TrackTileSlice[] {
+  const data = trackData(world, rideId);
+  if (!data) return [];
+  const map = world.state.map;
+  const occ = buildOccupancy(world);
+  const out: TrackTileSlice[] = [];
+  data.pieces.forEach((p, pieceIndex) => {
+    if (!getTrackPieceDef(p.defId)) return;
+    for (const t of pieceWorldTiles(p)) {
+      if (!inBounds(map, t.x, t.y)) continue;
+      const tile = tileIndex(map, t.x, t.y);
+      const ground = map.heights[tile] as number;
+      const owner = map.content[tile] === Content.Track ? groundOwner(occ.get(tile) ?? [], ground) : null;
+      const support = !!owner && owner.rideId === rideId && owner.pieceIndex === pieceIndex && t.railMin > ground;
+      out.push({ pieceIndex, tile, x: t.x, y: t.y, railMin: t.railMin, railMax: t.railMax, rail: t.rail, support, ground });
+    }
+  });
+  return out;
+}
+
+/** World samples of a placed piece (every 0.25 m): metres (tile x spans [4x, 4x + 4]), absolute height, angles. */
+export function pieceWorldSamples(piece: TrackPieceInstance): {
+  n: number;
+  x: Float64Array;
+  y: Float64Array;
+  z: Float64Array;
+  yaw: Float64Array;
+  pitch: Float64Array;
+  bankSin: Float64Array;
+  bankCos: Float64Array;
+} {
+  const sm = pieceStatic(piece.defId).samples;
+  const n = sm.n;
+  const x = new Float64Array(n);
+  const y = new Float64Array(n);
+  const z = new Float64Array(n);
+  const yaw = new Float64Array(n);
+  for (let k = 0; k < n; k++) {
+    const w = localToWorld(piece, sm.x[k] as number, sm.y[k] as number);
+    x[k] = w.x;
+    y[k] = w.y;
+    z[k] = piece.z + (sm.h[k] as number);
+    yaw[k] = worldYaw(piece, sm.yaw[k] as number);
+  }
+  return { n, x, y, z, yaw, pitch: sm.theta, bankSin: sm.sinB, bankCos: sm.cosB };
+}
+
+/** Spin frame (0–15) of a spinning car, derived from the distance travelled (render only, deterministic). */
+export function trainSpinFrame(train: TrainState): number {
+  return Math.floor(train.dist / 750) % 16;
 }
