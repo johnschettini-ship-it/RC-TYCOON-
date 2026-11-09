@@ -44,13 +44,21 @@ describe('terrain tracker diff', () => {
   it('finds every changed tile when several change in one word', () => {
     const map = generateMap({ width: 64, height: 64 });
     const t = settled(map);
-    // Tiles 15 and 16 share a word but lie in chunks 0 and 1 (and their neighbours' chunks).
-    map.heights[15] = 20;
-    map.heights[16] = 20;
+    // Tiles 5 and 7 share a word; tile 7's east neighbour is in chunk 1.
+    map.heights[5] = 20;
+    map.heights[7] = 20;
     t.sync(map);
-    expect(t.isDirty(0)).toBe(true);
-    expect(t.isDirty(1)).toBe(true);
     expect(t.dirtyList()).toEqual([0, 1]);
+    // Both values went into the snapshot.
+    t.clean(0);
+    t.clean(1);
+    map.heights[7] = 8;
+    t.sync(map);
+    expect(t.dirtyList()).toEqual([0, 1]);
+    t.clean(0);
+    t.clean(1);
+    t.sync(map);
+    expect(t.dirtyCount()).toBe(0);
   });
 
   it('works on layers that are not word-aligned and on replaced layer arrays', () => {

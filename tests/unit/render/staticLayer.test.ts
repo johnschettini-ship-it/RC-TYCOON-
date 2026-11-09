@@ -2,13 +2,13 @@
  * Phase 6 §4.6 renderer work (W4-E): the static terrain layer is reused only when nothing changed (terrain version,
  * camera, rotation, zoom); guest level of detail by render quality; device budgets; the draw-call probe.
  */
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeCanvas, install, make } from './fakeCanvas';
 import { createCanvasRenderer } from '../../../src/render/renderer';
 import { terrainClock } from '../../../src/render/terrain';
 import { defaultToolState, type Camera } from '../../../src/render/types';
 import { spriteMemory } from '../../../src/render/spriteCache';
-import { setRenderQuality } from '../../../src/perf/quality';
+import { AUTO_WARMUP_FRAMES, AUTO_WINDOW_FRAMES, setRenderQuality } from '../../../src/perf/quality';
 import { perfProbe } from '../../../src/perf/stats';
 import { createWorld } from '../../../src/sim/world';
 import { tileIndex } from '../../../src/sim/map';
@@ -124,24 +124,28 @@ describe('static terrain layer (Phase 6 §4.6 step 4)', () => {
     }
   });
 
-  it('under memory pressure the layer in use stays, and the unused chunk images go', () => {
-    const world = park();
+  it('under memory pressure the layer in use and the chunks on screen stay; chunks off screen go', () => {
+    const world = createWorld({ seed: 5, parkName: 'Big', mapSize: 96 });
     const canvas = make(W, H);
     const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement);
     r.resize(W, H, 1);
     const tool = defaultToolState();
-    r.draw(world, cam(), tool, 0);
-    r.draw(world, cam(), tool, 0);
+    const far: Camera = { centerX: -1200, centerY: 1500, zoom: 1, rotation: 0 };
+    const near: Camera = { centerX: 1200, centerY: 1500, zoom: 1, rotation: 0 };
+    for (const c of [far, far, near, near, near]) r.draw(world, c, tool, 0);
+    const before = spriteMemory.breakdown().chunks ?? 0;
     const budget = spriteMemory.budgetBytes;
     try {
       // Nothing fits: only images used in the current frame may stay.
       spriteMemory.budgetBytes = 1;
       for (let k = 0; k < 3; k++) {
         canvas.reset();
-        r.draw(world, cam(), tool, 0);
+        r.draw(world, near, tool, 0);
         expect(split(canvas).statics).toBe(1);
       }
-      expect(spriteMemory.breakdown().chunks ?? 0).toBe(0);
+      const after = spriteMemory.breakdown().chunks ?? 0;
+      expect(after).toBeGreaterThan(0);
+      expect(after).toBeLessThan(before);
       expect(spriteMemory.breakdown().static).toBe(W * H * 4);
     } finally {
       spriteMemory.budgetBytes = budget;
@@ -203,6 +207,28 @@ describe('render quality and device class (Phase 6 §4.6, §4.9)', () => {
     r.resize(412, 915, 3);
     expect(canvas.width).toBe(824);
     expect(canvas.dataset.device).toBe('phone');
+  });
+
+  it('auto quality steps the render scale down to 1× when frames stay too slow; high does not', () => {
+    const world = createWorld({ seed: 5, parkName: 'Slow', mapSize: 16 });
+    const canvas = make(10, 10);
+    const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement);
+    let t = 0;
+    const spy = vi.spyOn(performance, 'now').mockImplementation(() => (t += 60));
+    try {
+      r.resize(412, 915, 2);
+      expect(canvas.width).toBe(824);
+      for (let k = 0; k < AUTO_WARMUP_FRAMES + AUTO_WINDOW_FRAMES + 1; k++) r.draw(world, cam(), defaultToolState(), 0);
+      // 60 ms frames are over 1.25 × the 40 ms phone budget.
+      expect(canvas.width).toBe(412);
+      expect(canvas.dataset.autoScale).toBe('1');
+      // A quality change starts over: high keeps 2× however slow.
+      setRenderQuality('high');
+      for (let k = 0; k < AUTO_WARMUP_FRAMES + AUTO_WINDOW_FRAMES + 1; k++) r.draw(world, cam(), defaultToolState(), 0);
+      expect(canvas.width).toBe(824);
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it('the shared sprite memory budget follows the device class: 64 MB phone, 192 MB desktop', () => {

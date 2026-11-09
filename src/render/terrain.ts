@@ -1,10 +1,12 @@
 /**
  * Terrain chunk cache (Phase 0 §4.8, Phase 4 §4.8 and §4.10): static tiles (ground, cliffs, water, paths, queues)
- * pre-drawn into 16 × 16-tile chunk images per zoom bucket (0.5, 1, 2) and view rotation. Owner: W1-A, W3-G.
- * A chunk is a block of map tiles; with a view rotation it is painted in view space (view corners, cliff faces
- * toward the viewer, path joins turned by r). Images are keyed by (chunk, rotation, bucket) in an LRU with a
- * memory cap (`CHUNK_CACHE_MB`, 32 MB on phones): after a rotation the visible chunks are built first, the rest
- * when they come into view, and the old rotation's images age out of the LRU.
+ * pre-drawn into chunk images per zoom bucket (0.5, 1, 2) and view rotation. Owner: W1-A, W3-G, W4-E.
+ * A chunk is a block of `CHUNK_SIZE` × `CHUNK_SIZE` map tiles (8 since Phase 6 §4.6: a 16 × 16 image was 9 MB at
+ * the phone zoom bucket and took 100+ ms to build on the throttled phone, see `docs/adr/0001-renderer.md`); with a
+ * view rotation it is painted in view space (view corners, cliff faces toward the viewer, path joins turned by r).
+ * Images are keyed by (chunk, rotation, bucket) in an LRU with a memory cap (`CHUNK_CACHE_MB`, 32 MB on phones)
+ * that also counts toward the shared sprite memory: after a rotation the visible chunks are built within a frame
+ * budget (placeholders until then), the rest when they come into view, and the old rotation's images age out.
  */
 import { Content, Terrain, type MapState } from '../sim/map';
 import type { Ride } from '../sim/rides/types';
@@ -642,6 +644,25 @@ export class TerrainLayer {
     this.images.trim();
     this.complete = complete;
     return drawn;
+  }
+
+  /**
+   * Mark the images of the visible chunks as used this frame without drawing them (the renderer copied its static
+   * layer instead): they stay in memory for the next pan, and off-screen images go first under the budget.
+   */
+  touch(view: ViewRect, bucket: ZoomBucket, r: ViewRotation): void {
+    if (this.rot !== r) return;
+    this.images.beginFrame();
+    const bi = bucketIndex(bucket);
+    const n = this.order.length;
+    for (let k = 0; k < n; k++) {
+      const c = this.order[k] as number;
+      const g = this.bounds[c] as ChunkGeom;
+      if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      const base = c * KEYS_PER_CHUNK + r * 4;
+      this.images.get(base + EXACT_SLOT);
+      this.images.get(base + bi);
+    }
   }
 
   /** A chunk not built yet: its ground as one flat diamond at the chunk's mean height. */

@@ -57,17 +57,62 @@ export interface RenderPlan {
   budgetBytes: number;
 }
 
-export function renderPlan(quality: RenderQuality, device: DeviceClass, dpr: number): RenderPlan {
+/** `autoMaxRatio`: the `auto` step down of `AutoScale` (ignored at `high` and `low`). */
+export function renderPlan(quality: RenderQuality, device: DeviceClass, dpr: number, autoMaxRatio = Infinity): RenderPlan {
   const d = dpr > 0 && Number.isFinite(dpr) ? dpr : 1;
   const low = quality === 'low';
   const phone = device === 'phone';
+  const best = phone ? Math.min(d, PHONE_MAX_RENDER_SCALE) : d;
   return {
     device,
-    pixelRatio: low ? Math.min(d, 1) : phone ? Math.min(d, PHONE_MAX_RENDER_SCALE) : d,
+    pixelRatio: low ? Math.min(d, 1) : quality === 'auto' ? Math.min(best, Math.max(1, autoMaxRatio)) : best,
     zoomBuckets: phone || low ? PHONE_MAX_ZOOM_BUCKETS : PHONE_MAX_ZOOM_BUCKETS + 1,
     guestLodZoom: low ? LOW_GUEST_LOD_ZOOM : GUEST_LOD_ZOOM,
     budgetBytes: spriteBudgetBytes(device),
   };
+}
+
+/** Frames ignored after a start, a load, a resize, or a quality change (sprite and chunk warm-up). */
+export const AUTO_WARMUP_FRAMES = 180;
+/** Frames per evaluation window. */
+export const AUTO_WINDOW_FRAMES = 90;
+/** Step down when the window's frame p95 is over this many times the device budget. */
+export const AUTO_SLOW_FACTOR = 1.25;
+/** A longer gap between frames is a paused or hidden tab. */
+const AUTO_MAX_GAP_MS = 1000;
+
+/**
+ * `auto` render quality, adaptive part: the render scale steps down to 1× when a whole window of frames has a p95
+ * over 1.25 × the device's frame budget (Phase 6 §4.6: desktop 20 ms, phone 40 ms). It never steps back up on its
+ * own (no oscillation); a resize, a quality change, or a new device class starts over.
+ */
+export class AutoScale {
+  /** Highest render scale `auto` may use now (Infinity = the device's best). */
+  maxRatio = Infinity;
+  private readonly window = new Float64Array(AUTO_WINDOW_FRAMES);
+  private frames = 0;
+
+  constructor(public budgetMs: number) {}
+
+  reset(): void {
+    this.maxRatio = Infinity;
+    this.frames = 0;
+  }
+
+  /** One frame interval (ms). True when `maxRatio` changed. */
+  frame(intervalMs: number): boolean {
+    if (!(intervalMs > 0) || intervalMs > AUTO_MAX_GAP_MS || this.maxRatio <= 1) return false;
+    this.frames++;
+    if (this.frames <= AUTO_WARMUP_FRAMES) return false;
+    const k = (this.frames - AUTO_WARMUP_FRAMES - 1) % AUTO_WINDOW_FRAMES;
+    this.window[k] = intervalMs;
+    if (k !== AUTO_WINDOW_FRAMES - 1) return false;
+    const sorted = Float64Array.from(this.window).sort();
+    const p95 = sorted[Math.ceil(0.95 * AUTO_WINDOW_FRAMES) - 1] as number;
+    if (p95 <= this.budgetMs * AUTO_SLOW_FACTOR) return false;
+    this.maxRatio = 1;
+    return true;
+  }
 }
 
 let quality: RenderQuality = 'auto';

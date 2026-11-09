@@ -38,8 +38,8 @@ import type { LayerFrame, WorldLayer } from './layers';
 import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
-import { browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
-import { GUEST_LOD_ZOOM } from '../data/tuning/perf';
+import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
+import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM } from '../data/tuning/perf';
 import {
   viewAffine,
   viewCornerHeights,
@@ -870,11 +870,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let planVersion = -1;
   let lodZoom = GUEST_LOD_ZOOM;
   const device = browserDeviceEnv();
+  /** `auto` quality steps the render scale down when frames stay too slow (`../perf/quality.ts`). */
+  const autoScale = new AutoScale(BUDGET_DESKTOP_FRAME_P95_MS);
+  let lastDrawAt = -1;
 
   /** Pixel ratio, zoom buckets, guest LOD zoom, and the shared sprite memory budget from the device and quality. */
   function applyPlan(): void {
+    if (planVersion !== renderQualityVersion()) autoScale.reset();
     planVersion = renderQualityVersion();
-    const plan = renderPlan(renderQuality(), deviceClass(device, cssW, cssH), rawDpr);
+    const cls = deviceClass(device, cssW, cssH);
+    autoScale.budgetMs = cls === 'phone' ? BUDGET_PHONE_FRAME_P95_MS : BUDGET_DESKTOP_FRAME_P95_MS;
+    const plan = renderPlan(renderQuality(), cls, rawDpr, autoScale.maxRatio);
     dpr = plan.pixelRatio;
     lodZoom = plan.guestLodZoom;
     terrain.allowExact = plan.zoomBuckets > ZOOM_BUCKETS.length;
@@ -885,6 +891,18 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     canvas.height = Math.max(1, Math.round(cssH * dpr));
     canvas.dataset.pixelRatio = String(dpr);
     canvas.dataset.device = plan.device;
+    canvas.dataset.autoScale = autoScale.maxRatio === Infinity ? 'full' : String(autoScale.maxRatio);
+  }
+
+  /** Feed the frame interval to the `auto` step down; re-plan when it steps. */
+  function autoFrame(): void {
+    if (renderQuality() !== 'auto' || typeof performance === 'undefined') {
+      lastDrawAt = -1;
+      return;
+    }
+    const now = performance.now();
+    if (lastDrawAt >= 0 && autoScale.frame(now - lastDrawAt)) applyPlan();
+    lastDrawAt = now;
   }
 
   /**
@@ -940,6 +958,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     let chunks = 0;
     if (staticValid && staticImage && sameView(staticKey, cam, map) && statics.get(STATIC_KEY)) {
       c.drawImage(staticImage.canvas, 0, 0);
+      // The chunks on screen stay cached for the next pan.
+      terrain.touch(view, bucket, rot);
       staticReuses++;
     } else if (sameView(lastKey, cam, map)) {
       // A still view: compose the static layer, then copy it.
@@ -976,6 +996,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       cssW = Math.max(1, w);
       cssH = Math.max(1, h);
       rawDpr = d;
+      autoScale.reset();
       applyPlan();
     },
 
@@ -984,6 +1005,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       syncDrawCounter();
       spriteMemory.beginFrame();
       if (planVersion !== renderQualityVersion()) applyPlan();
+      autoFrame();
       const t0 = debug && typeof performance !== 'undefined' ? performance.now() : 0;
       const s = world.state;
       const map = s.map;

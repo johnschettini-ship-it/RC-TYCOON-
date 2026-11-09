@@ -67,18 +67,18 @@ describe('ride animation from ride.cycle.phase', () => {
 });
 
 describe('terrain chunk dirty flags', () => {
-  it('uses 16 × 16-tile chunks', () => {
-    expect(CHUNK_SIZE).toBe(16);
+  it('uses 8 × 8-tile chunks (Phase 6 §4.6: 16 × 16 images were 9 MB each at the phone zoom bucket)', () => {
+    expect(CHUNK_SIZE).toBe(8);
     const map = generateMap();
-    expect(chunkCount(map)).toEqual({ cx: 4, cy: 4 });
+    expect(chunkCount(map)).toEqual({ cx: 8, cy: 8 });
   });
 
   it('marks every chunk dirty on the first sync, then nothing until the map changes', () => {
     const map = generateMap();
     const t = new TerrainTracker();
     t.sync(map);
-    expect(t.dirtyCount()).toBe(16);
-    for (let c = 0; c < 16; c++) t.clean(c);
+    expect(t.dirtyCount()).toBe(64);
+    for (let c = 0; c < 64; c++) t.clean(c);
     t.sync(map);
     expect(t.dirtyCount()).toBe(0);
   });
@@ -87,22 +87,22 @@ describe('terrain chunk dirty flags', () => {
     const map = generateMap();
     const t = new TerrainTracker();
     t.sync(map);
-    for (let c = 0; c < 16; c++) t.clean(c);
+    for (let c = 0; c < 64; c++) t.clean(c);
     map.content[tileIndex(map, 20, 20)] = Content.Footpath;
     t.sync(map);
-    expect(t.dirtyList()).toEqual([1 * 4 + 1]);
-    for (let c = 0; c < 16; c++) t.clean(c);
+    expect(t.dirtyList()).toEqual([2 * 8 + 2]);
+    for (let c = 0; c < 64; c++) t.clean(c);
     // A tile on a chunk corner touches three chunks through its neighbours.
     map.owned[tileIndex(map, 16, 16)] = 0;
     t.sync(map);
-    expect(t.dirtyList()).toEqual([0 * 4 + 1, 1 * 4 + 0, 1 * 4 + 1]);
+    expect(t.dirtyList()).toEqual([1 * 8 + 2, 2 * 8 + 1, 2 * 8 + 2]);
   });
 
   it('resets when the world gets a new map', () => {
     const t = new TerrainTracker();
     t.sync(generateMap());
-    for (let c = 0; c < 16; c++) t.clean(c);
+    for (let c = 0; c < 64; c++) t.clean(c);
     t.sync(generateMap({ width: 32, height: 32 }));
-    expect(t.dirtyCount()).toBe(4);
+    expect(t.dirtyCount()).toBe(16);
   });
 });

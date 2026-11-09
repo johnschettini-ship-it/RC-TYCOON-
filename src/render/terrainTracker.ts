@@ -11,7 +11,7 @@
  */
 import type { MapState } from '../sim/map';
 
-export const CHUNK_SIZE = 16;
+export const CHUNK_SIZE = 8;
 
 export function chunkCount(map: Pick<MapState, 'width' | 'height'>): { cx: number; cy: number } {
   return { cx: Math.ceil(map.width / CHUNK_SIZE), cy: Math.ceil(map.height / CHUNK_SIZE) };

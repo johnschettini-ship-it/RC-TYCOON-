@@ -240,6 +240,8 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
 
   const seconds = Number(process.env.TC_PERF_SECONDS ?? 30);
   const runs = Number(process.env.TC_PERF_RUNS ?? 1);
+  /** Settings → Render quality for the run (`auto` by default). */
+  const quality = process.env.TC_PERF_QUALITY ?? '';
 
   for (const id of ['build1', 'build2', 'phone'] as const) {
     test(`scene ${id}`, async ({ page }, info) => {
@@ -251,6 +253,7 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
       const at = (rot: number): Aim => ({ x: scene.focus.x, y: scene.focus.y, zoom: 1, rot });
       for (let k = 0; k < runs; k++) {
         await loadScene(page, scene);
+        if (quality) await page.evaluate((q) => (window as unknown as { __tc: TcPerfGame }).__tc.settings?.set('renderQuality', q), quality);
         if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
         await runFor(page, 2_000, at(0));
         const main = await runFor(page, seconds * 1000);
@@ -264,7 +267,7 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
         const ratio = await page.locator('#game').getAttribute('data-pixel-ratio');
         const turnText = turns.map((t) => `${t.max.toFixed(0)} ms (work ${n1(t.workMax)} ms)`).join(', ');
         console.log(
-          `[perf] ${info.project.name}${phone ? ' (CPU 4×)' : ''} scene ${id} run ${k + 1}/${runs}, canvas ratio ${ratio}: ${fmt(main)}; ` +
+          `[perf] ${info.project.name}${phone ? ' (CPU 4×)' : ''} scene ${id} run ${k + 1}/${runs}${quality ? ` (${quality})` : ''}, canvas ratio ${ratio}: ${fmt(main)}; ` +
             `heap ${heap.toFixed(0)} MB; turns: longest frame ${turnText}; pan: frame p95 ${pan.p95.toFixed(1)} ms, work p95 ${n1(pan.workP95)} ms`,
         );
       }
