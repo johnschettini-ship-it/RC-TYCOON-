@@ -9,8 +9,10 @@ export const AWARD_ARRIVALS_CLAMP = [0.7, 1.3] as const;
 export const AWARD_RATING_CLAMP = [-60, 60] as const;
 
 /*
- * Criteria (Phase 5 §4.10 table). Shares are percentages; litter + mess per footpath tile is kept as a count per
- * 100 tiles so every comparison is exact integer math (0.02 → 2, 0.15 → 15).
+ * Criteria (Phase 5 §4.10 table). Litter + mess per footpath tile is kept as a count per 100 tiles and the
+ * breakdown share as a percentage, so those comparisons are exact integer math (0.02 → 2, 0.15 → 15). Sample
+ * shares are percentages, as `sampleMeans` (W3-H) returns them; thought shares are fractions 0–1, as
+ * `tooExpensiveShare` and `lostShare` return them.
  */
 /** Spotless Park: litter + mess per 100 footpath tiles ≤ 2. */
 export const AWARD_SPOTLESS_MAX_DIRT_PER_100 = 2;
@@ -34,18 +36,12 @@ export const AWARD_NIGHT_MIN_LIT = 0.9;
 export const AWARD_NIGHT_HAPPINESS = 170;
 /** Dark and Dreary: After Dark on and < 40% of footpath tiles lit. */
 export const AWARD_DARK_MAX_LIT = 0.4;
-/** Rip-off Park: ≥ 15% of this month's guests had a "too expensive" thought. */
-export const AWARD_RIPOFF_MIN_SHARE = 15;
+/** Rip-off Park: ≥ 15% of this month's guests had a "too expensive" thought (fraction, `tooExpensiveShare`). */
+export const AWARD_RIPOFF_MIN_SHARE = 0.15;
 /** Queue Nightmare: mean queue wait ≥ 90 s (1,800 ticks). */
 export const AWARD_QUEUE_MIN_WAIT_TICKS = 1_800;
 /** Breakdown Central: ≥ 25% of rides broke down at least once. */
 export const AWARD_BREAKDOWN_MIN_SHARE = 25;
-/** Lost and Confused: ≥ 10% of this month's guests had a "lost" thought. */
-export const AWARD_LOST_MIN_SHARE = 10;
+/** Lost and Confused: ≥ 10% of this month's guests had a "lost" thought (fraction, `lostShare`). */
+export const AWARD_LOST_MIN_SHARE = 0.1;
 
-/**
- * Thought ids that count as the spec's `thought.tooExpensive` and `thought.lost` (master R5 ids). The month metrics
- * (W3-H) keep distinct guests per id in `monthMetrics.thoughtGuests`; an award counts the union over its ids.
- */
-export const AWARD_EXPENSIVE_THOUGHTS: readonly string[] = ['rideTooExpensive', 'snackTooExpensive', 'drinkTooExpensive'];
-export const AWARD_LOST_THOUGHTS: readonly string[] = ['lost', 'lostNeedMap'];

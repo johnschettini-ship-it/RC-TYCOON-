@@ -70,6 +70,8 @@ export function takeSample(state: GameState): ParkSample {
 export interface SampleMeans {
   samples: number;
   guests: number;
+  /** Mean park rating of the samples (for day samples: the mean daily rating), 0 with none. */
+  rating: number;
   happiness: number;
   /** Shares in percent 0–100 of all sampled guests. */
   thrillShare: number;
@@ -80,6 +82,7 @@ export interface SampleMeans {
 
 export function sampleMeans(samples: readonly ParkSample[]): SampleMeans {
   let guests = 0;
+  let rating = 0;
   let happy = 0;
   let thrill = 0;
   let chill = 0;
@@ -87,6 +90,7 @@ export function sampleMeans(samples: readonly ParkSample[]): SampleMeans {
   let chillHappy = 0;
   for (const s of samples) {
     guests += s.guests;
+    rating += s.rating;
     happy += s.meanHappiness * s.guests;
     thrill += s.thrill;
     chill += s.chill;
@@ -97,6 +101,7 @@ export function sampleMeans(samples: readonly ParkSample[]): SampleMeans {
   return {
     samples: k,
     guests: k > 0 ? guests / k : 0,
+    rating: k > 0 ? rating / k : 0,
     happiness: guests > 0 ? happy / guests : 0,
     thrillShare: guests > 0 ? (100 * thrill) / guests : 0,
     chillShare: guests > 0 ? (100 * chill) / guests : 0,
