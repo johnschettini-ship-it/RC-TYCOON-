@@ -143,4 +143,38 @@ test.describe('settings screen', () => {
     expect(await page.evaluate(() => localStorage.getItem('tc.save.auto'))).toBeNull();
     watch.expectNoErrors();
   });
+
+  test('Data: export all saves and progress, import progress, reset progress after a confirm', async ({ page }, info) => {
+    test.skip(isPhone(info), 'downloads are a desktop check');
+    const watch = watchErrors(page);
+    await page.goto('/');
+    await openFromTitle(page);
+    // No saves yet: a toast says so.
+    await page.getByTestId('settings-exportSaves').click();
+    await expect(page.getByTestId('toast')).toHaveText('There are no saves to export');
+    await page.evaluate(() => localStorage.setItem('tc.save.2', JSON.stringify({ format: 'thrills-and-chills-save', schemaVersion: 3 })));
+    const saves = page.waitForEvent('download');
+    await page.getByTestId('settings-exportSaves').click();
+    expect((await saves).suggestedFilename()).toBe('thrills-and-chills-saves.json');
+    const progress = page.waitForEvent('download');
+    await page.getByTestId('settings-exportProgress').click();
+    expect((await progress).suggestedFilename()).toBe('tc.progress.json');
+    // Import: a valid file is stored; a bad one changes nothing.
+    const good = JSON.stringify({ format: 'thrills-and-chills-progress', version: 1, scenarios: {}, tutorialDone: true });
+    const input = page.locator('.settings-screen input[type="file"]');
+    await input.setInputFiles({ name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(good) });
+    await expect(page.getByTestId('toast')).toHaveText('Progress imported');
+    expect(JSON.parse((await page.evaluate(() => localStorage.getItem('tc.progress'))) ?? '{}').tutorialDone).toBe(true);
+    await input.setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{"nope":1}') });
+    await expect(page.getByTestId('toast')).toHaveText('Your scenario progress could not be read');
+    expect(JSON.parse((await page.evaluate(() => localStorage.getItem('tc.progress'))) ?? '{}').tutorialDone).toBe(true);
+    // Reset asks first.
+    await page.getByTestId('settings-resetProgress').click();
+    await page.getByTestId('confirm-no').click();
+    expect(JSON.parse((await page.evaluate(() => localStorage.getItem('tc.progress'))) ?? '{}').tutorialDone).toBe(true);
+    await page.getByTestId('settings-resetProgress').click();
+    await page.getByTestId('confirm-yes').click();
+    await expect.poll(async () => JSON.parse((await page.evaluate(() => localStorage.getItem('tc.progress'))) ?? '{}').tutorialDone).toBe(false);
+    watch.expectNoErrors();
+  });
 });

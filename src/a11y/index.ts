@@ -106,6 +106,10 @@ export function mountA11y(game: Game, uiRoot: HTMLElement, canvas: HTMLCanvasEle
   };
   onCursorChange(refreshLine);
   game.onWorldChanged(() => cursorChanged());
+  // A build or demolish changes the tile under the cursor (guests moving do not re-announce it).
+  game.onCommand((_cmd, result) => {
+    if (result.ok && mapCursor.on) refreshLine();
+  });
 
   game.onEvents((events) => {
     for (const ev of events) {

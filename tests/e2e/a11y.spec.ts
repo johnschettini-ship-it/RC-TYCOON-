@@ -117,6 +117,37 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
     watch.expectNoErrors();
   });
 
+  test('Build 2 tool bars and sheets: land, water, scenery, overlays, buy land; guest and staff panels', async ({ page }) => {
+    test.setTimeout(120_000);
+    const watch = watchErrors(page);
+    await newPark(page);
+    await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
+    for (const id of ['tool-land', 'tool-water', 'tool-scenery', 'tool-overlays', 'tool-buyLand']) {
+      await page.getByTestId(id).scrollIntoViewIfNeeded();
+      await page.getByTestId(id).click();
+      await page.waitForTimeout(150);
+      await scan(page, id);
+      await page.keyboard.press('Escape');
+      if (id === 'tool-overlays') await page.getByTestId(id).click();
+    }
+    // A hired groundskeeper and a guest standing in the park.
+    const ids = await page.evaluate(() => {
+      const g = (window as unknown as { __tc: Tc & { world: { state: { staff: { members: Array<{ id: number }> } } } } }).__tc;
+      g.dispatch({ type: 'hireStaff', staffType: 'groundskeeper' });
+      g.dispatch({ type: 'setParkOpen', open: true });
+      return { staff: g.world.state.staff.members[0]?.id ?? -1 };
+    });
+    await select(page, 'staff', ids.staff);
+    await scan(page, 'staff member panel');
+    await page.evaluate(() => (window as unknown as { __tc: Tc & { step(n: number): void } }).__tc.step(400));
+    const guest = await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.world.state.guests[0]?.id ?? -1);
+    if (guest >= 0) {
+      await select(page, 'guest', guest);
+      await scan(page, 'guest panel');
+    }
+    watch.expectNoErrors();
+  });
+
   test('high contrast keeps the scan clean', async ({ page }) => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.settings.set('highContrast', true));

@@ -118,7 +118,7 @@ export function createPicker(ctx: UiContext): Picker {
           class: 'scn-card',
           'data-testid': `scenery-item-${def.id}`,
           'aria-pressed': 'false',
-          'aria-label': text('scenery.picker.card', { name: def.name, cost, calm: def.calm, buzz: def.buzz }),
+          // Phase 6 §4.7: the visible name, cost, and Calm / Buzz line are the accessible name.
           onclick: () => pick(def),
         },
         preview(def.id),

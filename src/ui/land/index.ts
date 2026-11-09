@@ -182,7 +182,7 @@ function createLandBar(ctx: UiContext): UiPart {
   );
   const sizes = segmented<BrushSize>(
     text('landUi.sizes'),
-    BRUSH_SIZES.map((n) => ({ value: n, label: text('landUi.size', { n }), ariaLabel: text('landUi.sizeAria', { n }), testId: `land-size-${n}` })),
+    BRUSH_SIZES.map((n) => ({ value: n, label: text('landUi.size', { n }), testId: `land-size-${n}` })),
     (n) => {
       tool.land.size = n;
     },

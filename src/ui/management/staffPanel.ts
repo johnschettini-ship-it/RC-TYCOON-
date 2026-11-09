@@ -106,7 +106,7 @@ export function createStaffPanel(ctx: UiContext, focusId: number | null): PanelV
         'data-testid': 'staff-row',
         'data-staff-id': m.id,
         'aria-pressed': 'false',
-        'aria-label': text('ui.staff.pick', { name: m.name, type: staffTypeName(m.type) }),
+        // Phase 6 §4.7: the visible name, type, and status are the accessible name (aria-pressed says it is selected).
         onclick: () => selectStaff(ctx, selectedStaffId(ctx) === m.id ? null : m.id),
       },
       h('span', { class: `staff-dot type-${m.type}`, 'aria-hidden': 'true' }),

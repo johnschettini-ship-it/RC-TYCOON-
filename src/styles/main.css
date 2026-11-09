@@ -79,7 +79,7 @@ button { font: inherit; color: inherit; }
   font-weight: 600;
 }
 .btn:hover, .tool-btn:hover, .speed-btn:hover, .card:hover, .icon-btn:hover { background: var(--panel-3); }
-.btn.primary { background: linear-gradient(135deg, var(--accent-chill), #3a8fd0); border-color: transparent; color: #0d1b28; }
+.btn.primary { background: linear-gradient(135deg, var(--accent-chill), #3a8fd0); border-color: transparent; color: #0d1b28; min-height: 48px; }
 .btn.danger { background: #5a2430; border-color: var(--danger); }
 .btn[aria-pressed='true'] { background: var(--panel-3); border-color: var(--focus); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -131,7 +131,7 @@ button { font: inherit; color: inherit; }
 .seg-family { background: var(--accent-family); }
 .seg-thrill { background: var(--accent-thrill); }
 .hud-clock { font-weight: 600; }
-.speed { display: inline-flex; gap: 4px; margin-left: auto; }
+.speed { display: inline-flex; gap: 8px; margin-left: auto; }
 .speed-btn { width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; font-weight: 700; }
 .speed-btn .icon { width: 18px; height: 18px; }
 .speed-btn.active, .speed-btn[aria-pressed='true'] { background: var(--accent-chill); color: #0d1b28; border-color: transparent; }
@@ -140,7 +140,7 @@ button { font: inherit; color: inherit; }
 .toolbar {
   position: absolute;
   display: flex;
-  gap: 4px;
+  gap: 8px;
   padding: 6px;
   background: color-mix(in srgb, var(--panel) 94%, transparent);
   border: 1px solid var(--line);
@@ -190,7 +190,7 @@ button { font: inherit; color: inherit; }
 @media (max-width: 599px) {
   .hud-name, .hud-guests, .hud-rating, .hud-balance { display: none; }
   .hud { font-size: calc(13px * var(--ts, 1)); gap: 4px 8px; padding-left: calc(8px + var(--safe-left)); padding-right: calc(8px + var(--safe-right)); }
-  .speed { gap: 2px; }
+  .speed { gap: 8px; }
 }
 
 /* Tool status bar */
@@ -216,7 +216,7 @@ button { font: inherit; color: inherit; }
 .status-text { font-weight: 700; }
 .status-detail { color: var(--muted); font-size: calc(13px * var(--ts, 1)); }
 .tool-status.invalid .status-detail { color: #ff9da0; }
-.status-actions { display: flex; gap: 6px; }
+.status-actions { display: flex; gap: 8px; }
 #ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--safe-bottom)); }
 #ui[data-layout='bottom'] .tool-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 
@@ -351,6 +351,7 @@ button { font: inherit; color: inherit; }
 .card.tag-family { border-top-color: var(--accent-family); }
 .card-preview { width: 100%; aspect-ratio: 112 / 80; height: auto; border-radius: 6px; background: #0e1925; }
 .card-name { font-weight: 700; }
+.name-sep { font-size: 0; }
 .tag-chip { align-self: flex-start; font-size: calc(11px * var(--ts, 1)); padding: 1px 8px; border-radius: 999px; background: var(--panel-3); }
 .card.tag-thrill .tag-chip { background: var(--accent-thrill); color: #22110a; }
 .card.tag-chill .tag-chip { background: var(--accent-chill); color: #08202b; }
@@ -393,6 +394,7 @@ button { font: inherit; color: inherit; }
 
 /* Dialogs */
 .modal-backdrop {
+  z-index: 5; /* Same layer as the settings screen: the one opened last is on top. */
   position: absolute; inset: 0;
   pointer-events: auto;
   display: grid; place-items: center;
@@ -507,7 +509,7 @@ button { font: inherit; color: inherit; }
   max-width: 100%;
 }
 .plain-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
-.segmented { display: flex; flex-wrap: wrap; gap: 6px; }
+.segmented { display: flex; flex-wrap: wrap; gap: 8px; }
 .seg-btn { flex: 1 1 0; min-width: 60px; padding: 6px 8px; gap: 6px; }
 .seg-btn.on, .seg-btn[aria-pressed='true'] { background: var(--accent-chill); color: #0d1b28; border-color: transparent; }
 .seg-btn.on .seg-detail, .seg-btn[aria-pressed='true'] .seg-detail { color: #17344a; }
@@ -517,7 +519,7 @@ button { font: inherit; color: inherit; }
 .meter.low .meter-fill { background: var(--danger); }
 
 /* Staff panel */
-.hire-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.hire-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .hire-btn { flex-direction: column; gap: 2px; padding: 6px 8px; }
 .hire-name { font-weight: 700; }
 .staff-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -548,7 +550,7 @@ button { font: inherit; color: inherit; }
 
 /* Research */
 .research-name { margin: 0; font-weight: 700; }
-.focus-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.focus-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .focus-btn { justify-content: flex-start; padding: 6px 10px; }
 .focus-btn .seg-label { align-items: flex-start; }
 .focus-check { width: 18px; height: 18px; border-radius: 5px; border: 2px solid var(--muted); flex: none; }
@@ -693,7 +695,7 @@ button { font: inherit; color: inherit; }
 .tb-actions .big-action { min-height: 56px; flex: 1 1 140px; font-size: calc(16px * var(--ts, 1)); }
 .track-builder[data-layout='side'] .tb-actions .big-action { min-height: 48px; }
 
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; padding: 4px 0; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
 .tab {
   pointer-events: auto; cursor: pointer;
   min-height: var(--touch); padding: 4px 12px;
@@ -725,18 +727,16 @@ dl.row dt, dl.row dd { margin: 0; }
 .settings-about dt { color: var(--muted); font-size: calc(12px * var(--ts, 1)); text-transform: uppercase; letter-spacing: 0.06em; }
 .settings-about dd { margin: 2px 0 0; }
 
-/* Range thumbs: 44 px touch targets (Phase 6 §7). */
-.slider { height: 44px; }
-.slider::-webkit-slider-thumb { width: 28px; height: 28px; }
-.setting-slider { -webkit-appearance: none; appearance: none; background: transparent; height: 44px; width: 100%; margin: 0; }
-.setting-slider::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #0e1925; border: 1px solid var(--line); }
-.setting-slider::-moz-range-track { height: 8px; border-radius: 4px; background: #0e1925; border: 1px solid var(--line); }
-.setting-slider::-webkit-slider-thumb {
+/* Range sliders (settings and prices): 44 px thumbs, the touch target size (Phase 6 §7). */
+.slider { -webkit-appearance: none; appearance: none; background: transparent; height: 44px; width: 100%; margin: 0; }
+.slider::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; background: #0e1925; border: 1px solid var(--line); }
+.slider::-moz-range-track { height: 8px; border-radius: 4px; background: #0e1925; border: 1px solid var(--line); }
+.slider::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
   width: 44px; height: 44px; margin-top: -19px;
   border-radius: 50%; background: var(--accent-chill); border: 3px solid var(--panel-text);
 }
-.setting-slider::-moz-range-thumb { width: 44px; height: 44px; border-radius: 50%; background: var(--accent-chill); border: 3px solid var(--panel-text); }
+.slider::-moz-range-thumb { width: 44px; height: 44px; border-radius: 50%; background: var(--accent-chill); border: 3px solid var(--panel-text); }
 
 /* Settings screen: side list on desktop, full-screen sheet with the section list on phones. */
 .settings-screen {

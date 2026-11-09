@@ -35,25 +35,33 @@ function miniBar(label: string, hundredths: number): HTMLElement {
   return h('div', { class: 'mini-bar' }, h('span', { class: 'mini-label', text: label }), h('span', { class: 'mini-track' }, fill), h('span', { class: 'mini-value', text: formatRating(hundredths) }));
 }
 
+/**
+ * Phase 6 §4.7: a card's accessible name is its visible text ("Carousel, Family Excitement 2.50 … $1,200"), so
+ * speech input users can say what they see. A comma after the name (`.name-sep`, zero size) gives screen readers a
+ * pause.
+ */
+const cardTitle = (name: string): HTMLElement => h('span', { class: 'card-name' }, name, h('span', { class: 'name-sep', text: ',' }));
+
 function rideCard(ctx: UiContext, def: FlatRideDef): HTMLElement {
   const tag = text(`ui.tag.${def.tag}`);
   const cost = formatMoney(def.buildCost);
+  const stats: Array<[string, number]> = [
+    [text('ui.stat.excitement'), def.excitement],
+    [text('ui.stat.intensity'), def.intensity],
+    [text('ui.stat.nausea'), def.nausea],
+  ];
   return h(
     'button',
     {
       type: 'button',
       class: `card tag-${def.tag}`,
       'data-def': def.id,
-      // Phase 6 §4.7: the accessible name is the visible text ("Carousel, Family, Excitement 2.50 … $1,200").
       onclick: () => choose(ctx, 'placeRide', def.id),
     },
     preview(def.id),
-    h('span', { class: 'card-name', text: def.name }),
-    h('span', { class: 'sr-only', text: ',' }),
+    cardTitle(def.name),
     h('span', { class: 'tag-chip', text: tag }),
-    miniBar(text('ui.stat.excitement'), def.excitement),
-    miniBar(text('ui.stat.intensity'), def.intensity),
-    miniBar(text('ui.stat.nausea'), def.nausea),
+    ...stats.map(([l, v]) => miniBar(l, v)),
     h('span', { class: 'card-cost', text: cost }),
   );
 }
@@ -61,6 +69,7 @@ function rideCard(ctx: UiContext, def: FlatRideDef): HTMLElement {
 function stallCard(ctx: UiContext, def: StallDef): HTMLElement {
   const kind = text(`ui.kind.${def.kind}`);
   const cost = formatMoney(def.buildCost);
+  const price = text('ui.picker.price', { price: formatPrice(def.defaultPrice) });
   return h(
     'button',
     {
@@ -70,10 +79,9 @@ function stallCard(ctx: UiContext, def: StallDef): HTMLElement {
       onclick: () => choose(ctx, 'placeStall', def.id),
     },
     preview(def.id),
-    h('span', { class: 'card-name', text: def.name }),
-    h('span', { class: 'sr-only', text: ',' }),
+    cardTitle(def.name),
     h('span', { class: 'tag-chip', text: kind }),
-    h('span', { class: 'card-price', text: text('ui.picker.price', { price: formatPrice(def.defaultPrice) }) }),
+    h('span', { class: 'card-price', text: price }),
     h('span', { class: 'card-cost', text: cost }),
   );
 }

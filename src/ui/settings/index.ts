@@ -34,7 +34,7 @@ function isDesktopPointer(): boolean {
   }
 }
 
-let openScreen: { close(): void; el: HTMLElement } | null = null;
+let openScreen: { close(): void; el: HTMLElement; returnFocus: HTMLElement | null } | null = null;
 
 /** True while the settings screen is open. */
 export function settingsScreenOpen(): boolean {
@@ -43,9 +43,10 @@ export function settingsScreenOpen(): boolean {
 
 /** Open the settings screen at `section` (default: the first). */
 export function openSettingsScreen(ctx: UiContext, section?: string): void {
+  // Reopening (a new language) keeps the place focus returns to.
+  const prevFocus = openScreen ? openScreen.returnFocus : (document.activeElement as HTMLElement | null);
   if (openScreen) openScreen.close();
   const store = ctx.game.settings;
-  const prevFocus = document.activeElement as HTMLElement | null;
   const titleId = newId('settings-title');
   const bound: Bound[] = [];
 
@@ -300,7 +301,7 @@ export function openSettingsScreen(ctx: UiContext, section?: string): void {
 
   pushModal();
   ctx.root.append(el);
-  openScreen = { close, el };
+  openScreen = { close, el, returnFocus: prevFocus };
   syncAll();
   const start = (SETTINGS_SECTIONS as readonly string[]).includes(section ?? '') ? (section as SettingsSectionId) : null;
   if (start && start !== 'audio') jump(start);
