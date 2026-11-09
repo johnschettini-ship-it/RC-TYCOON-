@@ -200,6 +200,19 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
       if (e.key === 'Escape') {
         e.stopPropagation();
         closeDetail();
+      } else if (e.key === 'Tab') {
+        // Keep focus inside the sheet.
+        const f = [...sheet.querySelectorAll<HTMLElement>('button')].filter((b) => b.tabIndex >= 0);
+        const first = f[0];
+        const last = f[f.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     });
     host.overlay.append(backdrop);

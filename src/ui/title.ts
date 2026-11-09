@@ -9,6 +9,7 @@
  * default; the form starts on 64 until those flows move (integration note).
  */
 import { text } from '../data/strings/en';
+import type { SlotInfo } from '../save';
 import { MAP_SIZES } from '../data/tuning/land';
 import { createWorld } from '../sim/world';
 import type { UiContext } from './context';
@@ -56,7 +57,10 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const tagline = h('p', { class: 'tagline', text: text('ui.title.tagline') });
 
   // Main buttons.
-  const newestSave = () => newestSlot([...saves.slots().flatMap((s) => (s.info ? [s.info] : [])), ...(saves.autosaveInfo() ? [saves.autosaveInfo()!] : [])]);
+  const newestSave = (): SlotInfo | null => {
+    const auto = saves.autosaveInfo();
+    return newestSlot([...saves.slots().flatMap((s) => (s.info ? [s.info] : [])), ...(auto ? [auto] : [])]);
+  };
   const continueBtn = h('button', {
     type: 'button',
     class: 'btn big',

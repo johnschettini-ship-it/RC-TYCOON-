@@ -21,6 +21,9 @@ import {
   startConditions,
 } from '../../../src/ui/scenario/model';
 import { AWARD_IDS } from '../../../src/sim/awards/types';
+import { progressionStrings } from '../../../src/data/strings/progression';
+import { en } from '../../../src/data/strings/en';
+import { ERR_PROGRESS_NEWER, ERR_PROGRESS_UNREADABLE } from '../../../src/progress';
 
 function def(id: string, patch: Partial<ScenarioDef> = {}): ScenarioDef {
   return {
@@ -197,5 +200,30 @@ describe('end screen, mascots, pointer words, newest save', () => {
   it('camera moves in tiles', () => {
     expect(cameraTiles(0, 0, 32 * 4, 16 * 4)).toBeCloseTo(4, 10);
     expect(cameraTiles(0, 0, 0, 16 * 4)).toBeCloseTo(Math.SQRT2 * 2, 10);
+  });
+});
+
+describe('progression strings (master R4, Phase 5 spec text)', () => {
+  it('every key starts with prog., is unique in the table, and no message ends with a period', () => {
+    for (const [k, v] of Object.entries(progressionStrings)) {
+      expect(k.startsWith('prog.'), k).toBe(true);
+      expect(en[k], k).toBe(v);
+      expect(v.trim().length, k).toBeGreaterThan(0);
+      expect(/\.$/.test(v), `${k}: "${v}"`).toBe(false);
+    }
+  });
+
+  it('spec strings are exact', () => {
+    expect(text('prog.largeMapWarning')).toBe('Large maps can run slowly on phones');
+    expect(ERR_PROGRESS_NEWER).toBe('Your progress comes from a newer version of the game');
+    expect(ERR_PROGRESS_UNREADABLE).toBe('Your scenario progress could not be read');
+    expect(text('prog.progress.export')).toBe('Export raw data');
+    expect(text('prog.progress.reset')).toBe('Reset progress');
+    expect(text('prog.monthsLeft.many', { n: 8 })).toBe('8 months left');
+    expect(AWARD_IDS.map((id) => text(`prog.award.${id}`))).toEqual([
+      'Spotless Park', 'Best Value', "Thrill Seekers' Choice", 'Chill Haven', 'Perfect Balance', "Night Owls' Favourite",
+      'Litterbug Park', 'Rip-off Park', 'Queue Nightmare', 'Breakdown Central', 'Lost and Confused', 'Dark and Dreary',
+    ]);
+    for (const k of ['keepPlaying', 'scenarioSelect', 'mainMenu', 'tryAgain']) expect(text(`prog.end.${k}`)).toBe({ keepPlaying: 'Keep playing', scenarioSelect: 'Scenario select', mainMenu: 'Main menu', tryAgain: 'Try again' }[k]);
   });
 });

@@ -32,7 +32,9 @@ export function createAwardToasts(): UiPart & { push(id: AwardId): void; clear()
     const positive = isPositiveAward(id);
     const name = text(`prog.award.${id}`);
     const who = AWARD_MASCOT[id];
-    el.className = `tc-award-toast enter ${positive ? 'positive' : 'negative'} ${who}`;
+    el.className = `tc-award-toast ${positive ? 'positive' : 'negative'} ${who}`;
+    void el.offsetWidth; // restart the entry animation for each toast
+    el.classList.add('enter');
     el.replaceChildren(
       mascotCanvas(who, positive ? 'happy' : 'sad', 48, text(`prog.tutorial.${who}`)),
       h(
