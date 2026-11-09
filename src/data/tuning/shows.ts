@@ -2,6 +2,7 @@
  * After Dark show tuning (Phase 6 §4.4, §8). Owner: W4-C. Starting values for play-testing; site stats (cost per
  * show, radius, show length) are catalog data (`catalog/showSites.ts`). Tests read these constants, not copies.
  */
+import type { ShowSiteDef, TemperamentGroup } from '../catalog';
 
 /** Show start hours (Phase 6 §4.4: 20:00–23:30 in 30-minute steps). */
 export const SHOW_HOUR_MIN = 20;
@@ -20,8 +21,16 @@ export const SHOW_GATHER_DISTANCE = 20;
 /** Chance 0.5, +0.2 for a matching temperament group (Lightshow: Chill; Fireworks: Thrill; master R6). */
 export const SHOW_WATCH_CHANCE = 0.5;
 export const SHOW_WATCH_MATCH_BONUS = 0.2;
+/** The temperament group (master R6) each show type suits: the +0.2 watch chance and the ×1.3 happiness. */
+export const SHOW_MATCH_GROUP: Readonly<Record<ShowSiteDef['id'], TemperamentGroup>> = Object.freeze({
+  lightshow_tower: 'chill',
+  fireworks_launcher: 'thrill',
+});
 
-/** +1 happiness per second (20 ticks) of the show, at most +40 per show; ×1.3 for a matching group. */
+/**
+ * +1 happiness per second (20 ticks) of the show, at most +40 per show; ×1.3 for a matching group. The factor scales
+ * the running total (floor), and the cap holds for every watcher: a matching watcher reaches +40 sooner, never more.
+ */
 export const SHOW_HAPPY_TICKS = 20;
 export const SHOW_HAPPY_CAP = 40;
 export const SHOW_MATCH_FACTOR = 1.3;
