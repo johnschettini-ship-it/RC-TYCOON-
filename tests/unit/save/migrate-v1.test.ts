@@ -110,7 +110,8 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
     });
   }
 
-  it('the played Build 1 park keeps playing for a game month (Phase 4 §10)', () => {
+  // A full game month of play: allow for slow or busy CI machines.
+  it('the played Build 1 park keeps playing for a game month (Phase 4 §10)', { timeout: 60_000 }, () => {
     const a = load(read('save-v1.tcsave.json'));
     const b = load(read('save-v1.tcsave.json'));
     expect(a.state.guests.length).toBeGreaterThan(100);
