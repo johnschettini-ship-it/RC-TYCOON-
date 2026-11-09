@@ -16,8 +16,9 @@
 import { SCENARIOS, type Difficulty } from '../data/scenarios';
 import { UNLOCK_WINS } from '../data/tuning/scenario';
 import type { KeyValueStore } from '../save';
-import type { ScenarioResult } from '../sim/scenario/api';
+import { scenarioResult, type ScenarioResult } from '../sim/scenario/api';
 import type { ScenarioRun } from '../sim/scenario/types';
+import type { SimEvent, World } from '../sim/types';
 
 export const PROGRESS_KEY = 'tc.progress';
 export const PROGRESS_FORMAT = 'thrills-and-chills-progress';
@@ -206,6 +207,31 @@ export function recordScenarioWin(store: ProgressStore, run: ScenarioRun, result
     guests: result.guests,
     completedAt,
   });
+}
+
+/**
+ * Progress writes for a drained batch of sim events (the client calls it once per batch): a won `scenarioEnded`
+ * records the run's result, a finished tutorial (`tutorialStep` with `done`) sets `tutorialDone`. Progress is written
+ * only on these events, never from the state of a loaded save, so a win is recorded once (Phase 5 §4.4). Returns the
+ * number of writes.
+ */
+export function recordProgressEvents(
+  store: ProgressStore,
+  world: World,
+  events: readonly SimEvent[],
+  completedAt: string,
+  resultOf: (w: World) => ScenarioResult | null = scenarioResult,
+): number {
+  let writes = 0;
+  for (const ev of events) {
+    if (ev.type === 'scenarioEnded' && ev.status === 'won') {
+      const run = world.state.scenario.kind === 'scenario' ? world.state.scenario : null;
+      if (run && recordScenarioWin(store, run, resultOf(world), completedAt)) writes += 1;
+    } else if (ev.type === 'tutorialStep' && ev.done) {
+      if (store.markTutorialDone()) writes += 1;
+    }
+  }
+  return writes;
 }
 
 // ------------------------------------------------------------------ unlocks (Phase 5 §4.7)

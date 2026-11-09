@@ -5,8 +5,7 @@
  * `scenarioEnded` event (once: a save loaded after the win sends no event) and `tutorialDone` when step 16 finishes.
  * The title screen flow is `./flow.ts` plus `../title.ts`. Owner: W3-I. Registered in `../extensions.ts`.
  */
-import { recordScenarioWin } from '../../progress';
-import { scenarioResult } from '../../sim/scenario/api';
+import { recordProgressEvents } from '../../progress';
 import type { UiContext } from '../context';
 import type { UiExtension, UiPart } from '../extensions';
 import { h } from '../dom';
@@ -59,17 +58,16 @@ export const scenarioUi: UiExtension = {
 
   onEvents(ctx, events) {
     const p = parts(ctx);
-    const world = ctx.game.world;
+    if (events.some((e) => e.type === 'scenarioEnded' || (e.type === 'tutorialStep' && e.done))) {
+      recordProgressEvents(progressStore(), ctx.game.world, events, new Date().toISOString());
+    }
     for (const ev of events) {
       if (ev.type === 'award') {
         p.toasts.push(ev.id);
       } else if (ev.type === 'scenarioEnded') {
-        const run = world.state.scenario.kind === 'scenario' ? world.state.scenario : null;
-        if (run && ev.status === 'won') recordScenarioWin(progressStore(), run, scenarioResult(world), new Date().toISOString());
         ctx.game.setSpeed(0);
         titleFlow()?.showEndScreen(ev);
       } else if (ev.type === 'tutorialStep' && ev.done) {
-        progressStore().markTutorialDone();
         p.tutorial.finished();
       }
     }

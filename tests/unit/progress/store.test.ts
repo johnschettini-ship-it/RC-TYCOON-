@@ -12,13 +12,18 @@ import {
   parseProgress,
   PROGRESS_KEY,
   ProgressStore,
+  recordProgressEvents,
   recordScenarioWin,
   unlockWinsFor,
   winCount,
   type Progress,
   type ScenarioBest,
 } from '../../../src/progress';
-import type { KeyValueStore } from '../../../src/save';
+import { deserialize, serialize, type KeyValueStore } from '../../../src/save';
+import { drainEvents } from '../../../src/sim/events';
+import { createTutorialWorld } from '../../../src/sim/tutorial/start';
+import { executeCommand } from '../../../src/sim/commands';
+import { makeTestWorld } from '../../helpers/world';
 import type { ScenarioResult } from '../../../src/sim/scenario/api';
 import type { ScenarioRun } from '../../../src/sim/scenario/types';
 import { emptyAwards } from '../../../src/sim/awards/types';
@@ -258,5 +263,57 @@ describe('recording a win', () => {
     expect(recordScenarioWin(store, run({ status: 'lost' }), { ...result, status: 'lost', stars: 0 }, 'x')).toBe(false);
     expect(recordScenarioWin(store, run(), null, 'x')).toBe(false);
     expect(s.writes).toBe(0);
+  });
+});
+
+describe('progress from sim events: a win is recorded once (Phase 5 §4.4)', () => {
+  const result: ScenarioResult = { status: 'won', endReason: null, endMonthIndex: 7, guests: 300, rating: 620, parkValue: 4_000_000, totalProfit: 50_000, bestCoasterExcitement: 655, stars: 3 };
+
+  function wonWorld() {
+    const w = makeTestWorld();
+    w.state.scenario = {
+      kind: 'scenario', id: 'meadow_start', defVersion: 1, difficulty: 'standard', status: 'won', endReason: null, endMonthIndex: 7,
+      continued: false, progressRecorded: true, deadlineMonthIndex: 11, objectives: [], loseCounters: { bankruptMonths: 0, lowRatingDays: 0 }, awards: emptyAwards(),
+    };
+    w.events.push({ type: 'scenarioEnded', status: 'won', reason: null, monthIndex: 7 });
+    return w;
+  }
+
+  it('records on the scenarioEnded event, and a save loaded after the win records nothing', () => {
+    const s = new FakeStore();
+    const store = new ProgressStore(s);
+    const w = wonWorld();
+    expect(recordProgressEvents(store, w, drainEvents(w), 't1', () => result)).toBe(1);
+    // Save after the win, reload it, and play on: no event, no second record.
+    const loaded = deserialize(serialize(w, '0.1.0', '2027-01-01T00:00:00Z'));
+    if (!loaded.ok) throw new Error(loaded.error);
+    expect(loaded.world.state.scenario).toMatchObject({ kind: 'scenario', status: 'won' });
+    expect(recordProgressEvents(store, loaded.world, drainEvents(loaded.world), 't2', () => result)).toBe(0);
+    expect(s.writes).toBe(1);
+    const r = store.read();
+    expect(r.ok && r.progress.scenarios.meadow_start?.best.standard?.completedAt).toBe('t1');
+  });
+
+  it('a lost run and other events record nothing', () => {
+    const s = new FakeStore();
+    const store = new ProgressStore(s);
+    const w = makeTestWorld();
+    expect(recordProgressEvents(store, w, [{ type: 'scenarioEnded', status: 'lost', reason: 'timeUp', monthIndex: 11 }, { type: 'monthEnded', monthIndex: 11 }], 't', () => result)).toBe(0);
+    expect(s.writes).toBe(0);
+  });
+
+  it('finishing the tutorial sets tutorialDone; skipping it does not', () => {
+    const s = new FakeStore();
+    const store = new ProgressStore(s);
+    const skipped = createTutorialWorld(1, 'T');
+    executeCommand(skipped, { type: 'tutorialSkipAll' });
+    expect(recordProgressEvents(store, skipped, drainEvents(skipped), 't')).toBe(0);
+    const w = createTutorialWorld(1, 'T');
+    if (w.state.scenario.kind !== 'tutorial') throw new Error('tutorial expected');
+    w.state.scenario.stepIndex = 15;
+    executeCommand(w, { type: 'tutorialSkipStep' });
+    expect(recordProgressEvents(store, w, drainEvents(w), 't')).toBe(1);
+    const r = store.read();
+    expect(r.ok && r.progress.tutorialDone).toBe(true);
   });
 });
