@@ -59,6 +59,8 @@ interface Phase3Log {
   litterSwept: number;
   campaignTicks: number;
   commandFailures: string[];
+  /** `type:state` and `type:task` pairs seen on staff members during the game. */
+  staffWork: Set<string>;
 }
 
 function newLog(): Phase3Log {
@@ -72,6 +74,7 @@ function newLog(): Phase3Log {
     litterSwept: 0,
     campaignTicks: 0,
     commandFailures: [],
+    staffWork: new Set(),
   };
 }
 
@@ -113,6 +116,10 @@ function runSegment(world: World, park: Phase3Park, ticks: number, log: Phase3Lo
       if (after < litterBefore) log.litterSwept += litterBefore - after;
       log.weatherSeen.add(s.management.weather.current);
       if (s.management.campaigns.some((c) => c.type === 'poster_run')) log.campaignTicks++;
+      for (const m of s.staff.members) {
+        log.staffWork.add(`${m.type}:${m.state}`);
+        log.staffWork.add(`${m.type}:${m.task}`);
+      }
       if (isHourStart(s.tick - 1) && (s.park.rating < RATING_MIN || s.park.rating > RATING_MAX)) log.ratingOutOfRange.push(s.tick);
       for (const ride of s.rides) {
         const rec = open.get(ride.id);
@@ -178,6 +185,12 @@ describe(`Phase 3 integration game (seed ${PHASE3_SEED}, ${MONTHS} game months)`
 
   it('runs the script without a blocked command', () => {
     expect(log.commandFailures).toEqual([]);
+  });
+
+  it('every staff type does its work: sweep and empty bins, inspect and fix, patrol, perform', () => {
+    for (const work of ['groundskeeper:sweeping', 'groundskeeper:emptying', 'mechanic:inspecting', 'mechanic:fixing', 'security:roam', 'performer:performing']) {
+      expect(log.staffWork, work).toContain(work);
+    }
   });
 
   it('the Junior Coaster carries guests all game', () => {
