@@ -14,13 +14,13 @@ describe('device class (Phase 6 §4.6)', () => {
 
 describe('render plan (Phase 6 §4.6, §4.9 render quality)', () => {
   it('desktop: full ratio and 4 zoom slots at auto and high; low = 1× and 3 buckets', () => {
-    expect(renderPlan('auto', 'desktop', 2)).toMatchObject({ pixelRatio: 2, zoomBuckets: 4, guestLodZoom: 0.5, budgetBytes: 192 * 1024 * 1024 });
+    expect(renderPlan('auto', 'desktop', 2)).toMatchObject({ pixelRatio: 2, zoomBuckets: 4, guestLodZoom: 0.5, budgetBytes: 192 * 1024 * 1024, coarseRideFrames: false });
     expect(renderPlan('high', 'desktop', 3)).toMatchObject({ pixelRatio: 3, zoomBuckets: 4 });
-    expect(renderPlan('low', 'desktop', 2)).toMatchObject({ pixelRatio: 1, zoomBuckets: 3, guestLodZoom: 0.75 });
+    expect(renderPlan('low', 'desktop', 2)).toMatchObject({ pixelRatio: 1, zoomBuckets: 3, guestLodZoom: 0.75, coarseRideFrames: true });
   });
 
   it('phone: render scale capped at 2×, max 3 zoom buckets, 64 MB', () => {
-    expect(renderPlan('auto', 'phone', 2.625)).toMatchObject({ pixelRatio: 2, zoomBuckets: 3, budgetBytes: 64 * 1024 * 1024 });
+    expect(renderPlan('auto', 'phone', 2.625)).toMatchObject({ pixelRatio: 2, zoomBuckets: 3, budgetBytes: 64 * 1024 * 1024, coarseRideFrames: true });
     expect(renderPlan('high', 'phone', 1.5)).toMatchObject({ pixelRatio: 1.5, zoomBuckets: 3 });
     expect(renderPlan('low', 'phone', 2.625)).toMatchObject({ pixelRatio: 1, zoomBuckets: 3 });
     // An auto step down (see AutoScale) renders at 1×.

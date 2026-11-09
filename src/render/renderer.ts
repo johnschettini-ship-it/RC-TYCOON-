@@ -15,7 +15,7 @@ import { extent, footprintTiles, stallServiceTile } from '../sim/footprint';
 import { Content, Owned, type Dir, type MapState } from '../sim/map';
 import type { Guest } from '../sim/guests/types';
 import type { World } from '../sim/types';
-import { GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
+import { coarseRideFrame, GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
 import { clampCameraToMap, ZOOM_BUCKETS, zoomBucket, type ZoomBucket } from './camera';
 import { makeCanvas, type AnyCanvas } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
@@ -291,6 +291,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let mgmt: ManagementLayer;
   const columnsMemo = new Map<number, ColumnTile[]>();
   let rideSprites: Array<Sprite | null> = [];
+  /** Phase 6 §4.6: 64 MB devices animate rides with fewer frames (`render/anim.ts` `coarseRideFrame`). */
+  let coarseRides = false;
   let rideEy = new Int32Array(64);
   const corners: [number, number, number, number] = [0, 0, 0, 0];
 
@@ -451,7 +453,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const b = rideArtBounds(r.defId, w, d, vrot);
       rideEy[ri] = ev;
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
-      const fr = def ? rideFrameFor(r, def) : 0;
+      const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
       rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
@@ -906,6 +908,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     lodZoom = plan.guestLodZoom;
     terrain.allowExact = plan.zoomBuckets > ZOOM_BUCKETS.length;
     prefetchTurns = plan.device === 'desktop' && renderQuality() !== 'low';
+    coarseRides = plan.coarseRideFrames;
     spriteMemory.budgetBytes = plan.budgetBytes;
     // Phone-sized screens keep the smaller chunk cap as well (Phase 4 §4.10, §11).
     terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);

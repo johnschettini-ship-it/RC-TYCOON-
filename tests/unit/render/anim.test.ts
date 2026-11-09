@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANGLE_FRAMES, decodeRideFrame, encodeRideFrame, occupancyLevel, rideAnimation, rideFrameFor } from '../../../src/render/anim';
+import { ANGLE_FRAMES, coarseRideFrame, decodeRideFrame, encodeRideFrame, occupancyLevel, rideAnimation, rideFrameFor } from '../../../src/render/anim';
 import { CHUNK_SIZE, TerrainTracker, chunkCount } from '../../../src/render/terrainTracker';
 import { Content, generateMap, tileIndex } from '../../../src/sim/map';
 import { getFlatRideDef } from '../../../src/data/catalog';
@@ -104,5 +104,26 @@ describe('terrain chunk dirty flags', () => {
     for (let c = 0; c < 64; c++) t.clean(c);
     t.sync(generateMap({ width: 32, height: 32 }));
     expect(t.dirtyCount()).toBe(16);
+  });
+});
+
+describe('coarse ride frames (Phase 6 §4.6, 64 MB sprite budget)', () => {
+  it('16 angles and 3 occupancy levels; swing kept', () => {
+    const seen = new Set<number>();
+    for (let a = 0; a < ANGLE_FRAMES; a++) {
+      for (let o = 0; o <= 4; o++) {
+        const c = coarseRideFrame(encodeRideFrame(a, 3, o));
+        const f = decodeRideFrame(c);
+        expect(f.angle % 2).toBe(0);
+        expect(f.angle === a || f.angle === a - 1).toBe(true);
+        expect([0, 2, 4]).toContain(f.occupancy);
+        expect(f.swing).toBe(3);
+        seen.add(c);
+      }
+    }
+    expect(seen.size).toBe(16 * 3);
+    // Empty and full stay exact.
+    expect(decodeRideFrame(coarseRideFrame(encodeRideFrame(5, 0, 0))).occupancy).toBe(0);
+    expect(decodeRideFrame(coarseRideFrame(encodeRideFrame(5, 0, 4))).occupancy).toBe(4);
   });
 });

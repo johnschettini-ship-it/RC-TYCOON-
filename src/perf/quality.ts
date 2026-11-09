@@ -9,7 +9,8 @@
  *   images; phone with the render scale capped at 2× device pixels and the 3 zoom buckets only (no exact-scale
  *   images, Phase 6 §4.6 "max 3 zoom buckets").
  * - `low`: render scale 1× on every device, guests as rectangles from zoom 0.75 down, the 3 zoom buckets only.
- * - The sprite and chunk memory budget follows the device class (64 MB phone, 192 MB desktop) at every quality.
+ * - The sprite and chunk memory budget follows the device class (64 MB phone, 192 MB desktop) at every quality;
+ *   phones and `low` animate rides with half the angles and 3 occupancy levels, so a running ride's frames fit.
  */
 import { GUEST_LOD_ZOOM, PHONE_DEVICE_MEMORY_GB, PHONE_MAX_RENDER_SCALE, PHONE_MAX_ZOOM_BUCKETS } from '../data/tuning/perf';
 import type { RenderQuality } from '../settings/types';
@@ -55,6 +56,8 @@ export interface RenderPlan {
   guestLodZoom: number;
   /** Shared sprite and chunk memory budget (bytes). */
   budgetBytes: number;
+  /** Rides animate with 16 angles and 3 occupancy levels (`render/anim.ts` `coarseRideFrame`): 64 MB devices. */
+  coarseRideFrames: boolean;
 }
 
 /** `autoMaxRatio`: the `auto` step down of `AutoScale` (ignored at `high` and `low`). */
@@ -69,13 +72,14 @@ export function renderPlan(quality: RenderQuality, device: DeviceClass, dpr: num
     zoomBuckets: phone || low ? PHONE_MAX_ZOOM_BUCKETS : PHONE_MAX_ZOOM_BUCKETS + 1,
     guestLodZoom: low ? LOW_GUEST_LOD_ZOOM : GUEST_LOD_ZOOM,
     budgetBytes: spriteBudgetBytes(device),
+    coarseRideFrames: phone || low,
   };
 }
 
 /** Frames ignored after a start, a load, a resize, or a quality change (sprite and chunk warm-up). */
-export const AUTO_WARMUP_FRAMES = 180;
+export const AUTO_WARMUP_FRAMES = 120;
 /** Frames per evaluation window. */
-export const AUTO_WINDOW_FRAMES = 90;
+export const AUTO_WINDOW_FRAMES = 60;
 /** Step down when the window's frame p95 is over this many times the device budget. */
 export const AUTO_SLOW_FACTOR = 1.25;
 /** A longer gap between frames is a paused or hidden tab. */

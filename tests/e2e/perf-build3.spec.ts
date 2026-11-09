@@ -10,8 +10,9 @@ import { PERF_SCENES, type PerfSceneInfo } from '../perf/sceneInfo';
  * Always on: the overlay is hidden by default and shows with F3 and with the Performance overlay setting; the
  * three benchmark scenes (`tests/perf/`) load in the browser.
  *
- * `TC_PERF=1`: the perf run. Each scene is loaded from its save, warmed up for 2 s, then run for 30 s at 1× with the
- * real game loop (`TC_PERF_SECONDS` to change). The phone project runs the phone and Build 2 scenes with the CPU
+ * `TC_PERF=1`: the perf run. Each scene is loaded from its save, warmed up for 10 s at 1× (sprite caches fill, `auto`
+ * quality settles; `TC_PERF_WARMUP` seconds to change), then run for 30 s at 1× with the real game loop
+ * (`TC_PERF_SECONDS` to change). The phone project runs the phone and Build 2 scenes with the CPU
  * throttled 4×; the desktop project runs the Build 1 and Build 2 scenes. Reported per run: fps and frame time
  * p50 / p95 / max (requestAnimationFrame timestamps), tick time p50 / p95 and main-thread work p95 (`perfProbe`),
  * long tasks (PerformanceObserver), JS heap (CDP), draw calls, sprite cache MB, and the longest frame of a view
@@ -240,6 +241,7 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
 
   const seconds = Number(process.env.TC_PERF_SECONDS ?? 30);
   const runs = Number(process.env.TC_PERF_RUNS ?? 1);
+  const warmup = Number(process.env.TC_PERF_WARMUP ?? 10);
   /** Settings → Render quality for the run (`auto` by default). */
   const quality = process.env.TC_PERF_QUALITY ?? '';
 
@@ -247,7 +249,7 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
     test(`scene ${id}`, async ({ page }, info) => {
       const phone = info.project.name === 'phone';
       test.skip(phone ? id === 'build1' : id === 'phone', 'desktop runs build1 and build2; phone runs phone and build2');
-      test.setTimeout((seconds * 1000 + 30_000) * runs * 2 + 120_000);
+      test.setTimeout(((seconds + warmup) * 1000 + 30_000) * runs * 2 + 120_000);
       const scene = PERF_SCENES.find((s) => s.id === id) as PerfSceneInfo;
       const cdp = await page.context().newCDPSession(page);
       const at = (rot: number): Aim => ({ x: scene.focus.x, y: scene.focus.y, zoom: 1, rot });
@@ -255,7 +257,7 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
         await loadScene(page, scene);
         if (quality) await page.evaluate((q) => (window as unknown as { __tc: TcPerfGame }).__tc.settings?.set('renderQuality', q), quality);
         if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-        await runFor(page, 2_000, at(0));
+        await runFor(page, warmup * 1000, at(0));
         const main = await runFor(page, seconds * 1000);
         const heap = await heapMb(cdp);
         // View turns: the longest frame (and its main-thread work) of the first second after each.
