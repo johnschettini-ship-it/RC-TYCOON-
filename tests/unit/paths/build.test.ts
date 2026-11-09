@@ -222,6 +222,12 @@ describe('demolish with z (Phase 4 §6)', () => {
     // z = the ground path height removes the ground path.
     must(w, { type: 'demolish', x: 20, y: 20, z: 8 });
     expect(w.state.map.content[T(w, 20, 20)]).toBe(Content.Empty);
+    // With z, an empty ground never falls back to an elevated path; the park entrance keeps its Build 1 text.
+    must(w, { type: 'buildPath', x: 20, y: 20, kind: 'footpath', z: 12 });
+    expect(reason(w, { type: 'demolish', x: 20, y: 20, z: 8 })).toBe('Nothing to remove');
+    expect(w.state.elevatedPaths).toHaveLength(1);
+    const e = w.state.map.entranceTile;
+    expect(reason(w, { type: 'demolish', x: e % 64, y: Math.floor(e / 64), z: 8 })).toBe('You cannot remove the park entrance');
   });
 
   it('without z: the ground content first (Build 1), else the top elevated path', () => {

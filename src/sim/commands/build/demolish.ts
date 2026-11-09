@@ -112,8 +112,7 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
   if (cmd.z !== undefined) {
     const p = elevatedOn(world, i).find((e) => e.z === cmd.z);
     if (p) return demolishElevated(world, p, ctx);
-    const c = map.content[i];
-    if (cmd.z !== map.heights[i] || (c !== Content.Footpath && c !== Content.Queue)) return fail(BUILD_STRINGS.nothingToRemove);
+    if (cmd.z !== map.heights[i]) return fail(BUILD_STRINGS.nothingToRemove);
   }
   const c = map.content[i];
   if (c === Content.ParkEntrance) return fail(BUILD_STRINGS.cannotRemoveEntrance);
@@ -136,7 +135,7 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
     if (stall) return demolishStall(world, stall, ctx);
   }
   // Nothing on the ground: the top elevated path (the one the player sees) goes.
-  const above = elevatedOn(world, i);
+  const above = cmd.z === undefined ? elevatedOn(world, i) : [];
   if (above.length > 0) return demolishElevated(world, above[above.length - 1] as ElevatedPath, ctx);
   return fail(BUILD_STRINGS.nothingToRemove);
 }

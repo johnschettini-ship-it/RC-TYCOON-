@@ -197,11 +197,10 @@ function computeLinks(c: NetworkCache): void {
     if (!simple) {
       // Only a neighbour tile with elevated paths can hold another node to link to.
       const head = elevatedIndex(world).head;
-      const ns = [y > 0 ? i - w : -1, x < w - 1 ? i + 1 : -1, y < h - 1 ? i + w : -1, x > 0 ? i - 1 : -1];
-      for (let d = 0; d < 4; d++) {
-        const j = ns[d] as number;
-        if (adj[base + d] === -1 && j >= 0 && (head[j] as number) >= 0) adj[base + d] = linkedNode(world, i, d);
-      }
+      if (y > 0 && adj[base] === -1 && (head[i - w] as number) >= 0) adj[base] = linkedNode(world, i, 0);
+      if (x < w - 1 && adj[base + 1] === -1 && (head[i + 1] as number) >= 0) adj[base + 1] = linkedNode(world, i, 1);
+      if (y < h - 1 && adj[base + 2] === -1 && (head[i + w] as number) >= 0) adj[base + 2] = linkedNode(world, i, 2);
+      if (x > 0 && adj[base + 3] === -1 && (head[i - 1] as number) >= 0) adj[base + 3] = linkedNode(world, i, 3);
     }
   }
   for (let node = tiles; node < nodeCount; node++) {
@@ -355,8 +354,11 @@ export function staffField(c: NetworkCache, target: number): Uint16Array | null 
   if (Number.isInteger(target) && target >= 0 && target < c.tiles) {
     let seeds = 0;
     if (c.staffPass[target] === 1) c.work[seeds++] = target;
-    for (let node = c.tiles; node < c.nodeCount; node++) {
-      if (c.nodeTile[node] === target && c.staffPass[node] === 1) c.work[seeds++] = node;
+    if (c.nodeCount > c.tiles) {
+      const idx = elevatedIndex(c.world);
+      for (let k = idx.head[target] as number; k >= 0; k = idx.next[k] as number) {
+        if (c.staffPass[c.tiles + k] === 1) c.work[seeds++] = c.tiles + k;
+      }
     }
     if (seeds > 0) {
       f = takeBuffer(c);

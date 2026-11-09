@@ -115,7 +115,9 @@ function move(world: World, guest: Guest, gone: Set<number>): boolean {
   }
   // Build 2 walking factors (Calm, Buzz) through the guest hooks; 1 with no hooks. Ramps: Phase 4 §4.2.
   const hooks = guestHooks.walkSpeed.length === 0 ? 1 : hookFactor(guestHooks.walkSpeed, world, guest);
-  guest.progress += hooks * rampSpeedFactor(world, guest.tile, guest.z, guest.nextTile);
+  const slope = world.state.map.slope;
+  const flat = world.state.elevatedPaths.length === 0 && slope[guest.tile] === 0 && slope[guest.nextTile] === 0;
+  guest.progress += flat ? hooks : hooks * rampSpeedFactor(world, guest.tile, guest.z, guest.nextTile);
   if (guest.progress < GUEST_WALK_TICKS_PER_TILE) return false;
   if (!stepAllowed(world, guest, guest.nextTile)) {
     stopWalking(guest);
