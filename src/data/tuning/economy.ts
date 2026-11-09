@@ -36,18 +36,18 @@ export const RATING_MIN = 0;
 export const RATING_MAX = 1_000;
 /** Weights of the 7 sub-scores. They sum to 1,000. Phase 4 adds Atmosphere 100 and lowers Happiness to 300. */
 /**
- * Rating weights (sum 1,000). Phase 4 (master R8) moves 100 points from happiness to atmosphere: W3-E changes
- * `happiness` to 300 and `atmosphere` to 100 when the Calm and Buzz fields land.
+ * Rating weights (sum 1,000). Phase 4 (master R8) moves 100 points from happiness to atmosphere: happiness 300,
+ * atmosphere 100 (the Calm and Buzz fields, W3-E).
  */
 export const RATING_WEIGHTS: Readonly<Record<'happiness' | 'cleanliness' | 'reliability' | 'fairPrices' | 'variety' | 'lostGuests' | 'queues' | 'atmosphere', number>> = Object.freeze({
-  happiness: 400,
+  happiness: 300,
   cleanliness: 150,
   reliability: 100,
   fairPrices: 100,
   variety: 100,
   lostGuests: 75,
   queues: 75,
-  atmosphere: 0,
+  atmosphere: 100,
 });
 /** "With 0 guests, H, P, L use 0.5" (Phase 3 §4.13). */
 export const RATING_NO_GUESTS_SCORE = 0.5;

@@ -9,11 +9,19 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { TICKS_PER_DAY } from '../../src/data/tuning/core';
+import { ARRIVAL_RATING_DIVISOR, RATING_WEIGHTS } from '../../src/data/tuning/economy';
 import { validateState } from '../../src/save';
 import { stateHash } from '../helpers/world';
 import { PHASE1_BALANCE_SEEDS, PHASE1_MONTHS as MONTHS, PHASE1_SEED, mean, runPhase1Game, type Phase1Run } from './scenario';
 
 const STUCK_LIMIT = 2 * TICKS_PER_DAY;
+/**
+ * Phase 4 (master R8) moves `RATING_WEIGHTS.atmosphere` rating points from Happiness to Atmosphere, which needs Calm
+ * and Buzz (scenery). This Phase 1 park has none, so its rating can fall by up to that weight, and the arrival
+ * rating factor (rating / ARRIVAL_RATING_DIVISOR) with it. The other seeds keep the 300-arrival target less that
+ * share; the main seed still clears 300.
+ */
+const BALANCE_ARRIVALS_MIN = 300 * (1 - RATING_WEIGHTS.atmosphere / ARRIVAL_RATING_DIVISOR);
 /** A 3-month game takes about 1 s on a laptop; leave room for slow CI runners. */
 const LONG = 60_000;
 
@@ -75,9 +83,9 @@ describe(`Phase 1 integration game (seed ${PHASE1_SEED}, ${MONTHS} game months)`
 
 describe('Phase 1 balance holds on other seeds (tuning-log.md)', () => {
   for (const seed of PHASE1_BALANCE_SEEDS) {
-    it(`seed ${seed}: > 300 arrivals, leaver happiness ≥ 150, riders, sales, ledger, no stuck guests`, () => {
+    it(`seed ${seed}: > ${BALANCE_ARRIVALS_MIN} arrivals, leaver happiness ≥ 150, riders, sales, ledger, no stuck guests`, () => {
       const { world, stats, problems } = runPhase1Game(seed);
-      expect(stats.arrived).toBeGreaterThan(300);
+      expect(stats.arrived).toBeGreaterThan(BALANCE_ARRIVALS_MIN);
       expect(mean(stats.leaverHappiness)).toBeGreaterThanOrEqual(150);
       for (const r of world.state.rides) expect(r.totals.riders).toBeGreaterThan(0);
       for (const s of world.state.stalls) expect(s.totals.sales).toBeGreaterThan(0);
