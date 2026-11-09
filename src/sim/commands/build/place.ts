@@ -10,6 +10,8 @@ import { allocId } from '../../ids';
 import { Content, isOwned, type Dir } from '../../map';
 import { insertById, tileAt } from '../../map-ops';
 import { markNetworkDirty } from '../../pathing';
+import { firstElevatedOnTile } from '../../paths/nodes';
+import { TERRAIN_ERR } from '../../../data/strings/terrain';
 import { isUnlocked } from '../../research/api';
 import type { Ride } from '../../rides/types';
 import type { Stall } from '../../stalls/types';
@@ -23,12 +25,20 @@ function isDir(r: unknown): r is Dir {
   return r === 0 || r === 1 || r === 2 || r === 3;
 }
 
-/** Land, then obstacles. Null when every tile is owned and empty. */
+/**
+ * Land, then obstacles, then (Phase 4 §4.2) flat, dry land at one height under the whole footprint and no elevated
+ * path above it. Null when the site is fine.
+ */
 function checkSite(world: World, tiles: number[] | null): string | null {
   const map = world.state.map;
   if (!tiles) return BUILD_STRINGS.notOwned;
   for (const i of tiles) if (!isOwned(map, i)) return BUILD_STRINGS.notOwned;
   for (const i of tiles) if (map.content[i] !== Content.Empty) return BUILD_STRINGS.inTheWay;
+  const h = map.heights[tiles[0] as number];
+  for (const i of tiles) {
+    if (map.slope[i] !== 0 || map.heights[i] !== h || (map.water[i] as number) > (map.heights[i] as number)) return TERRAIN_ERR.landNotFlat;
+  }
+  for (const i of tiles) if (firstElevatedOnTile(world, i) >= 0) return TERRAIN_ERR.noClearance;
   return null;
 }
 

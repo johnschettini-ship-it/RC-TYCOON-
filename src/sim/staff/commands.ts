@@ -174,15 +174,20 @@ export const staffHandlers: HandlerMap<StaffCommand> = {
   buildPathItem(world, cmd, ctx): CommandResult {
     const def = pathItemDefById(cmd.itemType);
     if (!def || def.phase > PHASE) return fail(err.notUnlocked);
-    const tile = footpathTile(world, cmd.x, cmd.y);
-    if (tile < 0) return fail(err.needsFootpath);
+    // Phase 4 §4.2 (W3-B): `level` = the elevated footpath that holds the item; 0 or absent = the ground footpath.
+    const level = cmd.level ?? 0;
     const map = world.state.map;
+    const holder = level === 0 ? undefined : world.state.elevatedPaths.find((e) => e.id === level);
+    const onHolder = !!holder && holder.x === cmd.x && holder.y === cmd.y && holder.kind === 'footpath';
+    const tile = level === 0 ? footpathTile(world, cmd.x, cmd.y) : onHolder ? tileIndex(map, cmd.x, cmd.y) : -1;
+    if (tile < 0) return fail(err.needsFootpath);
     if (map.pathItem[tile] !== PathItem.None) return fail(err.tileHasItem);
     if (!canAfford(world, def.buildCost, ctx)) return fail(err.notEnoughCash);
     pay(world, def.buildCost, 'construction', ctx);
     map.pathItem[tile] = pathItemCode(def.id);
     map.pathItemFlags[tile] = 0;
     map.binFill[tile] = 0;
+    map.pathItemLevel[tile] = level;
     return ok(charged(def.buildCost, ctx));
   },
 
@@ -194,6 +199,7 @@ export const staffHandlers: HandlerMap<StaffCommand> = {
     map.pathItem[tile] = PathItem.None;
     map.pathItemFlags[tile] = 0;
     map.binFill[tile] = 0;
+    map.pathItemLevel[tile] = 0;
     return ok(0);
   },
 

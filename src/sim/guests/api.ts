@@ -30,7 +30,7 @@ import { guestHooks } from '../hooks';
 import type { Ride } from '../rides/types';
 import type { World } from '../types';
 import { changeNeed } from './needs';
-import { relocate, stepOffQueue, stopWalking, tileOk } from './movement';
+import { gateZ, relocate, stepOffQueue, stopWalking, tileOk } from './movement';
 import { rideTag } from './scoring';
 import { byId, findRide, findStall, parseDest, replan, rideAcceptsGuests, rideDest, setState } from './state';
 import { minIntensity, nauseaGainMultiplier, tagFit } from './temperament';
@@ -108,6 +108,7 @@ export function finishRide(world: World, guest: Guest, ride: Ride): void {
   for (const hook of guestHooks.afterRide) hook(world, guest, ride);
 
   guest.tile = exitTile(ride, guest.tile);
+  guest.z = gateZ(world, ride, guest.tile, guest.z);
   stopWalking(guest);
   guest.seat = null;
   guest.activityId = -1;
