@@ -5,9 +5,36 @@
  * frame, ≤ 400 visible light sprites. Owner: W3-F.
  */
 import type { WorldLayer } from '../layers';
+import { LightOverlay } from './overlay';
+import { LightPass, type LightPassStats } from './pass';
+import { defaultCanvasFactory, type CanvasFactory } from './sprites';
 
 export { ambientColour, darknessAt } from './darkness';
+export type { LightPassStats };
 
-export function createLightingLayer(): WorldLayer {
-  return { name: 'lighting', kinds: [] };
+export interface LightingLayerOptions {
+  /** Canvas factory for the light canvas and sprites (tests inject a fake; default: DOM or offscreen canvas). */
+  createCanvas?: CanvasFactory;
+}
+
+export interface LightingLayer extends WorldLayer {
+  /** Counters of the last light pass (sprites, bulbs, redraw, time). */
+  stats(): LightPassStats;
+}
+
+export function createLightingLayer(opts: LightingLayerOptions = {}): LightingLayer {
+  const make = opts.createCanvas ?? defaultCanvasFactory;
+  const pass = new LightPass(make);
+  const overlay = new LightOverlay(make);
+  return {
+    name: 'lighting',
+    kinds: [],
+    drawGround(ctx, world, tool, f) {
+      if (tool.overlay === 'light') overlay.draw(ctx, world, f);
+    },
+    drawAfterObjects(ctx, world, _tool, f) {
+      pass.draw(ctx, world, f);
+    },
+    stats: () => pass.stats,
+  };
 }
