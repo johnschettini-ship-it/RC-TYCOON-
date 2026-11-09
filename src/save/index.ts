@@ -139,7 +139,10 @@ export function exportFileName(parkName: string): string {
   return `${safe === '' ? 'park' : safe}.tcsave.json`;
 }
 
-/** Browser only: download the save as a `.tcsave.json` file. */
+/**
+ * Browser only: download the save as a `.tcsave.json` file.
+ * Not validated first, so the player can always get the data out (for example after an unexpected error).
+ */
 export function exportFile(world: World): void {
   const json = serialize(world, GAME_VERSION, new Date().toISOString());
   const blob = new Blob([json], { type: 'application/json' });

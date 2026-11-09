@@ -57,6 +57,7 @@ describe('rejects each corruption class (Review Focus 3)', () => {
     ['non-integer nextId', () => corrupt(json, (r) => (r.state.nextId = null)), damaged('bad value at nextId')],
     ['non-integer rng', () => corrupt(json, (r) => (r.state.rng = 0.25)), damaged('bad value at rng')],
     ['unknown field', () => corrupt(json, (r) => (r.state.park.cheat = true)), damaged('unknown field park.cheat')],
+    ['__proto__ key', () => json.replace('"name":"Frosty Peaks"', '"__proto__":{"open":true},"name":"Frosty Peaks"'), damaged('unknown field park.__proto__')],
     ['unknown enum value', () => corrupt(json, (r) => (r.state.guests[0].state = 'flying')), damaged('bad value at guests[0].state')],
     ['bad guest target', () => corrupt(json, (r) => (r.state.guests[0].target = 'moon')), damaged('bad value at guests[0].target')],
     ['missing ledger category', () => corrupt(json, (r) => delete r.state.economy.ledger[0].lines.wages), damaged('missing field economy.ledger[0].lines.wages')],

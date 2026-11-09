@@ -5,7 +5,7 @@
  * Each validator carries its value type, and `obj<T>` needs a validator for every key of T, so adding or
  * changing a field in a state type without updating this file is a compile error.
  */
-import { Content, type MapState } from '../sim/map';
+import { Content, type Dir, type MapState } from '../sim/map';
 import type { GameState } from '../sim/types';
 import type { Modifiers, ParkState } from '../sim/park/types';
 import type { DestKey, Guest, GuestItems, GuestStateName, Needs, Thought } from '../sim/guests/types';
@@ -202,7 +202,7 @@ export function layer<K extends TypedArrayKind>(kind: K): V<KindToArray[K]> {
 
 // ---- Enumerations (each list must name every member) ----
 
-const DIRS = every<0 | 1 | 2 | 3>()([0, 1, 2, 3]);
+const DIRS = every<Dir>()([0, 1, 2, 3]);
 const RIDE_STATUSES = every<RideStatus>()(['building', 'testing', 'closed', 'open', 'broken', 'inspecting', 'stormHold']);
 const CYCLE_PHASES = every<FlatCyclePhase>()(['waiting', 'loading', 'running', 'unloading']);
 const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing', 'riding', 'buying', 'sitting', 'leaving']);
