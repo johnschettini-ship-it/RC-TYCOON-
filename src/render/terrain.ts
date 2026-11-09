@@ -397,6 +397,17 @@ export function chunkBounds(map: MapState, cx: number, cy: number, r: ViewRotati
 const CHUNK_PAD = 2;
 /** Chunks built per frame when an image at another bucket can stand in. */
 const MAX_REFINES_PER_FRAME = 1;
+/**
+ * Exact-scale chunk images: once the device scale (zoom × pixel ratio) has stayed the same for this many frames
+ * and is not a bucket scale, visible chunks are rebuilt at that exact scale, one per frame, so they draw as 1:1
+ * copies instead of filtered scaled draws (a software-rastered canvas pays about 5× for a filtered draw; measured
+ * on the 128 × 128 park at zoom 0.75). Up to scale 2: larger images would cost more memory than they save.
+ */
+export const EXACT_SETTLE_FRAMES = 8;
+const MAX_EXACT_BUILDS_PER_FRAME = 1;
+const MAX_EXACT_SCALE = 2;
+/** Cache slot of the exact-scale image (bucket slots are 0–2). */
+const EXACT_SLOT = 3;
 /** Image cache keys per chunk: 4 rotations × 4 bucket slots. */
 const KEYS_PER_CHUNK = 16;
 
@@ -492,10 +503,14 @@ export class TerrainLayer {
     this.order = Int32Array.from(order);
   }
 
-  private build(map: MapState, chunk: number, bucket: ZoomBucket, env: TerrainEnv, r: ViewRotation): Sprite {
+  /** Device scale of the last frame and how many frames in a row it stayed the same. */
+  private lastScale = 0;
+  private stableFrames = 0;
+
+  /** Build the image of `chunk` at `scale` image px per world px (a zoom bucket, or an exact device scale). */
+  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation): Sprite {
     this.builds++;
     const g = this.bounds[chunk] as ChunkGeom;
-    const scale = bucket;
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
     const { canvas, ctx } = makeCanvas(w, h);
@@ -533,6 +548,13 @@ export class TerrainLayer {
     this.images.beginFrame();
     this.builds = 0;
     const bi = bucketIndex(bucket);
+    if (scale === this.lastScale) this.stableFrames++;
+    else {
+      this.lastScale = scale;
+      this.stableFrames = 0;
+    }
+    const exact = this.stableFrames >= EXACT_SETTLE_FRAMES && scale !== bucket && scale <= MAX_EXACT_SCALE;
+    let exactBuilds = 0;
     let refines = 0;
     let drawn = 0;
     const n = this.order.length;
@@ -541,15 +563,25 @@ export class TerrainLayer {
       const g = this.bounds[c] as ChunkGeom;
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
       const base = c * KEYS_PER_CHUNK + r * 4;
-      let sp = this.images.get(base + bi);
+      let sp: Sprite | undefined;
+      // An exact-scale image of this very scale draws 1:1.
+      if (exact && this.images.peekSprite(base + EXACT_SLOT)?.scale === scale) sp = this.images.get(base + EXACT_SLOT);
       if (!sp) {
-        const alt = this.images.get(base + (bi === 1 ? 0 : 1)) ?? this.images.get(base + (bi === 2 ? 0 : 2));
-        if (alt && refines >= MAX_REFINES_PER_FRAME) {
-          sp = alt;
-        } else {
-          sp = this.build(map, c, bucket, env, r);
-          this.images.set(base + bi, sp);
-          if (alt) refines++;
+        const own = this.images.get(base + bi);
+        if (own && !exact) sp = own;
+        else {
+          // Anything that can stand in while the wanted image waits for its turn to be built.
+          const standIn = own ?? this.images.get(base + (bi === 1 ? 0 : 1)) ?? this.images.get(base + (bi === 2 ? 0 : 2));
+          const budgetLeft = exact ? exactBuilds < MAX_EXACT_BUILDS_PER_FRAME : refines < MAX_REFINES_PER_FRAME;
+          if (standIn && !budgetLeft) sp = standIn;
+          else {
+            sp = this.build(map, c, exact ? scale : bucket, env, r);
+            this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+            if (standIn) {
+              if (exact) exactBuilds++;
+              else refines++;
+            }
+          }
         }
       }
       const f = scale / sp.scale;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHUNK_CACHE_MB, chunkBounds, chunkViewRect, grassShade, TerrainLayer } from '../../../src/render/terrain';
+import { CHUNK_CACHE_MB, chunkBounds, chunkViewRect, EXACT_SETTLE_FRAMES, grassShade, TerrainLayer } from '../../../src/render/terrain';
 import { generateMap, tileIndex } from '../../../src/sim/map';
 import { GROUND_LEVEL } from '../../../src/data/tuning/core';
 import { mapToView, viewSize } from '../../../src/render/view';
@@ -112,5 +112,46 @@ describe('terrain chunks under view rotation (Phase 4 §4.8, §4.10)', () => {
     layer.sync(map);
     for (const r of [0, 1, 2, 3] as const) expect(layer.hasImage(0, r, 1)).toBe(false);
     expect(layer.hasImage(5, 2, 1)).toBe(true);
+  });
+
+  it('once the zoom settles between buckets, chunks are rebuilt at the exact scale one per frame and drawn 1:1', () => {
+    install();
+    const map = generateMap({ width: 48, height: 32 });
+    const layer = new TerrainLayer();
+    const env = { seed: 1, rides: [], stalls: [] };
+    const view = { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 };
+    const canvas = make(100, 100);
+    const ctx = canvas.getContext() as CanvasRenderingContext2D;
+    layer.sync(map);
+    const frame = (): void => {
+      canvas.reset();
+      layer.draw(ctx, map, env, view, 1, 0.75, 10.3, 20.7, 0);
+    };
+    // The first frames use bucket-1 images, drawn scaled.
+    frame();
+    expect(layer.builds).toBe(6);
+    for (let k = 1; k < EXACT_SETTLE_FRAMES; k++) {
+      frame();
+      expect(layer.builds).toBe(0);
+    }
+    const scaled = canvas.draws.filter((d) => d.w !== d.image.width).length;
+    expect(scaled).toBe(6);
+    // Then one exact-scale image per frame, until every chunk draws 1:1.
+    for (let k = 0; k < 6; k++) {
+      frame();
+      expect(layer.builds).toBe(1);
+    }
+    frame();
+    expect(layer.builds).toBe(0);
+    expect(canvas.draws.length).toBe(6);
+    for (const d of canvas.draws) {
+      expect(d.w).toBe(d.image.width);
+      expect(d.h).toBe(d.image.height);
+    }
+    // A zoom change goes back to the bucket images at once (no builds).
+    canvas.reset();
+    layer.draw(ctx, map, env, view, 1, 0.8, 0, 0, 0);
+    expect(layer.builds).toBe(0);
+    expect(canvas.draws.length).toBe(6);
   });
 });
