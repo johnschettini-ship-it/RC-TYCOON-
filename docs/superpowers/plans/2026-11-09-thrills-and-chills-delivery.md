@@ -40,7 +40,7 @@
 |---|---|---|---|
 | 0 | Scaffold, CI, contracts, catalog data, test helpers, boot to an empty map | 1 (integrator) | `npm run typecheck && npm test && npm run build` green; contracts committed |
 | 1 | Build 1 core: Phases 0–1 complete, Phase 2 and 3 simulation cores | 9 | Each card's tests green in its worktree; merged branch green |
-| 2 | Build 1 integration: track builder UI/render/operation, management UI/render, research-unlocked content, e2e and benchmarks | 5 | Full suite + smoke tests green; Build 1 "done when" lists checked |
+| 2 | Build 1 integration: track builder UI/render, management UI/render, research-unlocked content, e2e and benchmarks | 4 | Full suite + smoke tests green; Build 1 "done when" lists checked |
 | 3 | Build 2: Phases 4–5 | up to 9 | Same, plus save migration 1 → 2 |
 | 4 | Build 3: Phase 6 | up to 7 | Same, plus migration 2 → 3 and release checklist |
 
@@ -129,6 +129,13 @@ function advance(accMs: number, elapsedMs: number, speed: 0|1|2|4): { ticks: num
 
 **Wave 0 gate:** typecheck, tests, build green. Push. Then start Wave 1.
 
+### Wave 0 result (as built, commit `ee5571d`)
+Contract files (integrator only): `src/sim/{types,map,footprint,units,rng,time,ids,events,hooks,tick,world}.ts`, `src/sim/economy/{ledger,types}.ts`, `src/sim/commands/{types,index}.ts`, Phase 1 slice types (`guests/types.ts`, `rides/types.ts`, `stalls/types.ts`, `park/types.ts`), `src/render/types.ts`, `src/game.ts`, `src/loop.ts`, `src/main.ts`, `src/data/catalog/*`, `src/data/tuning/core.ts`, `src/data/strings/en.ts`, `tests/helpers/world.ts`.
+Coordination APIs added in Wave 0 (stubs owned by the named card): `guests/api.ts` (`boardRide`, `finishRide`, `leaveQueue`, `forgetDestination`) W1-D; `rides/flat/api.ts` (`stopRide`) W1-E; `stalls/api.ts` (`sellItem`) W1-E; `park/arrivals.ts` (`arrivalsPerHour`) W1-E; `breakdowns/api.ts` (`onRideDispatch`, `reliabilityScore`) W1-H; `litter/metrics.ts` (`cleanliness`) W1-H; `rides/track/api.ts` (`canOpenTrackRide`, `demolishTrackRide`) W1-G; `weather/update.ts` (`weatherArrivalFactor`) W1-I; `marketing/update.ts` (`campaignArrivalFactor`) W1-I; `research/api.ts` (`isUnlocked`) W1-I; `notifications/index.ts` (`notify`) W1-I; `save/index.ts` W1-F.
+Slice types owned by their cards (may be extended): `rides/track/types.ts` W1-G, `staff/types.ts` W1-H, `management/types.ts` W1-I.
+Guest hooks (`src/sim/hooks.ts`): `litterHooks` W1-H, `weatherHooks` W1-I, `facilityHooks` W2-C.
+Scope change: W1-G also implements track-ride guest boarding (former W2-B). Wave 2 has 4 cards.
+
 ---
 
 ## Wave 1 — Build 1 core (9 agents in parallel)
@@ -206,15 +213,14 @@ Every card: read the master spec, the catalog, the listed spec sections, and the
 
 ---
 
-## Wave 2 — Build 1 integration (5 agents in parallel)
+## Wave 2 — Build 1 integration (4 agents in parallel)
 
 | Card | Owns | Spec | Deliverable |
 |---|---|---|---|
-| W2-A Track builder UI + track rendering | `src/ui/track/**`, `src/input/track/**`, `src/render/track/**` | Phase 2 §7, rendering section | Build, test, and open a coaster on desktop and touch. |
-| W2-B Track ride operation | `src/sim/rides/track/ops/**` | Phase 2 guest behaviour section | Guests queue, board, ride, and rate track rides. |
-| W2-C Management UI + render | `src/ui/management/**`, `src/render/management/**` | Phase 3 UI section | Staff, research, marketing, loans, weather, notifications, patrol painting, litter/staff sprites. |
-| W2-D Research-unlocked content | `src/sim/rides/flat/content/**`, `src/render/sprites/content/**` | Catalog §1–3 Phase 3 rows; Phase 3 facility behaviour | All 10 new flat rides, 4 new track types, 8 new stalls work and draw. |
-| W2-E E2E, benchmarks, integration games | `tests/e2e/**`, `tests/integration/**`, `tests/bench/**` | Each phase §9 | All Build 1 smoke tests and scripted games; budgets measured. |
+| W2-A Track builder UI + track rendering | `src/ui/track/**`, `src/input/track/**`, `src/render/track/**` | Phase 2 §7, §4.13 | Build, test, and open a coaster on desktop and touch. |
+| W2-B Management UI + render | `src/ui/management/**`, `src/render/management/**` | Phase 3 §7 | Staff, research, marketing, loans, weather, notifications, patrol painting, litter/staff/path-item sprites. |
+| W2-C Research-unlocked content | `src/sim/facilities/**`, `src/render/sprites/content/**` | Catalog §1–3 Phase 3 rows; Phase 3 §4.10–4.11 | All 10 new flat rides, 4 new track types, 8 new stalls work and draw. |
+| W2-D E2E, benchmarks, integration games | `tests/e2e/**`, `tests/integration/**`, `tests/bench/**` | Each phase §9 | All Build 1 smoke tests and scripted games; budgets measured. |
 
 **Wave 2 gate:** every Build 1 "done when" list checked; full suite green; README updated; Build 1 is ready to merge to `main` (owner decision).
 
