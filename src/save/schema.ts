@@ -1,0 +1,448 @@
+/**
+ * Structural check of a loaded GameState: every field present with the right type, no unknown fields,
+ * map layers of the right kind and size, tile indices inside the map.
+ *
+ * Each validator carries its value type, and `obj<T>` needs a validator for every key of T, so adding or
+ * changing a field in a state type without updating this file is a compile error.
+ */
+import { Content, type MapState } from '../sim/map';
+import type { GameState } from '../sim/types';
+import type { Modifiers, ParkState } from '../sim/park/types';
+import type { DestKey, Guest, GuestItems, GuestStateName, Needs, Thought } from '../sim/guests/types';
+import type { FlatCyclePhase, Gate, Ride, RideStats, RideStatus } from '../sim/rides/types';
+import type { Stall } from '../sim/stalls/types';
+import { LEDGER_CATEGORIES, type EconomyState, type LedgerMonth } from '../sim/economy/types';
+import type { TrackPieceInstance, TrackRideData, TrackSlice, TrainState } from '../sim/rides/track/types';
+import type { Staff, StaffSlice, StaffStateName } from '../sim/staff/types';
+import type { ManagementSlice, Message, MessageCategory, ResearchLevel } from '../sim/management/types';
+import type { Costume, ResearchCategory, StaffType, WeatherKey } from '../data/catalog/types';
+import { childPath, typedArrayKind, type TypedArrayKind } from './typedArrays';
+
+export interface Ctx {
+  /** Tiles on the map (width × height), known once the map passed its check. */
+  tiles: number;
+}
+
+/** Returns null when the value is fine, else a short reason. The phantom keeps validators typed (invariant in T). */
+export interface V<T> {
+  (value: unknown, path: string, ctx: Ctx): string | null;
+  readonly __type?: (t: T) => T;
+}
+
+type Shape<T> = { [K in keyof Required<T>]: V<T[K]> };
+
+export const missingField = (path: string): string => `missing field ${path}`;
+export const badValue = (path: string): string => `bad value at ${path}`;
+export const unknownField = (path: string): string => `unknown field ${path}`;
+export const wrongKind = (path: string): string => `wrong data type at ${path}`;
+export const wrongSize = (path: string): string => `wrong size at ${path}`;
+
+const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+export function isRecord(v: unknown): v is Record<string, unknown> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v) || ArrayBuffer.isView(v)) return false;
+  const proto = Object.getPrototypeOf(v) as unknown;
+  return proto === Object.prototype || proto === null;
+}
+
+function check<T>(fn: (value: unknown, path: string, ctx: Ctx) => string | null): V<T> {
+  return fn as V<T>;
+}
+
+// ---- Primitives ----
+
+export const str: V<string> = check((v, p) => (typeof v === 'string' ? null : badValue(p)));
+export const bool: V<boolean> = check((v, p) => (typeof v === 'boolean' ? null : badValue(p)));
+/** Any finite number. */
+export const num: V<number> = check((v, p) => (typeof v === 'number' && Number.isFinite(v) ? null : badValue(p)));
+/** A safe integer (ids, ticks, counts, money in cents). */
+export const int: V<number> = check((v, p) => (typeof v === 'number' && Number.isSafeInteger(v) ? null : badValue(p)));
+/** A tile index on the map, or −1 for none. */
+export const tileOrNone: V<number> = check((v, p, ctx) =>
+  typeof v === 'number' && Number.isInteger(v) && v >= -1 && v < ctx.tiles ? null : badValue(p),
+);
+/** A tile index on the map. */
+export const tile: V<number> = check((v, p, ctx) =>
+  typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < ctx.tiles ? null : badValue(p),
+);
+
+export function literal<const T extends string | number>(value: T): V<T> {
+  return check((v, p) => (v === value ? null : badValue(p)));
+}
+
+export function oneOf<const T extends string | number>(values: readonly T[]): V<T> {
+  const set = new Set<unknown>(values);
+  return check((v, p) => (set.has(v) ? null : badValue(p)));
+}
+
+/**
+ * A runtime list that must name every member of the union U. A missing member is a compile error.
+ * Usage: `every<RideStatus>()(['building', …])`.
+ */
+export function every<U extends string | number>() {
+  return <const L extends readonly U[]>(list: L & ([Exclude<U, L[number]>] extends [never] ? unknown : { missing: Exclude<U, L[number]> })): L => list;
+}
+
+// ---- Combinators ----
+
+export function nullable<T>(inner: V<T>): V<T | null> {
+  return check((v, p, ctx) => (v === null ? null : inner(v, p, ctx)));
+}
+
+/** For optional properties (`key?: T`): the key may be absent. */
+export function optional<T>(inner: V<T>): V<T | undefined> {
+  return check((v, p, ctx) => (v === undefined ? null : inner(v, p, ctx)));
+}
+
+export function arr<T>(item: V<T>): V<T[]> {
+  return check((v, p, ctx) => {
+    if (!Array.isArray(v)) return badValue(p);
+    for (let i = 0; i < v.length; i++) {
+      const e = item(v[i], childPath(p, i), ctx);
+      if (e) return e;
+    }
+    return null;
+  });
+}
+
+/** A plain object with any keys and values of one type. */
+export function record<T>(value: V<T>): V<Record<string, T>> {
+  return check((v, p, ctx) => {
+    if (!isRecord(v)) return badValue(p);
+    for (const k of Object.keys(v)) {
+      const e = value(v[k], childPath(p, k), ctx);
+      if (e) return e;
+    }
+    return null;
+  });
+}
+
+/** A plain object with exactly the listed keys. */
+export function exactRecord<K extends string, T>(keys: readonly K[], value: V<T>): V<Record<K, T>> {
+  const allowed = new Set<string>(keys);
+  return check((v, p, ctx) => {
+    if (!isRecord(v)) return badValue(p);
+    for (const k of keys) {
+      if (!hasOwn(v, k)) return missingField(childPath(p, k));
+      const e = value(v[k], childPath(p, k), ctx);
+      if (e) return e;
+    }
+    for (const k of Object.keys(v)) if (!allowed.has(k)) return unknownField(childPath(p, k));
+    return null;
+  });
+}
+
+/** An object with exactly the fields of T. Optional fields (validated by `optional`) may be absent. */
+export function obj<T>(shape: Shape<T>): V<T> {
+  const keys = Object.keys(shape);
+  const fields = shape as unknown as Record<string, V<unknown>>;
+  const allowed = new Set(keys);
+  return check((v, p, ctx) => {
+    if (!isRecord(v)) return badValue(p);
+    for (const k of keys) {
+      const present = hasOwn(v, k);
+      const e = (fields[k] as V<unknown>)(present ? v[k] : undefined, childPath(p, k), ctx);
+      if (e) return present ? e : missingField(childPath(p, k));
+    }
+    for (const k of Object.keys(v)) if (!allowed.has(k)) return unknownField(childPath(p, k));
+    return null;
+  });
+}
+
+type KindToArray = {
+  Int8Array: Int8Array;
+  Uint8Array: Uint8Array;
+  Uint8ClampedArray: Uint8ClampedArray;
+  Int16Array: Int16Array;
+  Uint16Array: Uint16Array;
+  Int32Array: Int32Array;
+  Uint32Array: Uint32Array;
+  Float32Array: Float32Array;
+  Float64Array: Float64Array;
+};
+
+/** A typed array of one kind, any length. */
+export function typed<K extends TypedArrayKind>(kind: K): V<KindToArray[K]> {
+  return check((v, p) => (typedArrayKind(v) === kind ? null : wrongKind(p)));
+}
+
+/** A map layer: a typed array of one kind with one entry per tile. */
+export function layer<K extends TypedArrayKind>(kind: K): V<KindToArray[K]> {
+  return check((v, p, ctx) => {
+    if (typedArrayKind(v) !== kind) return wrongKind(p);
+    return (v as KindToArray[K]).length === ctx.tiles ? null : wrongSize(p);
+  });
+}
+
+// ---- Enumerations (each list must name every member) ----
+
+const DIRS = every<0 | 1 | 2 | 3>()([0, 1, 2, 3]);
+const RIDE_STATUSES = every<RideStatus>()(['building', 'testing', 'closed', 'open', 'broken', 'inspecting', 'stormHold']);
+const CYCLE_PHASES = every<FlatCyclePhase>()(['waiting', 'loading', 'running', 'unloading']);
+const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing', 'riding', 'buying', 'sitting', 'leaving']);
+const TRAIN_STATES = every<TrainState['state']>()(['loading', 'running', 'held', 'unloading', 'waiting']);
+const STAFF_TYPES = every<StaffType>()(['groundskeeper', 'mechanic', 'security', 'performer']);
+const STAFF_STATES = every<StaffStateName>()(['walking', 'sweeping', 'cleaning', 'emptying', 'inspecting', 'fixing', 'performing']);
+const COSTUMES = every<Costume>()(['frost', 'spark', 'boo']);
+const RESEARCH_LEVELS = every<ResearchLevel>()(['none', 'low', 'medium', 'high']);
+const RESEARCH_CATEGORIES = every<ResearchCategory>()(['gentle', 'thrill', 'coasters', 'shops', 'water', 'scenery']);
+const MESSAGE_CATEGORIES = every<MessageCategory>()(['breakdown', 'research', 'weather', 'finance', 'staff', 'marketing', 'park']);
+const WEATHER_KEYS = every<WeatherKey>()(['sunny', 'cloudy', 'rain', 'storm', 'hot', 'cold']);
+
+const dir = oneOf(DIRS);
+const rideStatus = oneOf(RIDE_STATUSES);
+const weather = oneOf(WEATHER_KEYS);
+
+const DEST_RE = /^(?:(?:ride|stall):(?:0|[1-9]\d*)|exit)$/;
+const destKey: V<DestKey> = check((v, p) => (typeof v === 'string' && DEST_RE.test(v) ? null : badValue(p)));
+
+const params = optional(record<string | number>(check((v, p) => (typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)) ? null : badValue(p)))));
+
+// ---- Map ----
+
+/** Largest map the loader accepts (tiles). Far above any planned map (256 × 256 in Phase 4). */
+export const MAX_TILES = 4096 * 4096;
+const CONTENT_CODES = new Set<number>(Object.values(Content));
+
+const mapShape = obj<MapState>({
+  width: int,
+  height: int,
+  terrain: layer('Uint8Array'),
+  heights: layer('Uint8Array'),
+  slope: layer('Uint8Array'),
+  water: layer('Uint8Array'),
+  content: layer('Uint8Array'),
+  contentRef: layer('Int32Array'),
+  owned: layer('Uint8Array'),
+  pathItem: layer('Uint8Array'),
+  pathItemFlags: layer('Uint8Array'),
+  binFill: layer('Uint8Array'),
+  litter: layer('Uint8Array'),
+  mess: layer('Uint8Array'),
+  entranceTile: tile,
+});
+
+/** Checks the map and sets `ctx.tiles`. Must run before anything that holds tile indices. */
+export const mapCheck: V<MapState> = check((v, p, ctx) => {
+  if (!isRecord(v)) return badValue(p);
+  for (const k of ['width', 'height']) if (!hasOwn(v, k)) return missingField(childPath(p, k));
+  const w = v.width;
+  const h = v.height;
+  if (typeof w !== 'number' || typeof h !== 'number' || !Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1 || w * h > MAX_TILES) {
+    return 'bad map size';
+  }
+  ctx.tiles = w * h;
+  const e = mapShape(v, p, ctx);
+  if (e) return e;
+  const map = v as unknown as MapState;
+  for (let i = 0; i < ctx.tiles; i++) {
+    if (!CONTENT_CODES.has(map.content[i] as number)) return badValue(`${childPath(p, 'content')}[${i}]`);
+    if ((map.contentRef[i] as number) < -1) return badValue(`${childPath(p, 'contentRef')}[${i}]`);
+  }
+  return null;
+});
+
+// ---- Slices ----
+
+const parkShape = obj<ParkState>({
+  name: str,
+  cash: int,
+  entranceFee: int,
+  open: bool,
+  rating: num,
+  turnedAway: int,
+  recentLeavers: arr(num),
+  arrivalCarry: num,
+  guestsArrivedTotal: int,
+});
+
+const modifiersShape = obj<Modifiers>({
+  arrivals: num,
+  priceTolerance: num,
+  happinessDecay: num,
+  researchSpeed: num,
+  breakdownChance: num,
+  loanInterest: num,
+  ratingBonus: num,
+});
+
+const gate = obj<Gate>({ gate: tile, outside: tileOrNone });
+
+const rideShape = obj<Ride>({
+  id: int,
+  kind: oneOf(['flat', 'track'] as const),
+  defId: str,
+  name: str,
+  x: int,
+  y: int,
+  rotation: dir,
+  status: rideStatus,
+  price: int,
+  entrance: nullable(gate),
+  exit: nullable(gate),
+  stats: nullable(obj<RideStats>({ excitement: num, intensity: num, nausea: num })),
+  queue: arr(int),
+  riders: arr(int),
+  cycle: obj<Ride['cycle']>({ phase: oneOf(CYCLE_PHASES), ticks: int }),
+  totals: obj<Ride['totals']>({ riders: int, income: int, ridersThisMonth: int, incomeThisMonth: int }),
+  builtTick: int,
+  hoursThisMonth: int,
+  reliability: num,
+  lastInspectionTick: int,
+  inspectionIntervalTicks: int,
+  breakdownType: nullable(str),
+  statusBeforeBreakdown: nullable(rideStatus),
+  breakdownsThisMonth: int,
+  lastBreakdownTick: int,
+  assignedMechanicId: nullable(int),
+  totalBuildCost: int,
+});
+
+const stallShape = obj<Stall>({
+  id: int,
+  defId: str,
+  name: str,
+  x: int,
+  y: int,
+  rotation: dir,
+  serviceTile: tileOrNone,
+  price: int,
+  open: bool,
+  servingGuest: int,
+  totals: obj<Stall['totals']>({ sales: int, income: int, salesThisMonth: int, incomeThisMonth: int }),
+  builtTick: int,
+  hoursThisMonth: int,
+  totalBuildCost: int,
+});
+
+const guestShape = obj<Guest>({
+  id: int,
+  tile: tileOrNone,
+  nextTile: tileOrNone,
+  progress: num,
+  dir,
+  lane: int,
+  state: oneOf(GUEST_STATES),
+  stateTicks: int,
+  target: nullable(destKey),
+  cash: int,
+  needs: obj<Needs>({ hunger: num, thirst: num, bladder: num, energy: num, happiness: num, nausea: num }),
+  temperament: num,
+  thoughts: arr(obj<Thought>({ id: str, tick: int, params })),
+  thoughtCooldowns: record(int),
+  ridden: record(int),
+  spent: int,
+  items: obj<GuestItems>({ map: bool, umbrella: bool, balloon: bool }),
+  nextDecisionTick: int,
+  lostSinceTick: int,
+  noRideStreak: int,
+  seat: nullable(obj<NonNullable<Guest['seat']>>({ rideId: int, trainId: int, car: int, seat: int })),
+  activityId: int,
+  trashTimer: int,
+});
+
+const economyShape = obj<EconomyState>({
+  ledger: arr(obj<LedgerMonth>({ monthIndex: int, lines: exactRecord(LEDGER_CATEGORIES, int) })),
+});
+
+const trackRideShape = obj<TrackRideData>({
+  rideId: int,
+  typeId: str,
+  pieces: arr(
+    obj<TrackPieceInstance>({ defId: str, x: int, y: int, z: num, dir, chain: bool, brakeSpeed: nullable(num) }),
+  ),
+  circuitClosed: bool,
+  trainConfig: obj<TrackRideData['trainConfig']>({ trains: int, carsPerTrain: int }),
+  operation: obj<TrackRideData['operation']>({ minDwellTicks: int, maxDwellTicks: int, laps: int }),
+  trains: arr(
+    obj<TrainState>({ id: int, s: num, v: num, state: oneOf(TRAIN_STATES), dwellTicks: int, lap: int, seats: arr(int) }),
+  ),
+  test: nullable(record(num)),
+  colours: obj<TrackRideData['colours']>({ track: int, supports: int, cars: int }),
+  openedOnce: bool,
+});
+
+const trackShape = obj<TrackSlice>({ rides: record(trackRideShape) });
+
+const staffShape = obj<StaffSlice>({
+  members: arr(
+    obj<Staff>({
+      id: int,
+      type: oneOf(STAFF_TYPES),
+      name: str,
+      tile: tileOrNone,
+      nextTile: tileOrNone,
+      progress: num,
+      dir,
+      state: oneOf(STAFF_STATES),
+      stateTicks: int,
+      targetTile: tileOrNone,
+      targetRideId: int,
+      patrol: nullable(typed('Uint8Array')),
+      costume: nullable(oneOf(COSTUMES)),
+      hiredTick: int,
+      hoursThisMonth: int,
+    }),
+  ),
+  pendingBreakdowns: arr(int),
+  autoRepair: bool,
+});
+
+type Research = ManagementSlice['research'];
+
+const managementShape = obj<ManagementSlice>({
+  research: obj<Research>({
+    level: oneOf(RESEARCH_LEVELS),
+    focus: exactRecord(RESEARCH_CATEGORIES, bool),
+    current: nullable(str),
+    progress: num,
+    unlocked: arr(str),
+    hoursThisMonth: int,
+  }),
+  campaigns: arr(obj<ManagementSlice['campaigns'][number]>({ type: str, targetId: int, endTick: int })),
+  loan: obj<ManagementSlice['loan']>({ balance: int }),
+  weather: obj<ManagementSlice['weather']>({ current: weather, next: weather, nextChangeTick: int }),
+  parkValue: int,
+  messages: arr(
+    obj<Message>({
+      id: int,
+      tick: int,
+      category: oneOf(MESSAGE_CATEGORIES),
+      textId: str,
+      params,
+      tile: tileOrNone,
+      entityId: int,
+    }),
+  ),
+  nextMessageId: int,
+  messagesReadUpTo: int,
+});
+
+export const gameStateShape = obj<GameState>({
+  schemaVersion: literal(1),
+  seed: int,
+  rng: int,
+  tick: int,
+  nextId: int,
+  map: mapCheck,
+  park: parkShape,
+  modifiers: modifiersShape,
+  rides: arr(rideShape),
+  stalls: arr(stallShape),
+  guests: arr(guestShape),
+  economy: economyShape,
+  track: trackShape,
+  staff: staffShape,
+  management: managementShape,
+});
+
+/** Null when `raw` has the full GameState structure, else a short reason. */
+export function checkStructure(raw: unknown): string | null {
+  const ctx: Ctx = { tiles: 0 };
+  if (!isRecord(raw)) return badValue('state');
+  // The map goes first: tile checks elsewhere need its size.
+  if (!hasOwn(raw, 'map')) return missingField('map');
+  const e = mapCheck(raw.map, 'map', ctx);
+  if (e) return e;
+  return gameStateShape(raw, '', ctx);
+}
