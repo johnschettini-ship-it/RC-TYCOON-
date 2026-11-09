@@ -12,7 +12,7 @@ import type { DestKey, Guest, GuestItems, GuestStateName, Needs, Thought } from 
 import type { FlatCyclePhase, Gate, Ride, RideStats, RideStatus } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
 import { LEDGER_CATEGORIES, type EconomyState, type LedgerMonth } from '../sim/economy/types';
-import type { TrackPieceInstance, TrackRideData, TrackSlice, TrainState } from '../sim/rides/track/types';
+import type { TestResult, TrackDir, TrackPieceInstance, TrackRideData, TrackSlice, TrainState } from '../sim/rides/track/types';
 import type { BenchSitter, Staff, StaffSlice, StaffStateName, StaffTask } from '../sim/staff/types';
 import type { ManagementSlice, Message, MessageCategory, ResearchLevel } from '../sim/management/types';
 import type { Costume, ResearchCategory, StaffType, WeatherKey } from '../data/catalog/types';
@@ -207,6 +207,8 @@ const RIDE_STATUSES = every<RideStatus>()(['building', 'testing', 'closed', 'ope
 const CYCLE_PHASES = every<FlatCyclePhase>()(['waiting', 'loading', 'running', 'unloading']);
 const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing', 'riding', 'buying', 'sitting', 'leaving']);
 const TRAIN_STATES = every<TrainState['state']>()(['loading', 'running', 'held', 'unloading', 'waiting']);
+const TRACK_DIRS = every<TrackDir>()([0, 1, 2, 3]);
+const TEST_FAIL_KINDS = every<NonNullable<TestResult['failKind']>>()(['stop', 'loop']);
 const STAFF_TYPES = every<StaffType>()(['groundskeeper', 'mechanic', 'security', 'performer']);
 const STAFF_STATES = every<StaffStateName>()(['walking', 'sweeping', 'cleaning', 'emptying', 'inspecting', 'fixing', 'performing']);
 const STAFF_TASKS = every<StaffTask>()(['none', 'wander', 'toPatrol', 'sweep', 'mess', 'bin', 'fix', 'inspect', 'roam', 'perform']);
@@ -372,21 +374,75 @@ const economyShape = obj<EconomyState>({
   ledger: arr(obj<LedgerMonth>({ monthIndex: int, lines: exactRecord(LEDGER_CATEGORIES, int) })),
 });
 
+// Track rides (Phase 2 §5). Positions and speeds are integer mm and mm/s; G values and ratings integer hundredths.
+const trackPieceShape = obj<TrackPieceInstance>({
+  defId: str,
+  x: int,
+  y: int,
+  z: int,
+  dir: oneOf(TRACK_DIRS),
+  chain: bool,
+  brakeSpeed: nullable(int),
+  cost: int,
+});
+
+const trainShape = obj<TrainState>({
+  id: int,
+  s: int,
+  v: int,
+  state: oneOf(TRAIN_STATES),
+  dwellTicks: int,
+  lap: int,
+  seats: arr(int),
+  dist: int,
+  parked: bool,
+  release: bool,
+  driveMms: int,
+  lapStartTick: int,
+});
+
+const testResultShape = obj<TestResult>({
+  passed: bool,
+  failPiece: nullable(int),
+  failKind: nullable(oneOf(TEST_FAIL_KINDS)),
+  ticks: int,
+  vMaxMms: int,
+  vAvgMms: int,
+  rideTimeTicks: int,
+  lengthMm: int,
+  drops: int,
+  dropMaxMm: int,
+  posGMax: int,
+  vertGMin: int,
+  airtimeTicks: int,
+  latMax: int,
+  inversions: int,
+  highestM: int,
+  turnPieces: int,
+  smallTurns: int,
+  spookyTunnels: int,
+  laps: int,
+  excitement: int,
+  intensity: int,
+  nausea: int,
+  penalty: bool,
+  chart: obj<TestResult['chart']>({ every: int, speedCms: arr(int), gv: arr(int), gl: arr(int) }),
+});
+
 const trackRideShape = obj<TrackRideData>({
   rideId: int,
   typeId: str,
-  pieces: arr(
-    obj<TrackPieceInstance>({ defId: str, x: int, y: int, z: num, dir, chain: bool, brakeSpeed: nullable(num) }),
-  ),
+  pieces: arr(trackPieceShape),
   circuitClosed: bool,
   trainConfig: obj<TrackRideData['trainConfig']>({ trains: int, carsPerTrain: int }),
   operation: obj<TrackRideData['operation']>({ minDwellTicks: int, maxDwellTicks: int, laps: int }),
-  trains: arr(
-    obj<TrainState>({ id: int, s: num, v: num, state: oneOf(TRAIN_STATES), dwellTicks: int, lap: int, seats: arr(int) }),
-  ),
-  test: nullable(record(num)),
+  trains: arr(trainShape),
+  test: nullable(testResultShape),
   colours: obj<TrackRideData['colours']>({ track: int, supports: int, cars: int }),
   openedOnce: bool,
+  testRun: nullable(obj<NonNullable<TrackRideData['testRun']>>({ ticksLeft: int, result: testResultShape })),
+  lastDispatchTick: int,
+  bestLapTicks: nullable(int),
 });
 
 const trackShape = obj<TrackSlice>({ rides: record(trackRideShape) });

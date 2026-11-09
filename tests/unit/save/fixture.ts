@@ -1,5 +1,15 @@
 /** Save test fixtures: a world that touches every slice, built with the shared direct helpers. */
-import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, placeRideDirect, placeStallDirect } from '../../helpers/world';
+import {
+  addGuestDirect,
+  makeTestWorld,
+  makeTrackRideDataDirect,
+  placeFootpath,
+  placeQueue,
+  placeRideDirect,
+  placeStallDirect,
+  testResultDirect,
+  trackPiecesDirect,
+} from '../../helpers/world';
 import { allocId } from '../../../src/sim/ids';
 import { Content, tileIndex } from '../../../src/sim/map';
 import { recordLedger } from '../../../src/sim/economy/ledger';
@@ -19,7 +29,7 @@ export interface RichWorld {
   mechanic: number;
 }
 
-/** A track ride record plus its track slice entry, 3 station tiles at (40..42, 20). */
+/** A track ride record plus its track slice entry: 2 station tiles and a brake at (40..42, 20), heading +x. */
 export function addTrackRideDirect(world: World): Ride {
   const s = world.state;
   const id = allocId(s);
@@ -58,22 +68,36 @@ export function addTrackRideDirect(world: World): Ride {
     totalBuildCost: 2_345_600,
   };
   s.rides.push(ride);
-  s.track.rides[String(id)] = {
-    rideId: id,
-    typeId: 'steel_coaster',
-    pieces: [
-      { defId: 'station', x: 40, y: 20, z: 8, dir: 1, chain: false, brakeSpeed: null },
-      { defId: 'station', x: 41, y: 20, z: 8, dir: 1, chain: false, brakeSpeed: null },
-      { defId: 'brakes', x: 42, y: 20, z: 8, dir: 1, chain: false, brakeSpeed: 8000 },
-    ],
-    circuitClosed: false,
+  // Station, station, brakes along +x (map rotation E = track direction 0); the circuit is open.
+  const pieces = trackPiecesDirect(40, 20, 8, 0, ['station', 'station', 'brakes']);
+  pieces.forEach((p, i) => (p.cost = 6_000 + 100 * i));
+  pieces[2]!.brakeSpeed = 8;
+  makeTrackRideDataDirect(world, ride, {
+    pieces,
     trainConfig: { trains: 1, carsPerTrain: 2 },
     operation: { minDwellTicks: 20, maxDwellTicks: 200, laps: 1 },
-    trains: [{ id: 0, s: 1234.5, v: 6789.25, state: 'running', dwellTicks: 0, lap: 0, seats: [-1, -1, -1, -1, -1, -1, -1, -1] }],
-    test: { maxSpeed: 23_400, excitement: 500 },
+    trains: [
+      {
+        id: 0,
+        s: 1234,
+        v: 6789,
+        state: 'running',
+        dwellTicks: 0,
+        lap: 0,
+        seats: [-1, -1, -1, -1, -1, -1, -1, -1],
+        dist: 5678,
+        parked: false,
+        release: true,
+        driveMms: 0,
+        lapStartTick: 2600,
+      },
+    ],
+    test: testResultDirect({ airtimeTicks: 12, inversions: 1 }),
     colours: { track: 3, supports: 1, cars: 7 },
     openedOnce: true,
-  };
+    lastDispatchTick: 2600,
+    bestLapTicks: 1234,
+  });
   return ride;
 }
 

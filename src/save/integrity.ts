@@ -6,6 +6,7 @@ import { getFlatRideDef, getStallDef, TRACK_RIDES } from '../data/catalog';
 import type { GameState } from '../sim/types';
 import type { Ride } from '../sim/rides/types';
 import type { Guest } from '../sim/guests/types';
+import { checkTrackRideForLoad } from '../sim/rides/track/api';
 
 type EntityKind = 'ride' | 'stall' | 'guest' | 'staff';
 
@@ -67,7 +68,8 @@ export function checkIntegrity(s: GameState): string | null {
     if (g.seat !== null && !rides.has(g.seat.rideId)) return `guest ${g.id} has a seat on a missing ride`;
   }
 
-  // Track slice: keys match the live track rides one to one; seated guests ride this ride (Phase 2 §5).
+  // Track slice: keys match the live track rides one to one; seated guests ride this ride; then the track
+  // module's own load checks (Phase 2 §5: pieces join, circuit flag, train positions and speeds, seats).
   const trackRides = s.track.rides;
   for (const key of Object.keys(trackRides)) {
     const id = Number(key);
@@ -86,6 +88,8 @@ export function checkIntegrity(s: GameState): string | null {
         }
       }
     }
+    const trackProblem = checkTrackRideForLoad(data, s);
+    if (trackProblem) return trackProblem;
   }
   for (const r of s.rides) {
     if (r.kind === 'track' && !Object.prototype.hasOwnProperty.call(trackRides, String(r.id))) return `track ride ${r.id} has no track data`;

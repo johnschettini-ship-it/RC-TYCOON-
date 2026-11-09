@@ -185,3 +185,56 @@ describe('rejects dangling references', () => {
     expect(r.ok).toBe(true);
   });
 });
+
+describe('rejects corrupted track data (Phase 2 §5 load checks)', () => {
+  const rich = fixture();
+  const { json, track } = rich;
+  const at = `track.rides.${track.id}`;
+  const data = (r: Raw): Raw => r.state.track.rides[String(track.id)];
+
+  const structure: Array<[string, (r: Raw) => void, string]> = [
+    ['piece without its cost', (r) => delete data(r).pieces[1].cost, `missing field ${at}.pieces[1].cost`],
+    ['piece direction out of range', (r) => (data(r).pieces[0].dir = 4), `bad value at ${at}.pieces[0].dir`],
+    ['fractional rail height', (r) => (data(r).pieces[2].z = 8.5), `bad value at ${at}.pieces[2].z`],
+    ['fractional brake speed', (r) => (data(r).pieces[2].brakeSpeed = 7.5), `bad value at ${at}.pieces[2].brakeSpeed`],
+    ['train without dist', (r) => delete data(r).trains[0].dist, `missing field ${at}.trains[0].dist`],
+    ['train with a string parked flag', (r) => (data(r).trains[0].parked = 'no'), `bad value at ${at}.trains[0].parked`],
+    ['fractional train position', (r) => (data(r).trains[0].s = 1234.5), `bad value at ${at}.trains[0].s`],
+    ['unknown train field', (r) => (data(r).trains[0].boost = 1), `unknown field ${at}.trains[0].boost`],
+    ['missing testRun', (r) => delete data(r).testRun, `missing field ${at}.testRun`],
+    ['missing lastDispatchTick', (r) => delete data(r).lastDispatchTick, `missing field ${at}.lastDispatchTick`],
+    ['fractional best lap', (r) => (data(r).bestLapTicks = 0.5), `bad value at ${at}.bestLapTicks`],
+    ['old free-form test result', (r) => (data(r).test = { maxSpeed: 23_400, excitement: 500 }), `missing field ${at}.test.passed`],
+    ['unknown test field', (r) => (data(r).test.maxSpeed = 23_400), `unknown field ${at}.test.maxSpeed`],
+    ['missing test field', (r) => delete data(r).test.airtimeTicks, `missing field ${at}.test.airtimeTicks`],
+    ['unknown fail kind', (r) => (data(r).test.failKind = 'crash'), `bad value at ${at}.test.failKind`],
+    ['missing chart series', (r) => delete data(r).test.chart.gl, `missing field ${at}.test.chart.gl`],
+    ['bad chart point', (r) => (data(r).test.chart.gv[1] = 'high'), `bad value at ${at}.test.chart.gv[1]`],
+    [
+      'test run whose result has an unknown field',
+      (r) => (data(r).testRun = { ticksLeft: 5, result: { ...data(r).test, extra: 1 } }),
+      `unknown field ${at}.testRun.result.extra`,
+    ],
+  ];
+
+  const loadChecks: Array<[string, (r: Raw) => void, string]> = [
+    ['unknown track piece', (r) => (data(r).pieces[2].defId = 'warp_drive'), 'Unknown track piece'],
+    ['track that does not start with a station', (r) => (data(r).pieces[0].defId = 'straight'), 'Track does not start with a station'],
+    ['pieces that do not join', (r) => (data(r).pieces[1].x = 45), 'Track pieces do not join'],
+    ['circuit flag that does not match the geometry', (r) => (data(r).circuitClosed = true), 'Circuit flag does not match the track'],
+    ['train position outside the circuit', (r) => (data(r).trains[0].s = 12_000), 'Train position is outside the circuit'],
+    ['negative train speed', (r) => (data(r).trains[0].v = -1), 'Train speed is not valid'],
+    ['seat below −1', (r) => (data(r).trains[0].seats[0] = -2), 'Train seat is not valid'],
+  ];
+
+  for (const [name, edit, reason] of [...structure, ...loadChecks]) {
+    it(name, () => {
+      expect(rejects(corrupt(json, edit))).toBe(damaged(reason));
+    });
+  }
+
+  it('a valid test run in progress loads', () => {
+    const ok = corrupt(json, (r) => (data(r).testRun = { ticksLeft: 5, result: data(r).test }));
+    expect(deserialize(ok).ok).toBe(true);
+  });
+});
