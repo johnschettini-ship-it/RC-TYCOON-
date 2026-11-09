@@ -87,6 +87,10 @@ export function spawnGuest(world: World): Guest | null {
     seat: null,
     activityId: -1,
     trashTimer: 0,
+    withdrawals: 0,
+    lostSteps: 0,
+    bestDistance: -1,
+    lostTarget: null,
   };
   if (fee !== 0) recordLedger(world, 'entranceTickets', fee);
   s.guests.push(guest);

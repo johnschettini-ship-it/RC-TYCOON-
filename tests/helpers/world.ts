@@ -139,6 +139,10 @@ export function addGuestDirect(world: World, tile: number, patch: Partial<Guest>
     seat: null,
     activityId: -1,
     trashTimer: 0,
+    withdrawals: 0,
+    lostSteps: 0,
+    bestDistance: -1,
+    lostTarget: null,
     ...patch,
   };
   s.guests.push(guest);

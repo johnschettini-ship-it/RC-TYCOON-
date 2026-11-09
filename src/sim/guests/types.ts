@@ -75,4 +75,12 @@ export interface Guest {
   activityId: EntityId;
   /** Phase 3: ticks until trash is dropped, 0 = no trash. */
   trashTimer: number;
+  /** Phase 3 §4.10: Cash Machine withdrawals this visit. */
+  withdrawals: number;
+  /** Phase 3 §4.10: steps in a row without getting closer to `lostTarget`. Lost at LOST_STEPS. */
+  lostSteps: number;
+  /** Phase 3 §4.10: best path distance to `lostTarget` so far, or −1. */
+  bestDistance: number;
+  /** Phase 3 §4.10: the target that `lostSteps` and `bestDistance` measure, or null. */
+  lostTarget: DestKey | null;
 }
