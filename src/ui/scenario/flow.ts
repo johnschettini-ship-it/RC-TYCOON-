@@ -131,12 +131,13 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
         class: `tc-card${c.open ? '' : ' locked'}`,
         'data-testid': `scenario-card-${c.id}`,
         'aria-disabled': c.open ? 'false' : 'true',
-        'aria-label': text('prog.select.cardLabel', { name: c.name, n: c.stars, state }),
         onclick: () => {
           if (c.open) flow.showScenarioDetail(c.id);
         },
       },
+      // Phase 6 §4.7: the name comes from the visible text, plus the difficulty and state for screen readers.
       h('span', { class: 'tc-card-name', text: c.name }),
+      h('span', { class: 'sr-only', text: text('prog.select.cardState', { n: c.stars, state }) }),
       h('span', { class: 'tc-stars', 'aria-hidden': 'true', text: starsText(c.stars, 5) }),
       h('span', { class: 'tc-tags' }, h('span', { class: `tc-tag climate-${c.climate}`, text: text(`prog.climate.${c.climate}`) }), night),
       c.open ? h('span', { class: 'tc-best', 'aria-label': text('prog.select.best') }, ...best) : h('span', { class: 'tc-lock', text: `${text('prog.select.locked')} · ${text('prog.select.lockedHint', { n: c.winsNeeded })}` }),

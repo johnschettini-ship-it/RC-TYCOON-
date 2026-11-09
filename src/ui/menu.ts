@@ -1,11 +1,13 @@
 /**
  * In-game menu (Phase 1 §4.7): Save (3 slots), Load, Export, Import, Quit to title
- * (confirm when the game has unsaved changes). The game pauses while the menu is open. Owner: W1-B.
+ * (confirm when the game has unsaved changes), and Settings (Phase 6 §4.9). The game pauses while the menu is open.
+ * Owner: W1-B (Build 3: W4-F).
  */
 import { text } from '../data/strings/en';
 import { exportFile } from '../save';
 import type { UiContext } from './context';
 import { confirmDialog, openDialog, type DialogAction, type DialogHandle } from './dialogs';
+import { openSettingsScreen } from './settings';
 
 export function openMenu(ctx: UiContext): void {
   const { game, saves, root } = ctx;
@@ -83,6 +85,8 @@ export function openMenu(ctx: UiContext): void {
         },
       },
       { label: text('ui.menu.import'), testId: 'menu-import', onClick: () => ctx.importSave(() => closeAll(true)) },
+      // Phase 6 §4.9: the settings screen opens over the menu; Back returns here.
+      { label: text('ui.menu.settings'), testId: 'menu-settings', onClick: () => openSettingsScreen(ctx) },
       { label: text('ui.menu.quit'), kind: 'danger', testId: 'menu-quit', onClick: quit },
     ],
   });

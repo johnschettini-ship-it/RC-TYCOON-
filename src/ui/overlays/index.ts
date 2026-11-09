@@ -37,13 +37,13 @@ const CSS = `
 .tc-overlay-box { pointer-events: auto; background: color-mix(in srgb, var(--panel) 95%, transparent); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
 .tc-overlay-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* 44 × 44 touch targets (a later \`.btn.small\` rule shrinks small buttons to 36 px). */
-.tc-overlay-box .btn.small { min-height: var(--touch); min-width: var(--touch); padding: 4px 10px; font-size: 13px; }
-.tc-overlay-legend h3 { margin: 0 0 6px; font-size: 14px; }
-.tc-legend-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.tc-overlay-box .btn.small { min-height: var(--touch); min-width: var(--touch); padding: 4px 10px; font-size: calc(13px * var(--ts, 1)); }
+.tc-overlay-legend h3 { margin: 0 0 6px; font-size: calc(14px * var(--ts, 1)); }
+.tc-legend-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: calc(13px * var(--ts, 1)); }
 .tc-legend-rows li { display: flex; align-items: center; gap: 8px; }
 .tc-legend-range { color: var(--muted); margin-left: auto; padding-left: 8px; }
-.tc-legend-value { margin: 8px 0 0; font-weight: 600; font-size: 13px; }
-.tc-legend-help { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.tc-legend-value { margin: 8px 0 0; font-weight: 600; font-size: calc(13px * var(--ts, 1)); }
+.tc-legend-help { margin: 4px 0 0; font-size: calc(12px * var(--ts, 1)); color: var(--muted); }
 #ui[data-layout='bottom'] .tc-legend-help { display: none; }
 .tc-swatch { width: 28px; height: 16px; flex: none; border-radius: 3px; border: 1px solid rgba(0,0,0,0.35); }
 `;

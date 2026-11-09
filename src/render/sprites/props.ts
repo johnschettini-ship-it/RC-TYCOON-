@@ -1,8 +1,9 @@
 /**
- * Small procedural sprites: guests, fence segments, the park entrance arch, ghost icons. Owner: W1-A.
+ * Small procedural sprites: guests, fence segments, the park entrance arch, ghost icons. Owner: W1-A (Build 3: W4-F
+ * for the temperament rings and the ghost icons, Phase 6 §4.7: colour is never the only signal).
  */
 import type { Dir } from '../../sim/map';
-import { shade } from '../palette';
+import { GHOST_INVALID, GHOST_VALID, TINT_STEPS, shade } from '../palette';
 import type { ArtBounds } from './rides';
 import { box, cylinder, line3, poly3, rrect, sx, sy, type Ctx } from './shapes';
 
@@ -128,13 +129,31 @@ function drawUmbrella(ctx: Ctx, colour: string, facing: Dir): void {
   ctx.fillRect(cx - 0.4, cy - ry - 1.6, 0.8, 1.7);
 }
 
+/** Thrill guests (last tint step, T ≥ 65) get a notched ring; Chill and Family guests a full ring. */
+export function ringNotched(step: number | undefined): boolean {
+  return step !== undefined && step >= TINT_STEPS - 1;
+}
+
+/** Notches in a Thrill ring: the ring is drawn as this many arcs with gaps between them. */
+export const RING_NOTCHES = 6;
+
 export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
   if (g.ring) {
     ctx.strokeStyle = g.ring;
     ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 6.2, 3, 0, 0, TAU);
-    ctx.stroke();
+    if (ringNotched(g.ringStep)) {
+      // Notched ring (Phase 6 §4.7): RING_NOTCHES arcs, each 2/3 of its share of the circle.
+      const share = TAU / RING_NOTCHES;
+      for (let k = 0; k < RING_NOTCHES; k++) {
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 6.2, 3, 0, k * share, k * share + share * 0.62);
+        ctx.stroke();
+      }
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 6.2, 3, 0, 0, TAU);
+      ctx.stroke();
+    }
   } else {
     ctx.fillStyle = 'rgba(15,25,15,0.28)';
     ctx.beginPath();
@@ -308,7 +327,8 @@ export function drawEntranceArt(ctx: Ctx, part: 0 | 1, outerDir: Dir | -1): void
 /** Check (valid) or cross (invalid) badge, drawn in device pixels at (x, y). */
 export function drawGhostIcon(ctx: Ctx, x: number, y: number, valid: boolean, r: number): void {
   ctx.save();
-  ctx.fillStyle = valid ? '#2f9e44' : '#d9363e';
+  // Colour-blind safe (Phase 6 §4.7): blue check, vermillion cross; the shape carries the meaning too.
+  ctx.fillStyle = valid ? GHOST_VALID : GHOST_INVALID;
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = Math.max(1.5, r * 0.18);
   ctx.beginPath();

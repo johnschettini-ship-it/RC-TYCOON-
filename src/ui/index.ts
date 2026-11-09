@@ -35,6 +35,13 @@ import { toolOptions } from '../render/management/toolOptions';
 import { mountTrackUi } from './track';
 import { extensionPanel, UI_EXTENSIONS } from './extensions';
 import { tileCentreWorld } from '../input/camera';
+import { bindScenarioSettings } from './scenario/shared';
+import { confirmDialog } from './dialogs';
+import { text } from '../data/strings/en';
+import type { Command } from '../sim/commands/types';
+
+/** Window event the input layer fires for a demolish that needs the player's yes (Settings → Confirm demolish). */
+export const CONFIRM_DEMOLISH_EVENT = 'tc-confirm-demolish';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -56,6 +63,8 @@ const sameEntity = (a: Entity | null, b: Entity | null): boolean => a === b || (
 
 export function mountUI(root: HTMLElement, game: Game): void {
   root.classList.add('tc-ui');
+  // Phase 6 §4.9: "Unlock all scenarios" is a stored setting.
+  bindScenarioSettings(game.settings);
   const toastView = createToastView();
   // Phase 3 §7.3: one toast at a time; breakdown > research > others (see ToastArbiter).
   const arbiter = new ToastArbiter();
@@ -249,6 +258,12 @@ export function mountUI(root: HTMLElement, game: Game): void {
     if ((e as MouseEvent).detail === 0) return;
     const b = (e.target as Element | null)?.closest('.toolbar button, .hud button, .tool-status button');
     if (b instanceof HTMLElement) b.blur();
+  });
+
+  // Phase 6 §4.9 Confirm demolish: the input layer hands the command over; it runs on yes.
+  window.addEventListener(CONFIRM_DEMOLISH_EVENT, (e) => {
+    const cmd = (e as CustomEvent<Command>).detail;
+    confirmDialog(root, text('a11y.demolish.confirm'), text('a11y.demolish.yes'), text('a11y.demolish.no'), () => game.dispatch(cmd));
   });
 
   window.addEventListener(UI_INTENT_EVENT, (e) => {

@@ -139,7 +139,7 @@ const LAND_BAR_CSS = `
 .land-bar .land-target { min-width: 84px; text-align: center; }
 .land-bar .land-swatch { flex: none; }
 @media (max-width: 599px) {
-  .land-bar .seg-btn { padding: 4px 5px; font-size: 13px; }
+  .land-bar .seg-btn { padding: 4px 5px; font-size: calc(13px * var(--ts, 1)); }
   .land-bar .segmented { gap: 3px; }
 }`;
 

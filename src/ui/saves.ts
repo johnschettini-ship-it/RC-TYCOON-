@@ -85,9 +85,10 @@ export class SaveActions {
     return true;
   }
 
-  /** Autosave at each month start (master §7): the sim emits `monthEnded`. */
+  /** Autosave at each month start (master §7): the sim emits `monthEnded`. Off with Settings → Autosave off. */
   autosave(events: readonly SimEvent[]): void {
     if (!events.some((e) => e.type === 'monthEnded')) return;
+    if (!this.game.settings.get('autosave')) return;
     let error: string | null;
     try {
       error = this.backend.save('auto', this.game.world);
