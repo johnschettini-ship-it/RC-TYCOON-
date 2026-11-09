@@ -24,6 +24,15 @@ import { toastForResult } from './toasts';
 import { createToastView } from './toastView';
 import { createToolbar } from './toolbar';
 import { createToolStatus } from './toolStatus';
+import { createMarketingPanel } from './management/marketingPanel';
+import { createMessageToast } from './management/messageToast';
+import { createMessagesPanel } from './management/messagesPanel';
+import { createResearchPanel } from './management/researchPanel';
+import { createStaffPanel } from './management/staffPanel';
+import { MESSAGE_TOAST_MS, TOAST_PRIORITY, ToastArbiter, messageHasToast, messageToastPriority } from './management/toastArbiter';
+import { createPathItemBar, createPatrolBar } from './management/toolBars';
+import { TOAST_MS } from './toasts';
+import { toolOptions } from '../render/management/toolOptions';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -46,7 +55,16 @@ const sameEntity = (a: Entity | null, b: Entity | null): boolean => a === b || (
 export function mountUI(root: HTMLElement, game: Game): void {
   root.classList.add('tc-ui');
   const toastView = createToastView();
-  const toast = (message: string, kind: 'error' | 'warning' | 'info' = 'info'): void => toastView.show(message, kind);
+  // Phase 3 §7.3: one toast at a time; breakdown > research > others (see ToastArbiter).
+  const arbiter = new ToastArbiter();
+  let plainHiddenUntil = 0;
+  const toast = (message: string, kind: 'error' | 'warning' | 'info' = 'info'): void => {
+    const now = performance.now();
+    if (!arbiter.offer(TOAST_PRIORITY.other, now, TOAST_MS)) return;
+    messageToast.hide();
+    plainHiddenUntil = 0;
+    toastView.show(message, kind);
+  };
   const saves = new SaveActions(game, new SaveStore(safeLocalStorage()), toast);
 
   // Import uses one hidden file input.
@@ -69,6 +87,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
   const panels = new PanelHost((closed) => {
     const sel = game.tool.selectedEntity;
     if (sel && closed.id !== null && closed.kind === sel.kind && closed.id === sel.id && panels.current() === null) {
+      game.tool.selectedEntity = null;
+      lastSelection = null;
+    }
+    // The staff panel tracks its member itself (id null). Patrol painting keeps the member selected.
+    if (sel && sel.kind === 'staff' && closed.kind === 'staff' && panels.current() === null && game.tool.tool !== 'patrol') {
       game.tool.selectedEntity = null;
       lastSelection = null;
     }
@@ -99,10 +122,29 @@ export function mountUI(root: HTMLElement, game: Game): void {
         case 'finance':
           view = createFinancePanel(ctx);
           break;
+        case 'staff':
+          view = createStaffPanel(ctx, id ?? null);
+          break;
+        case 'research':
+          view = createResearchPanel(ctx);
+          break;
+        case 'marketing':
+          view = createMarketingPanel(ctx);
+          break;
+        case 'messages':
+          view = createMessagesPanel(ctx);
+          break;
         default:
           view = createPicker(ctx, kind);
       }
-      if (kind !== 'ride' && kind !== 'stall' && kind !== 'guest') {
+      const sel = game.tool.selectedEntity;
+      if ((kind === 'ride' || kind === 'stall' || kind === 'guest' || kind === 'staff') && id !== undefined && id >= 0) {
+        // An entity panel selects its entity (message locate, long-press), so the frame loop does not reopen it.
+        game.tool.selectedEntity = { kind, id };
+        lastSelection = { kind, id };
+      } else if (kind === 'staff' && sel?.kind === 'staff') {
+        // The staff panel keeps the selected staff member.
+      } else if (kind !== 'ride' && kind !== 'stall' && kind !== 'guest') {
         // A non-entity panel replaces the inspected entity.
         game.tool.selectedEntity = null;
         lastSelection = null;
@@ -132,8 +174,14 @@ export function mountUI(root: HTMLElement, game: Game): void {
   const hud = createHud(ctx);
   const toolbar = createToolbar(ctx, () => openMenu(ctx));
   const status = createToolStatus(ctx);
+  const patrolBar = createPatrolBar(ctx);
+  const pathItemBar = createPathItemBar(ctx);
+  const messageToast = createMessageToast(ctx, () => {
+    arbiter.clear();
+    plainHiddenUntil = 0;
+  });
   const title = createTitleScreen(ctx);
-  root.append(hud.el, toolbar.el, status.el, panels.el, toastView.el, fileInput, title.el);
+  root.append(hud.el, toolbar.el, status.el, patrolBar.el, pathItemBar.el, panels.el, toastView.el, messageToast.el, fileInput, title.el);
 
   const applyLayout = (): void => {
     const layout = toolbarPlacement(window.innerWidth);
@@ -162,11 +210,24 @@ export function mountUI(root: HTMLElement, game: Game): void {
     const t = toastForResult(result);
     if (t) toast(t.message, t.kind);
   });
-  game.onEvents((events) => saves.autosave(events));
+  game.onEvents((events) => {
+    saves.autosave(events);
+    // Breakdown and research messages also toast, with a Show button (Phase 3 §4.14).
+    const now = performance.now();
+    for (const ev of events) {
+      if (ev.type !== 'message' || !messageHasToast(ev.category)) continue;
+      if (!arbiter.offer(messageToastPriority(ev.category), now, MESSAGE_TOAST_MS)) continue;
+      messageToast.show(ev, now);
+      plainHiddenUntil = now + TOAST_MS;
+    }
+  });
   game.onWorldChanged(() => {
     panels.close();
     ctx.follow.guestId = null;
     lastSelection = null;
+    messageToast.hide();
+    arbiter.clear();
+    toolOptions(game.tool).patrolStaffId = -1;
   });
 
   // After a mouse or touch click on a HUD or toolbar button, drop its focus so Space pauses the game
@@ -179,9 +240,12 @@ export function mountUI(root: HTMLElement, game: Game): void {
 
   window.addEventListener(UI_INTENT_EVENT, (e) => {
     const intent = (e as CustomEvent<string>).detail;
-    if (intent === 'finance') {
+    if (intent === 'finance' || intent === 'office') {
       if (panels.current()?.kind === 'finance') panels.close();
       else ctx.openPanel('finance');
+    } else if (intent === 'staff' || intent === 'messages') {
+      if (panels.current()?.kind === intent) panels.close();
+      else ctx.openPanel(intent);
     } else if (intent === 'closePanel') {
       panels.close();
     }
@@ -214,6 +278,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     followSet = { x: p.sx, y: p.sy };
   };
 
+  let lastTool = game.tool.tool;
   game.onFrame(() => {
     const now = performance.now();
     // Inspect selection from the input layer opens the matching panel.
@@ -221,16 +286,36 @@ export function mountUI(root: HTMLElement, game: Game): void {
     if (!sameEntity(sel, lastSelection)) {
       lastSelection = sel ? { ...sel } : null;
       if (sel && sel.kind !== 'staff') ctx.openPanel(sel.kind, sel.id);
-      else if (!sel) {
+      else if (sel && sel.kind === 'staff') {
+        // Long-press or tap on a staff member opens the staff panel (Phase 3 §7.3); the open panel follows the selection.
+        if (panels.current()?.kind !== 'staff' && game.tool.tool !== 'patrol') ctx.openPanel('staff', sel.id);
+      } else if (!sel) {
         const cur = panels.current();
         if (cur && (cur.kind === 'ride' || cur.kind === 'stall' || cur.kind === 'guest')) panels.close();
       }
+    }
+    // Leaving the patrol tool (Done, Esc, another tool) brings the staff panel back.
+    const tool = game.tool.tool;
+    if (tool !== lastTool) {
+      if (lastTool === 'patrol') {
+        const id = toolOptions(game.tool).patrolStaffId;
+        toolOptions(game.tool).patrolStaffId = -1;
+        if (id >= 0 && game.world.state.staff.members.some((m) => m.id === id) && panels.current()?.kind !== 'staff') ctx.openPanel('staff', id);
+      }
+      lastTool = tool;
     }
     follow();
     hud.update(now);
     toolbar.update();
     status.update();
+    patrolBar.update();
+    pathItemBar.update(now);
     panels.tick(now);
+    messageToast.update(now);
+    const msgVisible = messageToast.visible(now);
+    // The plain toast stays hidden while a message toast shows, and for the rest of its 3 s after.
+    const hidePlain = msgVisible || now < plainHiddenUntil;
+    if (toastView.el.hidden !== hidePlain) toastView.el.hidden = hidePlain;
     toastView.update(now);
   });
 

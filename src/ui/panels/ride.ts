@@ -6,6 +6,7 @@ import { h, setText } from '../dom';
 import { formatMoney, formatPrice, formatRating } from '../format';
 import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
+import { createMaintenanceSection } from '../management/maintenanceSection';
 
 /** Price range $0–$20 in $0.10 steps (Phase 1 §4.5). */
 export const RIDE_PRICE_MAX = 2000;
@@ -41,6 +42,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
   const income = statRow(text('ui.ride.income'));
   const incomeTotal = statRow(text('ui.ride.incomeTotal'));
   const warnings = warningList();
+  const maintenance = createMaintenanceSection(ctx, rideId);
 
   const body = h(
     'div',
@@ -48,6 +50,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
     warnings.el,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
     section(null, price.el),
+    maintenance.el,
     section(text('ui.ride.ratings'), bars.excitement.el, bars.intensity.el, bars.nausea.el, noRatings),
     section(null, queue.el, riding.el, riders.el, ridersTotal.el, income.el, incomeTotal.el),
   );
@@ -79,6 +82,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
       income.set(formatMoney(r.totals.incomeThisMonth));
       incomeTotal.set(formatMoney(r.totals.income));
       warnings.set(rideWarnings(game.world, r));
+      maintenance.update(r);
       return true;
     },
   };

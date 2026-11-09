@@ -289,6 +289,8 @@ export const uiStrings: Record<string, string> = {
   'ui.pathItems.repair': 'Repair',
   'ui.pathItems.repairAll': 'Repair all',
   'ui.pathItems.autoRepair': 'Auto-repair',
+  'ui.pathItems.autoOn': 'Auto-repair: on',
+  'ui.pathItems.autoOff': 'Auto-repair: off',
   'ui.pathItems.done': 'Done',
   'ui.pathItems.hintBuild': 'Tap a footpath to place a {name} · {cost}',
   'ui.pathItems.hintRemove': 'Tap a path item to remove it',
