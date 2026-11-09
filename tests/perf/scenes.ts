@@ -2,7 +2,7 @@
  * Phase 6 §4.6 benchmark scenes (W4-E): three fixed parks saved as schema 3 saves next to this file.
  *
  * - `build1`: the master §10 Build 1 scene on the 64 × 64 map: 10 Mini Railway loops with 2 trains each (west half),
- *   a footpath grid with 4 flat rides, 4 stalls, bins, and benches (east half), 8 staff, and 2,000 guests.
+ *   a footpath grid with 14 flat rides, 4 stalls, bins, and benches (east half), 8 staff, and 2,000 guests.
  * - `build2`: the master §10 Build 2 scene on a 128 × 128 map: a footpath grid every 8 tiles, 24 flat rides with
  *   queues, 24 stalls, raised plateaus, a pond, painted ground, 60 scenery items, 2 show sites, 12 staff, and
  *   3,000 guests.
@@ -103,12 +103,14 @@ function buildBuild1(guests: number): World {
   for (const y of ys) run(world, { type: 'buildPathLine', x0: 26, y0: y, x1: 56, y1: y, kind: 'footpath' });
   for (const x of xs) run(world, { type: 'buildPathLine', x0: x, y0: 2, x1: x, y1: 56, kind: 'footpath' });
   run(world, { type: 'buildPathLine', x0: 31, y0: 57, x1: 31, y1: 59, kind: 'footpath' });
-  // 4 flat rides (exit on the north line, a 2-tile queue to the south line) and 4 stalls serving a west line.
+  // 14 flat rides (exit on the north line, a 2-tile queue to the south line) and 4 stalls serving a west line. The
+  // track loops have no gates, so these rides keep the crowd in the park (with 4, guests went home within a minute).
   const rides = ['carousel', 'teacup_twirl', 'big_wheel', 'swing_tower'];
-  rides.forEach((defId, k) => {
-    const x = (xs[1 + k] as number) as number;
-    const y = 26;
-    const id = run(world, { type: 'placeRide', defId, x: x + 2, y: y + 1, rotation: 0 });
+  const cells: Array<[number, number]> = [];
+  for (const x of xs.slice(1, 5)) cells.push([x, 26]);
+  for (const y of [8, 44]) for (const x of xs.slice(0, 5)) cells.push([x, y]);
+  cells.forEach(([x, y], k) => {
+    const id = run(world, { type: 'placeRide', defId: rides[k % rides.length] as string, x: x + 2, y: y + 1, rotation: 0 });
     run(world, { type: 'buildPathLine', x0: x + 3, y0: y + 4, x1: x + 3, y1: y + 5, kind: 'queue' });
     run(world, { type: 'setRideOpen', rideId: id, open: true });
   });

@@ -18,9 +18,9 @@ export interface PerfSceneInfo {
 }
 
 export const PERF_SCENES: readonly PerfSceneInfo[] = [
-  { id: 'build1', file: 'build1-2000-guests.tcsave.json', mapSize: 64, guests: 2_000, trackRides: 10, flatRides: 4, shows: 0, focus: { x: 40, y: 30 } },
+  { id: 'build1', file: 'build1-2000-guests.tcsave.json', mapSize: 64, guests: 2_000, trackRides: 10, flatRides: 14, shows: 0, focus: { x: 40, y: 30 } },
   { id: 'build2', file: 'build2-128-3000-guests.tcsave.json', mapSize: 128, guests: 3_000, trackRides: 0, flatRides: 24, shows: 2, focus: { x: 64, y: 64 } },
-  { id: 'phone', file: 'phone-800-guests.tcsave.json', mapSize: 64, guests: 800, trackRides: 10, flatRides: 4, shows: 0, focus: { x: 40, y: 30 } },
+  { id: 'phone', file: 'phone-800-guests.tcsave.json', mapSize: 64, guests: 800, trackRides: 10, flatRides: 14, shows: 0, focus: { x: 40, y: 30 } },
 ];
 
 /** Fixed save time so regenerated files only differ when the park does. */
