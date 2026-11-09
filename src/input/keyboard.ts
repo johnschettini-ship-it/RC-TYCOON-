@@ -66,10 +66,13 @@ export function keyAction(key: string): KeyAction | null {
 /** Keyboard pan speed: 600 screen px per second. */
 export const KEY_PAN_SPEED_PX = 600;
 
-/** World-pixel camera movement for the held pan keys over `dtMs`, scaled by 1 / zoom. */
-export function keyboardPan(held: ReadonlySet<PanDir>, dtMs: number, zoom: number): { dx: number; dy: number } {
+/**
+ * World-pixel camera movement for the held pan keys over `dtMs`, scaled by 1 / zoom and by `speed` (the pan speed
+ * setting, Phase 6 §4.9: 0.5–2).
+ */
+export function keyboardPan(held: ReadonlySet<PanDir>, dtMs: number, zoom: number, speed = 1): { dx: number; dy: number } {
   const sx = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0);
   const sy = (held.has('down') ? 1 : 0) - (held.has('up') ? 1 : 0);
-  const step = (KEY_PAN_SPEED_PX * dtMs) / 1000 / zoom;
+  const step = (KEY_PAN_SPEED_PX * speed * dtMs) / 1000 / zoom;
   return { dx: sx * step + 0, dy: sy * step + 0 };
 }

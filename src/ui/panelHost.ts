@@ -1,6 +1,8 @@
 /**
  * Panel framework (Phase 1 §7): one panel at a time. Side panel on desktop,
- * bottom sheet with a drag handle and 3 heights on phones. Owner: W1-B.
+ * bottom sheet with a drag handle and 3 heights on phones. Owner: W1-B (Build 3: W4-F).
+ * Phase 6 §4.7: a panel is a labelled region with a heading; one opened from the keyboard takes the focus (its
+ * heading), so Tab goes on into the panel and Esc closes it.
  */
 import { text } from '../data/strings/en';
 import type { PanelView } from './context';
@@ -10,6 +12,16 @@ import { SHEET_FRACTIONS, nextSheetHeight, snapSheet, type SheetHeight, type Too
 
 const UPDATE_MS = 250;
 const TAP_PX = 6;
+
+/** The last input was a key press (not a pointer): keyboard-opened panels take the focus. */
+let keyboardInput = false;
+let inputWatch = false;
+function watchInput(): void {
+  if (inputWatch || typeof window === 'undefined') return;
+  inputWatch = true;
+  window.addEventListener('keydown', () => (keyboardInput = true), { capture: true });
+  window.addEventListener('pointerdown', () => (keyboardInput = false), { capture: true });
+}
 
 export class PanelHost {
   readonly el: HTMLElement;
@@ -23,7 +35,7 @@ export class PanelHost {
 
   constructor(private readonly onClosed: (view: PanelView) => void) {
     const titleId = newId('panel-title');
-    this.titleEl = h('h2', { id: titleId, class: 'panel-title' });
+    this.titleEl = h('h2', { id: titleId, class: 'panel-title', tabindex: -1 });
     this.bodyEl = h('div', { class: 'panel-body' });
     this.handle = h('div', {
       class: 'panel-handle',
@@ -34,12 +46,13 @@ export class PanelHost {
     const close = h('button', { type: 'button', class: 'icon-btn panel-close', 'aria-label': text('ui.panel.close'), onclick: () => this.close() }, icon('cross'));
     this.el = h(
       'aside',
-      { class: 'panel', 'aria-labelledby': titleId, hidden: true },
+      { class: 'panel', role: 'region', 'aria-labelledby': titleId, hidden: true },
       this.handle,
       h('header', { class: 'panel-header' }, this.titleEl, close),
       this.bodyEl,
     );
     this.wireHandle();
+    watchInput();
   }
 
   current(): PanelView | null {
@@ -58,13 +71,17 @@ export class PanelHost {
     view.update();
     this.lastUpdate = performance.now();
     this.applySheet();
+    if (keyboardInput && (!prev || prev.kind !== view.kind || prev.id !== view.id)) this.titleEl.focus({ preventScroll: true });
   }
 
   close(): void {
     const v = this.view;
     if (!v) return;
     this.view = null;
+    const hadFocus = this.el.contains(document.activeElement);
     this.el.hidden = true;
+    // Focus inside the closing panel would be lost: it goes back to the map (the page body).
+    if (hadFocus && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     this.bodyEl.replaceChildren();
     this.onClosed(v);
   }

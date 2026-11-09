@@ -6,10 +6,13 @@ export function section(title: string | null, ...children: Child[]): HTMLElement
   return h('section', { class: 'panel-section' }, title ? h('h3', { class: 'section-title', text: title }) : null, ...children);
 }
 
-/** "Label ........ value" row. */
+/**
+ * "Label ........ value" row. Phase 6 §4.7: stats are definition lists, so each row is a `<dl>` with one term and its
+ * value (valid wherever the row is placed).
+ */
 export function statRow(label: string): { el: HTMLElement; set(value: string): void } {
-  const value = h('span', { class: 'row-value' });
-  const el = h('div', { class: 'row' }, h('span', { class: 'row-label', text: label }), value);
+  const value = h('dd', { class: 'row-value' });
+  const el = h('dl', { class: 'row' }, h('dt', { class: 'row-label', text: label }), value);
   return { el, set: (v) => setText(value, v) };
 }
 

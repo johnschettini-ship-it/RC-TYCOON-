@@ -34,6 +34,8 @@ export const progressionStrings: Record<string, string> = {
   'prog.select.earlier': 'earlier version',
   'prog.select.difficultyStars': 'Difficulty {n} of 5',
   'prog.select.cardLabel': '{name}, difficulty {n} of 5, {state}',
+  'prog.monthYear': '{month} · Year {year}',
+  'prog.select.cardState': ', difficulty {n} of 5, {state},',
   'prog.afterDark.on': 'After Dark',
   'prog.afterDark.forced': 'Always After Dark',
   'prog.afterDark.off': 'No night',

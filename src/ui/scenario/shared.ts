@@ -1,13 +1,14 @@
 /**
  * Shared client state of the scenario front end. Owner: W3-I. Browser only.
- * - the one progress store (`tc.progress`, Phase 5 §4.12) and the "Unlock all scenarios" setting (kept for the
- *   session; Phase 6 settings will store it);
+ * - the one progress store (`tc.progress`, Phase 5 §4.12) and the "Unlock all scenarios" setting (stored in
+ *   `tc.settings` since Phase 6, W4-F);
  * - the title bridge, so the end screen can open the title at a view;
  * - the last pointer type, so tutorial text says "click" or "tap" (Phase 5 §4.11).
  */
 import { ProgressStore } from '../../progress';
 import { browserStore } from '../../save';
 import type { ScenarioFlow } from './flow';
+import type { SettingsStore } from '../../settings';
 
 let store: ProgressStore | null = null;
 
@@ -16,7 +17,25 @@ export function progressStore(): ProgressStore {
   return store;
 }
 
-export const settings = { unlockAll: false };
+let settingsStore: SettingsStore | null = null;
+
+/** The settings store the scenario front end reads (Phase 6 §4.9; bound by `mountUI`). */
+export function bindScenarioSettings(store: SettingsStore): void {
+  settingsStore = store;
+}
+
+/**
+ * "Unlock all scenarios" (Phase 5 §4.13): a stored setting since Phase 6 (`unlockAllScenarios` in `tc.settings`,
+ * Settings → Gameplay). Without a bound store (tests) it is off.
+ */
+export const settings = {
+  get unlockAll(): boolean {
+    return settingsStore?.get('unlockAllScenarios') ?? false;
+  },
+  set unlockAll(on: boolean) {
+    settingsStore?.set('unlockAllScenarios', on);
+  },
+};
 
 export type TitleView = 'main' | 'newGame' | 'scenarios' | 'sandbox';
 

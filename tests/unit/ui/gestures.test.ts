@@ -7,6 +7,7 @@ import {
   type GestureAction,
   type GesturePointerEvent,
 } from '../../../src/input/gestures';
+import { DRAG_THRESHOLD_PX as TUNED_DRAG_THRESHOLD_PX } from '../../../src/data/tuning/a11y';
 
 type Ev = Partial<GesturePointerEvent> & Pick<GesturePointerEvent, 'type'>;
 
@@ -20,24 +21,25 @@ function make(mode: DragMode = 'pan'): { rec: GestureRecognizer; send: (e: Ev) =
 const types = (acts: GestureAction[]): string[] => acts.map((a) => a.type);
 
 describe('gesture recognizer: tap vs drag', () => {
-  it('uses a 6 CSS px drag threshold and a 500 ms long press', () => {
-    expect(DRAG_THRESHOLD_PX).toBe(6);
+  it('uses an 8 CSS px drag threshold (Phase 6 §8, the a11y tuning) and a 500 ms default long press', () => {
+    expect(DRAG_THRESHOLD_PX).toBe(8);
+    expect(DRAG_THRESHOLD_PX).toBe(TUNED_DRAG_THRESHOLD_PX);
     expect(LONG_PRESS_MS).toBe(500);
   });
 
-  it('a press that moves less than 6 px is a tap at the press point', () => {
+  it('a press that moves less than 8 px is a tap at the press point', () => {
     const { send } = make('build');
     send({ type: 'down', x: 100, y: 100 });
-    expect(send({ type: 'move', x: 105, y: 100, t: 50 })).toEqual([]);
-    expect(send({ type: 'up', x: 105, y: 100, t: 80 })).toEqual([{ type: 'tap', x: 100, y: 100, pointerType: 'touch' }]);
+    expect(send({ type: 'move', x: 107, y: 100, t: 50 })).toEqual([]);
+    expect(send({ type: 'up', x: 107, y: 100, t: 80 })).toEqual([{ type: 'tap', x: 100, y: 100, pointerType: 'touch' }]);
   });
 
-  it('a move of exactly 6 px starts a build drag and release ends it (no tap)', () => {
+  it('a move of exactly 8 px starts a build drag and release ends it (no tap)', () => {
     const { send } = make('build');
     send({ type: 'down', x: 100, y: 100 });
-    expect(send({ type: 'move', x: 106, y: 100, t: 30 })).toEqual([
+    expect(send({ type: 'move', x: 108, y: 100, t: 30 })).toEqual([
       { type: 'dragStart', x: 100, y: 100, pointerType: 'touch' },
-      { type: 'dragMove', x: 106, y: 100 },
+      { type: 'dragMove', x: 108, y: 100 },
     ]);
     expect(send({ type: 'move', x: 140, y: 102, t: 40 })).toEqual([{ type: 'dragMove', x: 140, y: 102 }]);
     expect(send({ type: 'up', x: 140, y: 102, t: 60 })).toEqual([{ type: 'dragEnd', x: 140, y: 102, pointerType: 'touch' }]);
@@ -172,6 +174,27 @@ describe('gesture recognizer: long press', () => {
     const m = make('pan');
     m.send({ type: 'down', pointerType: 'mouse', x: 0, y: 0, t: 0 });
     expect(m.rec.update(900)).toEqual([]);
+  });
+
+  it('reads the long-press time from a function at each press (Settings → Controls: 400 / 500 / 700 ms)', () => {
+    let ms = 400;
+    const rec = new GestureRecognizer({ primaryDrag: () => 'pan', longPressMs: () => ms });
+    const down = (t: number): void => {
+      rec.handle({ id: 1, type: 'down', x: 0, y: 0, t, pointerType: 'touch', button: 0 });
+    };
+    const up = (t: number): void => {
+      rec.handle({ id: 1, type: 'up', x: 0, y: 0, t, pointerType: 'touch', button: 0 });
+    };
+    down(0);
+    expect(rec.update(399)).toEqual([]);
+    expect(types(rec.update(400))).toEqual(['longPress']);
+    up(410);
+    ms = 700;
+    down(1000);
+    expect(rec.update(1500)).toEqual([]);
+    expect(rec.update(1699)).toEqual([]);
+    expect(types(rec.update(1700))).toEqual(['longPress']);
+    up(1710);
   });
 
   it('a quick tap before 500 ms is a tap', () => {

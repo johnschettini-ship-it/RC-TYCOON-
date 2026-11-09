@@ -58,3 +58,13 @@ export function text(id: string, params?: Record<string, string | number>): stri
   if (!params) return raw;
   return fillParams(raw, params);
 }
+
+/**
+ * English text regardless of the active locale (master R27): the simulation returns English command reasons and
+ * warnings; the client translates them with `localizeReason`.
+ */
+export function englishText(id: string, params?: Record<string, string | number>): string {
+  const raw = en[id];
+  if (raw === undefined) return id;
+  return params ? fillParams(raw, params) : raw;
+}

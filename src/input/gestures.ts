@@ -4,14 +4,17 @@
  * No DOM access, so every rule is unit-tested in Node.
  *
  * Rules:
- * - Drag threshold 6 CSS px. Below it a press is a tap (released) or a long press (500 ms, touch and pen only).
+ * - Drag threshold 8 CSS px (Phase 6 §8). Below it a press is a tap (released) or a long press (touch and pen only;
+ *   500 ms by default, 400 / 500 / 700 ms from Settings → Controls, read when a press starts).
  * - A primary drag (left mouse button or one finger) pans or builds, as the active tool says.
  * - Right and middle mouse drags always pan and never tap.
  * - A second finger cancels the one-finger action (nothing gets built) and starts a pinch.
  * - After a pinch, the remaining fingers do nothing until all have lifted: no tap fires.
  */
 
-export const DRAG_THRESHOLD_PX = 6;
+import { DRAG_THRESHOLD_PX as TUNED_DRAG_THRESHOLD_PX } from '../data/tuning/a11y';
+
+export const DRAG_THRESHOLD_PX = TUNED_DRAG_THRESHOLD_PX;
 export const LONG_PRESS_MS = 500;
 
 export type PointerKind = 'mouse' | 'touch' | 'pen';
@@ -52,7 +55,8 @@ export interface GestureOptions {
   /** What a primary drag does for the active tool. Read when a press starts. */
   primaryDrag: () => DragMode;
   dragThreshold?: number;
-  longPressMs?: number;
+  /** A fixed time, or a function read when each press starts (the long-press setting). */
+  longPressMs?: number | (() => number);
 }
 
 type Phase = 'idle' | 'pending' | 'panning' | 'dragging' | 'pinching' | 'consumed';
@@ -81,11 +85,13 @@ export class GestureRecognizer {
   private pinchCx = 0;
   private pinchCy = 0;
   private readonly threshold: number;
-  private readonly longPressMs: number;
+  private readonly longPressSource: number | (() => number);
+  /** Long-press time of the current press. */
+  private longPressMs = LONG_PRESS_MS;
 
   constructor(private readonly opts: GestureOptions) {
     this.threshold = opts.dragThreshold ?? DRAG_THRESHOLD_PX;
-    this.longPressMs = opts.longPressMs ?? LONG_PRESS_MS;
+    this.longPressSource = opts.longPressMs ?? LONG_PRESS_MS;
   }
 
   /** True while any tracked pointer is down. */
@@ -137,6 +143,7 @@ export class GestureRecognizer {
       this.startX = this.lastX = ev.x;
       this.startY = this.lastY = ev.y;
       this.startT = ev.t;
+      this.longPressMs = typeof this.longPressSource === 'function' ? this.longPressSource() : this.longPressSource;
       return [];
     }
     // Multi-touch only: a mouse never joins a pinch, and a touch never joins a mouse press.

@@ -60,7 +60,9 @@ export const sceneryUi: UiExtension = {
   toolbar: [
     {
       id: 'scenery',
-      label: text('scenery.tool'),
+      get label() {
+        return text('scenery.tool');
+      },
       icon: treeIcon,
       onClick: (ctx) => openTool(ctx),
       pressed: (ctx) => ctx.game.tool.tool === 'scenery',
