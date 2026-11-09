@@ -20,7 +20,7 @@ import { stopRide } from '../rides/flat/api';
 import type { Ride } from '../rides/types';
 import { addThought } from '../staff/guestEffects';
 import { findGuestById, serviceTile } from '../staff/lookup';
-import { dispatchMechanic, queueBreakdown } from '../staff/mechanics';
+import { dispatchPending, queueBreakdown } from '../staff/mechanics';
 import type { World } from '../types';
 import { breakdownChance, pickBreakdownType, rideAgeYears, wornReliability } from './reliability';
 
@@ -91,7 +91,9 @@ export function breakDown(world: World, ride: Ride, type: BreakdownKind): void {
     // §4.2 rule 6: once per breakdown (this is the only place it is sent).
     notify(world, 'staff', STAFF_MESSAGES.noMechanic, { tile: serviceTile(ride), entityId: ride.id });
   }
-  if (!dispatchMechanic(world, ride)) queueBreakdown(world, ride.id, false);
+  // FIFO (§4.2 rule 5): older pending breakdowns go first when a Mechanic is free.
+  queueBreakdown(world, ride.id, false);
+  dispatchPending(world);
 }
 
 /**
