@@ -424,6 +424,7 @@ const managementShape = obj<ManagementSlice>({
     progress: num,
     unlocked: arr(str),
     hoursThisMonth: int,
+    completeNotified: bool,
   }),
   campaigns: arr(obj<ManagementSlice['campaigns'][number]>({ type: str, targetId: int, endTick: int })),
   loan: obj<ManagementSlice['loan']>({ balance: int }),
