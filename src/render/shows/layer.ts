@@ -11,8 +11,8 @@
  * - `drawOverlay`: the placement ghost (`./ghost.ts`) with its footprint, viewing tiles (footpaths in the radius), the
  *   radius ring, and a check or cross icon; a selected site shows its viewing area too.
  *
- * Frame counters (`stats()`, and `window.__tcShows` in the browser for Playwright) count beams, rockets, particles,
- * flashes, and glows drawn.
+ * Frame counters (`stats()`, `totals()`, and `window.__tcShows = { frame, totals }` in the browser for Playwright)
+ * count beams, rockets, particles, flashes, and glows drawn.
  */
 import { getShowSiteDef, type ShowSiteDef } from '../../data/catalog';
 import { displayPrefs } from '../../a11y/prefs';
@@ -45,13 +45,19 @@ const FRAME_GHOST_INVALID = 2;
 /** Effects keep drawing this long after the show (glows and the last sparks fade). */
 const TAIL_TICKS = GLOW_IN + GLOW_OUT;
 /** Fireworks reach about this far from the launcher (world px) for culling. */
-const FIREWORK_REACH = 320;
+const FIREWORK_REACH = 380;
 /** About 8 MB of RGBA sprite memory (a handful of site sprites per zoom bucket). */
 const SHOW_SPRITE_BUDGET_PX = 2_000_000;
 
 export interface ShowLayerTotals extends FxStats {
   frames: number;
   reduced: boolean;
+}
+
+/** `window.__tcShows`: the last frame's counters and the running totals. */
+export interface ShowDebug {
+  frame: FxStats;
+  totals: ShowLayerTotals;
 }
 
 export interface ShowLayer extends WorldLayer {
@@ -74,7 +80,8 @@ export function createShowLayer(): ShowLayer {
   const frame = emptyFxStats();
   const totals: ShowLayerTotals = { ...emptyFxStats(), frames: 0, reduced: false };
   const palettes = new Map<string, readonly string[]>();
-  if (typeof window !== 'undefined') (window as unknown as { __tcShows?: ShowLayerTotals }).__tcShows = totals;
+  // Playwright reads the counters (dev builds and e2e only; render state, never game state).
+  if (typeof window !== 'undefined') (window as unknown as { __tcShows?: ShowDebug }).__tcShows = { frame, totals };
 
   function columns(n: number): ColumnTile[] {
     let c = columnsMemo.get(n);

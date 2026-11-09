@@ -66,10 +66,13 @@ const BEAM_HALF_WIDTH_START = 3;
 const FAN_DEG = 100;
 /** Reduced motion: one slow pulse every 8 s. */
 export const PULSE_TICKS = 160;
-/** Particles: gravity (world px per tick²), drag rate (per tick), size (world px). */
+/** Particles: gravity (world px per tick²), drag rate (per tick), head size (world px), streak length (ticks). */
 const GRAVITY = 0.045;
 const DRAG = 0.045;
-const PARTICLE_PX = 2.6;
+const PARTICLE_PX = 3.2;
+const STREAK_TICKS = 4;
+/** Sparks are white for their first ticks. */
+const HOT_TICKS = 5;
 /** Burst flash (ticks, world px). */
 const FLASH_TICKS = 7;
 const FLASH_RADIUS = 34;
@@ -232,7 +235,7 @@ export function drawFireworks(ctx: FxCtx, plan: ShowPlan, palette: readonly stri
       ctx.lineTo(ox + head.x * scale, oy + head.y * scale);
       ctx.stroke();
       ctx.fillStyle = '#fff6d8';
-      ctx.fillRect(ox + head.x * scale - size, oy + head.y * scale - size, size * 2, size * 2);
+      ctx.fillRect(ox + head.x * scale - size / 2, oy + head.y * scale - size / 2, size, size);
       stats.rockets++;
       continue;
     }
@@ -243,22 +246,42 @@ export function drawFireworks(ctx: FxCtx, plan: ShowPlan, palette: readonly stri
       stats.flashes++;
     }
     const fade = 1 - dt / k.life;
-    const dist = dragDistance(dt) * k.speed * scale;
-    const fall = 0.5 * GRAVITY * dt * dt * scale;
     const c2 = paletteColour(palette, k.colour2);
     const a = fade * fade * 0.95 + 0.05;
+    // Each particle: a short streak from where it was STREAK_TICKS ago, then a bright head.
+    const dist = dragDistance(dt) * k.speed * scale;
+    const fall = 0.5 * GRAVITY * dt * dt * scale;
+    const dt0 = Math.max(0, dt - STREAK_TICKS);
+    const dist0 = dragDistance(dt0) * k.speed * scale;
+    const fall0 = 0.5 * GRAVITY * dt0 * dt0 * scale;
+    ctx.lineWidth = Math.max(1, 1.2 * scale);
     for (let pass = 0; pass < 2; pass++) {
-      ctx.fillStyle = rgba(pass === 0 ? c1 : c2, a);
+      const colour = pass === 0 ? c1 : c2;
+      const start = stats.particles;
+      ctx.strokeStyle = rgba(colour, a * 0.7);
+      ctx.beginPath();
       for (let i = pass; i < k.count; i += 2) {
         if (stats.particles >= MAX_FIREWORK_PARTICLES) break;
+        const ang = (2 * Math.PI * i) / k.count + (hash01(k.seed, i) - 0.5) * 0.35;
+        const sp = 0.55 + 0.45 * hash01(k.seed ^ 0x5bd1e995, i);
+        const cx = Math.cos(ang) * sp;
+        const cy = Math.sin(ang) * sp;
+        ctx.moveTo(bx + cx * dist0, by + cy * dist0 + fall0);
+        ctx.lineTo(bx + cx * dist, by + cy * dist + fall);
+        stats.particles++;
+      }
+      ctx.stroke();
+      const n = stats.particles - start;
+      // Young sparks burn white-hot, then take the burst colour.
+      ctx.fillStyle = dt < HOT_TICKS ? rgba('#fff8e1', a) : rgba(colour, a);
+      for (let i = pass, m = 0; i < k.count && m < n; i += 2, m++) {
         const ang = (2 * Math.PI * i) / k.count + (hash01(k.seed, i) - 0.5) * 0.35;
         const sp = 0.55 + 0.45 * hash01(k.seed ^ 0x5bd1e995, i);
         const x = bx + Math.cos(ang) * dist * sp;
         const y = by + Math.sin(ang) * dist * sp + fall;
         ctx.fillRect(x - size / 2, y - size / 2, size, size);
-        stats.particles++;
-        drawn++;
       }
+      drawn += n;
     }
   }
   ctx.restore();
