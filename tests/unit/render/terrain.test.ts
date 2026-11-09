@@ -246,4 +246,20 @@ describe('terrain chunk builds per frame (Phase 6 §4.6: a view turn is not one 
       for (let r = 0; r < 4; r++) expect(layer.hasImage(c, r as 0 | 1 | 2 | 3, 0.5) || layer.hasImage(c, r as 0 | 1 | 2 | 3, 2)).toBe(false);
     }
   });
+
+  it('prefetch builds one image of another rotation per call, and stops when the cache has no headroom', () => {
+    install();
+    const map = generateMap({ width: 3 * CHUNK_SIZE, height: 2 * CHUNK_SIZE });
+    const layer = new TerrainLayer();
+    const canvas = make(100, 100);
+    layer.sync(map);
+    layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, env, view, 1, 1, 0, 0, 0);
+    let built = 0;
+    while (layer.prefetch(map, env, view, 1, 1)) built++;
+    expect(built).toBe(6);
+    for (let c = 0; c < 6; c++) expect(layer.hasImage(c, 1, 1)).toBe(true);
+    // Nearly full: no prefetch (it would be evicted and rebuilt on every idle frame).
+    layer.budgetPixels = layer.pixels;
+    expect(layer.prefetch(map, env, view, 1, 2)).toBe(false);
+  });
 });

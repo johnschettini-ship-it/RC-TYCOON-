@@ -405,6 +405,8 @@ const MAX_REFINES_PER_FRAME = 1;
  * builds them (Phase 6 §4.6 finding: a turn rebuilt every visible chunk in one frame, 95–170 ms on desktop).
  */
 export const FIRST_BUILD_BUDGET_MS = 6;
+/** `prefetch` works only while the chunk images use less than this share of their cap. */
+export const PREFETCH_HEADROOM = 0.6;
 /** Placeholder ground colour of a chunk not built yet. */
 const PLACEHOLDER = '#67b24b';
 /** Clock of the first-build budget (ms); tests replace `now` to make the budget deterministic. */
@@ -677,7 +679,8 @@ export class TerrainLayer {
    * instead of drawing placeholders. Returns true when it built one.
    */
   prefetch(map: MapState, env: TerrainEnv, view: ViewRect, bucket: ZoomBucket, r: ViewRotation): boolean {
-    if (this.bounds.length === 0) return false;
+    // Only with room to spare: a prefetched image the LRU evicts again would be rebuilt on every idle frame.
+    if (this.bounds.length === 0 || this.images.pixels > this.images.budgetPixels * PREFETCH_HEADROOM) return false;
     if (this.turnBoundsVersion !== this.tracker.version) {
       this.turnBounds = [null, null, null, null];
       this.turnBoundsVersion = this.tracker.version;

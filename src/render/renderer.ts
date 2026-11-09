@@ -30,7 +30,7 @@ import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
@@ -1005,7 +1005,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       // The chunks on screen stay cached for the next pan.
       terrain.touch(view, bucket, rot);
       // Idle frame on a desktop: build ahead for a view turn either way.
-      if (prefetchTurns) prefetchTurn(cam, map, env);
+      if (prefetchTurns && spriteMemory.bytes < spriteMemory.budgetBytes * PREFETCH_HEADROOM) prefetchTurn(cam, map, env);
       staticReuses++;
     } else if (sameView(lastKey, cam, map)) {
       // A still view: compose the static layer, then copy it.
