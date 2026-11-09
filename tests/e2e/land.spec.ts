@@ -78,6 +78,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
     // Paint snow with the same brush.
     await page.getByTestId('land-mode-paint').click();
     await page.getByTestId('land-paint-snow').click();
+    await centerOn(page, 25, 20);
     const q = await tilePoint(page, 25, 20);
     await page.mouse.click(q.x, q.y);
     await expect.poll(() => mapValue(page, 'terrain', 25, 20)).toBe(4);
@@ -87,7 +88,10 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
     // Hold the button: the brush repeats every 300 ms.
     await page.getByTestId('land-mode-raise').click();
     await page.getByTestId('land-size-1').click();
+    // Centre the held tile so the press lands on the map, never under a UI bar (bar heights vary with fonts).
+    await centerOn(page, 30, 24);
     const r = await tilePoint(page, 30, 24);
+    expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.id, [r.x, r.y] as const), 'press must land on the map canvas').toBe('game');
     await page.mouse.move(r.x, r.y);
     await page.mouse.down();
     await expect.poll(() => mapValue(page, 'heights', 30, 24), { timeout: 5_000 }).toBeGreaterThanOrEqual(11);
@@ -96,6 +100,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
     // Water: a click raises the surface above the ground.
     await page.getByTestId('tool-water').click();
     await expect(page.getByTestId('water-mode-raise')).toHaveAttribute('aria-pressed', 'true');
+    await centerOn(page, 16, 26);
     const w = await tilePoint(page, 16, 26);
     await page.mouse.click(w.x, w.y);
     await expect.poll(() => mapValue(page, 'water', 16, 26)).toBe(9);
