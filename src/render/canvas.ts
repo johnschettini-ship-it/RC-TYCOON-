@@ -5,7 +5,12 @@ import type { Sprite } from './spriteCache';
 
 export type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
 
-export function makeCanvas(w: number, h: number): { canvas: AnyCanvas; ctx: Ctx } {
+/** Canvases made so far (sprites, chunk images, layers): the perf overlay's cache-churn figure. */
+export const canvasStats = { made: 0 };
+
+/** `opaque`: a canvas with no alpha channel (every pixel is drawn; copies of it need no blending). */
+export function makeCanvas(w: number, h: number, opaque = false): { canvas: AnyCanvas; ctx: Ctx } {
+  canvasStats.made++;
   let canvas: AnyCanvas;
   if (typeof document !== 'undefined') {
     const c = document.createElement('canvas');
@@ -15,7 +20,7 @@ export function makeCanvas(w: number, h: number): { canvas: AnyCanvas; ctx: Ctx 
   } else {
     canvas = new OffscreenCanvas(w, h);
   }
-  const ctx = canvas.getContext('2d') as Ctx | null;
+  const ctx = (opaque ? canvas.getContext('2d', { alpha: false }) : canvas.getContext('2d')) as Ctx | null;
   if (!ctx) throw new Error('Canvas 2D is not available');
   return { canvas, ctx };
 }

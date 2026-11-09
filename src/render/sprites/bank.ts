@@ -7,7 +7,7 @@ import { decodeRideFrame, ANGLE_FRAMES, GHOST_FRAME_INVALID, GHOST_FRAME_VALID }
 import type { ZoomBucket } from '../camera';
 import { buildSprite } from '../canvas';
 import { SHIRT_COLOURS, rgbCss, tintStepRgb } from '../palette';
-import { bucketIndex, defHash, FRAME_SPAN, SpriteCache, spriteKey, type Sprite } from '../spriteCache';
+import { bucketIndex, defHash, FRAME_SPAN, SpriteCache, spriteKey, spriteMemory, type Sprite } from '../spriteCache';
 import type { Dir } from '../../sim/map';
 import { drawEntranceArt, drawFenceArt, drawGuestArt, entranceBounds, fenceBounds, GUEST_BOUNDS, GUEST_ITEM_BOUNDS, ITEM_COLOURS } from './props';
 import { drawRideArt, rideArtBounds } from './rides';
@@ -80,7 +80,7 @@ export class SpriteBank {
   private guestBuilds = 0;
 
   constructor(budgetPixels = (SPRITE_CACHE_MB * 1024 * 1024) / 4) {
-    this.cache = new SpriteCache(budgetPixels);
+    this.cache = new SpriteCache(budgetPixels, spriteMemory, 'sprites');
   }
 
   beginFrame(): void {
