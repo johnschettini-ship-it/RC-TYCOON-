@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../../../src/sim/commands';
+import { rideWarnings, stallWarnings } from '../../../src/sim/commands/build';
 import { Content, PathItem, tileIndex, type Dir } from '../../../src/sim/map';
 import { currentLedger } from '../../../src/sim/economy/ledger';
 import { distanceTo, queueOwner } from '../../../src/sim/pathing';
@@ -452,5 +453,37 @@ describe('placeStall (Phase 1 §4.1)', () => {
     expect(r.ok).toBe(true);
     expect(w.state.park.cash).toBe(0);
     expect(currentLedger(w).lines.construction).toBe(0);
+  });
+});
+
+describe('warnings stay until fixed (Phase 1 §4.1)', () => {
+  it('rideWarnings and stallWarnings follow the current paths', () => {
+    const w = makeTestWorld();
+    const r = executeCommand(w, { type: 'placeRide', defId: 'carousel', x: 20, y: 20, rotation: 0 });
+    const s = executeCommand(w, { type: 'placeStall', defId: 'snack_shack', x: 30, y: 30, rotation: 0 });
+    const ride = w.state.rides.find((x) => r.ok && x.id === r.id)!;
+    const stall = w.state.stalls.find((x) => s.ok && x.id === s.id)!;
+    expect(rideWarnings(w, ride)).toEqual([ENTRANCE_NEEDS_QUEUE, EXIT_NEEDS_FOOTPATH]);
+    expect(stallWarnings(w, stall)).toEqual([STALL_NEEDS_FOOTPATH]);
+    executeCommand(w, { type: 'buildPath', x: 21, y: 23, kind: 'queue' });
+    executeCommand(w, { type: 'buildPath', x: 21, y: 19, kind: 'footpath' });
+    executeCommand(w, { type: 'buildPath', x: 30, y: 29, kind: 'footpath' });
+    expect(rideWarnings(w, ride)).toEqual([]);
+    expect(stallWarnings(w, stall)).toEqual([]);
+    executeCommand(w, { type: 'demolish', x: 30, y: 29 });
+    expect(stallWarnings(w, stall)).toEqual([STALL_NEEDS_FOOTPATH]);
+  });
+
+  it('a ride whose entrance queue belongs to another ride keeps the entrance warning', () => {
+    const w = makeTestWorld();
+    const a = placeRideDirect(w, 'carousel', 10, 10, 0); // entrance outside (11, 13)
+    placeQueue(w, 11, 13);
+    placeQueue(w, 11, 14);
+    placeQueue(w, 11, 15);
+    placeQueue(w, 12, 15);
+    // Rotation 1: front faces W, entrance outside (12, 15) is on ride A's queue.
+    const r = executeCommand(w, { type: 'placeRide', defId: 'carousel', x: 13, y: 14, rotation: 1 });
+    expect(r.ok && r.warnings).toEqual([ENTRANCE_NEEDS_QUEUE, EXIT_NEEDS_FOOTPATH]);
+    expect(rideWarnings(w, a)).toEqual([EXIT_NEEDS_FOOTPATH]);
   });
 });

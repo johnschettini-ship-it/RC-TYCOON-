@@ -11,6 +11,7 @@ import {
   staffNextStep,
 } from '../../../src/sim/pathing';
 import { Content, tileIndex } from '../../../src/sim/map';
+import { STAFF_FIELD_CACHE_MAX } from '../../../src/data/tuning/world';
 import type { World } from '../../../src/sim/types';
 import { makeTestWorld, placeFootpath, placeQueue, placeRideDirect, placeStallDirect } from '../../helpers/world';
 
@@ -316,5 +317,23 @@ describe('staff routes (Phase 3 §4.1)', () => {
     expect(staffNextStep(w, start, T(w, 5, 5))).toBeNull();
     // A guest cannot take that route.
     expect(distanceTo(w, start, `stall:${stall.id}`)).toBeNull();
+  });
+});
+
+describe('staff field cache', () => {
+  it('stays correct when more targets are used than the cache holds', () => {
+    const w = makeTestWorld();
+    for (let y = 10; y <= 50; y++) footRow(w, y, 10, 50);
+    markNetworkDirty(w);
+    const from = T(w, 10, 10);
+    const targets: number[] = [];
+    for (let k = 0; k < STAFF_FIELD_CACHE_MAX * 2 + 5; k++) targets.push(T(w, 10 + (k % 41), 10 + Math.floor(k / 41)));
+    for (let pass = 0; pass < 2; pass++) {
+      for (const t of targets) {
+        const tx = t % 64;
+        const ty = Math.floor(t / 64);
+        expect(staffDistanceTo(w, from, t)).toBe(tx - 10 + (ty - 10));
+      }
+    }
   });
 });
