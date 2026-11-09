@@ -16,6 +16,7 @@ import { ok, type CommandContext, type CommandResult } from '../../commands/type
 import { recordLedger } from '../../economy/ledger';
 import { findGuest, finishRide, forgetDestination, leaveQueue } from '../../guests/api';
 import { Content, inBounds, tileIndex } from '../../map';
+import { markOccupancyDirty } from '../../occupancy';
 import { markNetworkDirty } from '../../pathing';
 import type { GameState, World } from '../../types';
 import type { Cents } from '../../units';
@@ -85,6 +86,7 @@ export function demolishTrackRide(world: World, ride: Ride, ctx: CommandContext)
     }
   }
   refreshGroundTiles(world, tiles);
+  markOccupancyDirty(world);
   if (!ctx.setup && refund > 0) recordLedger(world, 'demolitionRefunds', refund);
   forgetDestination(world, `ride:${ride.id}`);
   markNetworkDirty(world);

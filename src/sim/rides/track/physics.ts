@@ -1,5 +1,5 @@
 /**
- * 1D train physics (phase-2-coasters.md §4.7). Owner: W1-G.
+ * 1D train physics (phase-2-coasters.md §4.7; water drives Phase 4 §4.4). Owner: W1-G; water drives W3-C.
  * State is integer mm and mm/s; each tick computes in doubles (+ − × ÷ only, plus table trig) and rounds.
  * Every term is an acceleration, so guest load never changes motion.
  *
@@ -7,7 +7,7 @@
  * the average speed, which keeps energy within 0.5% over a full drop. Stops (station, holds, gap rule)
  * brake with the larger of their nominal deceleration and the one needed to halt exactly on the point.
  */
-import type { TrackTypeDef } from '../../../data/track';
+import type { TrackPieceDef, TrackTypeDef } from '../../../data/track';
 import {
   BRAKE_DECEL,
   CHAIN_ACCEL,
@@ -19,10 +19,15 @@ import {
   POWERED_ACCEL,
   POWERED_DECEL,
   RELEASE_ACCEL,
+  ROUGH_AMPLITUDE,
+  ROUGH_WAVELENGTH_MM,
+  SPLASH_DECEL,
+  SPLASH_MAX_V,
   STATION_SPEED,
   STATION_STOP_DECEL,
+  WHIRLPOOL_MAX_V,
 } from '../../../data/tuning/track';
-import { PI } from '../../trig';
+import { PI, TAU, tsin } from '../../trig';
 import { newSamplePoint, pieceIndexAt, sampleAt, wrapMm, type CircuitLayout, type SamplePoint } from './layout';
 import type { TrackPieceInstance, TrainState } from './types';
 
@@ -86,14 +91,62 @@ export function gForces(cosT: number, sinB: number, cosB: number, v: number, kv:
 
 const SP = newSamplePoint();
 
-/** Speed after one tick of a controller that drives the train toward `target` before `remainingM` metres. */
-function toward(v: number, target: number, remainingM: number, up: number): number {
+/**
+ * Speed after one tick of a controller that drives the train toward `target` before `remainingM` metres: up at `up`,
+ * down at `down` or harder when needed to reach the target by then.
+ */
+function toward(v: number, target: number, remainingM: number, up: number, down = BRAKE_DECEL): number {
   if (v < target) return Math.min(target, v + up * DT);
   if (v > target) {
     const need = remainingM > 0 ? (v * v - target * target) / (2 * remainingM) : Infinity;
-    return Math.max(target, v - Math.max(BRAKE_DECEL, need) * DT);
+    return Math.max(target, v - Math.max(down, need) * DT);
   }
   return v;
+}
+
+/** Phase 2 gravity acceleration with friction and drag (friction and drag act only when v > 0). */
+function gravityAccel(type: TrackTypeDef, sm: SamplePoint, v: number): number {
+  let a = -G * sm.sinT;
+  if (v > 0) {
+    const c = sm.cosT < 0 ? -sm.cosT : sm.cosT;
+    a -= type.physics.mu * G * c + type.physics.cd * v * v;
+  }
+  return a;
+}
+
+/**
+ * Water current speed (m/s) at `uMm` into a piece: the type's current, varied on rough water as a fixed function of the
+ * position (phase-2 §4.14: never the RNG, so the test run and operation stay equal).
+ */
+export function waterCurrentAt(type: TrackTypeDef, def: TrackPieceDef | undefined, uMm: number): number {
+  const vc = (type.water?.currentMms ?? 0) / 1000;
+  if (def?.special !== 'rough') return vc;
+  return vc * (1 + ROUGH_AMPLITUDE * tsin((TAU * uMm) / ROUGH_WAVELENGTH_MM));
+}
+
+/**
+ * Water drives (Phase 4 §4.4): speed after one tick for the piece under the boat's centre.
+ * `controlled`: a conveyor sets the speed (a boat there never counts as stalled).
+ */
+function waterStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: SamplePoint, v: number, uMm: number, pieceEndM: number): { v1: number; controlled: boolean } {
+  const drive = def?.water?.drive ?? 'current';
+  const current = (): number => {
+    const a = -G * sm.sinT - (type.water?.k ?? 0) * (v - waterCurrentAt(type, def, uMm));
+    return v + a * DT;
+  };
+  switch (drive) {
+    case 'conveyor':
+      return { v1: (def?.water?.conveyorMms ?? 0) / 1000, controlled: true };
+    case 'gravity':
+      return { v1: v + gravityAccel(type, sm, v) * DT, controlled: false };
+    case 'splash':
+      // Splash brake at 12 m/s², or harder when needed, so the boat always leaves the piece at ≤ 4 m/s.
+      return { v1: v > SPLASH_MAX_V ? toward(v, SPLASH_MAX_V, pieceEndM, 0, SPLASH_DECEL) : current(), controlled: false };
+    case 'whirlpool':
+      return { v1: Math.min(current(), WHIRLPOOL_MAX_V), controlled: false };
+    default:
+      return { v1: current(), controlled: false };
+  }
 }
 
 /**
@@ -116,14 +169,14 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
 
   let v1: number;
   let controlled = false;
-  if (type.drive === 'gravity' || type.drive === 'waterCurrent') {
+  if (type.drive === 'waterCurrent') {
     const sm = sampleAt(layout, t.s + v * DT * 500, SP);
-    let a = -G * sm.sinT;
-    if (v > 0) {
-      const c = sm.cosT < 0 ? -sm.cosT : sm.cosT;
-      a -= type.physics.mu * G * c + type.physics.cd * v * v;
-    }
-    v1 = v + a * DT;
+    const w = waterStep(type, def, sm, v, wrapMm(layout, t.s) - (layout.startMm[pi] as number), pieceEndM);
+    v1 = w.v1;
+    controlled = w.controlled;
+  } else if (type.drive === 'gravity') {
+    const sm = sampleAt(layout, t.s + v * DT * 500, SP);
+    v1 = v + gravityAccel(type, sm, v) * DT;
     if (def?.special === 'blockBrake' || departing) {
       v1 = toward(v, STATION_SPEED, pieceEndM, RELEASE_ACCEL);
       controlled = true;

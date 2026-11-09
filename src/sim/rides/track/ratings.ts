@@ -1,6 +1,6 @@
-/** Ratings from measured values (phase-2-coasters.md §4.10). Owner: W1-G. */
-import type { TrackTypeDef } from '../../../data/track';
-import { RATING, WARN } from '../../../data/tuning/track';
+/** Ratings from measured values (phase-2-coasters.md §4.10; water extras Phase 4 §4.4). Owner: W1-G; water extras W3-C. */
+import type { TrackPieceDef, TrackTypeDef } from '../../../data/track';
+import { RATING, WARN, WATER_RATING_EXTRAS } from '../../../data/tuning/track';
 import { TRACK_RATING_WARN } from '../../../data/strings/track';
 import type { TestResult } from './types';
 
@@ -107,6 +107,41 @@ export function computeRatings(m: RatingInputs, type: TrackTypeDef): Ratings {
     penalty = true;
   }
   return { excitement: finish(e), intensity: finish(i), nausea: finish(n), penalty };
+}
+
+/** Water rating extras in integer hundredths. */
+export interface WaterExtras {
+  e: number;
+  i: number;
+  n: number;
+}
+
+/**
+ * Water rating extras of a circuit (Phase 4 §4.4 table): each splashdown, waterfall, rough piece, and whirlpool adds its
+ * row, counted up to the row's limit. Rail pieces add nothing.
+ */
+export function waterRatingExtras(defs: readonly TrackPieceDef[]): WaterExtras {
+  const count = { splashdown: 0, waterfall: 0, rough: 0, whirlpool: 0 };
+  for (const d of defs) {
+    const sp = d.special;
+    if (sp === 'splashdown' || sp === 'waterfall' || sp === 'rough' || sp === 'whirlpool') count[sp]++;
+  }
+  const out: WaterExtras = { e: 0, i: 0, n: 0 };
+  for (const key of ['splashdown', 'waterfall', 'rough', 'whirlpool'] as const) {
+    const row = WATER_RATING_EXTRAS[key];
+    const n = Math.min(count[key], row.max);
+    out.e += row.e * n;
+    out.i += row.i * n;
+    out.n += row.n * n;
+  }
+  return out;
+}
+
+/** Add the water extras to a finished Phase 2 result ("after its formula") and clamp to 0.00–10.00. */
+export function addWaterExtras(r: Ratings, x: WaterExtras): Ratings {
+  const max = RATING.max * 100;
+  const clamp = (v: number): number => (v < 0 ? 0 : v > max ? max : v);
+  return { excitement: clamp(r.excitement + x.e), intensity: clamp(r.intensity + x.i), nausea: clamp(r.nausea + x.n), penalty: r.penalty };
 }
 
 /** Measured values of a stored test in natural units. */

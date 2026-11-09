@@ -1,9 +1,14 @@
 /**
- * Placement, clearance, and supports (phase-2 §4.5–4.6). Owner: W1-G.
+ * Placement, clearance, and supports (phase-2 §4.5–4.6; Phase 4 §4.2, §4.5, §4.9). Owner: W1-G; Phase 4 rules W3-C.
  * The per-tile occupancy list (master 6.3) is derived from the track rides on every call; it is never saved.
  *
  * Envelope of a track tile: [railMin − 1, railMax + 3) metres. A tile whose ground the track owns
  * (ground-level rail or a support) extends its envelope down to the ground.
+ *
+ * Phase 4: the rail may not cut the land of a sloped tile ("The track is below the land"); construction rights land
+ * (owned state 3) takes track whose envelope starts at least 3 m above the ground; elevated paths and scenery come
+ * from the unified occupancy list (W3-B) and must not overlap the envelope. A path deck or scenery below the rail spans
+ * the tile like a ground path (no support through it).
  */
 import { getTrackPieceDef, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
 import {
@@ -15,7 +20,12 @@ import {
   PATH_CLEARANCE_M,
 } from '../../../data/tuning/track';
 import { TRACK_ERR, fillTrackString } from '../../../data/strings/track';
-import { Content, inBounds, isOwned, tileIndex, type MapState } from '../../map';
+import { TERRAIN_ERR } from '../../../data/strings/terrain';
+import { RIGHTS_MIN_CLEARANCE } from '../../../data/tuning/land';
+import { aboveGroundOwnershipBlock } from '../../land/api';
+import { Content, inBounds, tileIndex, type MapState } from '../../map';
+import { occupantsAt } from '../../occupancy';
+import { maxCorner } from '../../terrain/corners';
 import type { World } from '../../types';
 import { pieceStatic, pieceWorldTiles, type WorldPieceTile } from './geometry';
 import type { TrackPieceInstance } from './types';
@@ -76,9 +86,29 @@ export function groundOwner(envs: readonly Envelope[], ground: number): Envelope
   return best;
 }
 
-function interval(env: Envelope | { railMin: number; railMax: number }, ground: number, ownsGround: boolean): [number, number] {
+/**
+ * Height range `[zMin, zMax)` of a track envelope on its tile: `[railMin − 1, railMax + 3)`, from the ground up when the
+ * track owns the tile's ground (ground-level rail or a support). The unified occupancy list (W3-B) uses the same range.
+ */
+export function envelopeInterval(env: { railMin: number; railMax: number }, ground: number, ownsGround: boolean): [number, number] {
   const lo = ownsGround ? ground : env.railMin - ENVELOPE_BELOW_M;
   return [lo, env.railMax + ENVELOPE_ABOVE_M];
+}
+const interval = envelopeInterval;
+
+/** First elevated path or scenery item of `tile` whose range overlaps `[lo, hi)`, from the unified occupancy list. */
+function otherOccupantHit(world: World, tile: number, lo: number, hi: number): 'elevatedPath' | 'scenery' | null {
+  for (const o of occupantsAt(world, tile)) {
+    if (o.kind !== 'elevatedPath' && o.kind !== 'scenery') continue;
+    if (lo < o.zMax && o.zMin < hi) return o.kind;
+  }
+  return null;
+}
+
+/** An elevated path deck lies wholly below `z` on `tile` (the track spans it, like a ground path). */
+function pathDeckBelow(world: World, tile: number, z: number): boolean {
+  for (const o of occupantsAt(world, tile)) if (o.kind === 'elevatedPath' && o.zMax <= z) return true;
+  return false;
 }
 
 /** Recompute the ground content of track-affected tiles from the remaining track (after a removal). */
@@ -129,14 +159,22 @@ export function checkPieceTiles(
   const def = getTrackPieceDef(piece.defId) as TrackPieceDef;
   const wts = pieceWorldTiles(piece);
   for (const t of wts) {
-    if (!inBounds(map, t.x, t.y) || !isOwned(map, tileIndex(map, t.x, t.y))) return { ok: false, reason: TRACK_ERR.outsidePark };
+    if (!inBounds(map, t.x, t.y)) return { ok: false, reason: TRACK_ERR.outsidePark };
+    // Owned land, or construction rights under an envelope that starts ≥ 3 m above the ground (Phase 4 §4.9).
+    const i = tileIndex(map, t.x, t.y);
+    const clears = t.railMin - ENVELOPE_BELOW_M >= (map.heights[i] as number) + RIGHTS_MIN_CLEARANCE;
+    const block = aboveGroundOwnershipBlock(map, i, clears);
+    if (block) return { ok: false, reason: block === TERRAIN_ERR.onlyRights ? TERRAIN_ERR.onlyRights : TRACK_ERR.outsidePark };
   }
   const idx = wts.map((t) => tileIndex(map, t.x, t.y));
   if (def.special === 'station') {
-    for (const i of idx) if (piece.z !== map.heights[i]) return { ok: false, reason: TRACK_ERR.stationOnGround };
+    for (const i of idx) if (piece.z !== map.heights[i] || map.slope[i] !== 0) return { ok: false, reason: TRACK_ERR.stationOnGround };
   }
   for (let k = 0; k < wts.length; k++) {
     if ((wts[k] as WorldPieceTile).railMin < (map.heights[idx[k] as number] as number)) return { ok: false, reason: TRACK_ERR.belowGround };
+  }
+  for (let k = 0; k < wts.length; k++) {
+    if ((wts[k] as WorldPieceTile).railMin < maxCorner(map, idx[k] as number)) return { ok: false, reason: TERRAIN_ERR.trackBelowLand };
   }
   let heightAboveGround = 0;
   for (let k = 0; k < wts.length; k++) {
@@ -152,14 +190,18 @@ export function checkPieceTiles(
     const i = idx[k] as number;
     const g = map.heights[i] as number;
     const c = map.content[i];
-    if (c === Content.Building || c === Content.ParkEntrance || c === Content.Scenery) {
+    if (c === Content.Building || c === Content.ParkEntrance) {
       return { ok: false, reason: TRACK_ERR.hitsBuilding };
     }
+    // Scenery on the ground: the track may only pass above it (no support through it; its height is checked below).
+    if (c === Content.Scenery && wt.railMin - ENVELOPE_BELOW_M < g) return { ok: false, reason: TERRAIN_ERR.sceneryInWay };
     if (c === Content.Footpath || c === Content.Queue) {
       if (wt.railMin < g + PATH_CLEARANCE_M) return { ok: false, reason: TRACK_ERR.hitsPath };
     }
-    const takesGround = c === Content.Empty && needsGround(wt, g);
+    const takesGround = c === Content.Empty && needsGround(wt, g) && !pathDeckBelow(world, i, wt.railMin - ENVELOPE_BELOW_M);
     const [lo, hi] = interval(wt, g, takesGround);
+    const other = otherOccupantHit(world, i, lo, hi);
+    if (other) return { ok: false, reason: other === 'elevatedPath' ? TRACK_ERR.hitsPath : TERRAIN_ERR.sceneryInWay };
     const envs = occ.get(i) ?? [];
     const owner = c === Content.Track ? groundOwner(envs, g) : null;
     if (c === Content.Track && envs.length === 0) {

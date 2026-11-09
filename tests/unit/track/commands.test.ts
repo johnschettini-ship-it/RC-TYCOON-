@@ -53,7 +53,9 @@ describe('placeStation', () => {
   it('rejects unknown types and keeps the state unchanged', () => {
     const w = fresh();
     const h = stateHash(w);
-    expect(reasonOf(executeCommand(w, { type: 'placeStation', typeId: 'log_flume', x: 10, y: 10, dir: EAST }))).toBe(TRACK_ERR.unknownType);
+    // Water types became real in Phase 4 (W3-C), so an id that is no track type stands in here.
+    expect(reasonOf(executeCommand(w, { type: 'placeStation', typeId: 'hover_coaster', x: 10, y: 10, dir: EAST }))).toBe(TRACK_ERR.unknownType);
+    expect(reasonOf(executeCommand(w, { type: 'placeStation', typeId: 'carousel', x: 10, y: 10, dir: EAST }))).toBe(TRACK_ERR.unknownType);
     expect(stateHash(w)).toBe(h);
   });
 

@@ -1,8 +1,9 @@
 /**
  * Picker preview of a track ride type: a station, a small hill with supports, and a two-car train in the
- * type's default colours (phase-2 §7.1 step 1). Owner: W2-A.
+ * type's default colours (phase-2 §7.1 step 1). Water types show a lift, a slope down, and their splash feature
+ * (Phase 4 §4.4). Owner: W2-A; water W3-C.
  */
-import { getTrackTypeDef } from '../../data/track';
+import { getTrackPieceDef, getTrackTypeDef } from '../../data/track';
 import { pieceWorldSamples } from '../../sim/rides/track/api';
 import type { TrackPieceInstance } from '../../sim/rides/track/types';
 import type { Ctx } from '../sprites/shapes';
@@ -17,6 +18,17 @@ function piece(defId: string, x: number, y: number, z: number, dir: 0 | 1 | 2 | 
 /** Pieces of the preview scene for a type (every rail type has stations, slopes, and small turns). */
 export function previewPieces(typeId: string): TrackPieceInstance[] {
   const type = getTrackTypeDef(typeId);
+  if (type && type.pieceSet !== 'rail') {
+    const p = (id: string): string => `${type.pieceSet}_${id}`;
+    return [
+      piece(p('station'), 0, 0, 0, 0),
+      piece(p('station'), 1, 0, 0, 0),
+      piece(p('turn_small_r'), 2, 0, 0, 0),
+      piece(p('lift'), 2, 1, 0, 1),
+      piece(p('slope_down'), 2, 2, 2, 1),
+      piece(type.pieceSet === 'flume' ? 'flume_splashdown' : 'rapids_whirlpool', 2, 3, 0, 1),
+    ];
+  }
   const special = type?.groups.includes('Sp') ? 'spooky_tunnel' : 'straight';
   // An L shape keeps the picture compact: station along +x, a small turn, then a small hill along +y.
   return [
@@ -81,14 +93,15 @@ export function drawTrackPreview(ctx: CanvasRenderingContext2D, typeId: string, 
     const p = pieces[i] as TrackPieceInstance;
     const mid = Math.floor(s.n / 2);
     if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) - look.drop);
-    const def = p.defId === 'station' ? 'station' : p.defId === 'spooky_tunnel' ? 'spooky' : null;
-    paintRun(c, P, look, col, s, 0, s.n - 1, { special: def, chain: false });
+    const def = getTrackPieceDef(p.defId);
+    paintRun(c, P, look, col, s, 0, s.n - 1, { special: def?.special ?? null, chain: false, conveyor: def?.water?.drive === 'conveyor' && def.special !== 'station' });
   });
-  // Two cars in the station.
+  // Two cars in the station (one boat on a water ride).
   const st = samples[1];
   if (st) {
     const fr = new Float64Array(9);
-    for (const [kk, front] of [[Math.floor(st.n * 0.75), true], [Math.floor(st.n * 0.1), false]] as const) {
+    const cars = type.medium === 'water' ? ([[Math.floor(st.n * 0.5), true]] as const) : ([[Math.floor(st.n * 0.75), true], [Math.floor(st.n * 0.1), false]] as const);
+    for (const [kk, front] of cars) {
       trackFrame(0, 0, 0, 1, fr);
       ctx.save();
       ctx.translate(P.x(st.x[kk] as number, st.y[kk] as number), P.y(st.x[kk] as number, st.y[kk] as number, st.z[kk] as number));
