@@ -5,6 +5,7 @@ import { h, newId, setText } from '../dom';
 import { formatMoney } from '../format';
 import { PARK_NAME_MAX, validateParkName } from '../names';
 import { priceSlider, section, statRow, toggleButton } from '../widgets';
+import { UI_EXTENSIONS } from '../extensions';
 
 /** Entrance fee range $0–$50 in $1 steps (Phase 1 §4.5). */
 export const ENTRANCE_FEE_MAX = 5000;
@@ -56,6 +57,9 @@ export function createParkPanel(ctx: UiContext): PanelView {
     section(null, fee.el),
     section(null, rating.el, guests.el, turned.el),
   );
+  // Build 2 park settings and records (Wave 3 extensions): After Dark switch, awards.
+  const extra = UI_EXTENSIONS.flatMap((x) => (x.parkPanel ? [x.parkPanel(ctx)] : []));
+  for (const p of extra) body.append(p.el);
 
   return {
     kind: 'park',
@@ -72,6 +76,8 @@ export function createParkPanel(ctx: UiContext): PanelView {
       rating.set(text('ui.park.ratingValue', { value: p.rating }));
       guests.set(String(game.world.state.guests.length));
       turned.set(String(p.turnedAway));
+      const now = performance.now();
+      for (const x of extra) x.update(now);
       return true;
     },
   };

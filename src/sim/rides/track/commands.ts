@@ -47,7 +47,7 @@ function configBlock(ride: Ride, data: TrackRideData): string | null {
 function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContext): CommandResult {
   const type = getTrackTypeDef(cmd.typeId);
   if (!type || type.medium !== 'rail' || type.drive === 'waterCurrent') return fail(TRACK_ERR.unknownType);
-  if (!isUnlocked(world, cmd.typeId)) return fail(TRACK_ERR.notResearched);
+  if (!ctx.setup && !isUnlocked(world, cmd.typeId)) return fail(TRACK_ERR.notResearched);
   const s = world.state;
   const map = s.map;
   if (!inBounds(map, cmd.x, cmd.y)) return fail(TRACK_ERR.outsidePark);

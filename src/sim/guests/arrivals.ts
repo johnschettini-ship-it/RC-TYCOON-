@@ -66,6 +66,7 @@ export function spawnGuest(world: World): Guest | null {
   const guest: Guest = {
     id,
     tile: map.entranceTile,
+    z: map.heights[map.entranceTile] as number,
     nextTile: -1,
     progress: 0,
     dir: 0,
@@ -91,6 +92,7 @@ export function spawnGuest(world: World): Guest | null {
     lostSteps: 0,
     bestDistance: -1,
     lostTarget: null,
+    wetUntilTick: -1,
   };
   if (fee !== 0) recordLedger(world, 'entranceTickets', fee);
   s.guests.push(guest);

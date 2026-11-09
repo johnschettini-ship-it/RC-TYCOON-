@@ -1,6 +1,9 @@
-/** Client contracts shared by render (W1-A), input and UI (W1-B). Owner: integrator. */
-import type { Dir } from '../sim/map';
+/** Client contracts shared by render (W1-A), input and UI (W1-B), and the Wave 3 cards. Owner: integrator. */
+import type { Dir, TerrainCode } from '../sim/map';
 import type { World } from '../sim/types';
+import type { RampMode } from '../sim/commands/types';
+import type { SceneryEdge } from '../sim/scenery/types';
+import type { BrushSize, Corner } from '../sim/terrain/types';
 
 export interface Camera {
   /** World-pixel point at the screen centre (zoom 1 units). */
@@ -8,7 +11,10 @@ export interface Camera {
   centerY: number;
   /** 0.25–2.0. */
   zoom: number;
-  /** View rotation (Phase 4). Always 0 in Build 1. */
+  /**
+   * View rotation (Phase 4 §4.8): quarter turns clockwise. UI state only: the simulation never reads it and saves do
+   * not store it. Helpers in `./view.ts` (W3-G).
+   */
   rotation: Dir;
 }
 
@@ -21,10 +27,20 @@ export type ToolId =
   | 'demolish'
   | 'track'
   | 'pathItem'
-  | 'patrol';
+  | 'patrol'
+  // Build 2 (Phase 4 §7). Input routing: `src/input/toolRouters.ts`.
+  /** Terrain brushes, corner, level, paint (W3-A). */
+  | 'land'
+  /** Water raise and lower (W3-A). */
+  | 'water'
+  /** Land and construction-rights purchase (W3-G). */
+  | 'buyLand'
+  /** Scenery placement (W3-D). */
+  | 'scenery';
 
 export interface GhostState {
-  kind: 'ride' | 'stall' | 'pathItem' | 'trackPiece' | 'station';
+  /** `scenery`: Phase 4 scenery ghost (W3-D); `rotation` is in map terms (view rotation already taken off). */
+  kind: 'ride' | 'stall' | 'pathItem' | 'trackPiece' | 'station' | 'scenery';
   defId: string;
   tile: number;
   rotation: Dir;
@@ -42,6 +58,45 @@ export interface DragState {
   cost: number;
 }
 
+/** Land tool modes (Phase 4 §7). */
+export type LandMode = 'raise' | 'lower' | 'smooth' | 'corner' | 'level' | 'paint';
+
+/** Land and water tool options (W3-A). */
+export interface LandToolOptions {
+  mode: LandMode;
+  size: BrushSize;
+  /** Paint mode terrain type. */
+  paint: TerrainCode;
+  /** Corner mode: the corner marked under the pointer (touch marks it before Raise or Lower). */
+  corner: Corner | null;
+  /** Level mode: target height (lowest corner of the first tile pressed; touch changes it with + and −). */
+  levelTarget: number | null;
+}
+
+/** Path tool height control (Phase 4 §4.2, §7; W3-B). `z` null = ground paths. */
+export interface PathHeightOptions {
+  z: number | null;
+  ramp: RampMode;
+}
+
+/** Scenery tool options (W3-D). The item rotation is `ToolState.rotation` (view terms). */
+export interface SceneryToolOptions {
+  defId: string | null;
+  edge: SceneryEdge;
+  /** Shift-click (desktop) or the Repeat toggle (touch) keeps the tool after placing. */
+  repeat: boolean;
+}
+
+/** Ghost of a brush or rectangle tool (land, water, buy land): affected tiles, total cost, validity. */
+export interface BrushGhost {
+  tiles: number[];
+  cost: number;
+  valid: boolean;
+  reason: string | null;
+  /** Corner mode: the vertex as (x, y) of its map corner point. */
+  corner: { x: number; y: number } | null;
+}
+
 export interface ToolState {
   tool: ToolId;
   hoverTile: number | null;
@@ -51,14 +106,39 @@ export interface ToolState {
   defId: string | null;
   ghost: GhostState | null;
   drag: DragState | null;
-  /** Active overlay (Phase 1: temperament). */
-  overlay: 'none' | 'temperament' | 'patrol' | 'litter' | 'reliability' | 'calm' | 'buzz';
+  /** Active overlay (Phase 1: temperament; Phase 4: calm, buzz, light). */
+  overlay: OverlayId;
   /** Entity the panel shows (inspect / follow). */
   selectedEntity: { kind: 'ride' | 'stall' | 'guest' | 'staff'; id: number } | null;
+  // ---- Build 2 tool options (Wave 3.0) ----
+  land: LandToolOptions;
+  pathHeight: PathHeightOptions;
+  scenery: SceneryToolOptions;
+  /** Brush or rectangle ghost of the land, water, and buy-land tools, or null. */
+  brush: BrushGhost | null;
 }
 
+export type OverlayId = 'none' | 'temperament' | 'patrol' | 'litter' | 'reliability' | 'calm' | 'buzz' | 'light';
+
+/** Phase 4 §7: the overlay key cycles None → Calm → Buzz → Light → Temperament. */
+export const OVERLAY_CYCLE: readonly OverlayId[] = ['none', 'calm', 'buzz', 'light', 'temperament'];
+
 export function defaultToolState(): ToolState {
-  return { tool: 'inspect', hoverTile: null, selectedTile: null, rotation: 0, defId: null, ghost: null, drag: null, overlay: 'none', selectedEntity: null };
+  return {
+    tool: 'inspect',
+    hoverTile: null,
+    selectedTile: null,
+    rotation: 0,
+    defId: null,
+    ghost: null,
+    drag: null,
+    overlay: 'none',
+    selectedEntity: null,
+    land: { mode: 'raise', size: 1, paint: 0, corner: null, levelTarget: null },
+    pathHeight: { z: null, ramp: 'flat' },
+    scenery: { defId: null, edge: -1, repeat: false },
+    brush: null,
+  };
 }
 
 export interface Renderer {

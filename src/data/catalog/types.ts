@@ -108,3 +108,40 @@ export interface CostumeDef {
   /** Temperament range that gets the bonus; null for Boo (night/spooky rule, Phase 4). */
   temperament: { min: number; max: number } | null;
 }
+
+/** Scenery themes (Phase 4 §4.5, catalog §6). `base` is the unthemed start set. */
+export type SceneryThemeId = 'base' | 'classic_fair' | 'frost_peaks' | 'volcano_ridge' | 'spooky_hollow' | 'jungle_lagoon' | 'starport';
+
+export interface SceneryTheme {
+  id: SceneryThemeId;
+  name: string;
+  /** `start`, or the research category that unlocks the whole theme (research id = theme id, 240 points). */
+  unlock: Unlock;
+}
+
+/** One scenery item (Phase 4 §4.5 tables). Money is integer cents; `heightM` is metres (height steps). */
+export interface SceneryDef {
+  id: string;
+  name: string;
+  theme: SceneryThemeId;
+  /** Footprint in tiles at rotation 0 (2 × 1 items swap sides at rotation 1 and 3). Edge items: 1 × 1. */
+  w: number;
+  d: number;
+  heightM: number;
+  buildCost: number;
+  /** Calm and Buzz strength `s` (Phase 4 §4.6). */
+  calm: number;
+  buzz: number;
+  /** Flag E: goes on one tile edge, not the centre slot. */
+  edge: boolean;
+  /** Flag L: light source at night (scenery only; rides and stalls always light, master R11). */
+  light: boolean;
+  /** Flag W: a garden with a water level that drains and wilts. */
+  needsWater: boolean;
+  /** Flag S: may stand on a sloped tile. */
+  slopeOk: boolean;
+  /** Flag P: an arch over a flat ground footpath; guests walk under it. */
+  overPath: boolean;
+  /** Flag K: spooky (After Dark spooky-ride bonus within 6 tiles). */
+  spooky: boolean;
+}

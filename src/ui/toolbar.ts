@@ -11,11 +11,13 @@ import { icon, type IconName } from './icons';
 import { mgmtIcon, type MgmtIconName } from './management/icons';
 import { pathItemAction } from '../render/management/toolOptions';
 import { unreadCount } from '../sim/notifications';
+import { toolbarEntries } from './extensions';
 
 interface ButtonDef {
   id: string;
   label: string;
-  icon: IconName | { mgmt: MgmtIconName };
+  /** Build 2 extension entries (`./extensions.ts`) bring their own icon element. */
+  icon: IconName | { mgmt: MgmtIconName } | { el: () => Element };
   onClick: () => void;
   pressed: () => boolean;
 }
@@ -73,13 +75,16 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
     },
     { id: 'menu', label: text('ui.tool.menu'), icon: 'menu', onClick: openMenu, pressed: () => false },
   ];
+  // Build 2 tools (Wave 3 extensions) go before Demolish, in registry order.
+  const extra: ButtonDef[] = toolbarEntries().map((e) => ({ id: e.id, label: e.label, icon: { el: e.icon }, onClick: () => e.onClick(ctx), pressed: () => e.pressed(ctx) }));
+  defs.splice(defs.findIndex((d) => d.id === 'demolish'), 0, ...extra);
 
   const buttons = defs.map((d) => {
     const ariaLabel = d.id === 'temperament' ? text('ui.tool.temperamentLong') : d.label;
     const b = h(
       'button',
       { type: 'button', class: 'tool-btn', 'data-tool': d.id, 'data-testid': `tool-${d.id}`, 'aria-label': ariaLabel, title: ariaLabel, 'aria-pressed': 'false', onclick: d.onClick },
-      typeof d.icon === 'string' ? icon(d.icon) : mgmtIcon(d.icon.mgmt),
+      typeof d.icon === 'string' ? icon(d.icon) : 'el' in d.icon ? d.icon.el() : mgmtIcon(d.icon.mgmt),
       h('span', { class: 'tool-label', text: d.label, 'aria-hidden': 'true' }),
     );
     return { def: d, el: b };

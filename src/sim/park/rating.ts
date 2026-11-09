@@ -12,6 +12,9 @@
  * | Variety V   | (1 − 0.5 × Σ |guestShare − rideShare|) × min(1, openRides / 8)              | 100    |
  * | Lost guests L | 1 − min(1, 4 × lostGuests / max(1, guests))                                | 75     |
  * | Queues Q    | 1 − min(1, average over open rides of queueLength / (3 × capacity))         | 75     |
+ * | Atmosphere A | `atmosphereScore` (Phase 4 §4.6, W3-E): mean of c × Calm + h × Buzz        | 0 → 100 (Phase 4) |
+ *
+ * Phase 5 §4.10: active awards add `awardRatingBonus` (W3-I) to `modifiers.ratingBonus`.
  *
  * "No data" values (documented formula choices, shown in the rating tooltip; not missing-data fill-ins):
  * - Spec (Phase 3 §4.13): "With 0 guests, H, P, L use 0.5."
@@ -52,6 +55,8 @@ import { cleanliness } from '../litter/metrics';
 import type { World } from '../types';
 import { rideCapacity, rideTag } from './rides';
 import { isGuestLost } from '../facilities/wayfinding';
+import { atmosphereScore } from '../fields/api';
+import { awardRatingBonus } from '../awards/api';
 
 export interface RatingParts {
   happiness: number;
@@ -61,6 +66,8 @@ export interface RatingParts {
   variety: number;
   lostGuests: number;
   queues: number;
+  /** Phase 4 §4.6 (W3-E). */
+  atmosphere: number;
 }
 
 const HAPPINESS_MAX = 255;
@@ -214,6 +221,7 @@ export function ratingParts(world: World): RatingParts {
     variety: varietyScore(world, t),
     lostGuests: lostGuestScore(world, t),
     queues: queueScore(world),
+    atmosphere: clamp01(atmosphereScore(world)),
   };
 }
 
@@ -225,7 +233,7 @@ export function ratingFromParts(parts: RatingParts, bonus: number): number {
 }
 
 export function computeRating(world: World): number {
-  return ratingFromParts(ratingParts(world), world.state.modifiers.ratingBonus);
+  return ratingFromParts(ratingParts(world), world.state.modifiers.ratingBonus + awardRatingBonus(world));
 }
 
 export function updateRating(world: World): void {

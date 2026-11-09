@@ -10,6 +10,7 @@ import { h, setAttr, setText, toggleClass } from './dom';
 import { formatMoney, sharePercents, temperamentShares } from './format';
 import { icon } from './icons';
 import { createWeatherBadge } from './management/weatherBadge';
+import { UI_EXTENSIONS } from './extensions';
 
 const SPEEDS: readonly Speed[] = [0, 1, 2, 4];
 const BALANCE_MS = 500;
@@ -29,6 +30,8 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
 
   // Phase 3 §7.1: weather icon with the forecast.
   const weather = createWeatherBadge(ctx);
+  // Build 2 HUD controls (Wave 3 extensions): view rotate buttons, objectives flag.
+  const extra = UI_EXTENSIONS.flatMap((x) => (x.hud ? [x.hud(ctx)] : []));
 
   const speedButtons = SPEEDS.map((s) =>
     h(
@@ -48,6 +51,7 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
     h('div', { class: 'hud-item hud-balance' }, h('span', { class: 'balance-end chill', text: text('ui.tag.chill'), 'aria-hidden': 'true' }), balance, h('span', { class: 'balance-end thrill', text: text('ui.tag.thrill'), 'aria-hidden': 'true' })),
     h('div', { class: 'hud-item hud-clock', title: text('ui.hud.date') }, date),
     weather.el,
+    ...extra.map((p) => p.el),
     h('div', { class: 'speed', role: 'group', 'aria-label': text('ui.speed.label') }, ...speedButtons),
   );
 
@@ -64,6 +68,7 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
       setText(rating, String(s.park.rating));
       setText(date, formatDate(s.tick));
       weather.update();
+      for (const p of extra) p.update(now);
       for (const b of speedButtons) {
         const on = Number(b.dataset.speed) === game.speed;
         setAttr(b, 'aria-pressed', on ? 'true' : 'false');

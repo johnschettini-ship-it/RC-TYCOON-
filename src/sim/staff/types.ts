@@ -4,19 +4,23 @@ import type { Costume, StaffType } from '../../data/catalog/types';
 import type { Dir } from '../map';
 import type { RideStatus } from '../rides/types';
 
-export type StaffStateName = 'walking' | 'sweeping' | 'cleaning' | 'emptying' | 'inspecting' | 'fixing' | 'performing';
+/** `watering`: Phase 4 garden watering (Groundskeeper task `water`). */
+export type StaffStateName = 'walking' | 'sweeping' | 'cleaning' | 'emptying' | 'inspecting' | 'fixing' | 'performing' | 'watering';
 
 /**
  * What the staff member is doing or heading for.
  * `none`: choose at the next tile boundary. `toPatrol`: walking back into the patrol area.
+ * `water`: Phase 4 §4.5 — walk to a path tile next to a garden with `waterLevel < 128` and water it.
  */
-export type StaffTask = 'none' | 'wander' | 'toPatrol' | 'sweep' | 'mess' | 'bin' | 'fix' | 'inspect' | 'roam' | 'perform';
+export type StaffTask = 'none' | 'wander' | 'toPatrol' | 'sweep' | 'mess' | 'bin' | 'water' | 'fix' | 'inspect' | 'roam' | 'perform';
 
 export interface Staff {
   id: EntityId;
   type: StaffType;
   name: string;
   tile: number;
+  /** Phase 4 §4.2: height (absolute steps) of the path node the staff member stands on. Maintained by W3-B. */
+  z: number;
   /** Tile being walked to, or −1 when standing on `tile`. */
   nextTile: number;
   /** Ticks walked toward `nextTile` (the catalog walk speed is ticks per tile). */

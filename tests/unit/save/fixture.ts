@@ -109,6 +109,7 @@ export function addStaffDirect(world: World, patch: Partial<Staff> = {}): Staff 
     type: 'groundskeeper',
     name: `Staff ${id}`,
     tile: tileIndex(s.map, 31, 60),
+    z: 8,
     nextTile: -1,
     progress: 0,
     dir: 0,

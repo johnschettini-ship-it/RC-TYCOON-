@@ -13,6 +13,8 @@ import {
 import { hourlyShare, recordLedger } from '../economy/ledger';
 import { isBroken, repairCost, setBroken } from '../litter/pathItems';
 import { standUpFromBench } from '../litter/benches';
+import { gardenNeedsWaterNear, waterGardensNear } from '../scenery/gardens';
+import { WATERING_TICKS } from '../../data/tuning/scenery';
 import { Content, neighbour, PathItem, type Dir, type MapState } from '../map';
 import { notify } from '../notifications';
 import { isWalkable } from '../pathing';
@@ -75,6 +77,9 @@ function timed(world: World, s: Staff): void {
     case 'emptying':
       map.binFill[s.tile] = 0;
       break;
+    case 'watering':
+      waterGardensNear(world, s.tile);
+      break;
     case 'fixing':
       completeFix(world, s);
       return;
@@ -105,7 +110,7 @@ function arrived(s: Staff): boolean {
 
 function shouldRecheck(s: Staff): boolean {
   if (s.task === 'wander') return true;
-  return s.type === 'groundskeeper' && (s.task === 'sweep' || s.task === 'bin');
+  return s.type === 'groundskeeper' && (s.task === 'sweep' || s.task === 'bin' || s.task === 'water');
 }
 
 /** At a tile boundary: start work on arrival, re-plan when needed, then take the next step. */
@@ -210,6 +215,10 @@ function startWork(world: World, s: Staff): boolean {
     case 'bin':
       if (map.pathItem[t] !== PathItem.Bin || (map.binFill[t] as number) <= 0) return false;
       begin(s, 'emptying', BIN_EMPTY_TICKS);
+      return true;
+    case 'water':
+      if (!gardenNeedsWaterNear(world, t)) return false;
+      begin(s, 'watering', WATERING_TICKS);
       return true;
     case 'fix': {
       const ride = findRide(world, s.fixRideId);

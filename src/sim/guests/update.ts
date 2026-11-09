@@ -11,7 +11,8 @@ import {
   SIT_MAX_TICKS,
 } from '../../data/tuning/guests';
 import { emit } from '../events';
-import { guestHooks } from '../hooks';
+import { guestHooks, hookFactor } from '../hooks';
+import { isHourStart } from '../time';
 import { distanceTo, nextStep, queueOwner } from '../pathing';
 import type { World } from '../types';
 import { joinQueue, leaveQueue } from './api';
@@ -94,7 +95,8 @@ function move(world: World, guest: Guest, gone: Set<number>): boolean {
     stopWalking(guest);
     return false;
   }
-  guest.progress += 1;
+  // Build 2 walking factors (Calm, Buzz) through the guest hooks; 1 with no hooks.
+  guest.progress += guestHooks.walkSpeed.length === 0 ? 1 : hookFactor(guestHooks.walkSpeed, world, guest);
   if (guest.progress < GUEST_WALK_TICKS_PER_TILE) return false;
   guest.tile = guest.nextTile;
   stopWalking(guest);
@@ -196,6 +198,7 @@ export function updateGuest(world: World, guest: Guest, gone: Set<number>): bool
   }
   if (left) return true;
   for (const hook of guestHooks.perTick) hook(world, guest);
+  if (guestHooks.perHour.length > 0 && isHourStart(world.state.tick)) for (const hook of guestHooks.perHour) hook(world, guest);
   return false;
 }
 

@@ -6,6 +6,7 @@ import { HOURS_PER_MONTH } from '../../data/tuning/core';
 import { monthIndexOf } from '../time';
 import type { World } from '../types';
 import type { Cents } from '../units';
+import { unlimitedMoney } from '../scenario/api';
 import { LEDGER_CATEGORIES, type LedgerCategory, type LedgerMonth } from './types';
 
 export interface CommandContext {
@@ -34,15 +35,19 @@ export function currentLedger(world: World): LedgerMonth {
   return last;
 }
 
-/** Signed amount: income > 0, expense < 0. Changes cash and the ledger line together. */
+/**
+ * Signed amount: income > 0, expense < 0. Changes cash and the ledger line together.
+ * Sandbox "Unlimited money" (Phase 5 §4.5): the line is still booked, but an expense does not lower cash.
+ */
 export function recordLedger(world: World, category: LedgerCategory, cents: Cents): void {
   if (!Number.isInteger(cents)) throw new Error(`Ledger amounts are integer cents, got ${cents}`);
   currentLedger(world).lines[category] += cents;
+  if (cents < 0 && unlimitedMoney(world.state)) return;
   world.state.park.cash += cents;
 }
 
 export function canAfford(world: World, cost: Cents, ctx: CommandContext): boolean {
-  return ctx.setup || world.state.park.cash >= cost;
+  return ctx.setup || world.state.park.cash >= cost || unlimitedMoney(world.state);
 }
 
 /** Pay `cost` (≥ 0) unless in setup mode. */

@@ -59,6 +59,11 @@ export interface MapState {
   binFill: Uint8Array;
   litter: Uint8Array;
   mess: Uint8Array;
+  /**
+   * Phase 4 §4.2, §5: the path a tile's path item stands on. 0 = the ground path, else the id of an elevated
+   * path on this tile. One path item per tile column (ground or one elevated level). Owner: W3-B.
+   */
+  pathItemLevel: Int32Array;
   /** Park entrance tile index. */
   entranceTile: number;
 }
@@ -113,6 +118,7 @@ export function generateMap(opts: { width?: number; height?: number } = {}): Map
     binFill: new Uint8Array(n),
     litter: new Uint8Array(n),
     mess: new Uint8Array(n),
+    pathItemLevel: new Int32Array(n),
     entranceTile: -1,
   };
   for (let y = 1; y < height - 1; y++) {

@@ -34,6 +34,7 @@ import { createPathItemBar, createPatrolBar } from './management/toolBars';
 import { TOAST_MS } from './toasts';
 import { toolOptions } from '../render/management/toolOptions';
 import { mountTrackUi } from './track';
+import { UI_EXTENSIONS } from './extensions';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -182,7 +183,9 @@ export function mountUI(root: HTMLElement, game: Game): void {
     plainHiddenUntil = 0;
   });
   const title = createTitleScreen(ctx);
-  root.append(hud.el, toolbar.el, status.el, patrolBar.el, pathItemBar.el, panels.el, toastView.el, messageToast.el, fileInput, title.el);
+  // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).
+  const extraBars = UI_EXTENSIONS.flatMap((x) => (x.bars ? [x.bars(ctx)] : []));
+  root.append(hud.el, toolbar.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), panels.el, toastView.el, messageToast.el, fileInput, title.el);
   mountTrackUi(ctx);
 
   const applyLayout = (): void => {
@@ -214,6 +217,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   });
   game.onEvents((events) => {
     saves.autosave(events);
+    for (const x of UI_EXTENSIONS) x.onEvents?.(ctx, events);
     // Breakdown and research messages also toast, with a Show button (Phase 3 §4.14).
     const now = performance.now();
     for (const ev of events) {
@@ -312,6 +316,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     status.update();
     patrolBar.update();
     pathItemBar.update(now);
+    for (const b of extraBars) b.update(now);
     panels.tick(now);
     messageToast.update(now);
     const msgVisible = messageToast.visible(now);

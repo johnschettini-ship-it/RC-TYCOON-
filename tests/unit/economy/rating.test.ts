@@ -55,6 +55,8 @@ describe('rating weights (Phase 3 §4.13, master R8)', () => {
       variety: 100,
       lostGuests: 75,
       queues: 75,
+      // Phase 4 (W3-E) moves 100 points from happiness to atmosphere.
+      atmosphere: 0,
     });
   });
 });
@@ -70,6 +72,7 @@ describe('rating parts at their edges', () => {
       variety: 0,
       lostGuests: 0.5,
       queues: 0,
+      atmosphere: 0,
     });
     // 200 + 150 + 100 + 50 + 0 + 37.5 + 0 = 537.5
     expect(computeRating(w)).toBe(538);
@@ -90,6 +93,8 @@ describe('rating parts at their edges', () => {
       variety: 1,
       lostGuests: 1,
       queues: 1,
+      // Calm and Buzz stub (W3-E): 0 until the fields land; its weight is 0 until then too.
+      atmosphere: 0,
     });
     expect(computeRating(w)).toBe(1_000);
   });

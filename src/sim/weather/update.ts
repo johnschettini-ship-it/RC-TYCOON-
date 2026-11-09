@@ -17,6 +17,7 @@ import type { Ride } from '../rides/types';
 import { rngChance, rngInt, type RngHolder } from '../rng';
 import { seasonOf, type Season } from '../time';
 import type { World } from '../types';
+import { weatherWeights } from '../scenario/api';
 
 function weightedPick(rng: RngHolder, weights: Readonly<Record<WeatherKey, number>>): WeatherKey {
   let total = 0;
@@ -32,12 +33,17 @@ function weightedPick(rng: RngHolder, weights: Readonly<Record<WeatherKey, numbe
 /**
  * The state after `current` (§4.9 draw rule). After a storm: rain or cloudy, 1:1.
  * Else stay with chance `WEATHER_STAY`, else draw from the season weights; a storm draw becomes
- * rain unless `current` is rain or cloudy.
+ * rain unless `current` is rain or cloudy. Phase 5 §4.9: `weights` are the climate's (default: the Phase 3 table).
  */
-export function drawNextWeather(rng: RngHolder, current: WeatherKey, season: Season): WeatherKey {
+export function drawNextWeather(
+  rng: RngHolder,
+  current: WeatherKey,
+  season: Season,
+  weights: Readonly<Record<WeatherKey, number>> = SEASON_WEATHER_WEIGHTS[season],
+): WeatherKey {
   if (current === 'storm') return weightedPick(rng, AFTER_STORM_WEIGHTS);
   if (rngChance(rng, WEATHER_STAY)) return current;
-  const drawn = weightedPick(rng, SEASON_WEATHER_WEIGHTS[season]);
+  const drawn = weightedPick(rng, weights);
   if (drawn === 'storm' && !STORM_FROM.includes(current)) return 'rain';
   return drawn;
 }
@@ -53,7 +59,8 @@ export function updateWeather(world: World): void {
     const prev = w.current;
     w.current = w.next;
     w.nextChangeTick = (Math.floor(s.tick / WEATHER_INTERVAL) + 1) * WEATHER_INTERVAL;
-    w.next = drawNextWeather(s, w.current, seasonOf(w.nextChangeTick));
+    const season = seasonOf(w.nextChangeTick);
+    w.next = drawNextWeather(s, w.current, season, weatherWeights(world, season));
     if (w.current === 'storm' && prev !== 'storm') notify(world, 'weather', MSG.storm);
   }
   applyStormHold(world);

@@ -42,6 +42,7 @@ import { isSitting, sitOnBench, updateSitter } from './benches';
 import { cleanlinessThisTick } from './metrics';
 import { hasFreeBenchSeat, isBroken, isUsableBin, setBroken } from './pathItems';
 import { recentBreakFactor } from '../breakdowns/api';
+import { booBonusActive } from '../lighting/api';
 
 const DIRS: readonly Dir[] = [0, 1, 2, 3];
 
@@ -190,10 +191,15 @@ function performers(world: World, guest: Guest): boolean {
   if (guest.tile < 0) return false;
   const near = performersWithin(world, guest.tile, PERFORMER_RADIUS);
   if (near.length === 0) return false;
-  let best = near[0] as { costume: import('../../data/catalog/types').Costume | null };
-  for (const p of near) if (performerBonus(p.costume, guest.temperament) > performerBonus(best.costume, guest.temperament)) best = p;
-  changeHappiness(guest, performerBonus(best.costume, guest.temperament));
-  if (costumeMatches(best.costume, guest.temperament)) {
+  // Phase 4: the Boo costume matches everyone at night or near a spooky ride (W3-F decides `booBonusActive`).
+  const boo = (p: { tile: number; costume: import('../../data/catalog/types').Costume | null }): boolean => p.costume === 'boo' && booBonusActive(world, p.tile);
+  let best = near[0] as { tile: number; costume: import('../../data/catalog/types').Costume | null };
+  for (const p of near) {
+    if (performerBonus(p.costume, guest.temperament, boo(p)) > performerBonus(best.costume, guest.temperament, boo(best))) best = p;
+  }
+  const bestBoo = boo(best);
+  changeHappiness(guest, performerBonus(best.costume, guest.temperament, bestBoo));
+  if (costumeMatches(best.costume, guest.temperament, bestBoo) && best.costume !== 'boo') {
     addThought(world, guest, best.costume === 'frost' ? THOUGHT.frostCute : THOUGHT.sparkAwesome);
   } else {
     addThought(world, guest, THOUGHT.performerFun);

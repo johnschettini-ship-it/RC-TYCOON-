@@ -27,6 +27,12 @@ import { TerrainLayer, grassShade, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
+import type { LayerFrame, WorldLayer } from './layers';
+import { createTerrainToolLayer } from './terrainTools/layer';
+import { createElevatedPathLayer } from './elevated/layer';
+import { createSceneryLayer } from './scenery/layer';
+import { createFieldOverlayLayer } from './fields/overlay';
+import { createLightingLayer } from './lighting/layer';
 
 const HW = TILE_W / 2;
 const HH = TILE_H / 2;
@@ -121,6 +127,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const bank = new SpriteBank();
   const terrain = new TerrainLayer();
   const track = new TrackLayer();
+  // Build 2 layers (Wave 3.0 contract, `./layers.ts`), called in this order at each frame stage.
+  const layers: readonly WorldLayer[] = [
+    createFieldOverlayLayer(),
+    createLightingLayer(),
+    createElevatedPathLayer(),
+    createSceneryLayer(),
+    createTerrainToolLayer(),
+  ];
+  const layerByKind = new Map<number, WorldLayer>();
+  for (const l of layers) for (const k of l.kinds) layerByKind.set(k, l);
+  const frame: LayerFrame = { scale: 1, offX: 0, offY: 0, dpr: 1, bucket: 1, view: { x0: 0, y0: 0, x1: 0, y1: 0 }, rotation: 0, alpha: 0, width: 1, height: 1 };
   const list = new DrawList();
   const walker = createQueueWalker(64 * 64);
   const chain: number[] = [];
@@ -411,6 +428,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         case KIND_TRACK:
           track.drawItem(ctx as CanvasRenderingContext2D, list.ref[i] as number, list.sub[i] as number);
           break;
+        default: {
+          const kind = list.kind[i] as number;
+          layerByKind.get(kind)?.drawItem?.(ctx as CanvasRenderingContext2D, world, kind, list.ref[i] as number, list.sub[i] as number, ax, ay, list.skey[i] as number, frame);
+          break;
+        }
       }
     }
   }
@@ -603,6 +625,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     drawGhost(world, tool);
     track.drawOverlay(ctx as CanvasRenderingContext2D, world, tool);
+    for (const l of layers) l.drawOverlay?.(ctx as CanvasRenderingContext2D, world, tool, frame);
   }
 
   function drawDebug(world: World, drawn: number): void {
@@ -649,12 +672,24 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       ctx.fillStyle = SKY;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      frame.scale = scale;
+      frame.offX = offX;
+      frame.offY = offY;
+      frame.dpr = dpr;
+      frame.bucket = bucket;
+      frame.view = view;
+      frame.rotation = cam.rotation;
+      frame.alpha = alpha;
+      frame.width = canvas.width;
+      frame.height = canvas.height;
+
       // Terrain.
       terrain.sync(map);
       const env = { seed: s.seed, rides: s.rides, stalls: s.stalls };
       const chunks = terrain.draw(ctx, map, env, view, bucket, scale, offX, offY);
       mgmt.begin(scale, offX, offY, dpr, bucket, view);
       mgmt.drawGround(world);
+      for (const l of layers) l.drawGround?.(ctx, world, tool, frame);
 
       // Objects.
       if (fenceVersion !== terrain.tracker.version) {
@@ -672,10 +707,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       track.collect(world, list, view, bucket, scale, offX, offY, alpha, cam.rotation);
       placeQueues(world);
       mgmt.collect(world, alpha, list);
+      for (const l of layers) l.collect?.(world, list, tool, frame);
       collectGuests(world, tool, alpha);
       list.sort();
       drawList(world);
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
+      for (const l of layers) l.drawAfterObjects?.(ctx, world, tool, frame);
 
       drawOverlays(world, tool, alpha);
       bank.cache.trim();

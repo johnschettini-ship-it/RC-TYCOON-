@@ -1,14 +1,14 @@
 /**
- * Id order and reference integrity of a structurally valid GameState (master §6.5, §7; Phase 2 §5; Phase 3 §5).
- * Runs after `checkStructure`, so every field has its declared type here.
+ * Id order and reference integrity of a structurally valid GameState (master §6.5, §7; Phase 2 §5; Phase 3 §5;
+ * Phase 4 §5). Runs after `checkStructure`, so every field has its declared type here. Owner: integrator.
  */
-import { getFlatRideDef, getStallDef, TRACK_RIDES } from '../data/catalog';
+import { getFlatRideDef, getSceneryDef, getStallDef, TRACK_RIDES } from '../data/catalog';
 import type { GameState } from '../sim/types';
 import type { Ride } from '../sim/rides/types';
 import type { Guest } from '../sim/guests/types';
 import { checkTrackRideForLoad } from '../sim/rides/track/api';
 
-type EntityKind = 'ride' | 'stall' | 'guest' | 'staff';
+type EntityKind = 'ride' | 'stall' | 'guest' | 'staff' | 'elevatedPath' | 'scenery';
 
 const TRACK_TYPES = new Set(TRACK_RIDES.map((d) => d.id));
 
@@ -24,6 +24,8 @@ export function checkIntegrity(s: GameState): string | null {
     ['stalls', 'stall', s.stalls],
     ['guests', 'guest', s.guests],
     ['staff', 'staff', s.staff.members],
+    ['elevatedPaths', 'elevatedPath', s.elevatedPaths],
+    ['scenery', 'scenery', s.scenery],
   ];
   for (const [label, kind, list] of lists) {
     let prev = 0;
@@ -40,12 +42,32 @@ export function checkIntegrity(s: GameState): string | null {
   const rides = new Map<number, Ride>(s.rides.map((r) => [r.id, r]));
   const guests = new Map<number, Guest>(s.guests.map((g) => [g.id, g]));
   const isRideOrStall = (id: number): boolean => owner.get(id) === 'ride' || owner.get(id) === 'stall';
+  const map = s.map;
+  const inMap = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < map.width && y < map.height;
 
-  // Map tiles.
-  const refs = s.map.contentRef;
+  // Map tiles: rides, stalls, and centre scenery (Phase 4 §4.5) mark their tiles.
+  const refs = map.contentRef;
   for (let i = 0; i < refs.length; i++) {
     const id = refs[i] as number;
-    if (id >= 0 && !isRideOrStall(id)) return `map tile ${i} points to a missing ride or stall`;
+    if (id >= 0 && !isRideOrStall(id) && owner.get(id) !== 'scenery') return `map tile ${i} points to a missing ride, stall, or scenery`;
+  }
+
+  // Elevated paths (Phase 4 §4.2) and path item levels: 0 = ground, else an elevated path on that tile.
+  const elevatedTile = new Map<number, number>();
+  for (const p of s.elevatedPaths) {
+    if (!inMap(p.x, p.y)) return `elevated path ${p.id} is outside the map`;
+    elevatedTile.set(p.id, p.y * map.width + p.x);
+  }
+  const levels = map.pathItemLevel;
+  for (let i = 0; i < levels.length; i++) {
+    const level = levels[i] as number;
+    if (level !== 0 && elevatedTile.get(level) !== i) return `map tile ${i} has a path item on a missing elevated path`;
+  }
+
+  // Scenery (Phase 4 §4.5).
+  for (const sc of s.scenery) {
+    if (!getSceneryDef(sc.defId)) return `scenery ${sc.id} has an unknown type`;
+    if (!inMap(sc.x, sc.y)) return `scenery ${sc.id} is outside the map`;
   }
 
   // Rides.

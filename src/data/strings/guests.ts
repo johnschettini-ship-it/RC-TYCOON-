@@ -52,4 +52,7 @@ export const guestStrings: Record<string, string> = {
   needCash: 'I need cash',
   thrillWeekend: 'Thrill Weekend? Count me in!',
   chillWeekend: 'Chill Weekend sounds perfect',
+  // Phase 4 §4.5, §4.7
+  flowersSad: 'These flowers look sad',
+  pathTooDark: 'This path is too dark',
 };

@@ -17,6 +17,10 @@ import { pathItemCommand, pathItemGhost } from './pathItemTool';
 import { computeGhost, pathKindOf, pathLineCost, pathLineEnd, pathLineTiles, pickEntity } from './tools';
 import { pathItemAction, toolOptions } from '../render/management/toolOptions';
 import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
+import { routerOf } from './toolRouters';
+import { changePathHeight, pathCommandHeight } from './pathHeight';
+import { cycleOverlay } from './overlays';
+import { rotateCameraView } from '../render/view';
 
 /** Requests for the UI layer (it owns panels). */
 export type UiIntent = 'finance' | 'closePanel' | 'staff' | 'office' | 'messages';
@@ -54,6 +58,8 @@ export class InputController {
   /** Path tools build and the patrol tool paints with a primary drag; every other tool pans. */
   primaryDrag(): DragMode {
     const tool = this.game.tool.tool;
+    const router = routerOf(tool);
+    if (router?.primaryDrag) return router.primaryDrag(this.game);
     return pathKindOf(tool) || tool === 'patrol' ? 'build' : 'pan';
   }
 
@@ -76,6 +82,7 @@ export class InputController {
       clampToMap(cam, this.game.world.state.map);
     }
     if (this.game.tool.tool !== this.lastTool) this.toolChanged();
+    routerOf(this.game.tool.tool)?.update?.(this.game, nowMs);
     this.refreshGhost();
   }
 
@@ -97,6 +104,7 @@ export class InputController {
   /** Returns true when the key was used (the caller then prevents the browser default). */
   keyDown(key: string): boolean {
     if (this.game.tool.tool === 'track' && trackKeyDown(this.game, key)) return true;
+    if (routerOf(this.game.tool.tool)?.keyDown?.(this.game, key)) return true;
     const a = keyAction(key);
     if (!a) return false;
     const game = this.game;
@@ -144,6 +152,15 @@ export class InputController {
         game.tool.defId = a.item;
         this.refreshGhost();
         break;
+      case 'rotateView':
+        rotateCameraView(game.camera, game.world.state.map, a.dir);
+        break;
+      case 'pathHeight':
+        changePathHeight(game.tool, game.world, a.delta);
+        break;
+      case 'overlayCycle':
+        cycleOverlay(game.tool);
+        break;
     }
     return true;
   }
@@ -176,7 +193,10 @@ export class InputController {
 
   private toolChanged(): void {
     const t = this.game.tool;
+    routerOf(this.lastTool)?.leave?.(this.game);
     this.lastTool = t.tool;
+    t.brush = null;
+    routerOf(t.tool)?.enter?.(this.game);
     this.apply(this.gestures.reset());
     this.stroke = null;
     t.drag = null;
@@ -192,6 +212,7 @@ export class InputController {
 
   private act(a: GestureAction): void {
     if (this.game.tool.tool === 'track' && trackGesture(this.game, a, this.tileAtFn)) return;
+    if (routerOf(this.game.tool.tool)?.gesture?.(this.game, a, this.tileAtFn)) return;
     const game = this.game;
     const tool = game.tool;
     const map = game.world.state.map;
@@ -260,6 +281,7 @@ export class InputController {
           x1: drag.endTile % w,
           y1: Math.floor(drag.endTile / w),
           kind,
+          ...pathCommandHeight(tool),
         });
         break;
       }
@@ -285,7 +307,7 @@ export class InputController {
         if (tile === null) return;
         const tx = tile % w;
         const ty = Math.floor(tile / w);
-        game.dispatch({ type: 'buildPathLine', x0: tx, y0: ty, x1: tx, y1: ty, kind: tool.tool });
+        game.dispatch({ type: 'buildPathLine', x0: tx, y0: ty, x1: tx, y1: ty, kind: tool.tool, ...pathCommandHeight(tool) });
         return;
       }
       case 'placeRide':
