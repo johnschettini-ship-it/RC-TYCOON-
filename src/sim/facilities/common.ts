@@ -21,17 +21,24 @@ export function isOnTheMove(guest: Guest): boolean {
   return guest.state === 'walking' || guest.state === 'leaving';
 }
 
-/** Open stalls whose service tile is `tile`, in ascending id order (at most one per side). */
-export function stallsServing(world: World, tile: number): Stall[] {
+const NO_STALLS: readonly Stall[] = Object.freeze([]);
+
+/**
+ * Open stalls whose service tile is `tile`, in ascending id order (at most one per side).
+ * Guests ask at every step, and most tiles have no building beside them: that case returns a shared
+ * empty list without allocating (master §10 tick budget).
+ */
+export function stallsServing(world: World, tile: number): readonly Stall[] {
   const map = world.state.map;
-  const out: Stall[] = [];
-  for (const d of DIRS) {
-    const n = neighbour(map, tile, d);
+  let out: Stall[] | null = null;
+  for (let k = 0; k < DIRS.length; k++) {
+    const n = neighbour(map, tile, DIRS[k] as Dir);
     if (n < 0 || map.content[n] !== Content.Building) continue;
     const stall = findStall(world, map.contentRef[n] as number);
-    if (stall && stall.open && stall.serviceTile === tile) out.push(stall);
+    if (stall && stall.open && stall.serviceTile === tile) (out ??= []).push(stall);
   }
-  return out.sort((a, b) => a.id - b.id);
+  if (out === null) return NO_STALLS;
+  return out.length > 1 ? out.sort((a, b) => a.id - b.id) : out;
 }
 
 /**

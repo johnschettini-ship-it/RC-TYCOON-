@@ -15,6 +15,13 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   { id: 'rapids_raft', name: 'Rapids Raft', phase: 4, unlock: 'water', tag: 'family', flags: F(), drive: 'waterCurrent', seatsPerCar: 8, carsMin: 1, carsMax: 1, maxTrains: 8, maxHeightM: 10, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
 ]);
 
+/** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */
+const TRACK_RIDES_BY_ID: ReadonlyMap<string, TrackRideDef> = (() => {
+  const byId = new Map<string, TrackRideDef>();
+  for (const d of TRACK_RIDES) if (!byId.has(d.id)) byId.set(d.id, d);
+  return byId;
+})();
+
 export function getTrackRideDef(id: string): TrackRideDef | undefined {
-  return TRACK_RIDES.find((r) => r.id === id);
+  return TRACK_RIDES_BY_ID.get(id);
 }

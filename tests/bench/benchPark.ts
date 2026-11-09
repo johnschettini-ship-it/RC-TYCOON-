@@ -4,6 +4,7 @@
  * the paths in every state the decision loop reaches. Shared by `tick.bench.ts` and the budget test.
  */
 import { FLAT_RIDES } from '../../src/data/catalog';
+import { GUEST_WALK_TICKS_PER_TILE } from '../../src/data/tuning/guests';
 import { executeCommand, type Command } from '../../src/sim/commands';
 import { Content } from '../../src/sim/map';
 import { rebuildAllFields } from '../../src/sim/pathing';
@@ -37,6 +38,15 @@ export interface BenchParkOptions {
   /** Litter items spread over the footpaths. */
   litter?: number;
   seed?: number;
+  /**
+   * Put every guest down on the same tick (default false). A guest steps every GUEST_WALK_TICKS_PER_TILE
+   * ticks from the tick it starts walking, so a crowd placed at once walks in lockstep: every 10th tick
+   * (and so every hour start, 50 ticks) carries the step and decision work of most of the park, about
+   * 3× a normal tick. Real guests arrive over many ticks, so by default the crowd enters over
+   * GUEST_WALK_TICKS_PER_TILE ticks (one tick per tenth of the crowd), which spreads the step phases
+   * the way arrivals do. `lockstep: true` keeps the old worst case for comparison.
+   */
+  lockstep?: boolean;
 }
 
 export function buildBenchPark(opts: BenchParkOptions): World {
@@ -84,7 +94,10 @@ export function buildBenchPark(opts: BenchParkOptions): World {
   const rnd = lcg(opts.seed ?? 777);
   const paths: number[] = [];
   for (let i = 0; i < map.content.length; i++) if (map.content[i] === Content.Footpath) paths.push(i);
+  // Unless `lockstep`, the crowd enters over GUEST_WALK_TICKS_PER_TILE ticks (see BenchParkOptions.lockstep).
+  const perWave = opts.lockstep ? opts.guests : Math.ceil(opts.guests / GUEST_WALK_TICKS_PER_TILE);
   for (let k = 0; k < opts.guests; k++) {
+    if (k > 0 && k % perWave === 0) stepTick(world);
     const tile = paths[Math.floor(rnd() * paths.length)] as number;
     addGuestDirect(world, tile, {
       temperament: Math.round((rnd() + rnd()) * 50),

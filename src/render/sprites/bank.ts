@@ -8,7 +8,7 @@ import { buildSprite } from '../canvas';
 import { SHIRT_COLOURS, rgbCss, tintStepRgb } from '../palette';
 import { bucketIndex, defHash, FRAME_SPAN, SpriteCache, spriteKey, type Sprite } from '../spriteCache';
 import type { Dir } from '../../sim/map';
-import { drawEntranceArt, drawFenceArt, drawGuestArt, entranceBounds, fenceBounds, GUEST_BOUNDS } from './props';
+import { drawEntranceArt, drawFenceArt, drawGuestArt, entranceBounds, fenceBounds, GUEST_BOUNDS, GUEST_ITEM_BOUNDS, ITEM_COLOURS } from './props';
 import { drawRideArt, rideArtBounds } from './rides';
 import { HAIR_COLOURS, SKIN_TONES } from './shapes';
 import { drawStallArt, stallArtBounds } from './stalls';
@@ -32,9 +32,19 @@ const LOOKS: ReadonlyArray<readonly [number, number]> = [
   [3, 3],
 ];
 
-/** Guest frame layout: colour (4 bits) | walk (2) | look (2) | tinted (1). */
-export function guestFrame(colour: number, walk: number, look: number, tinted: boolean): number {
-  return (colour & 15) | ((walk & 3) << 4) | ((look & 3) << 6) | (tinted ? 256 : 0);
+/** Guest frame bit: the guest holds a balloon (drawn above the head). */
+export const GUEST_BALLOON = 512;
+/** Guest frame bit: an open umbrella (the guest holds one and it rains or storms). */
+export const GUEST_UMBRELLA = 1024;
+
+/** Guest frame layout: colour (4 bits) | walk (2) | look (2) | tinted (1) | balloon (1) | umbrella (1). */
+export function guestFrame(colour: number, walk: number, look: number, tinted: boolean, items = 0): number {
+  return (colour & 15) | ((walk & 3) << 4) | ((look & 3) << 6) | (tinted ? 256 : 0) | (items & (GUEST_BALLOON | GUEST_UMBRELLA));
+}
+
+/** Item colour for a guest frame: fixed per shirt colour, so it needs no frame bits of its own. */
+function itemColour(colour: number, offset: number): string {
+  return ITEM_COLOURS[(colour + offset) % ITEM_COLOURS.length] as string;
 }
 
 /** Same layout as `spriteKey` with a pre-hashed def id (no string work in the guest loop). */
@@ -117,7 +127,9 @@ export class SpriteBank {
     const tinted = (frame & 256) !== 0;
     const look = LOOKS[(frame >> 6) & 3] as readonly [number, number];
     const shirt = tinted ? rgbCss(tintStepRgb(colour)) : (SHIRT_COLOURS[colour % SHIRT_COLOURS.length] as string);
-    sp = buildSprite(GUEST_BOUNDS, bucket, (ctx) =>
+    const balloon = (frame & GUEST_BALLOON) !== 0 ? itemColour(colour, 3) : null;
+    const umbrella = (frame & GUEST_UMBRELLA) !== 0 ? itemColour(colour, 1) : null;
+    sp = buildSprite(balloon || umbrella ? GUEST_ITEM_BOUNDS : GUEST_BOUNDS, bucket, (ctx) =>
       drawGuestArt(ctx, {
         shirt,
         skin: SKIN_TONES[look[0]] as string,
@@ -125,6 +137,8 @@ export class SpriteBank {
         facing,
         walk: (frame >> 4) & 3,
         ring: tinted ? shirt : null,
+        balloon,
+        umbrella,
       }),
     );
     this.cache.set(key, sp);

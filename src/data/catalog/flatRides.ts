@@ -33,8 +33,15 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   ride('flip_arm', 'Flip Arm', 3, 'thrill', 'thrill', F(false, false, true), 3, 3, 6.5, 8.0, 6.0, 16, 25, 5000, 140, 4),
 ]);
 
+/** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */
+const FLAT_RIDES_BY_ID: ReadonlyMap<string, FlatRideDef> = (() => {
+  const byId = new Map<string, FlatRideDef>();
+  for (const d of FLAT_RIDES) if (!byId.has(d.id)) byId.set(d.id, d);
+  return byId;
+})();
+
 export function getFlatRideDef(id: string): FlatRideDef | undefined {
-  return FLAT_RIDES.find((r) => r.id === id);
+  return FLAT_RIDES_BY_ID.get(id);
 }
 
 /** Catalog legend: the entrance gate is front-edge tile floor((w − 1) / 2); the exit is the matching back-edge tile. */

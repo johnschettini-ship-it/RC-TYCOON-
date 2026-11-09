@@ -8,16 +8,18 @@
  * normal test runner (`perf-budget.test.ts`), so these numbers are an upper bound.
  */
 import { test } from 'vitest';
+import { TICKS_PER_HOUR } from '../../src/data/tuning/core';
 import { executeCommand } from '../../src/sim/commands';
 import { rebuildAllFields } from '../../src/sim/pathing';
 import { stepTick } from '../../src/sim/tick';
-import { BUILD1_SCENE, PHASE3_SCENE, buildBenchPark } from './benchPark';
+import { isHourStart } from '../../src/sim/time';
+import { BUILD1_SCENE, PHASE3_SCENE, buildBenchPark, summarize, type BenchParkOptions } from './benchPark';
 
 const RUN = { time: 3_000, warmupTime: 500 };
 
-function report(label: string, mean: number, p99: number, budget: number): void {
+function report(label: string, mean: number, tail: number, budget: number, tailLabel = 'p99'): void {
   const verdict = mean < budget ? 'within' : 'OVER';
-  console.log(`[bench] ${label}: mean ${mean.toFixed(3)} ms, p99 ${p99.toFixed(3)} ms (${verdict} the ${budget} ms budget)`);
+  console.log(`[bench] ${label}: mean ${mean.toFixed(3)} ms, ${tailLabel} ${tail.toFixed(3)} ms (${verdict} the ${budget} ms budget)`);
 }
 
 test('tick: 2,000 guests, 10 rides, 8 staff on a dense path grid (budget 3 ms)', async ({ bench }) => {
@@ -46,3 +48,33 @@ test('distance fields: rebuild every guest field after a path change (budget 5 m
   }).run({ time: 2_000 });
   report('field rebuild', r.latency.mean, r.latency.p99 ?? r.latency.max, 5);
 }, 60_000);
+
+/**
+ * Hour-start ticks (master R13 hour-start work: hourly charges, wages, research, park value, rating) are
+ * timed one by one with a plain timer, because a bench function cannot pick them out of the tick stream.
+ * Bench mode's export tracking slows every call into src/sim (see the note at the top), so these are an upper
+ * bound too; `perf-budget.test.ts` reports the same measurement in the normal runner.
+ */
+function hourStartTicks(scene: BenchParkOptions, hours: number): number[] {
+  const world = buildBenchPark(scene);
+  for (let k = 0; k < 200; k++) stepTick(world);
+  const out: number[] = [];
+  for (let k = 0; k < hours * TICKS_PER_HOUR; k++) {
+    const hourStart = isHourStart(world.state.tick);
+    const t0 = performance.now();
+    stepTick(world);
+    if (hourStart) out.push(performance.now() - t0);
+  }
+  return out;
+}
+
+test('hour-start tick: 2,000 guests (budget 3 ms)', () => {
+  for (const [label, scene] of [
+    ['Build 1 scene hour-start tick', BUILD1_SCENE],
+    ['Phase 3 scene hour-start tick', PHASE3_SCENE],
+    ['lockstep crowd hour-start tick (worst case, not a budget scene)', { ...BUILD1_SCENE, lockstep: true }],
+  ] as const) {
+    const s = summarize(hourStartTicks(scene, 40));
+    report(label, s.mean, s.p95, 3, 'p95');
+  }
+}, 120_000);

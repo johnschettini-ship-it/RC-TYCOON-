@@ -300,24 +300,89 @@ Steps in order:
 
 ## 5. State and entity changes
 
+As implemented (`src/sim/rides/track/types.ts`, `src/sim/rides/types.ts`). A track ride is split between two slices
+(master R12): the common ride record in `state.rides` (`kind: 'track'`) and the track-only data in `state.track`,
+keyed by ride id.
+
 ```ts
-interface TrackRide {                          // plus the Phase 1 ride record fields; lives in the `track` slice (master R12)
-  kind: 'track';
-  typeId: TrackTypeId;
-  status: 'building' | 'testing' | 'closed' | 'open';
+// Common ride record (state.rides), track-relevant fields. Flat rides use the same record.
+interface Ride {
+  id: EntityId; kind: 'flat' | 'track'; defId: string;          // track rides: defId = track type id
+  name: string; x: number; y: number;                           // station origin
+  rotation: Dir;                                                // map Dir of the first station piece, as given to placeStation
+  status: 'building' | 'testing' | 'closed' | 'open' | 'broken' | 'inspecting' | 'stormHold';
+  price: Cents;
+  entrance: Gate | null; exit: Gate | null;                     // Gate = { gate: tile; outside: tile }
+  stats: RideStats | null;                                      // null until a test run passes
+  queue: EntityId[]; riders: EntityId[];                        // track riders also sit in TrainState.seats
+  totals: { riders: number; income: Cents; ridersThisMonth: number; incomeThisMonth: Cents };
+  totalBuildCost: Cents; builtTick: number; hoursThisMonth: number;
+  // … plus the Phase 1 flat cycle and the Phase 3 reliability fields
+}
+
+// Track direction (track system only): 0 = +x, 1 = +y, 2 = −x, 3 = −y; a right turn is dir + 1.
+// Commands and Ride.rotation use the map Dir (0 = N, 1 = E, 2 = S, 3 = W); placeStation converts.
+type TrackDir = 0 | 1 | 2 | 3;
+
+interface TrackPieceInstance {
+  defId: string;
+  x: number; y: number;                         // entry tile
+  z: number;                                    // entry rail height, absolute metres (ground is 8 on new maps)
+  dir: TrackDir;                                // heading at the entry joint
+  chain: boolean;
+  brakeSpeed: number | null;                    // brakes only, m/s
+  cost: number;                                 // cents paid for this piece (piece × factor, chain extra, height); refunds use it
+}
+
+type TrainStateName = 'loading' | 'running' | 'held' | 'unloading' | 'waiting';
+
+interface TrainState {
+  id: number;
+  s: number;                                    // centre position along the circuit, mm, 0 ≤ s < length
+  v: number;                                    // mm/s, ≥ 0
+  state: TrainStateName;
+  dwellTicks: number;
+  lap: number;                                  // laps since dispatch (go-kart time trial)
+  seats: number[];                              // guest id per seat (car-major, front car first) or −1
+  dist: number;                                 // mm travelled since dispatch
+  parked: boolean;                              // in the storage shed, not on the circuit
+  release: boolean;                             // after a dispatch or a block-brake hold: accelerate to station speed first
+  driveMms: number;                             // guest-driven target speed, set at dispatch; 0 for other drives
+  lapStartTick: number;                         // tick the current lap started (go-kart lap times)
+}
+
+// Measured values (§4.9) and ratings (§4.10). Integers: mm, mm/s, ticks, G in hundredths, ratings in hundredths.
+interface TestResult {
+  passed: boolean;
+  failPiece: number | null;                     // 1-based piece number where the test train stopped
+  failKind: 'stop' | 'loop' | null;
+  ticks: number;                                // dispatch to the station stop (passed) or to the failure
+  vMaxMms: number; vAvgMms: number; rideTimeTicks: number; lengthMm: number;
+  drops: number; dropMaxMm: number;
+  posGMax: number; vertGMin: number; airtimeTicks: number; latMax: number;
+  inversions: number; highestM: number; turnPieces: number; smallTurns: number; spookyTunnels: number; laps: number;
+  excitement: number; intensity: number; nausea: number;
+  penalty: boolean;                             // a §4.10 penalty lowered excitement
+  chart: { every: number; speedCms: number[]; gv: number[]; gl: number[] };   // Test tab chart, one point every `every` ticks
+}
+
+interface TrackRideData {                       // state.track.rides[String(rideId)]
+  rideId: EntityId;
+  typeId: string;
   pieces: TrackPieceInstance[];                 // ordered from the station entry joint
   circuitClosed: boolean;
-  gates: { entrance: TileRef | null; exit: TileRef | null };
   trainConfig: { trains: number; carsPerTrain: number };
   operation: { minDwellTicks: number; maxDwellTicks: number; laps: number };
   trains: TrainState[];
-  test: TestResult | null;                      // measured values + ratings (hundredths)
+  test: TestResult | null;                      // last test (passed or failed); null until tested or after a change
   colours: { track: number; supports: number; cars: number };
-  totalBuildCost: number;                       // cents
   openedOnce: boolean;
+  testRun: { ticksLeft: number; result: TestResult } | null;   // test in progress; result published when ticksLeft hits 0
+  lastDispatchTick: number;                     // last station dispatch (go-kart spacing), −1 when none
+  bestLapTicks: number | null;                  // fastest go-kart lap
 }
-interface TrackPieceInstance { defId: string; x: number; y: number; z: number; dir: 0|1|2|3; chain: boolean; brakeSpeed: number | null; }
-interface TrainState { id: number; s: number; v: number; state: 'loading'|'running'|'held'|'unloading'|'waiting'; dwellTicks: number; lap: number; seats: number[]; }   // seats: guest id or −1
+
+interface TrackSlice { rides: Record<string, TrackRideData> }   // string keys keep JSON saves simple
 ```
 
 - The Phase 1 guest record gains `seat: { rideId, trainId, car, seat } | null`. It is set only in state `riding`.

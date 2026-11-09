@@ -25,11 +25,14 @@ export function ageMonthsOf(world: World, builtTick: number): number {
   return Math.max(0, Math.floor((world.state.tick - builtTick) / TICKS_PER_MONTH));
 }
 
-const PATH_ITEM_COST: Record<number, Cents> = {
-  [PathItem.Bench]: PATH_ITEMS.find((p) => p.id === 'bench')?.buildCost ?? 0,
-  [PathItem.Bin]: PATH_ITEMS.find((p) => p.id === 'bin')?.buildCost ?? 0,
-  [PathItem.Lamp]: PATH_ITEMS.find((p) => p.id === 'lamp')?.buildCost ?? 0,
-};
+/** Build cost by path item code (index = PathItem code; None = 0). A flat lookup keeps the hourly scan cheap. */
+const PATH_ITEM_COST: readonly Cents[] = (() => {
+  const costs: Cents[] = [0, 0, 0, 0];
+  costs[PathItem.Bench] = PATH_ITEMS.find((p) => p.id === 'bench')?.buildCost ?? 0;
+  costs[PathItem.Bin] = PATH_ITEMS.find((p) => p.id === 'bin')?.buildCost ?? 0;
+  costs[PathItem.Lamp] = PATH_ITEMS.find((p) => p.id === 'lamp')?.buildCost ?? 0;
+  return Object.freeze(costs);
+})();
 
 /** Σ ride and stall asset values + Σ paths and path items × 0.5 + land value (Phase 4 hook, 0). */
 export function computeParkValue(world: World): Cents {
@@ -39,13 +42,21 @@ export function computeParkValue(world: World): Cents {
   for (const st of s.stalls) total += assetValue(st.totalBuildCost, ageMonthsOf(world, st.builtTick));
 
   const { content, pathItem } = s.map;
+  // Local copies keep the hourly 4,096-tile scan tight (master §10 hour-start budget).
+  const footpath = Content.Footpath;
+  const queue = Content.Queue;
+  const none = PathItem.None;
+  const pathValue = PATH_VALUE_COST;
+  const queueValue = QUEUE_VALUE_COST;
+  const itemCost = PATH_ITEM_COST;
+  const n = content.length;
   let pathCost = 0;
-  for (let i = 0; i < content.length; i++) {
+  for (let i = 0; i < n; i++) {
     const c = content[i];
-    if (c === Content.Footpath) pathCost += PATH_VALUE_COST;
-    else if (c === Content.Queue) pathCost += QUEUE_VALUE_COST;
-    const item = pathItem[i] ?? 0;
-    if (item !== PathItem.None) pathCost += PATH_ITEM_COST[item] ?? 0;
+    if (c === footpath) pathCost += pathValue;
+    else if (c === queue) pathCost += queueValue;
+    const item = pathItem[i] as number;
+    if (item !== none) pathCost += itemCost[item] ?? 0;
   }
   total += Math.floor(pathCost * PATH_VALUE_SHARE);
   return total;

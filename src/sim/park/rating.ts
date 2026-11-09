@@ -24,11 +24,15 @@
  *
  * Interpretations:
  * - "Guests" are all guests in `state.guests`. Groups follow master R6 (chill ≤ 35, family 36–64, thrill ≥ 65).
- * - "Today" for P is the last game day: a thought counts if a guest showed it within the last 1,200 ticks.
- *   Thought ids are found by their spec text in the English string table (TOO_EXPENSIVE_THOUGHT_TEXTS).
+ * - "Today" for P is the last game day: a thought counts if a guest showed it within the last 1,200 ticks,
+ *   read from the guest's `thoughtCooldowns` (last tick each thought id was shown, kept by `addThought`).
+ *   Thought ids are found once, at module load, by their spec text in the English string table
+ *   (TOO_EXPENSIVE_THOUGHT_TEXTS → TOO_EXPENSIVE_THOUGHT_IDS).
+ * - Performance (master §10): one pass over the guests gathers H, P, V and L; nothing is allocated except
+ *   the returned parts object.
  * - Lost guests: no route (`lostSinceTick ≥ 0`) or lost after wrong turns (`isGuestLost`, Phase 3 §4.10).
  */
-import { temperamentGroup, type RideTag } from '../../data/catalog';
+import { temperamentGroup } from '../../data/catalog';
 import { en } from '../../data/strings/en';
 import {
   FAIR_PRICE_THOUGHT_FACTOR,
@@ -46,7 +50,7 @@ import { reliabilityScore } from '../breakdowns/api';
 import type { Guest } from '../guests/types';
 import { cleanliness } from '../litter/metrics';
 import type { World } from '../types';
-import { openRides, rideCapacity, rideTag } from './rides';
+import { rideCapacity, rideTag } from './rides';
 import { isGuestLost } from '../facilities/wayfinding';
 
 export interface RatingParts {
@@ -59,96 +63,156 @@ export interface RatingParts {
   queues: number;
 }
 
-const GROUPS: readonly RideTag[] = ['chill', 'family', 'thrill'];
 const HAPPINESS_MAX = 255;
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-function happinessScore(world: World): number {
+/**
+ * Ids in the English string table whose text is a "too expensive" thought, sorted. Found once at module
+ * load: the string table is static data, and the rating runs at every hour start (master §10 budget).
+ */
+export const TOO_EXPENSIVE_THOUGHT_IDS: readonly string[] = Object.freeze(
+  ((): string[] => {
+    const texts = new Set(TOO_EXPENSIVE_THOUGHT_TEXTS);
+    return Object.keys(en)
+      .filter((id) => texts.has(en[id] as string))
+      .sort();
+  })(),
+);
+
+/** Module-local copies for the per-guest loop (imported bindings are slower to read in a hot loop). */
+const EXPENSIVE_IDS = TOO_EXPENSIVE_THOUGHT_IDS;
+const FAIR_WINDOW = FAIR_PRICE_WINDOW_TICKS;
+
+/**
+ * Too-expensive thought ids this guest showed within the last game day (0 to EXPENSIVE_IDS.length).
+ * The guest's `thoughtCooldowns` is the record of the last tick each thought id was shown: `addThought`
+ * (the only writer of guest thoughts) sets it every time it adds a thought, so the newest thought-list
+ * entry of an id is never newer than its cooldown entry. An entry is deleted only once it is a game day
+ * old, which is outside the one-day window: reading the cooldowns alone gives the same count as scanning the
+ * thought list too, without touching every thought object (the rating runs at each hour start, master §10).
+ */
+function tooExpensiveToday(guest: Guest, tick: number): number {
+  const ids = EXPENSIVE_IDS;
+  const cd = guest.thoughtCooldowns;
+  let count = 0;
+  for (let k = 0; k < ids.length; k++) {
+    const last = cd[ids[k] as string];
+    if (last !== undefined && last <= tick && tick - last < FAIR_WINDOW) count++;
+  }
+  return count;
+}
+
+/** Guest totals for H, P, V and L, gathered in one pass over the guests (no allocations). */
+interface GuestTotals {
+  happiness: number;
+  tooExpensive: number;
+  lost: number;
+  chill: number;
+  family: number;
+  thrill: number;
+}
+
+const totals: GuestTotals = { happiness: 0, tooExpensive: 0, lost: 0, chill: 0, family: 0, thrill: 0 };
+
+function guestTotals(world: World): GuestTotals {
+  const { guests, tick } = world.state;
+  let happiness = 0;
+  let tooExpensive = 0;
+  let lost = 0;
+  let chill = 0;
+  let family = 0;
+  let thrill = 0;
+  for (let i = 0; i < guests.length; i++) {
+    const g = guests[i] as Guest;
+    happiness += g.needs.happiness;
+    tooExpensive += tooExpensiveToday(g, tick);
+    if (isGuestLost(g)) lost++;
+    const group = temperamentGroup(g.temperament);
+    if (group === 'chill') chill++;
+    else if (group === 'family') family++;
+    else thrill++;
+  }
+  totals.happiness = happiness;
+  totals.tooExpensive = tooExpensive;
+  totals.lost = lost;
+  totals.chill = chill;
+  totals.family = family;
+  totals.thrill = thrill;
+  return totals;
+}
+
+function happinessScore(world: World, t: GuestTotals): number {
   const { guests, park } = world.state;
   const n = guests.length + park.recentLeavers.length;
   if (n === 0) return RATING_NO_GUESTS_SCORE;
-  let sum = 0;
-  for (const g of guests) sum += g.needs.happiness;
+  let sum = t.happiness;
   for (const h of park.recentLeavers) sum += h;
   return clamp01(sum / n / HAPPINESS_MAX);
 }
 
-/** Ids in the English string table whose text is a "too expensive" thought. */
-function tooExpensiveIds(): string[] {
-  const texts = new Set(TOO_EXPENSIVE_THOUGHT_TEXTS);
-  return Object.keys(en)
-    .filter((id) => texts.has(en[id] as string))
-    .sort();
+function fairPriceScore(world: World, t: GuestTotals): number {
+  const n = world.state.guests.length;
+  if (n === 0) return RATING_NO_GUESTS_SCORE;
+  return 1 - Math.min(1, (FAIR_PRICE_THOUGHT_FACTOR * t.tooExpensive) / n);
 }
 
-/** Newest tick this guest showed thought `id`, or −Infinity. */
-function lastShown(guest: Guest, id: string): number {
-  let last = guest.thoughtCooldowns[id] ?? Number.NEGATIVE_INFINITY;
-  for (const t of guest.thoughts) if (t.id === id && t.tick > last) last = t.tick;
-  return last;
+function share(count: number, total: number): number {
+  return total > 0 ? count / total : 0;
 }
 
-function fairPriceScore(world: World): number {
-  const { guests, tick } = world.state;
-  if (guests.length === 0) return RATING_NO_GUESTS_SCORE;
-  const ids = tooExpensiveIds();
-  let count = 0;
-  for (const g of guests) {
-    for (const id of ids) {
-      const last = lastShown(g, id);
-      if (last <= tick && tick - last < FAIR_PRICE_WINDOW_TICKS) count++;
-    }
-  }
-  return 1 - Math.min(1, (FAIR_PRICE_THOUGHT_FACTOR * count) / guests.length);
-}
-
-function varietyScore(world: World): number {
-  const guests = world.state.guests;
-  const open = openRides(world);
-  const guestCount: Record<RideTag, number> = { chill: 0, family: 0, thrill: 0 };
-  const rideCount: Record<RideTag, number> = { chill: 0, family: 0, thrill: 0 };
-  for (const g of guests) guestCount[temperamentGroup(g.temperament)]++;
-  for (const r of open) {
+function varietyScore(world: World, t: GuestTotals): number {
+  const n = world.state.guests.length;
+  let open = 0;
+  let chill = 0;
+  let family = 0;
+  let thrill = 0;
+  for (const r of world.state.rides) {
+    if (r.status !== 'open') continue;
+    open++;
     const tag = rideTag(world, r);
-    if (tag) rideCount[tag]++;
+    if (tag === 'chill') chill++;
+    else if (tag === 'family') family++;
+    else if (tag === 'thrill') thrill++;
   }
+  // Σ |guestShare − rideShare| in the group order chill, family, thrill.
   let diff = 0;
-  for (const k of GROUPS) {
-    const gs = guests.length > 0 ? guestCount[k] / guests.length : 0;
-    const rs = open.length > 0 ? rideCount[k] / open.length : 0;
-    diff += Math.abs(gs - rs);
-  }
-  return clamp01((1 - 0.5 * diff) * Math.min(1, open.length / VARIETY_FULL_RIDES));
+  diff += Math.abs(share(t.chill, n) - share(chill, open));
+  diff += Math.abs(share(t.family, n) - share(family, open));
+  diff += Math.abs(share(t.thrill, n) - share(thrill, open));
+  return clamp01((1 - 0.5 * diff) * Math.min(1, open / VARIETY_FULL_RIDES));
 }
 
-function lostGuestScore(world: World): number {
-  const guests = world.state.guests;
-  if (guests.length === 0) return RATING_NO_GUESTS_SCORE;
-  let lost = 0;
-  for (const g of guests) if (isGuestLost(g)) lost++;
-  return 1 - Math.min(1, (LOST_GUEST_FACTOR * lost) / guests.length);
+function lostGuestScore(world: World, t: GuestTotals): number {
+  const n = world.state.guests.length;
+  if (n === 0) return RATING_NO_GUESTS_SCORE;
+  return 1 - Math.min(1, (LOST_GUEST_FACTOR * t.lost) / n);
 }
 
 function queueScore(world: World): number {
-  const open = openRides(world);
-  if (open.length === 0) return 0;
+  let open = 0;
   let sum = 0;
-  for (const r of open) sum += r.queue.length / (QUEUE_CAPACITY_FACTOR * rideCapacity(world, r));
-  return 1 - Math.min(1, sum / open.length);
+  for (const r of world.state.rides) {
+    if (r.status !== 'open') continue;
+    open++;
+    sum += r.queue.length / (QUEUE_CAPACITY_FACTOR * rideCapacity(world, r));
+  }
+  if (open === 0) return 0;
+  return 1 - Math.min(1, sum / open);
 }
 
 /** The 7 sub-scores (0–1) for the rating and its tooltip. */
 export function ratingParts(world: World): RatingParts {
+  const t = guestTotals(world);
   return {
-    happiness: happinessScore(world),
+    happiness: happinessScore(world, t),
     cleanliness: clamp01(cleanliness(world)),
     reliability: clamp01(reliabilityScore(world)),
-    fairPrices: fairPriceScore(world),
-    variety: varietyScore(world),
-    lostGuests: lostGuestScore(world),
+    fairPrices: fairPriceScore(world, t),
+    variety: varietyScore(world, t),
+    lostGuests: lostGuestScore(world, t),
     queues: queueScore(world),
   };
 }

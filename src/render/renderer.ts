@@ -19,12 +19,12 @@ import { cornerHeights, STEP_PX, TILE_H, TILE_W, tileToScreen } from './iso';
 import { mix32, SHIRT_COLOURS, SKY, tintStep } from './palette';
 import { createQueueWalker, queueSlot } from './queue';
 import type { Sprite } from './spriteCache';
-import { guestFrame, guestSpriteKey, SpriteBank } from './sprites/bank';
+import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SpriteBank } from './sprites/bank';
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { TerrainLayer, grassShade, type ViewRect } from './terrain';
-import { KIND_TRACK, TrackLayer } from './track';
+import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 
@@ -322,6 +322,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const guests = s.guests;
     const tint = tool.overlay === 'temperament';
     const w = map.width;
+    // Umbrellas open in rain and storms (Phase 3 §4.9); balloons show whenever a guest holds one.
+    const weather = s.management.weather.current;
+    const wet = weather === 'rain' || weather === 'storm';
     for (let gi = 0; gi < guests.length; gi++) {
       const g = guests[gi]!;
       if (g.state === 'riding' || g.tile < 0) continue;
@@ -357,10 +360,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       }
       const ax = (fx - fy) * HW;
       const ay = (fx + fy) * HH - z * STEP_PX;
-      if (ax < view.x0 - 10 || ax > view.x1 + 10 || ay < view.y0 - 6 || ay > view.y1 + 24) continue;
+      const items = (g.items.balloon ? GUEST_BALLOON : 0) | (wet && g.items.umbrella ? GUEST_UMBRELLA : 0);
+      // Cull by the sprite bounds (GUEST_BOUNDS, or GUEST_ITEM_BOUNDS with a balloon or umbrella).
+      const mx = items ? 14 : 10;
+      if (ax < view.x0 - mx || ax > view.x1 + mx || ay < view.y0 - 6 || ay > view.y1 + (items ? 42 : 24)) continue;
       const m = mix32(g.id);
       const colour = tint ? tintStep(g.temperament) : m % SHIRT_COLOURS.length;
-      const frame = guestFrame(colour, walk, (m >>> 8) & 3, tint);
+      const frame = guestFrame(colour, walk, (m >>> 8) & 3, tint, items);
       list.push(KIND_GUEST, gi, facing | (frame << 2), ax, ay, guestSpriteKey(facing, frame, bucket), pointDepth(fx, fy), z, Layer.Guest);
     }
   }
@@ -558,7 +564,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     if (sel.kind === 'ride') {
       const r = s.rides.find((q) => q.id === sel.id);
-      if (!r || r.kind !== 'flat') return;
+      if (!r) return;
+      if (r.kind === 'track') {
+        // Station, track, and gate tiles (elevated pieces outline the ground under them).
+        const tiles = trackRideTiles(world, r);
+        if (tiles.length > 0) outlineTiles(map, tiles, 'rgba(255,255,255,0.12)', '#ffffff', Math.max(1, 1.5 * scale));
+        return;
+      }
       const def = getFlatRideDef(r.defId);
       const tiles = footprintTiles(map, r.x, r.y, def?.w ?? 1, def?.d ?? 1, r.rotation);
       if (tiles) outlineTiles(map, tiles, 'rgba(255,255,255,0.12)', '#ffffff', Math.max(1, 1.5 * scale));

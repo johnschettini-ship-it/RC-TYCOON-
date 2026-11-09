@@ -1,5 +1,7 @@
 /**
  * Ride panel for track rides (phase-2 §7.4): Overview, Track, Trains, and Test tabs. Owner: W2-A. Browser only.
+ * The Overview tab also carries the management maintenance section (Phase 3 §7.1: reliability, breakdown,
+ * Mechanic, breakdowns this month, last inspection, inspection interval), the same block as the flat ride panel.
  */
 import { getTrackRideDef } from '../../data/catalog/trackRides';
 import { text } from '../../data/strings/en';
@@ -18,6 +20,7 @@ import { formatMoney, formatPrice, formatRating } from '../format';
 import { icon } from '../icons';
 import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
+import { createMaintenanceSection } from '../management/maintenanceSection';
 import { editTrackRide } from './builder';
 import { createTestChart } from './chart';
 import { takeTrackTab, type TrackTab } from './tabRequest';
@@ -115,11 +118,13 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   const income = statRow(text('ui.ride.income'));
   const incomeTotal = statRow(text('ui.ride.incomeTotal'));
   const throughput = statRow(text('ui.track.throughput'));
+  const maintenance = createMaintenanceSection(ctx, rideId);
   panels.get('overview')!.append(
     warnings.el,
     nextStep,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
     section(null, price.el),
+    maintenance.el,
     section(text('ui.ride.ratings'), bars.excitement.el, bars.intensity.el, bars.nausea.el, noRatings),
     section(null, queue.el, riding.el, riders.el, ridersTotal.el, income.el, incomeTotal.el, throughput.el),
   );
@@ -249,6 +254,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
         const tp = trackThroughputPerHour(game.world, rideId);
         throughput.el.hidden = tp === null;
         if (tp !== null) throughput.set(String(Math.round(tp)));
+        maintenance.update(r);
       } else if (current === 'track') {
         pieces.set(String(d.pieces.length));
         circuit.set(text(d.circuitClosed ? 'ui.track.circuitClosed' : 'ui.track.circuitOpen'));
