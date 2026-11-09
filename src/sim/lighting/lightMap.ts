@@ -35,6 +35,7 @@ import type { Scenery } from '../scenery/types';
 import type { Stall } from '../stalls/types';
 import type { GameState, World } from '../types';
 import { stampTable } from './stamps';
+import { isRideOperating } from '../park/rides';
 
 /** Light source kinds (render snapshot). */
 export const LightKind = { Entrance: 0, Ride: 1, Station: 2, Stall: 3, Scenery: 4, Lamp: 5 } as const;
@@ -210,7 +211,7 @@ function rideStationTiles(state: GameState, ride: Ride, out: number[]): void {
 }
 
 function rideRec(state: GameState, ride: Ride): Rec {
-  const open = ride.status === 'open';
+  const open = isRideOperating(ride); // master R11 + R24: every operating ride gives light
   const rec: Rec = { id: ride.id, sig: open ? 1 : -1, kind: REC_RIDE, tiles: [], radius: LIGHT_RADIUS.ride };
   if (!open) return rec;
   if (ride.kind === 'track') {
@@ -305,7 +306,7 @@ function diffList<T extends { id: number }>(
   return out ?? recs;
 }
 
-const rideSig = (r: Ride): number => (r.status === 'open' ? 1 : -1);
+const rideSig = (r: Ride): number => (isRideOperating(r) ? 1 : -1);
 const stallSig = (s: Stall): number => (s.open ? 1 : -1);
 const elevatedSig = (p: ElevatedPath): number => (p.kind === 'footpath' ? 1 : -1);
 

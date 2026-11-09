@@ -30,11 +30,12 @@ import type { World } from '../types';
 import type { Cents } from '../units';
 import { drawTemperament } from './temperament';
 import type { Guest } from './types';
+import { isRideOperating } from '../park/rides';
 
 /** Entrance fee tolerance before the random factor: $5 + $2.50 × open rides (cents). */
 export function feeToleranceBase(world: World): Cents {
   let open = 0;
-  for (const r of world.state.rides) if (r.status === 'open') open++;
+  for (const r of world.state.rides) if (isRideOperating(r)) open++;
   return FEE_TOLERANCE_BASE + FEE_TOLERANCE_PER_RIDE * open;
 }
 

@@ -46,15 +46,20 @@ export function stallDest(id: EntityId): DestKey {
 
 /** Guests may start walking to a ride only while it is open and has stats. */
 export function rideChoosable(ride: Ride): boolean {
-  return ride.status === 'open' && ride.stats !== null;
+  // A slow-running ride keeps running (Phase 3 §4.5), so guests may still choose it (master R24).
+  const operating = ride.status === 'open' || (ride.status === 'broken' && ride.breakdownType === 'slow_running');
+  return operating && ride.stats !== null;
 }
 
 /**
- * Guests already on their way keep going, and may join the queue, while the ride is open or briefly held
- * (inspection, storm hold). Closed, broken, building, and testing rides make them decide again (Phase 3 §4.5).
+ * Guests already on their way keep going, and may join the queue, while the ride is open, slow-running
+ * (master R24), or briefly held (inspection, storm hold). Closed, other broken, building, and testing rides
+ * make them decide again (Phase 3 §4.5).
  */
 export function rideAcceptsGuests(ride: Ride): boolean {
-  return ride.stats !== null && (ride.status === 'open' || ride.status === 'inspecting' || ride.status === 'stormHold');
+  if (ride.stats === null) return false;
+  if (ride.status === 'broken') return ride.breakdownType === 'slow_running';
+  return ride.status === 'open' || ride.status === 'inspecting' || ride.status === 'stormHold';
 }
 
 /** True while `dest` is still a valid walking target. */

@@ -3,9 +3,14 @@ import { getFlatRideDef, getTrackRideDef, type RideTag } from '../../data/catalo
 import type { Ride } from '../rides/types';
 import type { World } from '../types';
 
-/** Rides with status `open` (flat and track), in id order. */
+/** A ride that carries guests: `open`, or `broken` with `slow_running` (it keeps running, master R24). */
+export function isRideOperating(ride: Ride): boolean {
+  return ride.status === 'open' || (ride.status === 'broken' && ride.breakdownType === 'slow_running');
+}
+
+/** Operating rides (flat and track), in id order. Arrivals and the rating count these as open (master R24). */
 export function openRides(world: World): Ride[] {
-  return world.state.rides.filter((r) => r.status === 'open');
+  return world.state.rides.filter(isRideOperating);
 }
 
 function trackTypeId(world: World, ride: Ride): string {

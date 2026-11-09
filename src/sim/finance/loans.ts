@@ -5,9 +5,13 @@ import { canAfford, recordLedger, type CommandContext } from '../economy/ledger'
 import { fail, ok, type CommandResult } from '../commands/types';
 import type { World } from '../types';
 import type { Cents } from '../units';
+import { scenarioMaxLoan } from '../scenario/api';
 
 /** `max(LOAN_MIN_LIMIT, floor(0.5 × parkValue / LOAN_STEP) × LOAN_STEP)`. */
 export function maxLoan(world: World): Cents {
+  // A scenario can fix the loan limit (Phase 5 §4.1); otherwise the Phase 3 formula applies.
+  const fixed = scenarioMaxLoan(world.state);
+  if (fixed !== null) return fixed;
   const pv = Math.max(0, world.state.management.parkValue);
   return Math.max(LOAN_MIN_LIMIT, Math.floor(pv / (2 * LOAN_STEP)) * LOAN_STEP);
 }

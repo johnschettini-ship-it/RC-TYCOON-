@@ -328,3 +328,4 @@ These rules settle conflicts between phase specs. They win over any phase text.
 | R21 | **Keys:** `V` cycles map overlays. `O` stays the Office/Finance key (Phase 3). |
 | R22 | **Path items:** one path item per tile column (ground path or one elevated path) in Build 2. |
 | R23 | **Build phase limit:** when Build 2 raises `BUILD_MAX_PHASE` to 4, Phase 4 items (lamps start unlocked; water rides and scenery themes via research) become available in every park, including Build 1 saves after migration. |
+| R24 | **Slow-running rides operate:** a ride `broken` with breakdown `slow_running` keeps carrying guests (Phase 3 §4.5). Guests may choose it, and arrivals and the park rating count it as an open ride. |

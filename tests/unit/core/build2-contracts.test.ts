@@ -75,18 +75,26 @@ describe('new games are schema 2 (Phase 4 §5, Phase 5 §5)', () => {
 });
 
 describe('Build 2 commands are registered (Phase 4 §6, Phase 5 §6)', () => {
-  const cmds: Command[] = [
-    // Terrain, water (W3-A), scenery (W3-D), land purchase (W3-G), and After Dark (W3-F) commands are implemented and tested in their folders.
+  // Every Build 2 command is implemented and tested in its owner's folder (W3-A … W3-I).
+  const BUILD2_COMMANDS: Command[] = [
+    { type: 'raiseCorner', x: 10, y: 10, corner: 0 },
+    { type: 'raiseLand', x: 10, y: 10, size: 3 },
+    { type: 'raiseWater', x: 10, y: 10, size: 3 },
+    { type: 'buyLand', x0: 0, y0: 0, x1: 3, y1: 3 },
+    { type: 'placeScenery', defId: 'oak_round', x: 10, y: 10, rotation: 0, edge: -1 },
+    { type: 'removeScenery', id: 1 },
+    { type: 'setAfterDark', on: false },
     { type: 'scenarioContinue' },
     { type: 'setSandboxOption', key: 'awards', value: false },
-    // Tutorial commands (W3-I): see tests/unit/tutorial/tutorial.test.ts.
+    { type: 'tutorialSkipAll' },
   ];
-  for (const cmd of cmds) {
-    it(`${cmd.type} answers "${NOT_IMPLEMENTED}" and changes nothing`, () => {
-      const w = makeTestWorld();
-      const before = stateHash(w);
-      expect(executeCommand(w, cmd)).toEqual({ ok: false, reason: NOT_IMPLEMENTED });
-      expect(stateHash(w)).toBe(before);
+  for (const cmd of BUILD2_COMMANDS) {
+    it(`${cmd.type} is registered and implemented (no stub reply)`, () => {
+      const r = executeCommand(makeTestWorld(), cmd);
+      if (!r.ok) {
+        expect(r.reason).not.toBe(NOT_IMPLEMENTED);
+        expect(r.reason.startsWith('Unknown command')).toBe(false);
+      }
     });
   }
 

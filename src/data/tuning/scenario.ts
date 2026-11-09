@@ -52,3 +52,39 @@ export const CLIMATES: Readonly<Record<Climate, ClimateDef>> = {
   hot: { tempOffset: [6, 8, 10, 8], rainWeight: 0.5, sunWeight: 1.5 },
   coastal: { tempOffset: [2, 0, -1, 2], rainWeight: 1.4, sunWeight: 0.9 },
 };
+
+// ---------------------------------------------------------------- map generator (Phase 5 §4.2)
+
+/** Noise values and interpolation weights are fixed point with 16 fraction bits (0–65,535). */
+export const NOISE_ONE = 65_536;
+/** A cone's crater floor lies this many steps below its rim (Phase 5 §4.1). */
+export const CRATER_DEPTH = 4;
+/** Validation: owned, dry, flat, empty tiles reachable on land from the entrance (Phase 5 §4.2 step 9). */
+export const MIN_BUILDABLE_TILES = 200;
+/** Lake beds: 1 step below the surface at the shore, `LAKE_EXTRA_DEPTH` more at the centre. */
+export const LAKE_EXTRA_DEPTH = 2;
+/** Sandbox generation retries the next seed when a random layout fails validation (the seed used is stored). */
+export const SANDBOX_SEED_TRIES = 8;
+
+// ---------------------------------------------------------------- climates (Phase 5 §4.9)
+
+/**
+ * Phase 3 weather has no temperature, only the `hot` and `cold` states. A climate's °C offset for the season moves
+ * this many draw-weight points per °C from `cold` to `hot` (offset > 0) or from `hot` to `cold` (offset < 0).
+ * The rain weight then multiplies `rain` and `storm`, the sun weight `sunny` and `hot` (rounded to integers).
+ */
+export const CLIMATE_WEIGHT_PER_DEGREE = 2;
+
+// ---------------------------------------------------------------- month metrics (Phase 5 §4.10, §5)
+
+/** Thought ids whose guests month metrics count (Rip-off Park and Lost and Confused awards). */
+export const TOO_EXPENSIVE_THOUGHTS: readonly string[] = ['rideTooExpensive', 'snackTooExpensive', 'drinkTooExpensive'];
+export const LOST_THOUGHTS: readonly string[] = ['lost', 'lostNeedMap'];
+export const TRACKED_THOUGHTS: readonly string[] = [...TOO_EXPENSIVE_THOUGHTS, ...LOST_THOUGHTS];
+
+// ---------------------------------------------------------------- sandbox (Phase 5 §4.5)
+
+export const SANDBOX_MAP_SIZES: readonly number[] = [64, 96, 128, 192, 256];
+export const SANDBOX_DEFAULT_MAP_SIZE = 96;
+/** Map sizes from this one up show "Large maps can run slowly on phones". */
+export const SANDBOX_LARGE_MAP = 192;
