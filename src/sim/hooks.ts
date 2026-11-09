@@ -38,5 +38,5 @@ function merge(...parts: Partial<GuestHooks>[]): GuestHooks {
   return out;
 }
 
-/** Fixed order: litter/mess/bench/vandalism (W1-H), weather (W1-I), facilities (W2-D). */
+/** Fixed order: litter/mess/bench/vandalism (W1-H), weather (W1-I), facilities (W2-C). */
 export const guestHooks: GuestHooks = merge(litterHooks, weatherHooks, facilityHooks);

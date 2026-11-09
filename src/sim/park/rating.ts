@@ -26,7 +26,7 @@
  * - "Guests" are all guests in `state.guests`. Groups follow master R6 (chill ≤ 35, family 36–64, thrill ≥ 65).
  * - "Today" for P is the last game day: a thought counts if a guest showed it within the last 1,200 ticks.
  *   Thought ids are found by their spec text in the English string table (TOO_EXPENSIVE_THOUGHT_TEXTS).
- * - Lost guests have `lostSinceTick ≥ 0`.
+ * - Lost guests: no route (`lostSinceTick ≥ 0`) or lost after wrong turns (`isGuestLost`, Phase 3 §4.10).
  */
 import { temperamentGroup, type RideTag } from '../../data/catalog';
 import { en } from '../../data/strings/en';
@@ -47,6 +47,7 @@ import type { Guest } from '../guests/types';
 import { cleanliness } from '../litter/metrics';
 import type { World } from '../types';
 import { openRides, rideCapacity, rideTag } from './rides';
+import { isGuestLost } from '../facilities/wayfinding';
 
 export interface RatingParts {
   happiness: number;
@@ -127,7 +128,7 @@ function lostGuestScore(world: World): number {
   const guests = world.state.guests;
   if (guests.length === 0) return RATING_NO_GUESTS_SCORE;
   let lost = 0;
-  for (const g of guests) if (g.lostSinceTick >= 0) lost++;
+  for (const g of guests) if (isGuestLost(g)) lost++;
   return 1 - Math.min(1, (LOST_GUEST_FACTOR * lost) / guests.length);
 }
 

@@ -20,6 +20,7 @@ import { createTrackSlice } from '../../../src/sim/rides/track/types';
 import { addGuestDirect, makeTestWorld, makeTrackRideDataDirect, placeRideDirect, runTicks } from '../../helpers/world';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
+import { LOST_STEPS } from '../../../src/data/tuning/facilities';
 
 const clean = vi.mocked(cleanliness);
 const reliable = vi.mocked(reliabilityScore);
@@ -203,6 +204,15 @@ describe('rating parts at their edges', () => {
     expect(ratingParts(w).lostGuests).toBe(0.5);
     w.state.guests[1]!.lostSinceTick = 5;
     expect(ratingParts(w).lostGuests).toBe(0);
+  });
+
+  it('lost guests include guests lost after wrong turns (Phase 3 §4.10 LOST_STEPS)', () => {
+    const w = makeTestWorld();
+    guests(w, 8);
+    w.state.guests[0]!.lostSteps = LOST_STEPS - 1;
+    expect(ratingParts(w).lostGuests).toBe(1);
+    w.state.guests[0]!.lostSteps = LOST_STEPS;
+    expect(ratingParts(w).lostGuests).toBe(0.5);
   });
 
   describe('queues: 1 − min(1, mean over open rides of queue length / (3 × capacity))', () => {
