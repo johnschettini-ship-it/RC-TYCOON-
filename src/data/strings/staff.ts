@@ -1,22 +1,8 @@
 /**
  * Owner: W1-H. Staff, litter, vandalism, and breakdown strings (master R4: no final period; R5: ids).
- * Thought ids start with `thought.`, message ids with `msg.`.
+ * Message ids start with `msg.`. Guest thoughts this workstream raises (Phase 3 §4.16) use the guest
+ * module's ids and texts: `THOUGHT` in `src/sim/guests/thoughts.ts`, texts in `./guests.ts`.
  */
-
-/** Guest thought ids (Phase 3 §4.16, the ones this workstream raises). */
-export const STAFF_THOUGHTS = Object.freeze({
-  pathFilthy: 'thought.pathFilthy',
-  cleanPark: 'thought.cleanPark',
-  brokenBench: 'thought.brokenBench',
-  brokenBin: 'thought.brokenBin',
-  brokenLamp: 'thought.brokenLamp',
-  rideBrokeDown: 'thought.rideBrokeDown',
-  stuck: 'thought.stuck',
-  feelAwful: 'thought.feelAwful',
-  performerFun: 'thought.performerFun',
-  frostCute: 'thought.frostCute',
-  sparkAwesome: 'thought.sparkAwesome',
-});
 
 /** Message-log ids (Phase 3 §4.14). */
 export const STAFF_MESSAGES = Object.freeze({
@@ -42,18 +28,6 @@ export const STAFF_ERRORS = Object.freeze({
 });
 
 export const staffStrings: Record<string, string> = {
-  // Thoughts
-  'thought.pathFilthy': 'This path is filthy',
-  'thought.cleanPark': 'Nice clean park!',
-  'thought.brokenBench': 'Someone broke that bench',
-  'thought.brokenBin': 'Someone broke that bin',
-  'thought.brokenLamp': 'Someone broke that lamp',
-  'thought.rideBrokeDown': 'The ride broke down. Typical!',
-  'thought.stuck': 'We are stuck!',
-  'thought.feelAwful': 'I feel awful',
-  'thought.performerFun': 'That performer is fun!',
-  'thought.frostCute': 'Frost is so cute!',
-  'thought.sparkAwesome': 'Spark is awesome!',
   // Messages
   'msg.breakdown': '{ride} has broken down',
   'msg.noMechanic': 'No mechanic is available',

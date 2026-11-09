@@ -153,8 +153,6 @@ export const COLD_EXTRA_ENERGY_TICKS = 500;
  */
 export const SCORE_EXCITEMENT_WEIGHT = 0.6;
 export const SCORE_TAG_FIT_WEIGHT = 1.5;
-/** Phase 1 §4.3: guests keep their newest 5 thoughts. */
-export const GUEST_THOUGHTS_KEPT = 5;
 
 /** Track rides count as tall from this highest rail point above ground (catalog §2). */
 export const TALL_TRACK_HEIGHT_M = 20;

@@ -9,7 +9,7 @@ import { decisionHooks } from '../../../src/sim/litter/hooks';
 import { breakDown, initRideReliability } from '../../../src/sim/breakdowns/api';
 import { hourlyStaff } from '../../../src/sim/staff/update';
 import { Content, PathItem, tileIndex } from '../../../src/sim/map';
-import { STAFF_THOUGHTS } from '../../../src/data/strings/staff';
+import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { executeCommand } from '../../../src/sim/commands';
 import { addGuestDirect, makeTestWorld, placeRideDirect } from '../../helpers/world';
 import { pathLine } from './fakes';
@@ -55,7 +55,7 @@ describe('"Nice clean park!"', () => {
     const map = world.state.map;
     const g = addGuestDirect(world, tileIndex(map, 20, 20));
     decisionHooks.dirt(world, g);
-    expect(g.thoughts.map((t) => t.id)).toEqual([STAFF_THOUGHTS.cleanPark]);
+    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.cleanPark]);
     // Once per game day.
     world.state.tick += 10;
     decisionHooks.dirt(world, g);

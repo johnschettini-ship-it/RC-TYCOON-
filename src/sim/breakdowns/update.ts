@@ -2,10 +2,10 @@
  * Owner: W1-H. Phase 3 §4.5 per-tick breakdown work: reference integrity, the pending queue,
  * stuck riders, and bookkeeping for bench sitters and recent fixes.
  */
-import { STAFF_THOUGHTS } from '../../data/strings/staff';
 import { RECENT_BREAK_TICKS, STUCK_RIDER_HAPPY, STUCK_RIDER_INTERVAL } from '../../data/tuning/staff';
+import { THOUGHT, addThought } from '../guests/thoughts';
 import { pruneSitters } from '../litter/benches';
-import { addThought, changeHappiness } from '../staff/guestEffects';
+import { changeHappiness } from '../staff/guestEffects';
 import { findRide, findStaff, indexById } from '../staff/lookup';
 import { dispatchPending, queueBreakdown } from '../staff/mechanics';
 import type { World } from '../types';
@@ -81,7 +81,7 @@ function stuckRiders(world: World): void {
     const rideId = g.seat ? g.seat.rideId : g.activityId;
     if (!stuck.has(rideId)) continue;
     changeHappiness(g, -STUCK_RIDER_HAPPY);
-    addThought(world, g, STAFF_THOUGHTS.stuck);
+    addThought(world, g, THOUGHT.stuck);
   }
 }
 

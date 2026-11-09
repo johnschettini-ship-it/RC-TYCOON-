@@ -22,14 +22,13 @@ import {
   WET_SCORE_UNCOVERED,
   WET_SCORE_UNCOVERED_BOLD,
 } from '../../data/tuning/management';
-import { WEATHER_THOUGHTS } from '../../data/strings/management';
 import type { GuestHooks } from '../hooks';
+import { THOUGHT, addThought } from '../guests/thoughts';
 import type { Guest } from '../guests/types';
 import { campaignRideScoreFactor, campaignStallWant, rideTag } from '../marketing/campaigns';
 import type { Ride } from '../rides/types';
 import type { Stall } from '../stalls/types';
 import type { World } from '../types';
-import { think } from './thoughts';
 
 function rideFlags(ride: Ride): ContentFlags | undefined {
   return ride.kind === 'track' ? getTrackRideDef(ride.defId)?.flags : getFlatRideDef(ride.defId)?.flags;
@@ -101,10 +100,10 @@ function weatherDecision(world: World, guest: Guest): boolean {
   const delta = weatherHappinessDelta(world, guest);
   if (delta !== 0) guest.needs.happiness = Math.max(0, Math.min(255, guest.needs.happiness + delta));
   if (isWet(weather) && !isGuestCovered(world, guest)) {
-    think(world, guest, guest.items.umbrella ? WEATHER_THOUGHTS.umbrella : WEATHER_THOUGHTS.rainNoUmbrella);
-  } else if (weather === 'hot') think(world, guest, WEATHER_THOUGHTS.tooHot);
-  else if (weather === 'cold') think(world, guest, WEATHER_THOUGHTS.cold);
-  if (weather === 'storm' && heldTarget(world, guest)) think(world, guest, WEATHER_THOUGHTS.stormClosed);
+    addThought(world, guest, guest.items.umbrella ? THOUGHT.goodUmbrella : THOUGHT.rainNoUmbrella);
+  } else if (weather === 'hot') addThought(world, guest, THOUGHT.tooHot);
+  else if (weather === 'cold') addThought(world, guest, THOUGHT.tooCold);
+  if (weather === 'storm' && heldTarget(world, guest)) addThought(world, guest, THOUGHT.stormClosed);
   return false;
 }
 

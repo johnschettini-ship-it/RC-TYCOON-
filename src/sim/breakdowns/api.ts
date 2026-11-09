@@ -2,7 +2,7 @@
  * Owner: W1-H. Called by ride systems at dispatch (flat cycle start, train dispatch at a station).
  * Phase 3 §4.5. Reliability is integer hundredths (0–10,000).
  */
-import { STAFF_MESSAGES, STAFF_THOUGHTS } from '../../data/strings/staff';
+import { STAFF_MESSAGES } from '../../data/strings/staff';
 import {
   INSPECT_DEFAULT,
   RECENT_BREAK_SCORE,
@@ -14,10 +14,10 @@ import {
   type BreakdownKind,
 } from '../../data/tuning/staff';
 import { forgetDestination } from '../guests/api';
+import { THOUGHT, addThought } from '../guests/thoughts';
 import { notify } from '../notifications';
 import { rngChance } from '../rng';
 import type { Ride } from '../rides/types';
-import { addThought } from '../staff/guestEffects';
 import { findGuestById, serviceTile } from '../staff/lookup';
 import { dispatchPending, queueBreakdown } from '../staff/mechanics';
 import type { World } from '../types';
@@ -68,10 +68,10 @@ export function breakDown(world: World, ride: Ride, type: BreakdownKind): void {
   const key = `ride:${ride.id}` as const;
   for (const id of ride.queue) {
     const g = findGuestById(world, id);
-    if (g) addThought(world, g, STAFF_THOUGHTS.rideBrokeDown);
+    if (g) addThought(world, g, THOUGHT.rideBrokeDown);
   }
   for (const g of s.guests) {
-    if (g.target === key && g.state === 'walking') addThought(world, g, STAFF_THOUGHTS.rideBrokeDown);
+    if (g.target === key && g.state === 'walking') addThought(world, g, THOUGHT.rideBrokeDown);
   }
   // Riders wait on board (Phase 3 §4.5): the flat ride cycle freezes while `broken`.
   ride.status = 'broken';
