@@ -23,19 +23,43 @@ export interface Ctx {
   tiles: number;
 }
 
-/** Returns null when the value is fine, else a short reason. The phantom keeps validators typed (invariant in T). */
+type Problem = 'missing' | 'bad' | 'unknown' | 'kind' | 'size' | 'mapSize';
+
+/** A failed check. Keys are collected innermost first while the failure bubbles up; the path is built only then. */
+export interface Fail {
+  problem: Problem;
+  keys: Array<string | number>;
+}
+
+const MESSAGES: Record<Problem, (path: string) => string> = {
+  missing: (p) => `missing field ${p}`,
+  bad: (p) => `bad value at ${p}`,
+  unknown: (p) => `unknown field ${p}`,
+  kind: (p) => `wrong data type at ${p}`,
+  size: (p) => `wrong size at ${p}`,
+  mapSize: () => 'bad map size',
+};
+
+export function describeFail(f: Fail): string {
+  let path = '';
+  for (let i = f.keys.length - 1; i >= 0; i--) path = childPath(path, f.keys[i] as string | number);
+  return MESSAGES[f.problem](path);
+}
+
+const fail = (problem: Problem, ...keysInnermostFirst: Array<string | number>): Fail => ({ problem, keys: keysInnermostFirst });
+
+function under(f: Fail | null, key: string | number): Fail | null {
+  if (f) f.keys.push(key);
+  return f;
+}
+
+/** Returns null when the value is fine, else a failure. The phantom keeps validators typed (invariant in T). */
 export interface V<T> {
-  (value: unknown, path: string, ctx: Ctx): string | null;
+  (value: unknown, ctx: Ctx): Fail | null;
   readonly __type?: (t: T) => T;
 }
 
 type Shape<T> = { [K in keyof Required<T>]: V<T[K]> };
-
-export const missingField = (path: string): string => `missing field ${path}`;
-export const badValue = (path: string): string => `bad value at ${path}`;
-export const unknownField = (path: string): string => `unknown field ${path}`;
-export const wrongKind = (path: string): string => `wrong data type at ${path}`;
-export const wrongSize = (path: string): string => `wrong size at ${path}`;
 
 const hasOwn = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
 
@@ -45,34 +69,35 @@ export function isRecord(v: unknown): v is Record<string, unknown> {
   return proto === Object.prototype || proto === null;
 }
 
-function check<T>(fn: (value: unknown, path: string, ctx: Ctx) => string | null): V<T> {
+function check<T>(fn: (value: unknown, ctx: Ctx) => Fail | null): V<T> {
   return fn as V<T>;
+}
+
+/** A validator from a predicate: fails with "bad value". */
+function when<T>(ok: (value: unknown, ctx: Ctx) => boolean): V<T> {
+  return check((v, ctx) => (ok(v, ctx) ? null : fail('bad')));
 }
 
 // ---- Primitives ----
 
-export const str: V<string> = check((v, p) => (typeof v === 'string' ? null : badValue(p)));
-export const bool: V<boolean> = check((v, p) => (typeof v === 'boolean' ? null : badValue(p)));
+export const str: V<string> = when((v) => typeof v === 'string');
+export const bool: V<boolean> = when((v) => typeof v === 'boolean');
 /** Any finite number. */
-export const num: V<number> = check((v, p) => (typeof v === 'number' && Number.isFinite(v) ? null : badValue(p)));
+export const num: V<number> = when((v) => typeof v === 'number' && Number.isFinite(v));
 /** A safe integer (ids, ticks, counts, money in cents). */
-export const int: V<number> = check((v, p) => (typeof v === 'number' && Number.isSafeInteger(v) ? null : badValue(p)));
+export const int: V<number> = when((v) => typeof v === 'number' && Number.isSafeInteger(v));
 /** A tile index on the map, or −1 for none. */
-export const tileOrNone: V<number> = check((v, p, ctx) =>
-  typeof v === 'number' && Number.isInteger(v) && v >= -1 && v < ctx.tiles ? null : badValue(p),
-);
+export const tileOrNone: V<number> = when((v, ctx) => typeof v === 'number' && Number.isInteger(v) && v >= -1 && v < ctx.tiles);
 /** A tile index on the map. */
-export const tile: V<number> = check((v, p, ctx) =>
-  typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < ctx.tiles ? null : badValue(p),
-);
+export const tile: V<number> = when((v, ctx) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v < ctx.tiles);
 
 export function literal<const T extends string | number>(value: T): V<T> {
-  return check((v, p) => (v === value ? null : badValue(p)));
+  return when((v) => v === value);
 }
 
 export function oneOf<const T extends string | number>(values: readonly T[]): V<T> {
   const set = new Set<unknown>(values);
-  return check((v, p) => (set.has(v) ? null : badValue(p)));
+  return when((v) => set.has(v));
 }
 
 /**
@@ -86,20 +111,20 @@ export function every<U extends string | number>() {
 // ---- Combinators ----
 
 export function nullable<T>(inner: V<T>): V<T | null> {
-  return check((v, p, ctx) => (v === null ? null : inner(v, p, ctx)));
+  return check((v, ctx) => (v === null ? null : inner(v, ctx)));
 }
 
 /** For optional properties (`key?: T`): the key may be absent. */
 export function optional<T>(inner: V<T>): V<T | undefined> {
-  return check((v, p, ctx) => (v === undefined ? null : inner(v, p, ctx)));
+  return check((v, ctx) => (v === undefined ? null : inner(v, ctx)));
 }
 
 export function arr<T>(item: V<T>): V<T[]> {
-  return check((v, p, ctx) => {
-    if (!Array.isArray(v)) return badValue(p);
+  return check((v, ctx) => {
+    if (!Array.isArray(v)) return fail('bad');
     for (let i = 0; i < v.length; i++) {
-      const e = item(v[i], childPath(p, i), ctx);
-      if (e) return e;
+      const e = item(v[i], ctx);
+      if (e) return under(e, i);
     }
     return null;
   });
@@ -107,11 +132,11 @@ export function arr<T>(item: V<T>): V<T[]> {
 
 /** A plain object with any keys and values of one type. */
 export function record<T>(value: V<T>): V<Record<string, T>> {
-  return check((v, p, ctx) => {
-    if (!isRecord(v)) return badValue(p);
-    for (const k of Object.keys(v)) {
-      const e = value(v[k], childPath(p, k), ctx);
-      if (e) return e;
+  return check((v, ctx) => {
+    if (!isRecord(v)) return fail('bad');
+    for (const k in v) {
+      const e = value(v[k], ctx);
+      if (e) return under(e, k);
     }
     return null;
   });
@@ -120,14 +145,14 @@ export function record<T>(value: V<T>): V<Record<string, T>> {
 /** A plain object with exactly the listed keys. */
 export function exactRecord<K extends string, T>(keys: readonly K[], value: V<T>): V<Record<K, T>> {
   const allowed = new Set<string>(keys);
-  return check((v, p, ctx) => {
-    if (!isRecord(v)) return badValue(p);
+  return check((v, ctx) => {
+    if (!isRecord(v)) return fail('bad');
     for (const k of keys) {
-      if (!hasOwn(v, k)) return missingField(childPath(p, k));
-      const e = value(v[k], childPath(p, k), ctx);
-      if (e) return e;
+      if (!hasOwn(v, k)) return fail('missing', k);
+      const e = value(v[k], ctx);
+      if (e) return under(e, k);
     }
-    for (const k of Object.keys(v)) if (!allowed.has(k)) return unknownField(childPath(p, k));
+    for (const k in v) if (!allowed.has(k)) return fail('unknown', k);
     return null;
   });
 }
@@ -135,16 +160,17 @@ export function exactRecord<K extends string, T>(keys: readonly K[], value: V<T>
 /** An object with exactly the fields of T. Optional fields (validated by `optional`) may be absent. */
 export function obj<T>(shape: Shape<T>): V<T> {
   const keys = Object.keys(shape);
-  const fields = shape as unknown as Record<string, V<unknown>>;
+  const fields = keys.map((k) => (shape as unknown as Record<string, V<unknown>>)[k] as V<unknown>);
   const allowed = new Set(keys);
-  return check((v, p, ctx) => {
-    if (!isRecord(v)) return badValue(p);
-    for (const k of keys) {
+  return check((v, ctx) => {
+    if (!isRecord(v)) return fail('bad');
+    for (let i = 0; i < keys.length; i++) {
+      const k = keys[i] as string;
       const present = hasOwn(v, k);
-      const e = (fields[k] as V<unknown>)(present ? v[k] : undefined, childPath(p, k), ctx);
-      if (e) return present ? e : missingField(childPath(p, k));
+      const e = (fields[i] as V<unknown>)(present ? v[k] : undefined, ctx);
+      if (e) return present ? under(e, k) : fail('missing', k);
     }
-    for (const k of Object.keys(v)) if (!allowed.has(k)) return unknownField(childPath(p, k));
+    for (const k in v) if (!allowed.has(k)) return fail('unknown', k);
     return null;
   });
 }
@@ -163,14 +189,14 @@ type KindToArray = {
 
 /** A typed array of one kind, any length. */
 export function typed<K extends TypedArrayKind>(kind: K): V<KindToArray[K]> {
-  return check((v, p) => (typedArrayKind(v) === kind ? null : wrongKind(p)));
+  return check((v) => (typedArrayKind(v) === kind ? null : fail('kind')));
 }
 
 /** A map layer: a typed array of one kind with one entry per tile. */
 export function layer<K extends TypedArrayKind>(kind: K): V<KindToArray[K]> {
-  return check((v, p, ctx) => {
-    if (typedArrayKind(v) !== kind) return wrongKind(p);
-    return (v as KindToArray[K]).length === ctx.tiles ? null : wrongSize(p);
+  return check((v, ctx) => {
+    if (typedArrayKind(v) !== kind) return fail('kind');
+    return (v as KindToArray[K]).length === ctx.tiles ? null : fail('size');
   });
 }
 
@@ -194,9 +220,9 @@ const rideStatus = oneOf(RIDE_STATUSES);
 const weather = oneOf(WEATHER_KEYS);
 
 const DEST_RE = /^(?:(?:ride|stall):(?:0|[1-9]\d*)|exit)$/;
-const destKey: V<DestKey> = check((v, p) => (typeof v === 'string' && DEST_RE.test(v) ? null : badValue(p)));
+const destKey: V<DestKey> = when((v) => typeof v === 'string' && DEST_RE.test(v));
 
-const params = optional(record<string | number>(check((v, p) => (typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)) ? null : badValue(p)))));
+const params = optional(record<string | number>(when((v) => typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v)))));
 
 // ---- Map ----
 
@@ -223,21 +249,21 @@ const mapShape = obj<MapState>({
 });
 
 /** Checks the map and sets `ctx.tiles`. Must run before anything that holds tile indices. */
-export const mapCheck: V<MapState> = check((v, p, ctx) => {
-  if (!isRecord(v)) return badValue(p);
-  for (const k of ['width', 'height']) if (!hasOwn(v, k)) return missingField(childPath(p, k));
+export const mapCheck: V<MapState> = check((v, ctx) => {
+  if (!isRecord(v)) return fail('bad');
+  for (const k of ['width', 'height']) if (!hasOwn(v, k)) return fail('missing', k);
   const w = v.width;
   const h = v.height;
   if (typeof w !== 'number' || typeof h !== 'number' || !Number.isInteger(w) || !Number.isInteger(h) || w < 1 || h < 1 || w * h > MAX_TILES) {
-    return 'bad map size';
+    return fail('mapSize');
   }
   ctx.tiles = w * h;
-  const e = mapShape(v, p, ctx);
+  const e = mapShape(v, ctx);
   if (e) return e;
   const map = v as unknown as MapState;
   for (let i = 0; i < ctx.tiles; i++) {
-    if (!CONTENT_CODES.has(map.content[i] as number)) return badValue(`${childPath(p, 'content')}[${i}]`);
-    if ((map.contentRef[i] as number) < -1) return badValue(`${childPath(p, 'contentRef')}[${i}]`);
+    if (!CONTENT_CODES.has(map.content[i] as number)) return fail('bad', i, 'content');
+    if ((map.contentRef[i] as number) < -1) return fail('bad', i, 'contentRef');
   }
   return null;
 });
@@ -439,10 +465,9 @@ export const gameStateShape = obj<GameState>({
 /** Null when `raw` has the full GameState structure, else a short reason. */
 export function checkStructure(raw: unknown): string | null {
   const ctx: Ctx = { tiles: 0 };
-  if (!isRecord(raw)) return badValue('state');
+  if (!isRecord(raw)) return 'bad value at state';
   // The map goes first: tile checks elsewhere need its size.
-  if (!hasOwn(raw, 'map')) return missingField('map');
-  const e = mapCheck(raw.map, 'map', ctx);
-  if (e) return e;
-  return gameStateShape(raw, '', ctx);
+  if (!hasOwn(raw, 'map')) return describeFail(fail('missing', 'map'));
+  const e = under(mapCheck(raw.map, ctx), 'map') ?? gameStateShape(raw, ctx);
+  return e ? describeFail(e) : null;
 }

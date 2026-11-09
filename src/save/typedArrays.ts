@@ -75,18 +75,17 @@ export function encodeTypedArray(ta: ArrayBufferView): TypedArrayMarker {
 
 export function isTypedArrayMarker(v: unknown): v is TypedArrayMarker {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
-  const keys = Object.keys(v);
-  if (keys.length !== 2) return false;
   const o = v as Record<string, unknown>;
-  return typeof o.$ta === 'string' && typeof o.b64 === 'string';
+  return typeof o.$ta === 'string' && typeof o.b64 === 'string' && Object.keys(o).length === 2;
 }
 
 /** Error reason, or the decoded array. */
-function decodeMarker(m: TypedArrayMarker, path: string): NumericTypedArray | string {
-  if (!isKind(m.$ta)) return `unknown data type at ${path}`;
+function decodeMarker(m: TypedArrayMarker, path: () => string): NumericTypedArray | string {
+  if (!isKind(m.$ta)) return `unknown data type at ${path()}`;
   const info = KINDS[m.$ta];
   const bytes = decodeBase64(m.b64);
-  if (bytes === null || bytes.length % info.size !== 0) return `unreadable data at ${path}`;
+  if (bytes === null || bytes.length % info.size !== 0) return `unreadable data at ${path()}`;
+  if (m.$ta === 'Uint8Array') return bytes;
   const n = bytes.length / info.size;
   const out = info.make(n);
   const view = new DataView(bytes.buffer);
@@ -104,31 +103,49 @@ export function childPath(path: string, key: string | number): string {
   return path === '' ? key : `${path}.${key}`;
 }
 
+function formatPath(keys: ReadonlyArray<string | number>): string {
+  let path = '';
+  for (const k of keys) path = childPath(path, k);
+  return path;
+}
+
+/** Depth-first in document order. `keys` is the path of `node`; it is formatted only for an error. */
+function decodeIn(node: object, keys: Array<string | number>): string | null {
+  if (Array.isArray(node)) {
+    for (let i = 0; i < node.length; i++) {
+      const e = decodeChild(node, i, node[i] as unknown, keys);
+      if (e) return e;
+    }
+  } else {
+    const o = node as Record<string, unknown>;
+    for (const k of Object.keys(o)) {
+      const e = decodeChild(o, k, o[k], keys);
+      if (e) return e;
+    }
+  }
+  return null;
+}
+
+function decodeChild(holder: Record<string, unknown> | unknown[], key: string | number, value: unknown, keys: Array<string | number>): string | null {
+  if (typeof value !== 'object' || value === null || ArrayBuffer.isView(value)) return null;
+  keys.push(key);
+  let error: string | null;
+  if (isTypedArrayMarker(value)) {
+    const decoded = decodeMarker(value, formatPath.bind(null, keys));
+    error = typeof decoded === 'string' ? decoded : null;
+    if (error === null) put(holder, key, decoded);
+  } else {
+    error = decodeIn(value, keys);
+  }
+  keys.pop();
+  return error;
+}
+
 /**
  * Replace every marker inside `root` (parsed JSON) with its typed array, in place.
  * Returns null on success, else a short reason with the path of the bad marker.
  */
 export function decodeTypedArrays(root: unknown): string | null {
-  const stack: Array<{ node: unknown; path: string }> = [{ node: root, path: '' }];
-  while (stack.length > 0) {
-    const { node, path } = stack.pop() as { node: unknown; path: string };
-    if (typeof node !== 'object' || node === null || ArrayBuffer.isView(node)) continue;
-    const entries: Array<[string | number, unknown]> = Array.isArray(node)
-      ? node.map((v, i) => [i, v] as [number, unknown])
-      : Object.keys(node).map((k) => [k, (node as Record<string, unknown>)[k]] as [string, unknown]);
-    const nested: Array<{ node: unknown; path: string }> = [];
-    for (const [key, value] of entries) {
-      const p = childPath(path, key);
-      if (isTypedArrayMarker(value)) {
-        const decoded = decodeMarker(value, p);
-        if (typeof decoded === 'string') return decoded;
-        put(node as Record<string, unknown>, key, decoded);
-      } else if (typeof value === 'object' && value !== null) {
-        nested.push({ node: value, path: p });
-      }
-    }
-    // Reverse so the first child is visited first (depth-first, document order).
-    for (let k = nested.length - 1; k >= 0; k--) stack.push(nested[k] as { node: unknown; path: string });
-  }
-  return null;
+  if (typeof root !== 'object' || root === null) return null;
+  return decodeIn(root, []);
 }
