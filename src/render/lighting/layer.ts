@@ -2,18 +2,46 @@
  * After Dark rendering (Phase 4 §4.7): the light canvas at 1/4 resolution filled with the ambient colour, cached
  * warm radial light sprites with `lighter`, multiplied over the frame (`drawAfterObjects`), then emissive sprites;
  * the Light overlay (`tool.overlay === 'light'`) in `drawGround`. Darkness 0 skips the pass. Budget ≤ 2 ms per
- * frame, ≤ 400 visible light sprites. Owner: W3-F. Stub: draws nothing.
+ * frame, ≤ 400 visible light sprites. Owner: W3-F.
  */
 import type { WorldLayer } from '../layers';
+import { defaultPathFactory, LightOverlay, type PathFactory } from './overlay';
+import { LightPass, type LightPassStats } from './pass';
+import { defaultCanvasFactory, type CanvasFactory } from './sprites';
 
-export function createLightingLayer(): WorldLayer {
-  return { name: 'lighting', kinds: [] };
+export { ambientColour, darknessAt } from './darkness';
+export type { LightPassStats };
+
+export interface LightingLayerOptions {
+  /** Canvas factory for the light canvas and sprites (tests inject a fake; default: DOM or offscreen canvas). */
+  createCanvas?: CanvasFactory;
+  /** Path factory for the Light overlay's cached tile paths (default: `Path2D`). */
+  createPath?: PathFactory;
 }
 
-/**
- * Render-only darkness from the clock (Phase 4 §4.7 curve): 0 from 07:00 to 19:00, linear to 0.75 by 21:00, 0.75
- * until 05:00, linear to 0 by 07:00. Always 0 when `afterDark` is off. Stub: 0.
- */
-export function darknessAt(_tick: number, _afterDark: boolean): number {
-  return 0;
+export interface LightingLayer extends WorldLayer {
+  /** Counters of the last light pass (sprites, bulbs, redraw, time). */
+  stats(): LightPassStats;
+  /** Light overlay chunks rebuilt by the last overlay frame, and whether the joined band paths were rebuilt. */
+  overlayRebuilt(): number;
+  overlayRejoined(): boolean;
+}
+
+export function createLightingLayer(opts: LightingLayerOptions = {}): LightingLayer {
+  const make = opts.createCanvas ?? defaultCanvasFactory;
+  const pass = new LightPass(make);
+  const overlay = new LightOverlay(make, opts.createPath ?? defaultPathFactory);
+  return {
+    name: 'lighting',
+    kinds: [],
+    drawGround(ctx, world, tool, f) {
+      if (tool.overlay === 'light') overlay.draw(ctx, world, f);
+    },
+    drawAfterObjects(ctx, world, _tool, f) {
+      pass.draw(ctx, world, f);
+    },
+    stats: () => pass.stats,
+    overlayRebuilt: () => overlay.rebuilt,
+    overlayRejoined: () => overlay.rejoined,
+  };
 }

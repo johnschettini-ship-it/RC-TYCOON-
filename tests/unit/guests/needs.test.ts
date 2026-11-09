@@ -14,6 +14,8 @@ import type { World } from '../../../src/sim/types';
 import type { Guest } from '../../../src/sim/guests/types';
 
 function runNeeds(w: World, g: Guest, ticks: number): void {
+  // Phase 1 rates: After Dark off, so the night energy factor (Phase 4 §4.7) stays out of these windows.
+  w.state.park.afterDark = false;
   for (let i = 0; i < ticks; i++) {
     updateNeeds(w, g);
     w.state.tick++;

@@ -313,6 +313,8 @@ export interface Phase1Run {
  */
 export function runPhase1Game(seed: number): Phase1Run {
   const world = makeTestWorld(seed, 'Integration Park');
+  // Phase 1 balance is measured under Build 1 rules: After Dark off (Phase 4 §4.7), as in a migrated Build 1 park.
+  world.state.park.afterDark = false;
   const park = buildPhase1Park(world);
   const boardings: Phase1Run['boardings'] = { chill: {}, family: {}, thrill: {} };
   const problems: string[] = [];
