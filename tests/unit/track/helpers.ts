@@ -85,18 +85,18 @@ export function buildR1(world: World, setup = true): number {
 }
 
 /**
- * R1 variant with 3 block brakes (same footprint): a block brake after the station, and two small
- * chain hills after block brakes so trains leaving a block brake at 2 m/s never stall.
+ * R1 variant with 3 block brakes (same footprint). Each block section is longer than a train, and every
+ * block brake is followed by a chain piece or a small chain hill, so a train leaving it at 2 m/s never stalls.
  */
 export const R1_BLOCKS: PieceSpec[] = [
   'station',
   'station',
-  'block_brake',
   chain('flat_to_gentle_up'),
   chain('gentle_to_steep_up'),
   chain('steep_up'),
   chain('steep_to_gentle_up'),
   chain('gentle_up_to_flat'),
+  'block_brake',
   chain('straight'),
   'turn_medium_right',
   'flat_to_gentle_down',

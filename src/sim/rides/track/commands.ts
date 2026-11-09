@@ -2,6 +2,7 @@
 import { getTrackRideDef } from '../../../data/catalog/trackRides';
 import { getTrackPieceDef, getTrackTypeDef } from '../../../data/track';
 import {
+  BLOCK_MARGIN_MM,
   BRAKE_SPEED,
   CHAIN_EXTRA_CENTS,
   COLOUR_COUNT,
@@ -285,7 +286,19 @@ export function trainCountBlock(data: TrackRideData, typeId: string): string | n
       return fillTrackString(TRACK_ERR.stationTooShort, { n: Math.ceil(data.trainConfig.trains / KARTS_PER_STATION_TILE) });
     }
   }
-  if (type.drive === 'gravity' && data.trainConfig.trains > Math.max(1, layout.blockBrakeCount)) return TRACK_ERR.tooManyTrains;
+  if (type.drive === 'gravity' && data.trainConfig.trains > 1) {
+    if (data.trainConfig.trains > layout.blockBrakeCount) return TRACK_ERR.tooManyTrains;
+    // Each block section must hold a whole train (plus the 1 m margin), or a held train would sit in two
+    // blocks at once and the trains could block each other for good.
+    const P = layout.blockPoints;
+    const need = data.trainConfig.carsPerTrain * type.vehicle.carLengthMm + BLOCK_MARGIN_MM + 1;
+    for (let k = 0; k < P.length; k++) {
+      const a = P[k] as number;
+      const b = P[(k + 1) % P.length] as number;
+      const blen = (((b - a) % layout.lengthMm) + layout.lengthMm) % layout.lengthMm || layout.lengthMm;
+      if (blen < need) return TRACK_ERR.tooManyTrains;
+    }
+  }
   return null;
 }
 
