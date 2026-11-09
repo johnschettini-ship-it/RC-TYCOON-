@@ -14,7 +14,16 @@ export type KeyAction =
   /** Phase 3 §7.4: H Staff panel, O Office (finance), M Messages. */
   | { kind: 'panel'; panel: 'staff' | 'office' | 'messages' }
   /** Phase 3 §7.4: B Bench, N Bin (path item tool). */
-  | { kind: 'pathItem'; item: 'bench' | 'bin' };
+  | { kind: 'pathItem'; item: 'bench' | 'bin' }
+  /** Phase 4 §4.8: `[` counter-clockwise, `]` clockwise (W3-G). */
+  | { kind: 'rotateView'; dir: 1 | -1 }
+  /** Phase 4 §7: `Page Up` / `Page Down` path height (W3-B). */
+  | { kind: 'pathHeight'; delta: 1 | -1 }
+  /**
+   * Phase 4 §7 overlay cycle (W3-E). The spec names `O`, which Phase 3 §7.4 already uses for the Office panel;
+   * bound to `V` until the owner decides (open question in the delivery plan).
+   */
+  | { kind: 'overlayCycle' };
 
 /** Keys are `KeyboardEvent.key` values. */
 export const KEY_BINDINGS: ReadonlyArray<{ keys: readonly string[]; action: KeyAction }> = [
@@ -40,6 +49,11 @@ export const KEY_BINDINGS: ReadonlyArray<{ keys: readonly string[]; action: KeyA
   { keys: ['m', 'M'], action: { kind: 'panel', panel: 'messages' } },
   { keys: ['b', 'B'], action: { kind: 'pathItem', item: 'bench' } },
   { keys: ['n', 'N'], action: { kind: 'pathItem', item: 'bin' } },
+  { keys: ['['], action: { kind: 'rotateView', dir: -1 } },
+  { keys: [']'], action: { kind: 'rotateView', dir: 1 } },
+  { keys: ['PageUp'], action: { kind: 'pathHeight', delta: 1 } },
+  { keys: ['PageDown'], action: { kind: 'pathHeight', delta: -1 } },
+  { keys: ['v', 'V'], action: { kind: 'overlayCycle' } },
 ];
 
 const byKey = new Map<string, KeyAction>();

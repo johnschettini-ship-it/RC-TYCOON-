@@ -19,6 +19,7 @@ import {
   NEED_URGENT,
   THIRST_RATE,
 } from '../../data/tuning/guests';
+import { guestHooks, hookFactor } from '../hooks';
 import type { World } from '../types';
 import { energyDrainMultiplier } from './temperament';
 import type { Guest, Needs } from './types';
@@ -64,8 +65,11 @@ export function updateNeeds(world: World, guest: Guest): void {
   n.hunger = clampNeed(n.hunger + HUNGER_RATE);
   n.thirst = clampNeed(n.thirst + THIRST_RATE);
   n.bladder = clampNeed(n.bladder + BLADDER_RATE);
-  n.energy = clampNeed(n.energy - ditherStep(ENERGY_RATE * energyDrainMultiplier(guest.temperament), k));
-  n.nausea = clampNeed(n.nausea - NAUSEA_RECOVERY);
+  // Build 2 factors (Calm, night) through the guest hooks; 1 with no hooks, so the Phase 1 rates are unchanged.
+  const energyF = hookFactor(guestHooks.energyFactor, world, guest);
+  n.energy = clampNeed(n.energy - ditherStep(ENERGY_RATE * energyDrainMultiplier(guest.temperament) * energyF, k));
+  const nauseaF = hookFactor(guestHooks.nauseaRecoveryFactor, world, guest);
+  n.nausea = clampNeed(n.nausea - (nauseaF === 1 ? NAUSEA_RECOVERY : ditherStep(NAUSEA_RECOVERY * nauseaF, k)));
   const loss = needDiscomfort(n);
   if (loss > 0) n.happiness = clampNeed(n.happiness - ditherStep(loss * world.state.modifiers.happinessDecay, k));
 }

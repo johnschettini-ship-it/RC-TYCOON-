@@ -2,9 +2,9 @@
  * Scenario definition format (Phase 5 §4.1). Owner: W3-H. Definitions are JSON-compatible data
  * (no functions, no `undefined`). Heights are relative to `map.baseHeight` unless a field says "absolute" (master R19).
  */
-import type { TerrainCode } from './terrainCodes';
+import type { TerrainName } from './terrainNames';
 
-export type { TerrainCode };
+export type { TerrainName };
 export type Climate = 'temperate' | 'cold' | 'hot' | 'coastal';
 export type Difficulty = 'relaxed' | 'standard' | 'tough';
 export type AfterDarkRule = 'off' | 'on' | 'forced';
@@ -54,7 +54,7 @@ export interface TerrainRule {
   minHeight?: number;
   maxHeight?: number;
   nearWater?: number;
-  terrain: TerrainCode;
+  terrain: TerrainName;
 }
 
 export interface MapGenSpec {

@@ -1,6 +1,8 @@
 /**
  * Owner: W1-H. Task selection per staff type (Phase 3 §4.2 priority table).
  * Local searches are BFS over staff-walkable tiles inside the patrol (Phase 3 §4.1).
+ * Phase 4 §4.5 (Wave 3.0 plumbing, rules from W3-D's `scenery/gardens.ts`): Groundskeepers water gardens after
+ * mess, full bins, and litter.
  */
 import {
   BIN_EMPTY_AT,
@@ -12,6 +14,7 @@ import {
   STAFF_SEARCH_RADIUS,
 } from '../../data/tuning/staff';
 import { PathItem } from '../map';
+import { gardenNeedsWaterNear } from '../scenery/gardens';
 import { rngInt } from '../rng';
 import { countGuestsWithin } from '../spatial';
 import type { World } from '../types';
@@ -65,14 +68,17 @@ export function isPatrolConnected(world: World, s: Staff): boolean {
 function claimedTiles(world: World, self: Staff): Set<number> {
   const out = new Set<number>();
   for (const m of world.state.staff.members) {
-    if (m.id !== self.id && m.type === 'groundskeeper' && m.targetTile >= 0 && (m.task === 'sweep' || m.task === 'mess' || m.task === 'bin')) {
+    if (m.id !== self.id && m.type === 'groundskeeper' && m.targetTile >= 0 && (m.task === 'sweep' || m.task === 'mess' || m.task === 'bin' || m.task === 'water')) {
       out.add(m.targetTile);
     }
   }
   return out;
 }
 
-/** Groundskeeper: mess in range → bin with fill ≥ BIN_EMPTY_AT → tile with most litter (tie: nearest) → wander. */
+/**
+ * Groundskeeper: mess in range → bin with fill ≥ BIN_EMPTY_AT → tile with most litter (tie: nearest)
+ * → nearest tile next to a garden that needs water (Phase 4) → wander.
+ */
 function groundskeeperPlan(world: World, s: Staff): Plan {
   const ep = effectivePatrol(world, s);
   if (ep.toPatrol) return plan('toPatrol', ep.toPatrol[ep.toPatrol.length - 1] ?? s.tile, ep.toPatrol);
@@ -83,6 +89,7 @@ function groundskeeperPlan(world: World, s: Staff): Plan {
   let bin = -1;
   let litter = -1;
   let litterMax = 0;
+  let garden = -1;
   for (const t of run.order) {
     if (claimed.has(t)) continue;
     if ((map.mess[t] as number) > 0) {
@@ -94,10 +101,12 @@ function groundskeeperPlan(world: World, s: Staff): Plan {
       litterMax = map.litter[t] as number;
       litter = t;
     }
+    if (garden < 0 && gardenNeedsWaterNear(world, t)) garden = t;
   }
   if (mess >= 0) return plan('mess', mess, run.route(mess));
   if (bin >= 0) return plan('bin', bin, run.route(bin));
   if (litter >= 0) return plan('sweep', litter, run.route(litter));
+  if (garden >= 0) return plan('water', garden, run.route(garden));
   return WANDER;
 }
 
@@ -105,7 +114,8 @@ export function groundskeeperPriority(task: StaffTask): number {
   if (task === 'mess') return 1;
   if (task === 'bin') return 2;
   if (task === 'sweep') return 3;
-  return 4;
+  if (task === 'water') return 4;
+  return 5;
 }
 
 /** Inspections already claimed by another Mechanic. */

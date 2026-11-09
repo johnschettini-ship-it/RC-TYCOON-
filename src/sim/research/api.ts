@@ -1,10 +1,24 @@
 /** Owner: W1-I. Content availability for pickers and commands (Phase 3 §4.6). */
-import { FLAT_RIDES, PATH_ITEMS, STAFF, STALLS, TRACK_RIDES, type Phase, type ResearchCategory, type Unlock } from '../../data/catalog';
+import {
+  FLAT_RIDES,
+  getSceneryDef,
+  getSceneryTheme,
+  PATH_ITEMS,
+  STAFF,
+  STALLS,
+  TRACK_RIDES,
+  type Phase,
+  type ResearchCategory,
+  type SceneryThemeId,
+  type Unlock,
+} from '../../data/catalog';
 import { getResearchItem } from '../../data/research';
 import { BUILD_MAX_PHASE, RESEARCH_POINTS_PER_HOUR } from '../../data/tuning/management';
+import { scenarioContentRule } from '../scenario/api';
 import type { World } from '../types';
 
-export type ContentKind = 'flatRide' | 'trackRide' | 'stall' | 'pathItem' | 'staff';
+/** `sceneryTheme`: a whole theme (its research item id = the theme id); `scenery`: one item of a theme (Phase 4). */
+export type ContentKind = 'flatRide' | 'trackRide' | 'stall' | 'pathItem' | 'staff' | 'sceneryTheme' | 'scenery';
 
 export interface ContentInfo {
   id: string;
@@ -26,18 +40,29 @@ export function contentInfo(id: string): ContentInfo | undefined {
   if (item) return { id, name: item.name, kind: 'pathItem', phase: item.phase, unlock: item.unlock };
   const staff = STAFF.find((d) => d.id === id);
   if (staff) return { id, name: staff.name, kind: 'staff', phase: 3, unlock: 'start' };
+  const theme = getSceneryTheme(id as SceneryThemeId);
+  if (theme) return { id, name: theme.name, kind: 'sceneryTheme', phase: 4, unlock: theme.unlock };
+  const scenery = getSceneryDef(id);
+  if (scenery) {
+    const t = getSceneryTheme(scenery.theme);
+    return { id, name: scenery.name, kind: 'scenery', phase: 4, unlock: t ? t.unlock : 'start' };
+  }
   return undefined;
 }
 
 /**
- * True for `start` items and Phase 1–2 content, for Phase 3 research items once researched,
- * and false for content of later phases (not in Build 1) and unknown ids.
+ * True for `start` items and Phase 1–2 content, for research items once researched (a scenery item once its theme
+ * is researched), and false for content of phases after `BUILD_MAX_PHASE` and unknown ids.
+ * Phase 5 §4.1: the scenario's research rules (`scenarioContentRule`, W3-H) can hide an item or unlock it at start.
  */
 export function isUnlocked(world: World, itemId: string): boolean {
+  const rule = scenarioContentRule(world, itemId);
+  if (rule === 'hidden') return false;
   const info = contentInfo(itemId);
   if (!info || info.phase > BUILD_MAX_PHASE) return false;
-  if (info.phase <= 2 || info.unlock === 'start') return true;
-  return world.state.management.research.unlocked.includes(itemId);
+  if (rule === 'unlocked' || info.phase <= 2 || info.unlock === 'start') return true;
+  const researchId = info.kind === 'scenery' ? (getSceneryDef(itemId)?.theme ?? itemId) : itemId;
+  return world.state.management.research.unlocked.includes(researchId);
 }
 
 export interface ResearchStatus {

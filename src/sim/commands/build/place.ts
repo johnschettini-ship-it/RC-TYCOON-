@@ -35,7 +35,7 @@ function checkSite(world: World, tiles: number[] | null): string | null {
 export function placeRide(world: World, cmd: Extract<BuildCommand, { type: 'placeRide' }>, ctx: CommandContext): CommandResult {
   const def = getFlatRideDef(cmd.defId);
   if (!def) return fail(BUILD_STRINGS.unknownRide);
-  if (!isUnlocked(world, def.id)) return fail(BUILD_STRINGS.notUnlocked);
+  if (!ctx.setup && !isUnlocked(world, def.id)) return fail(BUILD_STRINGS.notUnlocked);
   if (!isDir(cmd.rotation)) return fail(BUILD_STRINGS.badRotation);
   const s = world.state;
   const map = s.map;
@@ -93,7 +93,7 @@ export function placeRide(world: World, cmd: Extract<BuildCommand, { type: 'plac
 export function placeStall(world: World, cmd: Extract<BuildCommand, { type: 'placeStall' }>, ctx: CommandContext): CommandResult {
   const def = getStallDef(cmd.defId);
   if (!def) return fail(BUILD_STRINGS.unknownStall);
-  if (!isUnlocked(world, def.id)) return fail(BUILD_STRINGS.notUnlocked);
+  if (!ctx.setup && !isUnlocked(world, def.id)) return fail(BUILD_STRINGS.notUnlocked);
   if (!isDir(cmd.rotation)) return fail(BUILD_STRINGS.badRotation);
   const s = world.state;
   const map = s.map;

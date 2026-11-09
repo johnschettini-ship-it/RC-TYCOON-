@@ -74,7 +74,18 @@ export function addThought(world: World, guest: Guest, id: string, params?: Reco
   cd[id] = now;
   guest.thoughts.push(params ? { id, tick: now, params } : { id, tick: now });
   while (guest.thoughts.length > THOUGHT_MAX) guest.thoughts.shift();
+  if (thoughtListener !== null) thoughtListener(world, guest, id);
   return true;
+}
+
+/**
+ * Listener for every added thought (the guest hooks' `onThought` list). Installed by the hook registry
+ * (`sim/hooks.ts`), because this module cannot import the registry: hook modules use `THOUGHT` while they load.
+ */
+let thoughtListener: ((world: World, guest: Guest, id: string) => void) | null = null;
+
+export function setThoughtListener(fn: ((world: World, guest: Guest, id: string) => void) | null): void {
+  thoughtListener = fn;
 }
 
 /** Name used in the delivery plan (W1-D "Produces"); same as `addThought`. */

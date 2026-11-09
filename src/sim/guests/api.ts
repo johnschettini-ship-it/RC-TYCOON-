@@ -26,6 +26,7 @@ import {
   TAME_FACTOR,
 } from '../../data/tuning/guests';
 import { recordLedger } from '../economy/ledger';
+import { guestHooks } from '../hooks';
 import type { Ride } from '../rides/types';
 import type { World } from '../types';
 import { changeNeed } from './needs';
@@ -57,6 +58,7 @@ export function boardRide(world: World, guest: Guest, ride: Ride): boolean {
     return false;
   }
   removeFromQueue(ride, guest.id);
+  const waitTicks = guest.state === 'queueing' ? guest.stateTicks : 0;
   const price = ride.price;
   guest.cash -= price;
   guest.spent += price;
@@ -65,6 +67,7 @@ export function boardRide(world: World, guest: Guest, ride: Ride): boolean {
   guest.activityId = ride.id;
   guest.target = rideDest(ride.id);
   stopWalking(guest);
+  for (const hook of guestHooks.onBoard) hook(world, guest, ride, waitTicks);
   return true;
 }
 
@@ -102,6 +105,7 @@ export function finishRide(world: World, guest: Guest, ride: Ride): void {
   changeNeed(guest, 'energy', -RIDE_ENERGY_COST);
   const key = String(ride.id);
   guest.ridden[key] = (guest.ridden[key] ?? 0) + 1;
+  for (const hook of guestHooks.afterRide) hook(world, guest, ride);
 
   guest.tile = exitTile(ride, guest.tile);
   stopWalking(guest);

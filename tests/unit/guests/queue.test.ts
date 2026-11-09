@@ -11,9 +11,10 @@ import type { World } from '../../../src/sim/types';
 import type { Guest } from '../../../src/sim/guests/types';
 
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
-vi.mock('../../../src/sim/hooks', () => ({
-  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] },
-}));
+vi.mock('../../../src/sim/hooks', async () => {
+  const m = await import('../../../src/sim/hookTypes');
+  return { guestHooks: m.emptyGuestHooks(), hookFactor: m.hookFactor };
+});
 
 function tickGuests(w: World, n: number): void {
   for (let i = 0; i < n; i++) {

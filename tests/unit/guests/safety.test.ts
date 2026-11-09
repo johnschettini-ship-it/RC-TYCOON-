@@ -14,9 +14,10 @@ import type { Guest } from '../../../src/sim/guests/types';
 import type { Ride } from '../../../src/sim/rides/types';
 
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
-vi.mock('../../../src/sim/hooks', () => ({
-  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] },
-}));
+vi.mock('../../../src/sim/hooks', async () => {
+  const m = await import('../../../src/sim/hookTypes');
+  return { guestHooks: m.emptyGuestHooks(), hookFactor: m.hookFactor };
+});
 
 beforeEach(() => {
   resetFake();

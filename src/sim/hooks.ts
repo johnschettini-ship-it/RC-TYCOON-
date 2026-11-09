@@ -1,42 +1,42 @@
 /**
- * Guest hook contract. Lets Phase 3 systems change guest behaviour without editing W1-D files.
- * Owner of this file: integrator. Each hook list comes from its owner's module in a fixed order.
+ * Guest hook registry. Lets later systems change guest behaviour without editing the guest files.
+ * Owner of this file: integrator. The contract (`GuestHooks`) lives in `./hookTypes`. Each hook list comes from its
+ * owner's module in a fixed order.
+ *
+ * The lists are merged on first use (property getters), not at module load: guest modules (thoughts, needs, api)
+ * read the hooks, and hook modules import guest modules, so a load-time merge would depend on import order.
  */
-import type { Guest } from './guests/types';
-import type { Ride } from './rides/types';
-import type { Stall } from './stalls/types';
-import type { World } from './types';
+import { GUEST_HOOK_KEYS, hookFactor, mergeGuestHooks, type GuestHooks } from './hookTypes';
+import { setThoughtListener } from './guests/thoughts';
 import { litterHooks } from './litter/hooks';
 import { weatherHooks } from './weather/hooks';
 import { facilityHooks } from './facilities/hooks';
+import { fieldHooks } from './fields/hooks';
+import { nightHooks } from './lighting/hooks';
+import { waterRideHooks } from './rides/track/waterHooks';
+import { scenarioHooks } from './scenario/hooks';
 
-export interface GuestHooks {
-  /** At each guest decision, before needs and rides. Return true if the hook took the decision. */
-  beforeDecision: Array<(world: World, guest: Guest) => boolean>;
-  /** Every tick for each guest, after movement. */
-  perTick: Array<(world: World, guest: Guest) => void>;
-  /** Added to the ride score (Phase 1 §4.3). */
-  rideScore: Array<(world: World, guest: Guest, ride: Ride) => number>;
-  /** Multiplies a positive ride score (weather, campaigns, recently fixed rides). 1 = no change. */
-  rideScoreFactor: Array<(world: World, guest: Guest, ride: Ride) => number>;
-  /** Multiplies the wish to buy at a stall (weather factors). */
-  stallWant: Array<(world: World, guest: Guest, stall: Stall) => number>;
-  /** After a completed purchase. */
-  afterPurchase: Array<(world: World, guest: Guest, stall: Stall) => void>;
+export type { GuestHooks };
+export { hookFactor };
+
+let merged: GuestHooks | null = null;
+
+/**
+ * Fixed order: litter/mess/bench/vandalism (W1-H), weather (W1-I), facilities (W2-C), then Build 2:
+ * Calm and Buzz (W3-E), After Dark (W3-F), water rides (W3-C), month metrics (W3-H).
+ */
+function all(): GuestHooks {
+  if (merged === null) merged = mergeGuestHooks(litterHooks, weatherHooks, facilityHooks, fieldHooks, nightHooks, waterRideHooks, scenarioHooks);
+  return merged;
 }
 
-function merge(...parts: Partial<GuestHooks>[]): GuestHooks {
-  const out: GuestHooks = { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] };
-  for (const p of parts) {
-    out.beforeDecision.push(...(p.beforeDecision ?? []));
-    out.perTick.push(...(p.perTick ?? []));
-    out.rideScore.push(...(p.rideScore ?? []));
-    out.rideScoreFactor.push(...(p.rideScoreFactor ?? []));
-    out.stallWant.push(...(p.stallWant ?? []));
-    out.afterPurchase.push(...(p.afterPurchase ?? []));
-  }
+export const guestHooks: GuestHooks = (() => {
+  const out = {} as GuestHooks;
+  for (const k of GUEST_HOOK_KEYS) Object.defineProperty(out, k, { enumerable: true, get: () => all()[k] });
   return out;
-}
+})();
 
-/** Fixed order: litter/mess/bench/vandalism (W1-H), weather (W1-I), facilities (W2-C). */
-export const guestHooks: GuestHooks = merge(litterHooks, weatherHooks, facilityHooks);
+// `addThought` cannot import this registry (see guests/thoughts.ts), so the registry hands it the `onThought` list.
+setThoughtListener((world, guest, id) => {
+  for (const hook of guestHooks.onThought) hook(world, guest, id);
+});

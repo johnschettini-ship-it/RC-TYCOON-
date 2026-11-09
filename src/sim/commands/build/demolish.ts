@@ -18,6 +18,7 @@ import type { Cents } from '../../units';
 import { fail, ok, type BuildCommand, type CommandContext, type CommandResult } from '../types';
 import { pathCost } from './paths';
 import { BUILD_STRINGS } from './strings';
+import { sceneryHandlers } from '../../scenery/commands';
 
 export function refundOf(buildCost: Cents, percent: number): Cents {
   return Math.max(0, Math.floor((buildCost * percent) / 100));
@@ -77,6 +78,10 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
   if (i < 0) return fail(BUILD_STRINGS.nothingToRemove);
   const c = map.content[i];
   if (c === Content.ParkEntrance) return fail(BUILD_STRINGS.cannotRemoveEntrance);
+  // Phase 4 §4.5: the demolish tool on a centre scenery item removes it (W3-D's handler: 50% refund).
+  if (c === Content.Scenery && (map.contentRef[i] as number) >= 0) {
+    return sceneryHandlers.removeScenery(world, { type: 'removeScenery', id: map.contentRef[i] as number }, ctx);
+  }
   if (c === Content.Footpath || c === Content.Queue) {
     clearPathTile(map, i);
     const amount = refundOf(pathCost(c === Content.Queue ? 'queue' : 'footpath'), PATH_REFUND_PERCENT);
