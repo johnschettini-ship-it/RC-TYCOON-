@@ -91,6 +91,8 @@ class LightCache {
    * words that did not change since the last diff. Null when an array is not 4-byte aligned (byte scan instead).
    */
   words: WordScan | null = null;
+  /** An entity list was not sorted by id (a slice contract break): the sync rebuilds from nothing. */
+  unsorted = false;
 
   constructor(
     readonly state: GameState,
@@ -270,8 +272,11 @@ function diffList<T extends { id: number }>(
   // `out` stays null while every record is kept as it is; the first change copies the kept prefix.
   let out: Rec[] | null = null;
   let j = 0;
+  let prev = -Infinity;
   for (let i = 0; i < list.length; i++) {
     const e = list[i] as T;
+    if (e.id <= prev) c.unsorted = true;
+    prev = e.id;
     while (j < recs.length && (recs[j] as Rec).id < e.id) {
       if (out === null) out = recs.slice(0, j);
       applyRec(c, recs[j] as Rec, -1);
@@ -381,11 +386,20 @@ function cacheOf(world: World): LightCache {
 
 // ------------------------------------------------------------------ public (module) API
 
+/** Diff, or rebuild from nothing when an entity list broke the id order (the merge walk needs it). */
+function diffChecked(world: World, c: LightCache): LightCache {
+  diffAll(c);
+  if (!c.unsorted) return c;
+  const fresh = new LightCache(c.state, c.map);
+  fresh.key = c.key;
+  caches.set(world, fresh);
+  diffAll(fresh);
+  return fresh;
+}
+
 /** Full diff now: the light map of the current state. Used by every public query, the render, and the UI. */
 export function syncLight(world: World): LightCache {
-  const c = cacheOf(world);
-  diffAll(c);
-  return c;
+  return diffChecked(world, cacheOf(world));
 }
 
 /**
@@ -393,10 +407,10 @@ export function syncLight(world: World): LightCache {
  * then the same map for the rest of the tick. Call only from inside `stepTick` (see the module comment).
  */
 export function syncLightForTick(world: World): LightCache {
-  const c = cacheOf(world);
+  let c = cacheOf(world);
   const tick = world.state.tick;
   if (c.key !== tick || c.dirty) {
-    diffAll(c);
+    c = diffChecked(world, c);
     c.key = tick;
   }
   return c;

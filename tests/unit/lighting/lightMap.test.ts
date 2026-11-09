@@ -377,6 +377,21 @@ describe('derived data (not saved)', () => {
     expect(at(w, 10, 10)).toBe(0);
   });
 
+  it('a list out of id order (a slice contract break) is rebuilt from nothing, not mis-diffed', () => {
+    const w = makeTestWorld();
+    noEntrance(w);
+    const a = sceneryDirect(w, 'lamp_globe', 10, 10);
+    const b = sceneryDirect(w, 'lamp_globe', 20, 20);
+    expect(at(w, 10, 10)).toBe(255);
+    w.state.scenery.reverse();
+    expect(at(w, 10, 10)).toBe(255);
+    expect(at(w, 20, 20)).toBe(255);
+    w.state.scenery.splice(w.state.scenery.indexOf(a), 1);
+    expect(at(w, 10, 10)).toBe(0);
+    expect(at(w, 20, 20)).toBe(255);
+    expect(w.state.scenery).toEqual([b]);
+  });
+
   it('markLightDirty before any query is harmless', () => {
     const w = makeTestWorld();
     expect(() => markLightDirty(w, 0)).not.toThrow();

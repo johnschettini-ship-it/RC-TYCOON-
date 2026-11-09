@@ -9,6 +9,15 @@
  * Darkness 0 skips all of it. The light canvas is redrawn only when the light sources, the camera, the canvas size,
  * the view rotation, or the ambient colour changed; otherwise the cached canvas is multiplied again. The per-frame
  * loops use scratch objects only (no allocations).
+ *
+ * Budget (≤ 2 ms at 1920 × 1080), measured 2026-11-09 on a 128 × 128 scene with ~900 sources:
+ * - JavaScript side (`tests/unit/lighting/perf.test.ts`, `npm run bench`): 0.17–0.3 ms still camera, 0.3–0.9 ms
+ *   moving camera; the light-map diff inside it 0.04 ms.
+ * - Canvas side, headless Chromium with software raster and no GPU (`TC_PERF=1` e2e, 1280 × 800, 342 lamps):
+ *   +2.5 ms (zoom 1) to +6 ms (zoom 0.5) over a day frame, mostly the full-screen `multiply` blit and ≤ 400 bulb
+ *   blits rasterised on the CPU. This is an upper bound: with a GPU-composited canvas both are GPU draws. Gap plan if
+ *   a real desktop measures over 2 ms: draw the bulbs into the cached light-canvas pass (one extra full-screen
+ *   `lighter` blit instead of 400), then the Phase 4 §11 fallback (`source-over` darkness with `destination-out`).
  */
 import { MAX_DARKNESS, MAX_LIGHT_SPRITES } from '../../data/tuning/night';
 import { Content, type Dir, type MapState } from '../../sim/map';
