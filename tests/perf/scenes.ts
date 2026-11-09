@@ -10,8 +10,8 @@
  *
  * Every guest is a real guest (needs, temperament, decisions), so a perf run measures real ticks. The track rides
  * are a test harness: they are set open without gates (no queue path can reach a station inside its loop), so
- * their trains run empty; they draw the same as full trains. The 2 show sites of `build2` are written directly
- * (the placeholder the W4-E card asks for until W4-C's `placeShowSite` merges; regenerate then).
+ * their trains run empty; they draw the same as full trains. The 2 show sites of `build2` are placed with W4-C's
+ * `placeShowSite` and run every evening.
  *
  * Regenerate the files with `TC_WRITE_SCENES=1 npx vitest run tests/unit/perf/scenes.test.ts`.
  */
@@ -19,9 +19,6 @@ import { executeCommand, type Command } from '../../src/sim/commands';
 import { Content } from '../../src/sim/map';
 import { createWorld } from '../../src/sim/world';
 import { stepTick } from '../../src/sim/tick';
-import { allocId } from '../../src/sim/ids';
-import { getShowSiteDef } from '../../src/data/catalog/showSites';
-import { defaultShowSchedule } from '../../src/sim/shows/types';
 import type { World } from '../../src/sim/types';
 import type { StaffType } from '../../src/data/catalog/types';
 import { addGuestDirect } from '../helpers/world';
@@ -179,31 +176,15 @@ function buildBuild2(): World {
     const r = executeCommand(world, { type: 'placeScenery', defId: items[placed % items.length] as string, x, y, rotation: 0, edge: -1 }, { setup: true });
     if (r.ok) placed++;
   }
-  // 2 show sites, written directly (placeholder until W4-C's placeShowSite merges).
-  const sites: Array<[string, number, number]> = [
-    ['lightshow_tower', 74, 98],
-    ['fireworks_launcher', 77, 101],
+  // 2 show sites (W4-C's placeShowSite), shows every evening: the Lightshow at 21:00, the Fireworks at 22:30.
+  const sites: Array<[string, number, number, number, 0 | 30]> = [
+    ['lightshow_tower', 74, 98, 21, 0],
+    ['fireworks_launcher', 77, 101, 22, 30],
   ];
-  const map = world.state.map;
-  for (const [defId, x, y] of sites) {
-    const def = getShowSiteDef(defId);
-    if (!def) throw new Error(`unknown show site ${defId}`);
-    const id = allocId(world.state);
-    for (let dy = 0; dy < def.d; dy++) {
-      for (let dx = 0; dx < def.w; dx++) {
-        const t = (y + dy) * N + x + dx;
-        if (map.content[t] !== Content.Empty) throw new Error(`show site ${defId} tile ${t} is not empty`);
-        map.content[t] = Content.Building;
-        map.contentRef[t] = id;
-      }
-    }
-    world.state.shows.push({
-      id, defId, x, y, rotation: 0,
-      schedule: { ...defaultShowSchedule(), enabled: true },
-      status: 'idle', nextShowTick: -1, startTick: -1, lastWatchers: 0,
-      totals: { shows: 0, cost: 0, watchers: 0 },
-      totalBuildCost: def.buildCost, builtTick: world.state.tick,
-    });
+  for (const [defId, x, y, hour, minute] of sites) {
+    const id = run(world, { type: 'placeShowSite', defId, x, y, rotation: 0 });
+    run(world, { type: 'setShowSchedule', id, hour, minute, everyNDays: 1 });
+    run(world, { type: 'setShowEnabled', id, enabled: true });
   }
   hire(world, { groundskeeper: 5, mechanic: 3, security: 2, performer: 2 });
   addGuests(world, 3_000, 4711);
