@@ -17,6 +17,7 @@ import type { World } from '../../types';
 import { fail, ok, type BuildCommand, type CommandContext, type CommandResult } from '../types';
 import { BUILD_STRINGS } from './strings';
 import { rideWarnings, stallWarnings } from './warnings';
+import { initRideReliability } from '../../breakdowns/api';
 
 function isDir(r: unknown): r is Dir {
   return r === 0 || r === 1 || r === 2 || r === 3;
@@ -81,6 +82,8 @@ export function placeRide(world: World, cmd: Extract<BuildCommand, { type: 'plac
     assignedMechanicId: null,
     totalBuildCost: cost,
   };
+  // Reliability starts at the Phase 3 maximum with the default inspection interval (W1-H owns the values).
+  initRideReliability(world, ride);
   insertById(s.rides, ride);
   pay(world, cost, 'construction', ctx);
   markNetworkDirty(world);

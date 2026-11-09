@@ -16,7 +16,6 @@ import {
 import { forgetDestination } from '../guests/api';
 import { notify } from '../notifications';
 import { rngChance } from '../rng';
-import { stopRide } from '../rides/flat/api';
 import type { Ride } from '../rides/types';
 import { addThought } from '../staff/guestEffects';
 import { findGuestById, serviceTile } from '../staff/lookup';
@@ -74,7 +73,7 @@ export function breakDown(world: World, ride: Ride, type: BreakdownKind): void {
   for (const g of s.guests) {
     if (g.target === key && g.state === 'walking') addThought(world, g, STAFF_THOUGHTS.rideBrokeDown);
   }
-  if (ride.kind === 'flat') stopRide(world, ride);
+  // Riders wait on board (Phase 3 §4.5): the flat ride cycle freezes while `broken`.
   ride.status = 'broken';
   ride.breakdownType = type;
   ride.statusBeforeBreakdown = before ?? 'open';

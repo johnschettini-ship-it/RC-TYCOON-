@@ -81,7 +81,7 @@ describe('onRideDispatch: wear and breakdown roll (§4.5)', () => {
     expect(wearAmount(2)).toBe(225);
   });
 
-  it('a breakdown on a flat ride: status, counters, stopRide, message, and the cycle does not start', () => {
+  it('a breakdown on a flat ride: status, counters, riders stay on board, message, and the cycle does not start', () => {
     const { world, ride } = setup();
     ride.riders = [101, 102];
     ride.cycle = { phase: 'loading', ticks: 50 };
@@ -92,7 +92,7 @@ describe('onRideDispatch: wear and breakdown roll (§4.5)', () => {
     expect(ride.breakdownsThisMonth).toBe(1);
     expect(ride.lastBreakdownTick).toBe(world.state.tick);
     expect(ride.reliability).toBe(REL_MAX); // no wear without a cycle
-    expect(stopRideSpy).toHaveBeenCalledTimes(1);
+    expect(stopRideSpy).not.toHaveBeenCalled(); // riders wait on board (Phase 3 §4.5)
     expect(ride.cycle.phase).not.toBe('running');
     const msg = notifyLog.find((n) => n.textId === STAFF_MESSAGES.breakdown);
     expect(msg?.category).toBe('breakdown');
@@ -100,11 +100,11 @@ describe('onRideDispatch: wear and breakdown roll (§4.5)', () => {
     expect(msg?.opts.params?.ride).toBe(ride.name);
   });
 
-  it.each(['stopped', 'gate_stuck', 'slow_running'] as const)('breakdown %s never leaves a flat ride running', (type) => {
+  it.each(['stopped', 'gate_stuck', 'slow_running'] as const)('breakdown %s keeps riders on board and refuses new dispatches', (type) => {
     const { world, ride } = setup();
     ride.cycle = { phase: 'loading', ticks: 10 };
     breakDown(world, ride, type);
-    expect(stopRideSpy).toHaveBeenCalledTimes(1);
+    expect(stopRideSpy).not.toHaveBeenCalled(); // riders wait on board (Phase 3 §4.5)
     expect(ride.status).toBe('broken');
     expect(ride.cycle.phase).not.toBe('running');
     // While broken, every dispatch is refused and nothing wears or rolls.

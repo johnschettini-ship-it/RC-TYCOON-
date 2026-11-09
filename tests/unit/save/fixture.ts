@@ -96,6 +96,13 @@ export function addStaffDirect(world: World, patch: Partial<Staff> = {}): Staff 
     costume: null,
     hiredTick: s.tick,
     hoursThisMonth: 0,
+    task: 'none',
+    route: [],
+    prevTile: -1,
+    nextRecheckTick: s.tick,
+    fixRideId: -1,
+    savedRideStatus: null,
+    walkTicksLeft: 0,
     ...patch,
   };
   s.staff.members.push(member);

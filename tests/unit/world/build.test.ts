@@ -8,6 +8,7 @@ import { getFlatRideDef, getStallDef } from '../../../src/data/catalog';
 import { PATH_COST, QUEUE_COST } from '../../../src/data/tuning/world';
 import type { World } from '../../../src/sim/types';
 import { makeTestWorld, placeFootpath, placeQueue, placeRideDirect, stateHash } from '../../helpers/world';
+import { INSPECT_DEFAULT, REL_MAX } from '../../../src/data/tuning/staff';
 
 const T = (w: World, x: number, y: number): number => tileIndex(w.state.map, x, y);
 const content = (w: World, x: number, y: number): number => w.state.map.content[T(w, x, y)] as number;
@@ -247,9 +248,9 @@ describe('placeRide (Phase 1 §4.1)', () => {
       totals: { riders: 0, income: 0, ridersThisMonth: 0, incomeThisMonth: 0 },
       builtTick: tick,
       hoursThisMonth: 0,
-      reliability: 100,
+      reliability: REL_MAX,
       lastInspectionTick: tick,
-      inspectionIntervalTicks: 0,
+      inspectionIntervalTicks: INSPECT_DEFAULT,
       breakdownType: null,
       statusBeforeBreakdown: null,
       breakdownsThisMonth: 0,

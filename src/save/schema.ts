@@ -13,7 +13,7 @@ import type { FlatCyclePhase, Gate, Ride, RideStats, RideStatus } from '../sim/r
 import type { Stall } from '../sim/stalls/types';
 import { LEDGER_CATEGORIES, type EconomyState, type LedgerMonth } from '../sim/economy/types';
 import type { TrackPieceInstance, TrackRideData, TrackSlice, TrainState } from '../sim/rides/track/types';
-import type { Staff, StaffSlice, StaffStateName } from '../sim/staff/types';
+import type { BenchSitter, Staff, StaffSlice, StaffStateName, StaffTask } from '../sim/staff/types';
 import type { ManagementSlice, Message, MessageCategory, ResearchLevel } from '../sim/management/types';
 import type { Costume, ResearchCategory, StaffType, WeatherKey } from '../data/catalog/types';
 import { childPath, typedArrayKind, type TypedArrayKind } from './typedArrays';
@@ -209,6 +209,7 @@ const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing',
 const TRAIN_STATES = every<TrainState['state']>()(['loading', 'running', 'held', 'unloading', 'waiting']);
 const STAFF_TYPES = every<StaffType>()(['groundskeeper', 'mechanic', 'security', 'performer']);
 const STAFF_STATES = every<StaffStateName>()(['walking', 'sweeping', 'cleaning', 'emptying', 'inspecting', 'fixing', 'performing']);
+const STAFF_TASKS = every<StaffTask>()(['none', 'wander', 'toPatrol', 'sweep', 'mess', 'bin', 'fix', 'inspect', 'roam', 'perform']);
 const COSTUMES = every<Costume>()(['frost', 'spark', 'boo']);
 const RESEARCH_LEVELS = every<ResearchLevel>()(['none', 'low', 'medium', 'high']);
 const RESEARCH_CATEGORIES = every<ResearchCategory>()(['gentle', 'thrill', 'coasters', 'shops', 'water', 'scenery']);
@@ -408,10 +409,20 @@ const staffShape = obj<StaffSlice>({
       costume: nullable(oneOf(COSTUMES)),
       hiredTick: int,
       hoursThisMonth: int,
+      task: oneOf(STAFF_TASKS),
+      route: arr(int),
+      prevTile: tileOrNone,
+      nextRecheckTick: int,
+      fixRideId: int,
+      savedRideStatus: nullable(rideStatus),
+      walkTicksLeft: int,
     }),
   ),
   pendingBreakdowns: arr(int),
   autoRepair: bool,
+  benchSitters: arr(obj<BenchSitter>({ guestId: int, tile: tileOrNone, untilTick: int })),
+  recentFixes: arr(obj<StaffSlice['recentFixes'][number]>({ rideId: int, tick: int })),
+  repairNoticeDay: int,
 });
 
 type Research = ManagementSlice['research'];

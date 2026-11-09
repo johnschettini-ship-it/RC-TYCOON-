@@ -174,7 +174,8 @@ describe('demolish a flat ride', () => {
     const mech: Staff = {
       id: 900, type: 'mechanic', name: 'Mo', tile: T(w, 31, 60), nextTile: -1, progress: 0, dir: 0,
       state: 'fixing', stateTicks: 12, targetTile: T(w, 31, 29), targetRideId: ride.id, patrol: null, costume: null,
-      hiredTick: 0, hoursThisMonth: 0,
+      hiredTick: 0, hoursThisMonth: 0, task: 'fix', route: [], prevTile: -1, nextRecheckTick: 0,
+      fixRideId: ride.id, savedRideStatus: null, walkTicksLeft: 0,
     };
     w.state.staff.members.push(mech);
     w.state.staff.pendingBreakdowns = [ride.id, other.id];

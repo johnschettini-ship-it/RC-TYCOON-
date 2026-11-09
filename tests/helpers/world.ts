@@ -8,6 +8,7 @@ import { allocId } from '../../src/sim/ids';
 import { stepTick } from '../../src/sim/tick';
 import { getFlatRideDef, getStallDef } from '../../src/data/catalog';
 import { flatRideGates, footprintTiles, stallServiceTile } from '../../src/sim/footprint';
+import { INSPECT_DEFAULT, REL_MAX } from '../../src/data/tuning/staff';
 import type { World } from '../../src/sim/types';
 import type { Ride } from '../../src/sim/rides/types';
 import type { Stall } from '../../src/sim/stalls/types';
@@ -66,9 +67,9 @@ export function placeRideDirect(world: World, defId: string, x: number, y: numbe
     totals: { riders: 0, income: 0, ridersThisMonth: 0, incomeThisMonth: 0 },
     builtTick: s.tick,
     hoursThisMonth: 0,
-    reliability: 100,
+    reliability: REL_MAX,
     lastInspectionTick: s.tick,
-    inspectionIntervalTicks: 0,
+    inspectionIntervalTicks: INSPECT_DEFAULT,
     breakdownType: null,
     statusBeforeBreakdown: null,
     breakdownsThisMonth: 0,
