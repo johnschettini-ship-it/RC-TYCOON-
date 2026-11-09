@@ -15,7 +15,7 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
   const okIcon = icon('check', 'icon state-icon ok');
   const badIcon = icon('cross', 'icon state-icon bad');
   const msg = h('span', { class: 'status-text', 'data-testid': 'tool-status' });
-  const detail = h('span', { class: 'status-detail' });
+  const detail = h('span', { class: 'status-detail', 'data-testid': 'tool-status-detail' });
   const cancelTool = (): void => {
     const t = game.tool;
     t.tool = 'inspect';

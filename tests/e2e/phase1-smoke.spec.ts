@@ -40,7 +40,7 @@ test.describe('Phase 1 smoke: desktop', () => {
     await page.mouse.move(a.x, a.y);
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 12 });
-    await expect(page.locator('.tool-status .status-detail')).toHaveText(/^5 tiles · \$50/);
+    await expect(page.getByTestId('tool-status-detail')).toHaveText(/^5 tiles · \$50/);
     await page.mouse.up();
     for (let x = 29; x <= 33; x++) expect(await contentAt(page, x, 59), `footpath at (${x}, 59)`).toBe(FOOTPATH);
 
@@ -194,7 +194,7 @@ test.describe('Phase 1 smoke: phone', () => {
     const cdp = await page.context().newCDPSession(page);
     await touch(cdp, 'touchStart', [{ x: a.x, y: a.y, id: 1 }]);
     for (let k = 1; k <= 6; k++) await touch(cdp, 'touchMove', [{ x: a.x + ((b.x - a.x) * k) / 6, y: a.y + ((b.y - a.y) * k) / 6, id: 1 }]);
-    await expect(page.locator('.tool-status .status-detail')).toHaveText(/tiles/);
+    await expect(page.getByTestId('tool-status-detail')).toHaveText(/tiles/);
     // The second finger lands mid-drag; both fingers spread apart.
     await touch(cdp, 'touchStart', [
       { x: b.x, y: b.y, id: 1 },
