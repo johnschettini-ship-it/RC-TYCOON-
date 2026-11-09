@@ -359,15 +359,16 @@ describe('guest weather effects (hooks)', () => {
     }
   });
 
-  it('the additive rideScore hook turns the factor into (factor − 1) × ride appeal', () => {
+  it('the rideScoreFactor hook multiplies the ride score by the weather and campaign factor', () => {
     const w = makeTestWorld();
-    const open = placeRideDirect(w, 'big_wheel', 20, 10); // chill, excitement 3.00
-    const g = addGuestDirect(w, 100, { temperament: 0 }); // chill tag fit +1.0
-    const hook = (weatherHooks.rideScore ?? [])[0]!;
+    const open = placeRideDirect(w, 'big_wheel', 20, 10); // chill, uncovered
+    const g = addGuestDirect(w, 100, { temperament: 0 });
+    const hook = (weatherHooks.rideScoreFactor ?? [])[0]!;
+    expect(weatherHooks.rideScore ?? []).toHaveLength(0);
     setWeather(w, 'sunny');
-    expect(hook(w, g, open)).toBe(0);
+    expect(hook(w, g, open)).toBe(1);
     setWeather(w, 'rain');
-    expect(hook(w, g, open)).toBeCloseTo((0.6 - 1) * (3.0 * 0.6 + 1.0 * 1.5), 10);
+    expect(hook(w, g, open)).toBeCloseTo(0.6, 10);
     executeCommand(w, { type: 'startCampaign', campaignType: 'ride_spotlight', targetId: open.id });
     expect(rideScoreFactor(w, g, open)).toBeCloseTo(0.6 * 1.6, 10);
   });

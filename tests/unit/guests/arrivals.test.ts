@@ -9,7 +9,7 @@ import { makeTestWorld, placeRideDirect } from '../../helpers/world';
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
 vi.mock('../../../src/sim/park/arrivals', () => ({ arrivalsPerHour: vi.fn(() => 0) }));
 vi.mock('../../../src/sim/hooks', () => ({
-  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], stallWant: [], afterPurchase: [] },
+  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] },
 }));
 
 const perHour = vi.mocked(arrivalsPerHour);

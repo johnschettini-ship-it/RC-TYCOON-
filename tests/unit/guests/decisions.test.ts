@@ -22,7 +22,7 @@ import type { Guest } from '../../../src/sim/guests/types';
 
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
 vi.mock('../../../src/sim/hooks', () => ({
-  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], stallWant: [], afterPurchase: [] },
+  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] },
 }));
 
 beforeEach(() => {
@@ -30,6 +30,7 @@ beforeEach(() => {
   guestHooks.beforeDecision.length = 0;
   guestHooks.perTick.length = 0;
   guestHooks.rideScore.length = 0;
+  guestHooks.rideScoreFactor.length = 0;
   guestHooks.stallWant.length = 0;
   guestHooks.afterPurchase.length = 0;
 });
@@ -162,6 +163,20 @@ describe('ride choice (Phase 1 §4.3 Decisions 2)', () => {
     const g = calmGuest(w, p.main(30), { temperament: 80 });
     decide(w, g);
     expect(g.target).toBe(`ride:${p.carousel.id}`);
+  });
+
+  it('multiplies a positive score by the rideScoreFactor hooks', () => {
+    const { w, p } = setup();
+    const g = calmGuest(w, p.main(30), { temperament: 80 });
+    decide(w, g);
+    const usual = g.target;
+    expect(usual).not.toBeNull();
+    const w2 = setup();
+    const ride = Number(String(usual).slice('ride:'.length));
+    guestHooks.rideScoreFactor.push((_w, _g, r) => (r.id === ride ? 0 : 1));
+    const g2 = calmGuest(w2.w, w2.p.main(30), { temperament: 80 });
+    decide(w2.w, g2);
+    expect(g2.target).not.toBe(usual);
   });
 });
 

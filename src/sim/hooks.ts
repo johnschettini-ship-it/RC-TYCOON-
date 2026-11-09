@@ -17,6 +17,8 @@ export interface GuestHooks {
   perTick: Array<(world: World, guest: Guest) => void>;
   /** Added to the ride score (Phase 1 §4.3). */
   rideScore: Array<(world: World, guest: Guest, ride: Ride) => number>;
+  /** Multiplies a positive ride score (weather, campaigns, recently fixed rides). 1 = no change. */
+  rideScoreFactor: Array<(world: World, guest: Guest, ride: Ride) => number>;
   /** Multiplies the wish to buy at a stall (weather factors). */
   stallWant: Array<(world: World, guest: Guest, stall: Stall) => number>;
   /** After a completed purchase. */
@@ -24,11 +26,12 @@ export interface GuestHooks {
 }
 
 function merge(...parts: Partial<GuestHooks>[]): GuestHooks {
-  const out: GuestHooks = { beforeDecision: [], perTick: [], rideScore: [], stallWant: [], afterPurchase: [] };
+  const out: GuestHooks = { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] };
   for (const p of parts) {
     out.beforeDecision.push(...(p.beforeDecision ?? []));
     out.perTick.push(...(p.perTick ?? []));
     out.rideScore.push(...(p.rideScore ?? []));
+    out.rideScoreFactor.push(...(p.rideScoreFactor ?? []));
     out.stallWant.push(...(p.stallWant ?? []));
     out.afterPurchase.push(...(p.afterPurchase ?? []));
   }

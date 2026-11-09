@@ -113,6 +113,7 @@ export function chooseRide(world: World, guest: Guest): Ride | null {
     }
     let score = base + (rngNext(world.state) - 0.5) * 2 * SCORE_NOISE;
     for (const hook of guestHooks.rideScore) score += hook(world, guest, ride);
+    if (score > 0) for (const hook of guestHooks.rideScoreFactor) score *= hook(world, guest, ride);
     if (score > bestScore) {
       best = ride;
       bestScore = score;

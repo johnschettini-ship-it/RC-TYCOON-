@@ -12,7 +12,7 @@ import type { Guest } from '../../../src/sim/guests/types';
 
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
 vi.mock('../../../src/sim/hooks', () => ({
-  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], stallWant: [], afterPurchase: [] },
+  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] },
 }));
 
 function tickGuests(w: World, n: number): void {

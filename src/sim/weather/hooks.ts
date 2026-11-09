@@ -2,7 +2,7 @@
  * Owner: W1-I. Weather and marketing effects on guests (Phase 3 §4.7, §4.9) through the guest hooks.
  * - beforeDecision: rain/storm happiness per decision, weather thoughts, "closed for the storm"
  * - perTick: hot → thirst rise ×1.5, cold → energy fall ×1.2 (extra over the Phase 1 base rate)
- * - rideScore: additive form of `rideScoreFactor` (the hook contract adds to the score)
+ * - rideScoreFactor: multiplies the guest's positive ride score
  * - stallWant: catalog weather factors × Snack Deal
  */
 import { getFlatRideDef, getStallDef, getTrackRideDef, type ContentFlags, type WeatherKey } from '../../data/catalog';
@@ -122,11 +122,6 @@ function weatherNeeds(world: World, guest: Guest): void {
   }
 }
 
-function rideScoreTerm(world: World, guest: Guest, ride: Ride): number {
-  const f = rideScoreFactor(world, guest, ride);
-  return f === 1 ? 0 : (f - 1) * rideAppeal(guest, ride);
-}
-
 function stallWant(world: World, _guest: Guest, stall: Stall): number {
   return weatherStallFactor(world, stall) * campaignStallWant(world, stall);
 }
@@ -134,6 +129,6 @@ function stallWant(world: World, _guest: Guest, stall: Stall): number {
 export const weatherHooks: Partial<GuestHooks> = {
   beforeDecision: [weatherDecision],
   perTick: [weatherNeeds],
-  rideScore: [rideScoreTerm],
+  rideScoreFactor: [rideScoreFactor],
   stallWant: [stallWant],
 };

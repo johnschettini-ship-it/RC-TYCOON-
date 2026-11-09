@@ -41,6 +41,7 @@ import type { World } from '../types';
 import { isSitting, sitOnBench, updateSitter } from './benches';
 import { cleanlinessThisTick } from './metrics';
 import { hasFreeBenchSeat, isBroken, isUsableBin, setBroken } from './pathItems';
+import { recentBreakFactor } from '../breakdowns/api';
 
 const DIRS: readonly Dir[] = [0, 1, 2, 3];
 
@@ -211,4 +212,6 @@ export const litterHooks: Partial<GuestHooks> = {
   beforeDecision: [keepSitting, sick, dirt, brokenItems, vandalism, performers, bench],
   perTick: [sitterPerTick, trashPerTick],
   afterPurchase: [trashAfterPurchase],
+  // A ride fixed recently looks less safe (Phase 3 §4.5).
+  rideScoreFactor: [(world, _guest, ride) => recentBreakFactor(world, ride)],
 };

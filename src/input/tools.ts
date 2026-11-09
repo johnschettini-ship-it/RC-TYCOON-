@@ -11,12 +11,14 @@ import type { PathKind } from '../sim/commands/types';
 import type { World } from '../sim/types';
 import type { Cents } from '../sim/units';
 import type { GhostState, ToolState } from '../render/types';
+import { PATH_COST, QUEUE_COST } from '../data/tuning/world';
 
 /**
  * Path prices per tile (Phase 1 §8: PATH_COST $10, QUEUE_COST $12).
  * Integration: switch to W1-C's `src/data/tuning/world.ts` constants once merged.
  */
-export const PATH_TILE_COST: Readonly<Record<PathKind, Cents>> = { footpath: 1000, queue: 1200 };
+/** One source of truth: the build command's tile costs (W1-C tuning). */
+export const PATH_TILE_COST: Readonly<Record<PathKind, Cents>> = { footpath: PATH_COST, queue: QUEUE_COST };
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
 

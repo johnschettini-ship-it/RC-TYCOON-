@@ -15,7 +15,7 @@ import type { Ride } from '../../../src/sim/rides/types';
 
 vi.mock('../../../src/sim/pathing/index', () => import('./fakePathing'));
 vi.mock('../../../src/sim/hooks', () => ({
-  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], stallWant: [], afterPurchase: [] },
+  guestHooks: { beforeDecision: [], perTick: [], rideScore: [], rideScoreFactor: [], stallWant: [], afterPurchase: [] },
 }));
 
 beforeEach(() => {
