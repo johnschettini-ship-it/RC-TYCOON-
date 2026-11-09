@@ -31,6 +31,7 @@ function unlockMessageId(itemId: string): string {
   const kind = contentInfo(itemId)?.kind;
   if (kind === 'trackRide') return MSG.researchTrackRide;
   if (kind === 'stall') return MSG.researchStall;
+  if (kind === 'sceneryTheme') return MSG.researchScenery;
   return MSG.researchRide;
 }
 

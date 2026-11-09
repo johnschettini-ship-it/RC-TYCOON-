@@ -90,6 +90,18 @@ describe('research points', () => {
     expect(w.state.management.messages[1]).toMatchObject({ textId: MSG.researchStall, params: { itemId: 'ice_cream_cart', name: 'Ice Cream Cart' } });
   });
 
+  it('a scenery theme unlock says "New scenery available"', () => {
+    const w = makeTestWorld();
+    const r = w.state.management.research;
+    r.current = 'frost_peaks';
+    r.level = 'high';
+    r.progress = 239;
+    runHours(w, TICKS_PER_MONTH, 1);
+    expect(r.unlocked).toContain('frost_peaks');
+    const msg = w.state.management.messages.find((m) => m.params?.itemId === 'frost_peaks');
+    expect(msg?.textId).toBe(MSG.researchScenery);
+  });
+
   it('unlocks several items in one hour when the surplus covers them', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
