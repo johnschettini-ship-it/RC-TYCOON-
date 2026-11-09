@@ -2,6 +2,7 @@
 import { Content, inBounds, isOwned, PathItem, type MapState } from '../map';
 import type { World } from '../types';
 import type { EntityId } from '../units';
+import { forgetManagementEntity } from '../management/removal';
 
 /** Tile index of (x, y), or −1 when the coordinates are not integers or lie outside the map. */
 export function tileAt(map: MapState, x: number, y: number): number {
@@ -94,5 +95,6 @@ export function forgetEntityReferences(world: World, id: EntityId): void {
       m.stateTicks = 0;
     }
   }
-  for (const msg of world.state.management.messages) if (msg.entityId === id) msg.entityId = -1;
+  // Campaign targets and message targets (W1-I owns the rules).
+  forgetManagementEntity(world, id);
 }
