@@ -52,7 +52,7 @@ import { updateTrackRides } from '../../../src/sim/rides/track/update';
 import type { TrackRideData } from '../../../src/sim/rides/track/types';
 import type { World } from '../../../src/sim/types';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, stateHash } from '../../helpers/world';
-import { addAll, buildR1, dataOf, expectOk, place, R1_BLOCKS, rideOf, type PieceSpec } from './helpers';
+import { addAll, buildR1, dataOf, EAST, expectOk, place, R1_BLOCKS, rideOf, type PieceSpec } from './helpers';
 
 function modL(x: number, L: number): number {
   return ((x % L) + L) % L;
@@ -84,7 +84,7 @@ function tick(w: World, n = 1, each?: () => void): void {
 
 /** Build, gate, test, and open a ride (setup mode: no cash). */
 function readyRide(w: World, typeId: string, x: number, y: number, pieces: PieceSpec[], trains = 1, cars?: number): number {
-  const id = place(w, typeId, x, y, 0);
+  const id = place(w, typeId, x, y, EAST);
   addAll(w, id, pieces);
   const type = getTrackTypeDef(typeId) as TrackTypeDef;
   expectOk(executeCommand(w, { type: 'setTrainConfig', rideId: id, trains, carsPerTrain: cars ?? type.vehicle.defaultCars }, { setup: true }));
@@ -119,7 +119,7 @@ describe('blocks and dispatch (phase-2 §4.8)', () => {
     expectOk(executeCommand(w, { type: 'setTrainConfig', rideId: id, trains: 2, carsPerTrain: 4 }, { setup: true }));
     expect(executeCommand(w, { type: 'startTestRun', rideId: id })).toEqual({ ok: false, reason: TRACK_ERR.tooManyTrains });
     const w2 = makeTestWorld();
-    const id2 = place(w2, 'steel_coaster', 4, 2, 0);
+    const id2 = place(w2, 'steel_coaster', 4, 2, EAST);
     addAll(w2, id2, R1_BLOCKS);
     expect(getLayout(dataOf(w2, id2)).blockBrakeCount).toBe(3);
     expectOk(executeCommand(w2, { type: 'setTrainConfig', rideId: id2, trains: 3, carsPerTrain: 4 }, { setup: true }));

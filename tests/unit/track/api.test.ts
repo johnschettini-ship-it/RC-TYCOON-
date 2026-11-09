@@ -14,12 +14,12 @@ import {
 } from '../../../src/sim/rides/track/api';
 import { newTrain } from '../../../src/sim/rides/track/physics';
 import { makeTestWorld, placeFootpath, stateHash } from '../../helpers/world';
-import { add, buildR1, dataOf, expectOk, place } from './helpers';
+import { add, buildR1, dataOf, EAST, expectOk, place } from './helpers';
 
 describe('builder helpers', () => {
   it('nextTrackPieces lists only pieces that fit the end and the type', () => {
     const w = makeTestWorld();
-    const id = place(w, 'junior_coaster', 10, 10, 0);
+    const id = place(w, 'junior_coaster', 10, 10, EAST);
     const ids = nextTrackPieces(w, id).map((p) => p.id);
     expect(ids).toContain('station');
     expect(ids).toContain('flat_to_gentle_up');
@@ -33,7 +33,7 @@ describe('builder helpers', () => {
 
   it('previewTrackPiece gives the same verdict and cost as addTrackPiece without changing state', () => {
     const w = makeTestWorld();
-    const id = place(w, 'steel_coaster', 10, 10, 0, false);
+    const id = place(w, 'steel_coaster', 10, 10, EAST, false);
     const h = stateHash(w);
     const p = previewTrackPiece(w, id, 'flat_to_gentle_up', true);
     expect(p).toMatchObject({ ok: true, cost: 6_300, closes: false, heightAboveGround: 1 });
@@ -82,7 +82,7 @@ describe('renderer helpers', () => {
 
   it('a failed setTrackColours or gate command changes nothing', () => {
     const w = makeTestWorld();
-    const id = place(w, 'steel_coaster', 10, 10, 0);
+    const id = place(w, 'steel_coaster', 10, 10, EAST);
     const h = stateHash(w);
     expect(executeCommand(w, { type: 'setTrackColours', rideId: id, track: -1, supports: 0, cars: 0 }).ok).toBe(false);
     expect(executeCommand(w, { type: 'placeTrackGate', rideId: id, kind: 'exit', x: 30, y: 30 }).ok).toBe(false);

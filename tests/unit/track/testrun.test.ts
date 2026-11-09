@@ -11,7 +11,7 @@ import { runTestLap } from '../../../src/sim/rides/track/testRun';
 import { updateTrackRides } from '../../../src/sim/rides/track/update';
 import { TRACK_ERR } from '../../../src/data/strings/track';
 import { makeTestWorld } from '../../helpers/world';
-import { addAll, buildR1, dataOf, expectOk, place, R1_PIECES, rideOf, type PieceSpec } from './helpers';
+import { addAll, buildR1, dataOf, EAST, expectOk, place, R1_PIECES, rideOf, type PieceSpec } from './helpers';
 import type { World } from '../../../src/sim/types';
 
 const steel = getTrackTypeDef('steel_coaster') as TrackTypeDef;
@@ -60,7 +60,7 @@ describe('test run (phase-2 §4.9)', () => {
 
   it('a lift without a chain fails: "Test failed: train stops on piece 4 (Flat to gentle up)"', () => {
     const w = makeTestWorld();
-    const id = place(w, 'steel_coaster', 4, 2, 0);
+    const id = place(w, 'steel_coaster', 4, 2, EAST);
     const noChain: PieceSpec[] = R1_PIECES.map((p) => (typeof p === 'string' ? p : p.id === 'brakes' ? p : p.id));
     addAll(w, id, noChain);
     expectOk(executeCommand(w, { type: 'startTestRun', rideId: id }));
@@ -83,7 +83,7 @@ describe('test run (phase-2 §4.9)', () => {
 
   it('a loop after a 6 m drop fails with the loop message', () => {
     const w = makeTestWorld();
-    const id = place(w, 'steel_coaster', 4, 20, 0);
+    const id = place(w, 'steel_coaster', 4, 20, EAST);
     const c = (s: string): PieceSpec => ({ id: s, chain: true });
     addAll(w, id, ['station', 'station', c('flat_to_gentle_up'), c('gentle_up'), c('gentle_up'), c('gentle_up_to_flat'), 'flat_to_gentle_down', 'gentle_down', 'gentle_down', 'gentle_down_to_flat', 'vertical_loop_right', 'straight', 'straight']);
     const d = dataOf(w, id);
@@ -97,7 +97,7 @@ describe('test run (phase-2 §4.9)', () => {
 
   it('a loop after a 16 m drop gets over the top only with enough speed (negative G at the top fails)', () => {
     const w = makeTestWorld();
-    const id = place(w, 'steel_coaster', 4, 20, 0);
+    const id = place(w, 'steel_coaster', 4, 20, EAST);
     const c = (s: string): PieceSpec => ({ id: s, chain: true });
     addAll(w, id, ['station', 'station', c('flat_to_gentle_up'), c('gentle_to_steep_up'), c('steep_up'), c('steep_to_gentle_up'), c('gentle_up_to_flat'), 'flat_to_gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat', 'vertical_loop_right', 'straight']);
     const r = runTestLap(w.state.map, dataOf(w, id), steel);

@@ -8,11 +8,19 @@ import { getTrackPieceDef, getTrackTypeDef, TRACK_PIECES, type TrackBank, type T
 import { BANK_ANGLE_DEG, GENTLE_PITCH_RAD, SAMPLE_STEP_MM, STEEP_PITCH_RAD, TILE_M } from '../../../data/tuning/track';
 import { DEG, PI, tcos, tsin } from '../../trig';
 import type { Dir } from '../../map';
-import type { TrackPieceInstance } from './types';
+import type { TrackDir, TrackPieceInstance } from './types';
 
-/** Phase-2 track directions: 0 = +x, 1 = +y, 2 = −x, 3 = −y. A right turn is dir + 1. */
+/** Phase-2 track directions (`TrackDir`): 0 = +x, 1 = +y, 2 = −x, 3 = −y. A right turn is dir + 1. */
 export const TRACK_DX: readonly number[] = Object.freeze([1, 0, -1, 0]);
 export const TRACK_DY: readonly number[] = Object.freeze([0, 1, 0, -1]);
+
+/**
+ * Map `Dir` (0 = N −y, 1 = E +x, 2 = S +y, 3 = W −x) → `TrackDir` (0 = +x, 1 = +y, 2 = −x, 3 = −y):
+ * E 1 → 0, S 2 → 1, W 3 → 2, N 0 → 3, i.e. (mapDir + 3) mod 4. Used at the command boundary.
+ */
+export function trackDirFromMapDir(dir: Dir): TrackDir {
+  return ((dir + 3) % 4) as TrackDir;
+}
 
 export function slopePitch(slope: TrackSlope): number {
   switch (slope) {
@@ -268,7 +276,7 @@ export interface Joint {
   x: number;
   y: number;
   z: number;
-  dir: Dir;
+  dir: TrackDir;
   slope: TrackSlope;
   bank: TrackBank;
 }
@@ -287,7 +295,7 @@ export function pieceExitJoint(piece: TrackPieceInstance): Joint {
     x: piece.x + ox,
     y: piece.y + oy,
     z: piece.z + def.exit.dz,
-    dir: ((piece.dir + def.exit.turn + 4) % 4) as Dir,
+    dir: ((piece.dir + def.exit.turn + 4) % 4) as TrackDir,
     slope: def.exit.slope,
     bank: def.exit.bank,
   };

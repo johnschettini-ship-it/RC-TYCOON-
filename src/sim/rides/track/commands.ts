@@ -27,7 +27,7 @@ import type { World } from '../../types';
 import type { Ride } from '../types';
 import { applyPlan, clearGateTile, gateSide, planAppend, removeLast } from './build';
 import { clearTest, editBlock, enterBuilding, isRunningStatus, refundShare, trackContext, trainsIdle } from './common';
-import { TRACK_DX, TRACK_DY } from './geometry';
+import { TRACK_DX, TRACK_DY, trackDirFromMapDir } from './geometry';
 import { getLayout } from './layout';
 import { checkPieceTiles, pieceCost } from './placement';
 import { dispatchedTestTrain, runTestLap } from './testRun';
@@ -50,13 +50,14 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
   const s = world.state;
   const map = s.map;
   if (!inBounds(map, cmd.x, cmd.y)) return fail(TRACK_ERR.outsidePark);
-  const dir = (((cmd.dir % 4) + 4) % 4) as Dir;
+  // The command takes a map `Dir` (0 = N, 1 = E, 2 = S, 3 = W, like every command); pieces use `TrackDir`.
+  const mapDir = (((cmd.dir % 4) + 4) % 4) as Dir;
   const piece: TrackPieceInstance = {
     defId: 'station',
     x: cmd.x,
     y: cmd.y,
     z: map.heights[tileIndex(map, cmd.x, cmd.y)] as number,
-    dir,
+    dir: trackDirFromMapDir(mapDir),
     chain: false,
     brakeSpeed: null,
     cost: 0,
@@ -78,7 +79,7 @@ function placeStation(world: World, cmd: Cmd<'placeStation'>, ctx: CommandContex
     name,
     x: cmd.x,
     y: cmd.y,
-    rotation: dir,
+    rotation: mapDir,
     status: 'building',
     price: defaultPrice(type.id),
     entrance: null,

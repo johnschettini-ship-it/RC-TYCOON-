@@ -34,6 +34,7 @@ export interface Ride {
   /** Footprint origin (flat) or station origin (track). */
   x: number;
   y: number;
+  /** Map `Dir`. Track rides: the heading of the first station piece as given to `placeStation`. */
   rotation: Dir;
   status: RideStatus;
   price: Cents;

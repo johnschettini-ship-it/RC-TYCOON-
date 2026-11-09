@@ -25,6 +25,13 @@ export function dataOf(world: World, id: number): TrackRideData {
   return d;
 }
 
+/** Map directions for `placeStation` (map `Dir`: 0 = N, 1 = E, 2 = S, 3 = W). E heads +x, the track `TrackDir` 0. */
+export const NORTH: Dir = 0;
+export const EAST: Dir = 1;
+export const SOUTH: Dir = 2;
+export const WEST: Dir = 3;
+
+/** Place a station with the `placeStation` command; `dir` is a map `Dir`. */
 export function place(world: World, typeId: string, x: number, y: number, dir: Dir, setup = true): number {
   const r = expectOk(executeCommand(world, { type: 'placeStation', typeId, x, y, dir }, { setup }));
   if (r.id === undefined) throw new Error('placeStation returned no id');
@@ -77,9 +84,9 @@ export const R1_PIECES: PieceSpec[] = [
   'turn_medium_right',
 ];
 
-/** Build R1: Steel Coaster, station at (4, 2), direction 0. */
+/** Build R1: Steel Coaster, station at (4, 2), heading +x (map direction E, track direction 0). */
 export function buildR1(world: World, setup = true): number {
-  const id = place(world, 'steel_coaster', 4, 2, 0, setup);
+  const id = place(world, 'steel_coaster', 4, 2, EAST, setup);
   addAll(world, id, R1_PIECES, setup);
   return id;
 }

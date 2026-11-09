@@ -28,6 +28,7 @@ export type PriceCommand =
 
 /** Phase 2 — track rides (owner W1-G). phase-2-coasters.md §6. */
 export type TrackCommand =
+  /** `dir` is a map `Dir` (0 = N, 1 = E, 2 = S, 3 = W): the station heading. E builds the station along +x. */
   | { type: 'placeStation'; typeId: string; x: number; y: number; dir: Dir }
   | { type: 'addTrackPiece'; rideId: EntityId; defId: string; chain?: boolean; brakeSpeed?: number }
   | { type: 'removeLastTrackPiece'; rideId: EntityId }

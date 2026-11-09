@@ -2,11 +2,17 @@
  * Track slice (Phase 2). Owner: W1-G. Shapes follow phase-2-coasters.md §5.
  * The common ride record lives in `state.rides` (kind 'track'); this slice keeps track-only data by ride id.
  *
- * Directions on track data use the phase-2 convention: 0 = +x, 1 = +y, 2 = −x, 3 = −y
- * (see `TRACK_DX` / `TRACK_DY` in geometry.ts). This differs from `DIR_DX` in map.ts.
+ * Directions on track data are `TrackDir` (phase-2 convention), not the map `Dir`. See below.
  */
 import type { EntityId } from '../../units';
-import type { Dir } from '../../map';
+
+/**
+ * Track direction (phase-2 §4.1), used only inside the track system: pieces, joints, `TrackPieceInstance.dir`.
+ * 0 = +x, 1 = +y, 2 = −x, 3 = −y; a right turn is dir + 1 (`TRACK_DX` / `TRACK_DY` in geometry.ts).
+ * The map `Dir` in map.ts (0 = N (−y), 1 = E (+x), 2 = S (+y), 3 = W (−x)) is what commands (`placeStation.dir`)
+ * and `Ride.rotation` use; the `placeStation` command converts with `trackDirFromMapDir` (geometry.ts).
+ */
+export type TrackDir = 0 | 1 | 2 | 3;
 
 export interface TrackPieceInstance {
   defId: string;
@@ -15,7 +21,8 @@ export interface TrackPieceInstance {
   y: number;
   /** Entry rail height (absolute metres; ground is 8 on new maps). */
   z: number;
-  dir: Dir;
+  /** Heading at the entry joint (track convention, not the map `Dir`). */
+  dir: TrackDir;
   chain: boolean;
   /** Brakes only: target speed in m/s. */
   brakeSpeed: number | null;

@@ -29,7 +29,11 @@ export const Owned = {
 /** Path items (Phase 3 §5). */
 export const PathItem = { None: 0, Bench: 1, Bin: 2, Lamp: 3 } as const;
 
-/** Directions: 0 = N (y − 1), 1 = E (x + 1), 2 = S (y + 1), 3 = W (x − 1). Tie-break order is N, E, S, W. */
+/**
+ * Map directions: 0 = N (y − 1), 1 = E (x + 1), 2 = S (y + 1), 3 = W (x − 1). Tie-break order is N, E, S, W.
+ * Every command and `rotation` field uses `Dir`. Track pieces use their own `TrackDir` (rides/track/types.ts,
+ * 0 = +x, 1 = +y, 2 = −x, 3 = −y); `placeStation` converts at the command boundary.
+ */
 export type Dir = 0 | 1 | 2 | 3;
 export const DIR_DX: readonly number[] = [0, 1, 0, -1];
 export const DIR_DY: readonly number[] = [-1, 0, 1, 0];

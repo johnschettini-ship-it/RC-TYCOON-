@@ -11,7 +11,7 @@ import { markNetworkDirty } from '../../pathing';
 import type { World } from '../../types';
 import type { Ride } from '../types';
 import { clearTest, refundShare } from './common';
-import { jointsEqual, pieceEntryJoint, pieceExitJoint, pieceWorldTiles, TRACK_DX, TRACK_DY, type Joint } from './geometry';
+import { jointsEqual, pieceEntryJoint, pieceExitJoint, pieceWorldTiles, TRACK_DX, TRACK_DY, trackDirFromMapDir, type Joint } from './geometry';
 import { invalidateLayout } from './layout';
 import { checkPieceTiles, pieceCost, refreshGroundTiles, type TilePlan } from './placement';
 import type { TrackPieceInstance, TrackRideData } from './types';
@@ -32,7 +32,7 @@ export function trackEnd(world: World, ride: Ride, data: TrackRideData): Joint {
   if (last) return pieceExitJoint(last);
   const map = world.state.map;
   const z = inBounds(map, ride.x, ride.y) ? (map.heights[tileIndex(map, ride.x, ride.y)] as number) : 0;
-  return { x: ride.x, y: ride.y, z, dir: ride.rotation, slope: 'F', bank: 'none' };
+  return { x: ride.x, y: ride.y, z, dir: trackDirFromMapDir(ride.rotation), slope: 'F', bank: 'none' };
 }
 
 /** Validate a piece at the track end (§4.6 order: length, piece, type, fit, tiles, supports, cash). */
