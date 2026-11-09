@@ -57,8 +57,8 @@ export function groundPathBlock(world: World, i: number): string | null {
   return null;
 }
 
-/** Validate and apply one ground path build over `coords` (all or nothing). */
-function buildGroundTiles(world: World, coords: { x: number; y: number }[] | null, kind: PathKind, ctx: CommandContext): CommandResult {
+/** Validate and apply one ground path build over `coords` (all or nothing). `dryRun`: validate only. */
+function buildGroundTiles(world: World, coords: { x: number; y: number }[] | null, kind: PathKind, ctx: CommandContext, dryRun = false): CommandResult {
   const map = world.state.map;
   if (!coords || coords.length === 0) return fail(BUILD_STRINGS.notOwned);
   const tiles: number[] = [];
@@ -82,6 +82,7 @@ function buildGroundTiles(world: World, coords: { x: number; y: number }[] | nul
   }
   const cost = changed.length * pathCost(kind);
   if (cost > 0 && !canAfford(world, cost, ctx)) return fail(BUILD_STRINGS.notEnoughCash);
+  if (dryRun) return ok(cost);
 
   for (const i of changed) {
     if (want === Content.Queue && map.pathItemLevel[i] !== 0) {
@@ -135,8 +136,8 @@ function elevatedBlock(world: World, i: number, z: number, rampDir: RampDir, sam
   return null;
 }
 
-/** Validate and apply one elevated path build (all or nothing). */
-function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: PathKind, ctx: CommandContext): CommandResult {
+/** Validate and apply one elevated path build (all or nothing). `dryRun`: validate only. */
+function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: PathKind, ctx: CommandContext, dryRun = false): CommandResult {
   const s = world.state;
   const map = s.map;
   if (!plan || plan.length === 0 || !isPathKind(kind)) return fail(TERRAIN_ERR.outsidePark);
@@ -162,6 +163,7 @@ function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: Pat
     cost += elevatedPathCost(kind, p.z, map.heights[i] as number);
   }
   if (cost > 0 && !canAfford(world, cost, ctx)) return fail(BUILD_STRINGS.notEnoughCash);
+  if (dryRun) return ok(cost);
 
   for (const p of convert) {
     p.kind = kind;
@@ -217,6 +219,21 @@ export function buildPathLine(world: World, cmd: Extract<BuildCommand, { type: '
   if (cmd.z === undefined) return buildGroundTiles(world, lineTiles(world.state.map, cmd.x0, cmd.y0, cmd.x1, cmd.y1), cmd.kind, ctx);
   if (!Number.isInteger(cmd.z)) return fail(PATH_ERR.badHeight);
   return buildElevatedTiles(world, elevatedLinePlan(world, cmd.x0, cmd.y0, cmd.x1, cmd.y1, cmd.z, cmd.ramp), cmd.kind, ctx);
+}
+
+/**
+ * The result a path command would have now — cost or reason — without changing anything (ghosts and the cost
+ * shown before release; Phase 4 §7). Same checks and order as the command.
+ */
+export function previewPathCommand(world: World, cmd: Extract<BuildCommand, { type: 'buildPath' | 'buildPathLine' }>, ctx: CommandContext = { setup: false }): CommandResult {
+  const map = world.state.map;
+  if (cmd.type === 'buildPath') {
+    if (cmd.z === undefined) return buildGroundTiles(world, [{ x: cmd.x, y: cmd.y }], cmd.kind, ctx, true);
+    return buildElevatedTiles(world, [{ x: cmd.x, y: cmd.y, z: cmd.z, rampDir: cmd.rampDir ?? -1 }], cmd.kind, ctx, true);
+  }
+  if (cmd.z === undefined) return buildGroundTiles(world, lineTiles(map, cmd.x0, cmd.y0, cmd.x1, cmd.y1), cmd.kind, ctx, true);
+  if (!Number.isInteger(cmd.z)) return fail(PATH_ERR.badHeight);
+  return buildElevatedTiles(world, elevatedLinePlan(world, cmd.x0, cmd.y0, cmd.x1, cmd.y1, cmd.z, cmd.ramp), cmd.kind, ctx, true);
 }
 
 /**

@@ -181,11 +181,11 @@ function computeLinks(c: NetworkCache): void {
   adj.fill(-1);
   for (let i = 0; i < tiles; i++) {
     if (kind[i] === KIND_NONE) continue;
-    if (!simple || slope[i] !== 0) {
+    if (slope[i] !== 0) {
       for (let d = 0; d < 4; d++) adj[i * 4 + d] = linkedNode(world, i, d);
       continue;
     }
-    // Flat ground node, no elevated paths anywhere: link to flat-or-matching ground neighbours.
+    // Flat ground node: link to flat-or-matching ground neighbours; else (elevated paths exist) the general rule.
     const z = heights[i] as number;
     const x = i % w;
     const y = (i - x) / w;
@@ -194,6 +194,15 @@ function computeLinks(c: NetworkCache): void {
     if (x < w - 1) adj[base + 1] = groundLink(c, i, i + 1, 1, z);
     if (y < h - 1) adj[base + 2] = groundLink(c, i, i + w, 2, z);
     if (x > 0) adj[base + 3] = groundLink(c, i, i - 1, 3, z);
+    if (!simple) {
+      // Only a neighbour tile with elevated paths can hold another node to link to.
+      const head = elevatedIndex(world).head;
+      const ns = [y > 0 ? i - w : -1, x < w - 1 ? i + 1 : -1, y < h - 1 ? i + w : -1, x > 0 ? i - 1 : -1];
+      for (let d = 0; d < 4; d++) {
+        const j = ns[d] as number;
+        if (adj[base + d] === -1 && j >= 0 && (head[j] as number) >= 0) adj[base + d] = linkedNode(world, i, d);
+      }
+    }
   }
   for (let node = tiles; node < nodeCount; node++) {
     if (kind[node] === KIND_NONE) continue;

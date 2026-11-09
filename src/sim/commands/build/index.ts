@@ -6,7 +6,7 @@ import { placeRide, placeStall } from './place';
 
 export { BUILD_STRINGS } from './strings';
 export { rideWarnings, stallWarnings } from './warnings';
-export { pathCost } from './paths';
+export { pathCost, previewPathCommand } from './paths';
 
 export const buildHandlers: HandlerMap<BuildCommand> = {
   buildPath,

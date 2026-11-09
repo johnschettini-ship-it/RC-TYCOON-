@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TERRAIN_ERR } from '../../../src/data/strings/terrain';
 import { PATH_ERR } from '../../../src/data/strings/paths';
 import { executeCommand } from '../../../src/sim/commands';
+import { previewPathCommand } from '../../../src/sim/commands/build';
 import { Content, Owned } from '../../../src/sim/map';
 import { elevatedPathsOn } from '../../../src/sim/paths/api';
 import { RAMP_MASK } from '../../../src/sim/paths/nodes';
@@ -185,6 +186,19 @@ describe('elevated paths (Phase 4 §4.2)', () => {
     const before = stateHash(w);
     expect(reason(w, { type: 'buildPathLine', x0: 10, y0: 10, x1: 14, y1: 10, kind: 'footpath', z: 12, ramp: 'down' })).toBe('The path is below the land');
     expect(stateHash(w)).toBe(before);
+  });
+
+  it('previewPathCommand gives the command result without changing the state', () => {
+    const w = makeTestWorld();
+    const before = stateHash(w);
+    const cmd = { type: 'buildPathLine', x0: 10, y0: 10, x1: 14, y1: 10, kind: 'footpath', z: 9, ramp: 'up' } as const;
+    const preview = previewPathCommand(w, cmd);
+    expect(stateHash(w)).toBe(before);
+    expect(preview).toEqual(executeCommand(w, cmd));
+    expect(previewPathCommand(w, { type: 'buildPath', x: 30, y: 30, kind: 'queue' })).toEqual({ ok: true, cost: 1_200, warnings: [] });
+    expect(previewPathCommand(w, { type: 'buildPath', x: 10, y: 10, kind: 'footpath', z: 9, rampDir: 1 })).toEqual({ ok: true, cost: 0, warnings: [] });
+    expect(previewPathCommand(w, { type: 'buildPath', x: 10, y: 10, kind: 'footpath', z: 9 })).toEqual({ ok: false, reason: 'Not enough clearance under an object' });
+    expect(previewPathCommand(w, { type: 'buildPath', x: 10, y: 10, kind: 'footpath', z: 8 })).toEqual({ ok: false, reason: 'The path is below the land' });
   });
 
   it('rejects bad heights and ramps from a caller', () => {
