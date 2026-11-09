@@ -4,6 +4,8 @@
  */
 import { getShowSiteDef, SHOW_SITES, type ShowSiteDef } from '../../data/catalog';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
+import { localizeReason } from '../../i18n';
 import { TICKS_PER_SECOND } from '../../data/tuning/core';
 import { SHOW_HOUR_MAX, SHOW_HOUR_MIN } from '../../data/tuning/shows';
 import type { ShowGhost } from '../../render/shows/ghost';
@@ -88,7 +90,7 @@ export function showPanelView(world: World, site: ShowSite): ShowPanelView {
   const def = getShowSiteDef(site.defId);
   const sc = site.schedule;
   return {
-    title: def?.name ?? site.defId,
+    title: def ? contentName(def.id) : site.defId,
     state: showStateText(world, site),
     hour: pad2(sc.hour),
     minute: pad2(sc.minute),
@@ -125,12 +127,12 @@ export function showCards(world: World): ShowCardView[] {
     const perShowCost = formatMoney(def.costPerShow);
     return {
       id: def.id,
-      name: def.name,
+      name: contentName(def.id),
       cost,
       perShow: text('shows.picker.perShow', { cost: perShowCost }),
       facts: text('shows.picker.facts', { radius: def.radius, seconds: Math.round(def.showTicks / TICKS_PER_SECOND) }),
       locked: !isUnlocked(world, def.id),
-      label: text('shows.picker.card', { name: def.name, cost, perShow: perShowCost }),
+      label: text('shows.picker.card', { name: contentName(def.id), cost, perShow: perShowCost }),
     };
   });
 }
@@ -145,7 +147,7 @@ export interface ShowStatusView {
 export function showStatusView(defId: string | null, ghost: ShowGhost | null, touch: boolean): ShowStatusView {
   const def = defId ? getShowSiteDef(defId) : undefined;
   if (!def) return { title: text('shows.status.pick'), detail: '', valid: null };
-  const title = text('shows.status.place', { name: def.name, cost: formatMoney(def.buildCost) });
+  const title = text('shows.status.place', { name: contentName(def.id), cost: formatMoney(def.buildCost) });
   if (!ghost) return { title, detail: text(touch ? 'shows.status.hintTouch' : 'shows.status.hintMouse'), valid: null };
-  return { title, detail: ghost.valid ? text('shows.status.valid') : (ghost.reason ?? ''), valid: ghost.valid };
+  return { title, detail: ghost.valid ? text('shows.status.valid') : localizeReason(ghost.reason ?? ''), valid: ghost.valid };
 }

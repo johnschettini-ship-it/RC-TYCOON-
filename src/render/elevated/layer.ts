@@ -10,6 +10,7 @@
  */
 import { LAYER_KIND, type LayerFrame, type WorldLayer } from '../layers';
 import { Layer } from '../depth';
+import { GHOST_FILL_INVALID, GHOST_FILL_VALID, GHOST_INVALID, GHOST_VALID, ghostLineWidth } from '../palette';
 import { rotateSlopeMask } from '../view';
 import type { ToolState } from '../types';
 import type { World } from '../../sim/types';
@@ -27,10 +28,11 @@ export const ELEVATED_COLOURS = {
   queue: { top: '#a9c0d2', edge: '#6a8396', left: '#8aa1b3', right: '#74899a' },
   support: '#6b5a45',
   supportDark: '#4d4032',
-  ghostOk: 'rgba(120, 220, 140, 0.45)',
-  ghostEdge: 'rgba(40, 120, 60, 0.9)',
-  ghostBad: 'rgba(229, 72, 77, 0.4)',
-  ghostBadEdge: 'rgba(160, 30, 36, 0.9)',
+  /** Ghost deck: the colour-blind safe pair of `../palette.ts` (Phase 6 §4.7). */
+  ghostOk: GHOST_FILL_VALID,
+  ghostEdge: GHOST_VALID,
+  ghostBad: GHOST_FILL_INVALID,
+  ghostBadEdge: GHOST_INVALID,
 } as const;
 
 /** View corner offsets [N', E', S', W'] of a view tile's top face: (du, dv). */
@@ -196,7 +198,7 @@ export function createElevatedPathLayer(): WorldLayer {
       quad(ctx, px[0] as number, deckY[0] as number, px[1] as number, deckY[1] as number, px[2] as number, deckY[2] as number, px[3] as number, deckY[3] as number);
       ctx.fill();
       ctx.strokeStyle = blocked ? ELEVATED_COLOURS.ghostBadEdge : ELEVATED_COLOURS.ghostEdge;
-      ctx.lineWidth = Math.max(1, f.scale);
+      ctx.lineWidth = ghostLineWidth(Math.max(1, f.scale));
       ctx.stroke();
       // A guide line from the deck down to the ground at the front corner.
       ctx.beginPath();

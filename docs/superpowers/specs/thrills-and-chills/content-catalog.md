@@ -188,4 +188,4 @@ The earlier summary listed the helix for Steel and Bobsled only; `phase-6-polish
 | Water | — | Log Flume, Rapids Raft | — |
 | Scenery | — | Frost Peaks, Volcano Ridge, Spooky Hollow, Jungle Lagoon, Starport | Lightshow Tower, Fireworks Launcher |
 
-Research costs and order are in `phase-3-management.md` (Build 1), `phase-4-land-scenery-after-dark.md` (Build 2), and `phase-6-polish.md` (Build 3). Phase 6 places its items into categories (§4.5 Unlock column); this table follows it. `phase-6-polish.md` gives no research costs for the Build 3 items: provisional costs are in the delivery plan (card W4-D) until the owner confirms them.
+Research costs and order are in `phase-3-management.md` (Build 1), `phase-4-land-scenery-after-dark.md` (Build 2), and `phase-6-polish.md` (Build 3). Phase 6 places its items into categories (§4.5 Unlock column); this table follows it. `phase-6-polish.md` gives no research costs for the Build 3 items: provisional costs (4,200 points, master R25) are in `src/data/research.ts` and logged in `tuning-log.md` until a play-test or the owner confirms them.

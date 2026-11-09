@@ -12,6 +12,10 @@
  *   they are (tagged "earlier version" in the UI); a win on a newer version starts that scenario's record afresh,
  *   because results of different scenario versions cannot be compared.
  * - `markTutorialDone` sets `tutorialDone`.
+ * - `importRaw` (Settings → Data, Phase 6 §4.9) stores a progress file the player picked. It runs the same check as
+ *   `read()` and gives the same errors; a refused file changes nothing (not the stored text, not the last read, and
+ *   never a silent reset). A file that passes replaces the stored progress, even after a failed read (the player's
+ *   choice, like `reset()`).
  */
 import { SCENARIOS, type Difficulty } from '../data/scenarios';
 import { UNLOCK_WINS } from '../data/tuning/scenario';
@@ -54,6 +58,15 @@ export interface Progress {
 }
 
 export type ProgressRead = { ok: true; progress: Progress } | { ok: false; error: string; raw: string };
+
+/**
+ * Result of `ProgressStore.importRaw`: stored; refused by the check (`error` is the load message); or the file passed
+ * but the device refused the write (no storage, or `setItem` threw).
+ */
+export type ProgressImport =
+  | { ok: true; progress: Progress }
+  | { ok: false; reason: 'invalid'; error: string }
+  | { ok: false; reason: 'storage' };
 
 export function emptyProgress(): Progress {
   return { format: PROGRESS_FORMAT, version: PROGRESS_VERSION, scenarios: {}, tutorialDone: false };
@@ -185,6 +198,17 @@ export class ProgressStore {
 
   markTutorialDone(): boolean {
     return this.update((p) => (p.tutorialDone ? p : { ...p, tutorialDone: true }));
+  }
+
+  /**
+   * Store a progress file the player picked (Settings → Data). The same strict check as `read()`, with the same
+   * errors; nothing is filled in, and a refused file writes nothing and leaves the last read as it was.
+   */
+  importRaw(raw: string): ProgressImport {
+    const r = parseProgress(raw);
+    if (!r.ok) return { ok: false, reason: 'invalid', error: r.error };
+    if (!this.write(r.progress)) return { ok: false, reason: 'storage' };
+    return { ok: true, progress: r.progress };
   }
 
   /** Player-confirmed reset (also after a failed read): empty progress is written. */

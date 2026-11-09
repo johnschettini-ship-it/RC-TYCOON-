@@ -38,23 +38,42 @@ describe('export all saves', () => {
 });
 
 describe('import progress', () => {
-  it('a valid progress file is stored and read back by the progress store', () => {
+  it('a valid progress file is stored through the progress store and read back', () => {
     const mem = new MemoryStore();
+    const store = new ProgressStore(mem);
     const raw = readFileSync('tests/fixtures/progress-v2.json', 'utf8');
-    expect(importProgress(mem, raw)).toEqual({ ok: true });
+    expect(importProgress(store, raw)).toEqual({ ok: true });
+    // The store that imported already holds the new progress (no separate re-read needed) ...
+    const cur = store.current();
+    expect(cur.ok && cur.progress.tutorialDone).toBe(true);
+    // ... and a fresh store reads the same from storage.
     const r = new ProgressStore(mem).read();
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.progress.tutorialDone).toBe(true);
   });
 
-  it('a bad file changes nothing and says why', () => {
+  it('a bad file changes nothing and says why (the load messages)', () => {
     const mem = new MemoryStore();
     mem.setItem(PROGRESS_KEY, JSON.stringify(emptyProgress()));
     const before = mem.getItem(PROGRESS_KEY);
-    const r = importProgress(mem, '{"format":"something-else"}');
+    const store = new ProgressStore(mem);
+    const r = importProgress(store, '{"format":"something-else"}');
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toBe('Your scenario progress could not be read');
+    const newer = importProgress(store, JSON.stringify({ ...emptyProgress(), version: 9 }));
+    expect(newer).toEqual({ ok: false, error: 'Your progress comes from a newer version of the game' });
     expect(mem.getItem(PROGRESS_KEY)).toBe(before);
-    expect(importProgress(null, readFileSync('tests/fixtures/progress-v2.json', 'utf8')).ok).toBe(false);
+    expect(store.blocked()).toBe(false);
+  });
+
+  it('no storage: the file passes the check but is not stored', () => {
+    const r = importProgress(new ProgressStore(null), readFileSync('tests/fixtures/progress-v2.json', 'utf8'));
+    expect(r).toEqual({ ok: false, error: 'This device does not allow the game to store data' });
+  });
+
+  it('the settings screen imports through the progress store, never by writing tc.progress itself', () => {
+    const src = readFileSync('src/ui/settings/data.ts', 'utf8') + readFileSync('src/ui/settings/index.ts', 'utf8');
+    expect(src).toContain('importProgress(progressStore(), raw)');
+    expect(src).not.toMatch(/setItem\(\s*PROGRESS_KEY/);
   });
 });

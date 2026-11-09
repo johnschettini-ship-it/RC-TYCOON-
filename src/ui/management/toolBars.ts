@@ -6,6 +6,7 @@
  */
 import { PATH_ITEMS } from '../../data/catalog/people';
 import { text } from '../../data/strings/en';
+import { localizeReason } from '../../i18n';
 import { BRUSH_SIZES, pathItemAction, toolOptions, type BrushSize, type PathItemAction, type PatrolMode } from '../../render/management/toolOptions';
 import { brokenItemTiles } from '../../sim/staff/commands';
 import type { UiContext } from '../context';
@@ -148,7 +149,7 @@ export function createPathItemBar(ctx: UiContext): { el: HTMLElement; update(now
       else if (a === 'repair') setText(msg, text('ui.pathItems.hintRepair'));
       else setText(msg, text('ui.pathItems.hintBuild', { name: text(`ui.pathItems.${a}`), cost: formatMoney(cost(a)) }));
       const g = t.ghost;
-      setText(detail, g ? (g.valid ? text('ui.ghost.valid') : (g.reason ?? '')) : '');
+      setText(detail, g ? (g.valid ? text('ui.ghost.valid') : localizeReason(g.reason ?? '')) : '');
       okIcon.style.display = g?.valid ? '' : 'none';
       toggleClass(el, 'valid', g?.valid === true);
       toggleClass(el, 'invalid', g?.valid === false);

@@ -3,11 +3,44 @@
  * Phase 6 §4.7: every meaning colour is colour-blind safe (the blue–orange family of `SAFE_PALETTE`), and colour is
  * never the only signal (check / cross icons and hatching on ghosts, full / notched temperament rings).
  */
+import { displayPrefs } from '../a11y/prefs';
 import { SAFE_PALETTE } from '../data/tuning/a11y';
 
 /** Valid ghosts and "OK" marks: blue (`#0072B2`). Invalid ghosts and errors: vermillion (`#D55E00`). */
 export const GHOST_VALID = SAFE_PALETTE[0];
 export const GHOST_INVALID = SAFE_PALETTE[3];
+/**
+ * Derived ghost colours for every layer (core renderer, scenery, land and water tools, track builder, show sites,
+ * elevated paths, patrol erase): translucent footprint fills, light tints for arrows and outlines on dark art, and dark
+ * label backgrounds. Never a red / green pair (`tests/unit/render/safeColours.test.ts` scans `src/render/**`).
+ */
+export const GHOST_FILL_VALID = withAlpha(GHOST_VALID, 0.38);
+export const GHOST_FILL_INVALID = withAlpha(GHOST_INVALID, 0.42);
+export const GHOST_LIGHT_VALID = shade(GHOST_VALID, 1.8);
+export const GHOST_LIGHT_INVALID = shade(GHOST_INVALID, 1.8);
+export const GHOST_DARK_VALID = shade(GHOST_VALID, 0.6);
+export const GHOST_DARK_INVALID = shade(GHOST_INVALID, 0.6);
+/** Water tool "OK" ghost: the palette's sky blue, so it reads apart from the land tool's blue. */
+export const GHOST_WATER = SAFE_PALETTE[1];
+
+/** Fill and outline of a valid or invalid ghost footprint. */
+export function ghostFill(valid: boolean): string {
+  return valid ? GHOST_FILL_VALID : GHOST_FILL_INVALID;
+}
+export function ghostStroke(valid: boolean): string {
+  return valid ? GHOST_VALID : GHOST_INVALID;
+}
+
+/** Ghost and outline line width: doubled with high contrast (Phase 6 §4.7). */
+export function ghostLineWidth(w: number): number {
+  return displayPrefs().highContrast ? w * 2 : w;
+}
+
+/** `#rrggbb` with alpha `a` as `rgba(…)`. */
+export function withAlpha(hex: string, a: number): string {
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
 /** Hatch over an invalid ghost footprint (drawn by the a11y layer). */
 export const GHOST_HATCH = 'rgba(255,255,255,0.75)';
 /** The map cursor diamond. */

@@ -12,6 +12,7 @@
  * them (`noteLandPointerDown`), and a ResizeObserver keeps the canvas size in the tool's side table.
  */
 import { text } from '../../data/strings/en';
+import { localizeReason } from '../../i18n';
 import { BRUSH_SIZES } from '../../data/tuning/terrain';
 import {
   isTerrainTool,
@@ -288,9 +289,9 @@ function createLandBar(ctx: UiContext): UiPart {
       let valid: boolean | null = null;
       if (b) {
         valid = b.valid;
-        if (!b.valid) setText(detail, b.reason ?? '');
+        if (!b.valid) setText(detail, localizeReason(b.reason ?? ''));
         else if (b.cost === 0) setText(detail, text('landUi.nothing'));
-        else if (b.reason) setText(detail, text('landUi.costWarn', { cost: formatMoney(b.cost), warning: b.reason }));
+        else if (b.reason) setText(detail, text('landUi.costWarn', { cost: formatMoney(b.cost), warning: localizeReason(b.reason) }));
         else setText(detail, text('landUi.cost', { cost: formatMoney(b.cost) }));
       } else {
         setText(detail, '');

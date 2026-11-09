@@ -1,6 +1,4 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CAMPAIGNS } from '../../src/data/tuning/management';
-import { FLAT_RIDES, PATH_ITEMS, SCENERY, SCENERY_THEMES, SHOW_SITES, STAFF, STALLS, TRACK_RIDES } from '../../src/data/catalog';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 /**
@@ -94,12 +92,13 @@ const KNOWN_GAPS: readonly string[] = [
   'New Park',
 ];
 
-/** Content names come from catalog `name` fields; the catalog has no `nameKey` yet (contract change request). */
-const DATA_NAMES: readonly string[] = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS, ...PATH_ITEMS, ...STAFF, ...SCENERY_THEMES, ...SCENERY, ...SHOW_SITES, ...CAMPAIGNS].map((d) => d.name);
-
-/** Plain English left after removing the known gaps and content names (longest first). */
+/**
+ * Plain English left after removing the known gaps (longest first). Content names (rides, track types and pieces,
+ * stalls, path items, staff, scenery themes and items, show sites, campaigns) are `content.<id>` strings since the
+ * Build 3 gate, so they must show in the pseudo-locale like any other text.
+ */
 function unexpectedEnglish(found: readonly string[]): string[] {
-  const known = [...KNOWN_GAPS, ...DATA_NAMES].sort((a, b) => b.length - a.length);
+  const known = [...KNOWN_GAPS].sort((a, b) => b.length - a.length);
   return found.filter((t) => {
     let rest = t;
     for (const k of known) rest = rest.split(k).join(' ');
@@ -115,6 +114,13 @@ test.describe('hard-coded text', () => {
     await page.getByTestId('title-new').click();
     await expect(page.getByTestId('title-start')).toBeVisible();
     expect(unexpectedEnglish(await plainEnglish(page))).toEqual([]);
+    // Scenario names and the detail sheet (description, goals) come from the string table too.
+    await page.getByTestId('title-scenarios').click();
+    await expect(page.getByTestId('scenario-select')).toBeVisible();
+    expect(unexpectedEnglish(await plainEnglish(page)), 'scenarios').toEqual([]);
+    await page.getByTestId('scenario-card-meadow_start').click();
+    await expect(page.getByTestId('scenario-detail')).toBeVisible();
+    expect(unexpectedEnglish(await plainEnglish(page)), 'scenario detail').toEqual([]);
   });
 
   test('booting in en-XA, the HUD, toolbar, and panels show only string-table text', async ({ page }) => {
@@ -129,7 +135,35 @@ test.describe('hard-coded text', () => {
       await page.getByTestId(`tool-${tool}`).click();
       await expect(page.getByTestId(`tool-${tool}`)).toHaveAttribute('aria-pressed', 'true');
       expect(unexpectedEnglish(await plainEnglish(page)), tool).toEqual([]);
+      if (tool === 'rides') {
+        // Track ride types in the second tab of the picker.
+        await page.getByTestId('picker-tab-track').click();
+        await expect(page.getByTestId('track-card-steel_coaster')).toBeVisible();
+        expect(unexpectedEnglish(await plainEnglish(page)), 'track rides').toEqual([]);
+      }
       await page.getByTestId(`tool-${tool}`).click();
     }
+  });
+
+  test('booting in en-XA, the scenery and show pickers show content names from the string table', async ({ page }, info) => {
+    test.skip(info.project.name === 'phone', 'the pickers are the same DOM on phones');
+    await bootInPseudoLocale(page);
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-name').fill('Ļåķéšîðé');
+    await page.getByTestId('title-start').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.getByTestId('tool-scenery').click();
+    await expect(page.getByTestId('scenery-picker')).toBeVisible();
+    // Every theme tab: an open theme lists its items; a locked one names the theme in its note.
+    for (const theme of ['base', 'classic_fair', 'frost_peaks', 'volcano_ridge', 'spooky_hollow', 'jungle_lagoon', 'starport']) {
+      await page.getByTestId(`scenery-tab-${theme}`).click();
+      await expect(page.getByTestId(`scenery-tab-${theme}`)).toHaveAttribute('aria-selected', 'true');
+      expect(unexpectedEnglish(await plainEnglish(page)), theme).toEqual([]);
+    }
+    await page.getByTestId('scenery-close').click();
+    await page.getByTestId('tool-shows').click();
+    await expect(page.getByTestId('show-picker')).toBeVisible();
+    await expect(page.getByTestId('show-card-lightshow_tower')).not.toContainText('Lightshow');
+    expect(unexpectedEnglish(await plainEnglish(page)), 'shows').toEqual([]);
   });
 });

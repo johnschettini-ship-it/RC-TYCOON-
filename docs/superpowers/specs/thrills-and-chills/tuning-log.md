@@ -12,6 +12,97 @@ TC_BALANCE_SEEDS=12345,777,2024,1,42,9001,7,99,31337,500 npx vitest run tests/in
 
 ---
 
+## 2026-11-09 — Provisional starting values (Build 2 and Build 3 cards, logged at the Build 3 gate)
+
+### Why
+The specs give no number for these values, so the card that needed them chose a starting value and reported it.
+None has been play-tested. Each row is logged with **Old = provisional** and **New = provisional**: the value has not
+changed since it was first written; the row records that it is a guess to check, not a tuned number. When a play-test
+changes one, add a new entry above this one with the real old and new values. Spec numbers (Phase 4 §8, Phase 6 §4.5
+and §8, the catalog) are not repeated here, except the show lengths, which are flagged.
+
+### Build 3 research costs (master R25, `src/data/research.ts`, W4-D)
+Phase 6 §4.5 gives the research category of each Build 3 item but no cost (catalog §9). Total **4,200 points**, after
+the Build 2 items; cheaper items first, categories alternating as in Builds 1 and 2.
+
+| Item | Category | Cost (points) | Old | New | Reason |
+|---|---|---|---|---|---|
+| `kiddie_cars` | Gentle | 150 | provisional | provisional | Cheapest family ride, like the Build 1 Spiral Slide (150). |
+| `smoothie_bar` | Shops | 180 | provisional | provisional | Like the Build 1 Cocoa Hut and Balloon Stand (180). |
+| `magic_carpet` | Thrill | 400 | provisional | provisional | Mid thrill ride, between Thunder Disc (350) and Drop Tower (450). |
+| `lightshow_tower` | Scenery | 300 | provisional | provisional | A show site costs more than a scenery theme (240): it brings guests at night. |
+| `photo_booth` | Shops | 200 | provisional | provisional | Souvenir stall, like First Aid (200). |
+| `merry_mill` | Gentle | 250 | provisional | provisional | Chill flat ride, like Bumper Cars and Mirror Maze (250). |
+| `bobsled_run` | Coasters | 500 | provisional | provisional | Between Spinning Mouse (450) and Wooden Coaster (600). |
+| `noodle_bar` | Shops | 220 | provisional | provisional | Food stall, like Pizza Slice (220). |
+| `gyro_globe` | Thrill | 550 | provisional | provisional | Most intense flat ride, like Flip Arm (550). |
+| `fireworks_launcher` | Scenery | 350 | provisional | provisional | The bigger show (radius 12, Thrill crowd): above the Lightshow Tower. |
+| `monorail` | Gentle | 450 | provisional | provisional | Transport ride with up to 4 stations, like Haunted Manor (450). |
+| `inverted_coaster` | Coasters | 650 | provisional | provisional | Last and dearest item, above the Wooden Coaster (600). |
+
+Play-test: Build 3 research is about 4,200 / 6,460 of the Build 1 research time; check that a free park reaches the
+Inverted Coaster in a reasonable number of game years at the medium research budget.
+
+### After Dark shows (`src/data/tuning/shows.ts`, `src/data/catalog/showSites.ts`, W4-C)
+
+| Constant | File | Value | Old | New | Reason |
+|---|---|---|---|---|---|
+| `SHOW_HAPPY_CAP` (how the cap and the match factor combine) | `tuning/shows.ts` | +40 per show as a **hard cap** for every watcher; the ×1.3 match factor scales the running total, so a matching watcher reaches +40 sooner, never more | provisional | provisional | Phase 6 §4.4 says "max +40 per show. Matching temperament gains ×1.3" without saying which applies first. The hard cap keeps the two show types even and a show from paying more than the spec's +40. The other reading (a matching watcher can reach 52) is the alternative to try. |
+| `showTicks` Lightshow Tower | `catalog/showSites.ts` | 300 ticks | provisional | provisional | Spec value "300 ticks (15 s)". **Flag for play-test:** 300 ticks are **6 game hours** (50 ticks per hour), so a 20:00 show runs to 02:00 and a 23:30 show to 05:30, while watchers stand for 15 real seconds at 1×. The spec reads as real seconds; if the game clock should matter, a show of 1–2 game hours (50–100 ticks) is the alternative. |
+| `showTicks` Fireworks Launcher | `catalog/showSites.ts` | 400 ticks | provisional | provisional | Spec value "400 ticks (20 s)": **8 game hours**; same flag as above. |
+
+### Build 3 track types and pieces (`src/data/track/trackTypes.ts`, `src/data/tuning/track.ts`, W4-D)
+Phase 6 §4.5 gives seats, cars, trains, max height, drive, piece set, and price; Phase 2 §4.10 and §4.12 define the
+terms. The type rating terms, costs, friction, chain speed, and car length are not in the spec.
+
+| Type | Ratings (E / I / N type, kAir, extra) | Costs (base, piece factor, run base/mo, extra train) | Physics (μ, c_d per m, chain, car length, default cars) | Old | New | Reason |
+|---|---|---|---|---|---|---|
+| Inverted Coaster | 1.3 / 0.5 / 0.2, 0.8, none | $3,500, ×1.10, $140, $900 | 0.015, 0.0008, 3 m/s, 2.5 m, 4 | provisional | provisional | The Steel Coaster's numbers (1.0 / 0.3 / 0.0, kAir 1.0, $3,000) raised: hanging seats feel more intense and exciting; airtime counts less. Dearest coaster, as in the research order. |
+| Bobsled Run | 1.4 / 0.4 / 0.4, 0.6, none | $2,600, ×0.90, $100, $400 | 0.012, 0.0008, 2.5 m/s, 2.2 m, 2 | provisional | provisional | Free-running cars in a trough: lower friction than steel, little airtime, some nausea from the banked swings; cheaper than the Wooden Coaster ($2,800). |
+| Monorail | 1.6 / 0.0 / 0.0, 1.0, scenic | $2,400, ×0.80, $80, $600 | 0, 0, —, 3 m, 3 | provisional | provisional | Powered transport like the Mini Railway (2.0 / 0 / 0, scenic, $1,200) but dearer to build (beam and pillars) and a little less exciting. |
+
+| Constant | Value | Old | New | Reason |
+|---|---|---|---|---|
+| `CORKSCREW_RADIUS_M` / `CORKSCREW_RISE_M` / `CORKSCREW_KAPPA` | 1.4 m / 1.0 m / 0.15 per m | provisional | provisional | Fit the spec footprint (3 tiles straight, no height change) and keep a train entered at the 10 m/s minimum pressing the riders into their seats at the top. Arc length 15,919 mm. |
+| `HELIX_RADIUS_M` / `HELIX_LEAD_M` / `HELIX_RISE_M` | 4.8 m / 6 m / 4 m | provisional | provisional | Fit the 3 × 3 footprint with a 360° turn; the rise is the spec's ±4 m. Arc length 42,386 mm. |
+| `STOP_DWELL_TICKS` (Monorail extra stations) | 60 ticks (3 s at 1×, 1.2 game hours) | provisional | provisional | Master R26 makes extra stations stops only; the spec gives no dwell. 60 ticks equals the default minimum station dwell (`DEFAULT_MIN_DWELL_TICKS`). |
+
+### Build 2 water rides (`src/data/track/trackTypes.ts`, `src/data/tuning/track.ts`, W3-C)
+Phase 4 §4.4 and §8 give the piece set, current speeds and k, lift and station conveyors, splash brake, whirlpool cap,
+rating extras, and wet riders. W3-C chose these:
+
+| Item | Value | Old | New | Reason |
+|---|---|---|---|---|
+| Log Flume type terms | E 1.5, I 0.8, N 0.3, kAir 1.0 | provisional | provisional | A family ride with one big drop; the drop and splashdown extras add the rest. |
+| Rapids Raft type terms | E 1.6, I 1.0, N 0.5, kAir 1.0 | provisional | provisional | Rougher than the flume (rough water, spinning rafts). |
+| Log Flume costs | base $2,400, ×1.00, run $80/mo, extra boat $200 | provisional | provisional | Between the Junior Coaster ($1,500) and the Wooden Coaster ($2,800). |
+| Rapids Raft costs | base $2,800, ×1.00, run $90/mo, extra boat $250 | provisional | provisional | The Wooden Coaster's base; a little above the flume to run. |
+| Channel friction on gravity pieces (`WATER_MU`, `WATER_CD`) | 0.02, 0.001 per m | provisional | provisional | The Junior Coaster's friction. |
+| Boat length | 4 m | provisional | provisional | The spec's "1 boat per station tile". |
+| `ROUGH_AMPLITUDE` / `ROUGH_WAVELENGTH_MM` | 0.4 / 4,000 mm | provisional | provisional | Rough water varies the current by ±40% once per tile, by position (never the RNG). |
+
+### Audio and music mix (`src/data/tuning/audio.ts`, `src/data/tuning/music.ts`, W4-A, W4-B)
+Phase 6 §8 gives the volume defaults, voices, falloff, and music scheduling; the mix levels below are starting values.
+All of them need the **listening check** (owner action, `docs/release/build-3-checklist.md`).
+
+| Constant | Value | Old | New | Reason |
+|---|---|---|---|---|
+| `VOLUME_EXPONENT` | 2 (gain = (v / 100)²) | provisional | provisional | Closer to perceived loudness than a straight line. |
+| `VOLUME_GLIDE_S` / `STEAL_FADE_S` / `LOOP_GLIDE_S` | 0.02 / 0.01 / 0.15 s | provisional | provisional | No clicks on slider moves, voice steals, or loop changes. |
+| `SFX_PEAK` | 0.5 (`ui_click` 0.3 from the table) | provisional | provisional | A full mix stays under the master compressor. |
+| `CHAIN_CLICKS_PER_M` / `CHAIN_CLICK_MS` / `MAX_CHAIN_LOOPS` | 4 per m / 5 ms / 2 | provisional | provisional | A lift at 3 m/s clicks 12 times a second; two lifts at most, so the chain does not drown the park. |
+| `RUMBLE_MIN_SPEED_MS` / `RUMBLE_FULL_SPEED_MS` / cutoff | 2 / 25 m/s, 150–600 Hz | provisional | provisional | Silent at walking speed, full on a fast drop. |
+| `RAIN_INTENSITY` | rain 0.6, storm 1 | provisional | provisional | Storm louder than rain. |
+| `THUNDER_GAP_MIN_MS` / `THUNDER_GAP_MAX_MS` | 6–20 s | provisional | provisional | Thunder often enough to notice, not constant. |
+| `CROWD_FULL_GUESTS` / amplitude modulation | 400 guests / 0.3–0.7 Hz | provisional | provisional | Crowd at full gain with 400 guests on screen (log curve). |
+| `MUSIC_VOICE_GAIN` | lead 0.2, pad 0.06, bass 0.24, kick 0.5, snare 0.2, hat 0.07 | provisional | provisional | Lead and bass in front, pad and hat as colour. |
+| `MUSIC_REVERB_WET` / `MUSIC_DELAY_WET` / `MUSIC_DELAY_FEEDBACK` | 0.35 / 0.3 / 0.35 | provisional | provisional | Night reverb and the Starport delay audible without washing out the lead. |
+| `MUSIC_TREMOLO_HZ` / `MUSIC_TREMOLO_DEPTH` | 5 Hz / 0.45 | provisional | provisional | Spooky Hollow pad wobble. |
+| `MUSIC_BASS_LOWPASS_HZ` | 900 Hz | provisional | provisional | Saw and square basses stay round. |
+| `MUSIC_LEAP_CHANCE` / `MUSIC_REST_CHANCE` / `MUSIC_BASS_OCTAVE_CHANCE` | 0.06 / 0.5 / 0.3 | provisional | provisional | Melodies mostly step (spec: "steps of at most 2 scale degrees (mostly)") and breathe at the half phrase. |
+
+---
+
 ## 2026-11-09 — Build 1 balance pass (W2-D)
 
 ### Problem

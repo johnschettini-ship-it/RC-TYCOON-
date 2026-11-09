@@ -3,6 +3,7 @@
  * scenario cards, start conditions, end-screen facts, award mascots, newest save. Owner: W3-I. No DOM.
  */
 import { text } from '../../data/strings/en';
+import { scenarioName } from '../contentName';
 import type { Difficulty, Objective, ScenarioDef } from '../../data/scenarios/types';
 import { DIFFICULTY } from '../../data/tuning/scenario';
 import { DIFFICULTIES, openScenarioIds, unlockWinsFor, type Progress } from '../../progress';
@@ -150,7 +151,7 @@ export function scenarioCards(defs: readonly ScenarioDef[], progress: Progress |
     const best = Object.fromEntries(DIFFICULTIES.map((k) => [k, rec?.best[k]?.stars ?? null])) as Record<Difficulty, number | null>;
     return {
       id: d.id,
-      name: text(d.nameKey),
+      name: scenarioName(d),
       stars: d.stars,
       climate: d.climate,
       afterDark: d.afterDark,

@@ -89,6 +89,32 @@ export function initialLoadBytes(dist: string): number {
   return total;
 }
 
+/**
+ * Item 1: rows of the checklist's "Phase 6 done when" table still marked PENDING, and acceptance audits that are
+ * missing or have no result line (`docs/superpowers/specs/thrills-and-chills/build-{2,3}-acceptance.md`).
+ */
+export function doneWhenProblems(checklist: string, audits: Readonly<Record<string, string | null>>): string[] {
+  const out: string[] = [];
+  const start = checklist.indexOf('## Phase 6 done when');
+  if (start < 0) out.push('the checklist has no "Phase 6 done when" table');
+  else {
+    const rest = checklist.slice(start + 1);
+    const end = rest.indexOf('\n## ');
+    const rows = (end < 0 ? rest : rest.slice(0, end)).split('\n').filter((l) => l.startsWith('| ') && !/^\|\s*Done-when item/.test(l));
+    if (rows.length === 0) out.push('the "Phase 6 done when" table is empty');
+    for (const row of rows) {
+      const cells = row.split(' | ');
+      const status = (cells[cells.length - 1] ?? '').replace(/\|\s*$/, '');
+      if (/PENDING/.test(status)) out.push(`still PENDING: ${(cells[0] ?? '').replace(/^\|\s*/, '').slice(0, 60)}`);
+    }
+  }
+  for (const [path, text] of Object.entries(audits)) {
+    if (text === null) out.push(`${path} is missing`);
+    else if (!/^\*\*Result:/m.test(text)) out.push(`${path} has no result line`);
+  }
+  return out;
+}
+
 const kb = (n: number): string => `${(n / 1024).toFixed(1)} KB`;
 
 function run(cmd: string, args: string[], cwd: string): { ok: boolean; out: string } {
@@ -118,7 +144,11 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
   };
 
   // 1. Done-when items and CI.
-  add(1, 'Phase 6 "done when" items checked, CI green', 'manual', 'Tick each item in docs/release/build-3-checklist.md; CI (typecheck, unit, build, e2e) green on the release commit');
+  const read = (p: string): string | null => (existsSync(join(root, p)) ? readFileSync(join(root, p), 'utf8') : null);
+  const auditPaths = ['docs/superpowers/specs/thrills-and-chills/build-2-acceptance.md', 'docs/superpowers/specs/thrills-and-chills/build-3-acceptance.md'];
+  const dw = doneWhenProblems(read('docs/release/build-3-checklist.md') ?? '', Object.fromEntries(auditPaths.map((p) => [p, read(p)])));
+  add(1, 'Done-when rows decided (none PENDING); Build 2 and Build 3 acceptance audits written', dw.length === 0 ? 'pass' : 'fail', dw.length === 0 ? 'docs/release/build-3-checklist.md, build-2-acceptance.md, build-3-acceptance.md' : dw.join('; '));
+  add(1, 'CI green on the release commit', 'manual', 'GitHub Actions (typecheck, unit, build, e2e desktop and phone) on the commit that is tagged');
 
   // 2. Performance.
   const dist = join(root, 'dist');

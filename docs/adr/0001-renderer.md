@@ -51,7 +51,7 @@ Root causes found:
 ## Work order (Phase 6 §4.6 steps 1–4, and what else was needed)
 
 1. **Culling and chunk caches** (existed). Chunks are now **8 × 8 tiles** (a quarter of the image size and build
-   time; the master §5.1 "16 × 16" note is superseded by this ADR). Chunks with no image in the current rotation are
+   time; master §5.1, Phase 0 §4.8, and Phase 4 §4.10 now say 8 × 8). Chunks with no image in the current rotation are
    built while the frame has spent < 6 ms on them (at least one per frame); the rest draw a flat placeholder for a
    frame or two. On desktops, idle frames build the chunks of both neighbouring view rotations, so a turn usually
    finds them ready.

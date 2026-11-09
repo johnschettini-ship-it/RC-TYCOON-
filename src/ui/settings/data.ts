@@ -4,7 +4,7 @@
  * file that does not pass the Phase 5 check changes nothing.
  */
 import { SLOT_IDS, slotKey, type KeyValueStore } from '../../save';
-import { PROGRESS_KEY, parseProgress } from '../../progress';
+import type { ProgressStore } from '../../progress';
 import { text } from '../../data/strings/en';
 
 export const SAVES_EXPORT_FORMAT = 'thrills-and-chills-saves';
@@ -34,15 +34,12 @@ export function savesExport(store: KeyValueStore | null, exportedAt: string): st
   return JSON.stringify({ format: SAVES_EXPORT_FORMAT, exportedAt, saves }, null, 2);
 }
 
-/** Store a progress file the player picked (Phase 5 §4.12 check first). */
-export function importProgress(store: KeyValueStore | null, raw: string): { ok: true } | { ok: false; error: string } {
-  const r = parseProgress(raw);
-  if (!r.ok) return { ok: false, error: r.error };
-  if (!store) return { ok: false, error: text('settings.data.storageBlocked') };
-  try {
-    store.setItem(PROGRESS_KEY, JSON.stringify(r.progress));
-  } catch {
-    return { ok: false, error: text('settings.data.storageBlocked') };
-  }
-  return { ok: true };
+/**
+ * Store a progress file the player picked through the progress store (`ProgressStore.importRaw`: the Phase 5 §4.12
+ * check, the same errors as a load, nothing written when it fails).
+ */
+export function importProgress(store: ProgressStore, raw: string): { ok: true } | { ok: false; error: string } {
+  const r = store.importRaw(raw);
+  if (r.ok) return { ok: true };
+  return { ok: false, error: r.reason === 'invalid' ? r.error : text('settings.data.storageBlocked') };
 }

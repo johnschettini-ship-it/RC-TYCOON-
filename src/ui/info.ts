@@ -1,6 +1,7 @@
 /** Panel text helpers: warnings, guest target and thoughts, temperament. Owner: W1-B. Pure. */
 import { getShowSiteDef, temperamentGroup } from '../data/catalog';
 import { text } from '../data/strings/en';
+import { contentName } from './contentName';
 import type { Guest } from '../sim/guests/types';
 import { Content } from '../sim/map';
 import type { Ride } from '../sim/rides/types';
@@ -30,7 +31,7 @@ export function guestTargetLabel(world: World, guest: Guest): string {
       // Phase 6 §4.4: show sites have no player name; the panel and the label use the type name.
       const site = world.state.shows.find((s) => s.id === id);
       const def = site ? getShowSiteDef(site.defId) : undefined;
-      if (def) return def.name;
+      if (def) return contentName(def.id);
       return text('ui.guest.targetNone');
     }
     const found = kind === 'ride' ? world.state.rides.find((r) => r.id === id) : world.state.stalls.find((s) => s.id === id);

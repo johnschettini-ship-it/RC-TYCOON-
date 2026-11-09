@@ -5,6 +5,8 @@
  */
 import { getSceneryDef } from '../../data/catalog';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
+import { localizeReason } from '../../i18n';
 import { confirmScenery, exitSceneryTool, rotateScenery, sceneryInput, setSceneryRemoveMode } from '../../input/scenery';
 import { sceneryGhostOf } from '../../render/scenery/ghost';
 import type { UiContext } from '../context';
@@ -63,20 +65,20 @@ export function createStatusBar(ctx: UiContext, openPicker: () => void): StatusB
         setText(title, text('scenery.status.remove'));
         if (g && g.targetId >= 0) {
           valid = true;
-          setText(detail, text('scenery.status.removeTarget', { name: getSceneryDef(g.defId ?? '')?.name ?? '', refund: formatMoney(g.cost) }));
+          setText(detail, text('scenery.status.removeTarget', { name: getSceneryDef(g.defId ?? '') ? contentName(g.defId ?? '') : '', refund: formatMoney(g.cost) }));
         } else {
           setText(detail, g ? text('scenery.status.nothing') : text(touch ? 'scenery.status.removeHintTouch' : 'scenery.status.removeHint'));
           if (g) valid = false;
         }
       } else {
         const def = t.scenery.defId ? getSceneryDef(t.scenery.defId) : undefined;
-        setText(title, def ? text('scenery.status.place', { name: def.name, cost: formatMoney(def.buildCost) }) : text('scenery.status.pick'));
+        setText(title, def ? text('scenery.status.place', { name: contentName(def.id), cost: formatMoney(def.buildCost) }) : text('scenery.status.pick'));
         if (!def) setText(detail, '');
         else if (!g) setText(detail, text(touch ? 'scenery.status.hintTouch' : 'scenery.status.hintMouse'));
         else {
           valid = g.valid;
           const edge = def.edge && g.edge >= 0 ? ` · ${text('scenery.status.edge', { side: text(`scenery.edge.${g.edge}`) })}` : '';
-          setText(detail, (g.valid ? text('scenery.status.valid') : (g.reason ?? '')) + edge);
+          setText(detail, (g.valid ? text('scenery.status.valid') : localizeReason(g.reason ?? '')) + edge);
         }
       }
       rotate.hidden = st.remove;

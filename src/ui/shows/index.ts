@@ -9,6 +9,7 @@
  */
 import { getShowSiteDef } from '../../data/catalog';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
 import type { Game } from '../../game';
 import { findShowSite } from '../../sim/shows/api';
 import type { SimEvent } from '../../sim/types';
@@ -61,7 +62,7 @@ export function showEventToast(game: Game, ev: Extract<SimEvent, { type: 'show' 
   const site = findShowSite(game.world, ev.siteId);
   const def = site ? getShowSiteDef(site.defId) : undefined;
   if (!site || !def) return null;
-  return { message: text('shows.toast.announced', { name: def.name, time: tickTime(site.nextShowTick) }), kind: 'info' };
+  return { message: text('shows.toast.announced', { name: contentName(def.id), time: tickTime(site.nextShowTick) }), kind: 'info' };
 }
 
 export const showsUi: UiExtension = {

@@ -142,7 +142,7 @@ src/
     iso.ts             Tile ↔ screen math, height-aware.
     camera.ts          Pan, zoom, bounds, rotation (Phase 4).
     sprites/           Procedural drawing + sprite cache.
-    terrainCache.ts    Static tiles pre-drawn into 16 × 16-tile chunk images.
+    terrainCache.ts    Static tiles pre-drawn into 8 × 8-tile chunk images (ADR 0001).
     renderer.ts        Frame: terrain, depth-sorted objects, ghosts, overlays, lighting.
   input/               Pointer Events (mouse, touch, pen) + keyboard → tool actions.
   ui/                  HTML/CSS layer: HUD, toolbar, panels, dialogs, toasts.

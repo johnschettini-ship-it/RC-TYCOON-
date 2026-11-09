@@ -59,9 +59,8 @@ export function openSettingsScreen(ctx: UiContext, section?: string): void {
     file
       .text()
       .then((raw) => {
-        const r = importProgress(browserStore(), raw);
+        const r = importProgress(progressStore(), raw);
         if (r.ok) {
-          progressStore().read();
           ctx.toast(text('settings.data.progressImported'), 'info');
         } else {
           ctx.toast(r.error, 'error');
