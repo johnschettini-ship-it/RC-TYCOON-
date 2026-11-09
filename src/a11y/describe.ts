@@ -5,6 +5,7 @@
  */
 import { getSceneryDef, getShowSiteDef } from '../data/catalog';
 import { text } from '../data/strings/en';
+import { contentName } from '../ui/contentName';
 import { Content, DIR_DX, DIR_DY, Owned, PathItem } from '../sim/map';
 import type { World } from '../sim/types';
 
@@ -16,7 +17,7 @@ export function buildingName(world: World, ref: number): string | null {
   const stall = s.stalls.find((st) => st.id === ref);
   if (stall) return stall.name;
   const site = s.shows.find((x) => x.id === ref);
-  if (site) return getShowSiteDef(site.defId)?.name ?? null;
+  if (site) return getShowSiteDef(site.defId) ? contentName(site.defId) : null;
   return null;
 }
 
@@ -52,7 +53,7 @@ function contentPart(world: World, tile: number): string {
     case Content.Scenery: {
       const item = world.state.scenery.find((x) => x.id === ref);
       const def = item ? getSceneryDef(item.defId) : undefined;
-      return def ? def.name : text('a11y.scenery');
+      return def ? contentName(def.id) : text('a11y.scenery');
     }
     default:
       if ((map.water[tile] ?? 0) > (map.heights[tile] ?? 0)) return text('a11y.water');

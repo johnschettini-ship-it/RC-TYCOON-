@@ -1,6 +1,7 @@
 /**
  * Scenery layer (Phase 4 §4.5, §7, §4.8): 85 procedural items in 4 view rotations, wilted garden art, edge items,
- * arches split around the guests walking under them, and the scenery tool ghost (green or red with a reason icon).
+ * arches split around the guests walking under them, and the scenery tool ghost (the colour-blind safe blue or
+ * vermillion of `../palette.ts`, with a reason icon; outlines doubled with high contrast).
  * Owner: W3-D.
  *
  * Depth (master 6.4, §4.8 `u + v`): a 1 × 1 item sorts at its tile centre; a multi-tile item is cut into
@@ -16,6 +17,7 @@ import type { Dir } from '../../sim/map';
 import type { World } from '../../sim/types';
 import { footprintColumns, Layer, type ColumnTile } from '../depth';
 import { LAYER_KIND, type LayerFrame, type LayerSink, type WorldLayer } from '../layers';
+import { ghostFill, ghostLineWidth, ghostStroke } from '../palette';
 import type { Sprite } from '../spriteCache';
 import { drawGhostIcon } from '../sprites/props';
 import type { ToolState } from '../types';
@@ -158,9 +160,9 @@ export function createSceneryLayer(): WorldLayer {
       if (!g) return;
       const map = world.state.map;
       const r = f.rotation;
-      const fill = g.valid ? 'rgba(70,205,95,0.30)' : 'rgba(235,60,60,0.35)';
-      const stroke = g.valid ? '#7dff9a' : '#ff8a8a';
-      ctx.lineWidth = Math.max(1, f.scale);
+      const fill = ghostFill(g.valid);
+      const stroke = ghostStroke(g.valid);
+      ctx.lineWidth = ghostLineWidth(Math.max(1, f.scale));
       for (const t of g.tiles) outlineTile(ctx, f, map, t, r, fill, stroke);
       const def = g.defId ? getSceneryDef(g.defId) : undefined;
       let iconX = 0;
@@ -235,7 +237,7 @@ export function createSceneryLayer(): WorldLayer {
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = Math.max(2, 3 * f.scale);
+    ctx.lineWidth = ghostLineWidth(Math.max(2, 3 * f.scale));
     ctx.stroke();
   }
 }

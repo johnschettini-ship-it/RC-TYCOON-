@@ -7,6 +7,8 @@
 import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, type TrackPieceDef } from '../../data/track';
 import { getTrackRideDef } from '../../data/catalog/trackRides';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
+import { localizeReason } from '../../i18n';
 import { trackToolOf, type PaletteGroupId, type TrackToolState } from '../../render/track/toolState';
 import { findRide, trackData } from '../../sim/rides/track/common';
 import { pieceStatic } from '../../sim/rides/track/geometry';
@@ -151,7 +153,7 @@ function rideTitle(ctx: UiContext, st: TrackToolState): string {
     const r = findRide(ctx.game.world, st.rideId);
     if (r) return r.name;
   }
-  return st.typeId ? (getTrackRideDef(st.typeId)?.name ?? st.typeId) : text('ui.track.builder');
+  return st.typeId ? (getTrackRideDef(st.typeId) ? contentName(st.typeId) : st.typeId) : text('ui.track.builder');
 }
 
 export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
@@ -219,9 +221,9 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const pieceButtons: PieceButton[] = ALL_TRACK_PIECES.map((def) => {
     const b = h(
       'button',
-      { type: 'button', class: 'tb-piece', 'data-piece': def.id, 'data-testid': `track-piece-${def.id}`, 'aria-pressed': 'false', title: def.water?.wetsRiders ? `${def.name} · ${text('ui.track.wet')}` : def.name },
+      { type: 'button', class: 'tb-piece', 'data-piece': def.id, 'data-testid': `track-piece-${def.id}`, 'aria-pressed': 'false', title: def.water?.wetsRiders ? `${contentName(def.id)} · ${text('ui.track.wet')}` : contentName(def.id) },
       pieceIcon(def),
-      h('span', { class: 'tb-piece-name', text: def.name }),
+      h('span', { class: 'tb-piece-name', text: contentName(def.id) }),
     );
     b.addEventListener('pointerdown', (e) => {
       lastPointer = e.pointerType || 'mouse';
@@ -351,9 +353,9 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
         const type = s.typeId ? getTrackTypeDef(s.typeId) : undefined;
         setText(lenValue, s.stationLength === 1 ? text('ui.track.tile') : text('ui.track.tiles', { n: s.stationLength }));
         setText(stationHint, text(touch ? 'ui.track.station.hintTouch' : 'ui.track.station.hint'));
-        const name = s.typeId ? (getTrackRideDef(s.typeId)?.name ?? '') : '';
+        const name = s.typeId && getTrackRideDef(s.typeId) ? contentName(s.typeId) : '';
         const cost = g ? g.cost : type ? type.costs.base : 0;
-        setStatus(g ? g.valid : null, text('ui.track.station.cost', { name, cost: formatMoney(cost) }), g ? (g.valid ? text('ui.track.fits') : (g.reason ?? '')) : text('ui.track.station.title'));
+        setStatus(g ? g.valid : null, text('ui.track.station.cost', { name, cost: formatMoney(cost) }), g ? (g.valid ? text('ui.track.fits') : localizeReason(g.reason ?? '')) : text('ui.track.station.title'));
         confirm.toggleAttribute('disabled', !g);
         return;
       }
@@ -397,11 +399,11 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
           setStatus(null, text('ui.track.pickPiece'), '');
           return;
         }
-        const name = getTrackPieceDef(g.defId)?.name ?? g.defId;
+        const name = getTrackPieceDef(g.defId) ? contentName(g.defId) : g.defId;
         if (g.ok) {
           setStatus(true, `${name} · ✓ ${formatMoney(g.cost)}`, `${text('ui.track.height', { tag: heightTag(g.heightAboveGround) })}${g.closes ? ` · ${text('ui.track.closes')}` : ''}`);
         } else {
-          setStatus(false, `${name} · ✕`, g.reason ?? '');
+          setStatus(false, `${name} · ✕`, localizeReason(g.reason ?? ''));
         }
         return;
       }
@@ -411,7 +413,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       setText(gateHint, s.gateCandidates.length === 0 ? text('ui.track.gate.none') : text(touch ? 'ui.track.gate.hintTouch' : 'ui.track.gate.hint'));
       const g = s.gateGhost;
       const head = text(kind === 'entrance' ? 'ui.track.entrance.title' : 'ui.track.exit.title');
-      if (g) setStatus(g.valid, head, g.valid ? text('ui.track.fits') : (g.reason ?? ''));
+      if (g) setStatus(g.valid, head, g.valid ? text('ui.track.fits') : localizeReason(g.reason ?? ''));
       else setStatus(null, head, '');
       confirm.toggleAttribute('disabled', !g || !g.valid);
     },

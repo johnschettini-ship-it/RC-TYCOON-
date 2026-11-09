@@ -23,7 +23,20 @@ import type { World } from '../../sim/types';
 import type { ZoomBucket } from '../camera';
 import { buildSprite } from '../canvas';
 import { Layer } from '../depth';
-import { mix32, SHIRT_COLOURS, TAG_COLOURS } from '../palette';
+import {
+  GHOST_DARK_INVALID,
+  GHOST_DARK_VALID,
+  GHOST_FILL_INVALID,
+  GHOST_INVALID,
+  GHOST_LIGHT_INVALID,
+  GHOST_LIGHT_VALID,
+  ghostFill,
+  ghostLineWidth,
+  ghostStroke,
+  mix32,
+  SHIRT_COLOURS,
+  TAG_COLOURS,
+} from '../palette';
 import { bucketIndex, SpriteCache, type Sprite } from '../spriteCache';
 import { drawGhostIcon } from '../sprites/props';
 import type { ArtBounds } from '../sprites/rides';
@@ -920,7 +933,7 @@ export class TrackLayer {
     const k = Math.max(0.8, Math.min(2.4, this.scale));
     if (st.phase === 'station' && st.stationGhost) {
       const g = st.stationGhost;
-      for (const t of g.tiles) this.tileOutline(ctx, map.width, t, map.heights[t] as number, g.valid ? 'rgba(70,205,95,0.35)' : 'rgba(235,60,60,0.4)', g.valid ? '#7dff9a' : '#ff8a8a');
+      for (const t of g.tiles) this.tileOutline(ctx, map.width, t, map.heights[t] as number, ghostFill(g.valid), ghostStroke(g.valid));
       // Direction arrow along the station.
       const first = g.tiles[0];
       if (first !== undefined) {
@@ -932,7 +945,7 @@ export class TrackLayer {
         const len = g.length * TILE_M;
         const x1 = x0 + dirX * len;
         const y1 = y0 + dirY * len;
-        this.arrow(ctx, x0 - dirX * 1.5, y0 - dirY * 1.5, x1 - dirX * 1.5, y1 - dirY * 1.5, z + 0.3, g.valid ? '#eafff0' : '#ffe1e1');
+        this.arrow(ctx, x0 - dirX * 1.5, y0 - dirY * 1.5, x1 - dirX * 1.5, y1 - dirY * 1.5, z + 0.3, g.valid ? GHOST_LIGHT_VALID : GHOST_LIGHT_INVALID);
         const lx = this.devX(projectX(x0, y0, this.frameRef));
         const ly = this.devY(projectY(x0, y0, z + 3, this.frameRef));
         drawGhostIcon(ctx, lx, ly, g.valid, 10 * k);
@@ -949,7 +962,7 @@ export class TrackLayer {
       ctx.setLineDash([]);
       const g = st.gateGhost;
       if (g && g.tile >= 0 && g.tile < map.width * map.height) {
-        this.tileOutline(ctx, map.width, g.tile, map.heights[g.tile] as number, g.valid ? 'rgba(70,205,95,0.45)' : 'rgba(235,60,60,0.45)', g.valid ? '#7dff9a' : '#ff8a8a');
+        this.tileOutline(ctx, map.width, g.tile, map.heights[g.tile] as number, ghostFill(g.valid), ghostStroke(g.valid));
         const gx = g.tile % map.width;
         const gy = (g.tile - gx) / map.width;
         const x = this.devX(projectX((gx + 0.5) * TILE_M, (gy + 0.5) * TILE_M, this.frameRef));
@@ -965,8 +978,9 @@ export class TrackLayer {
     const s = this.ghostSamples.s;
     const f = this.frameRef;
     const fr = this.fr;
-    for (const t of g.conflictTiles) this.tileOutline(ctx, map.width, t, map.heights[t] as number, 'rgba(235,60,60,0.35)', '#ff5c5c');
-    const colour = g.ok ? 'rgba(90,230,120,0.9)' : 'rgba(255,90,90,0.9)';
+    for (const t of g.conflictTiles) this.tileOutline(ctx, map.width, t, map.heights[t] as number, GHOST_FILL_INVALID, GHOST_INVALID);
+    // Light tints of the safe pair: the rails stay readable over dark terrain and track art.
+    const colour = g.ok ? GHOST_LIGHT_VALID : GHOST_LIGHT_INVALID;
     // Two rails and the centre line.
     for (const side of [-0.6, 0, 0.6]) {
       ctx.beginPath();
@@ -981,7 +995,7 @@ export class TrackLayer {
         else ctx.lineTo(x, y);
       }
       ctx.strokeStyle = colour;
-      ctx.lineWidth = side === 0 ? Math.max(1, 1.2 * this.scale) : Math.max(1.5, 2.2 * this.scale);
+      ctx.lineWidth = ghostLineWidth(side === 0 ? Math.max(1, 1.2 * this.scale) : Math.max(1.5, 2.2 * this.scale));
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.stroke();
@@ -1008,7 +1022,7 @@ export class TrackLayer {
     const label = g.ok ? `✓ ${moneyLabel(g.cost)}` : '✕';
     const tag = `+${Math.max(0, Math.round(g.heightAboveGround))} m`;
     drawGhostIcon(ctx, x, yTop - 14 * k, g.ok, 8 * k);
-    this.label(ctx, x + 12 * k, yTop - 14 * k, label, g.ok ? '#1f6b34' : '#8a1f23');
+    this.label(ctx, x + 12 * k, yTop - 14 * k, label, g.ok ? GHOST_DARK_VALID : GHOST_DARK_INVALID);
     this.label(ctx, x + 12 * k, yTop + 4 * k, tag, '#25374a');
   }
 
@@ -1047,7 +1061,7 @@ export class TrackLayer {
     ctx.moveTo(bx, by);
     ctx.lineTo(bx - ux * h + uy * h * 0.6, by - uy * h - ux * h * 0.6);
     ctx.strokeStyle = colour;
-    ctx.lineWidth = Math.max(1.5, 2.5 * this.scale);
+    ctx.lineWidth = ghostLineWidth(Math.max(1.5, 2.5 * this.scale));
     ctx.lineCap = 'round';
     ctx.stroke();
   }
@@ -1074,7 +1088,7 @@ export class TrackLayer {
     ctx.fillStyle = fill;
     ctx.fill();
     ctx.strokeStyle = stroke;
-    ctx.lineWidth = Math.max(1, 1.5 * this.scale);
+    ctx.lineWidth = ghostLineWidth(Math.max(1, 1.5 * this.scale));
     ctx.stroke();
   }
 }

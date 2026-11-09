@@ -413,7 +413,7 @@ Chill and Thrill below mean the master R6 groups (Chill: T ≤ 35, Thrill: T ≥
 ### 4.10 Performance (128 × 128, 3,000 guests)
 | Item | Rule |
 |---|---|
-| Terrain chunks | 16 × 16 tiles. Image bounds include the chunk's height range. LRU cache capped at 64 MB of image memory. |
+| Terrain chunks | 8 × 8 tiles (16 × 16 until Phase 6; `docs/adr/0001-renderer.md`). Image bounds include the chunk's height range. LRU cache capped at 64 MB of image memory. |
 | Chunk invalidation | A terrain, water, or ground-object edit marks its chunk dirty. An edit on a chunk edge also marks the neighbour chunk. |
 | Sprite cache | LRU capped at 96 MB across rotations and zoom buckets. |
 | Guests at zoom ≤ 0.5 | Drawn as 2 × 3 px rectangles grouped by colour (level of detail). |

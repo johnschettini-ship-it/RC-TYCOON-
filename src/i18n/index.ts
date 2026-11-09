@@ -9,11 +9,12 @@
  *   (the game calendar is not a real calendar). English: "Mar · Year 1 · 09:00" (the Build 2 text).
  * - `localizeReason(reason)`: command reasons and warnings are English text from the sim (master R27); the client
  *   maps a reason back to its string id (exact text, or a template with `{…}` placeholders) and shows it in the
- *   current locale. Unknown text is shown as is.
+ *   current locale. Catalog names inside a reason are shown in the current locale too. Unknown text is shown as is.
  */
 import type { Game } from '../game';
 import { currentLocale, matchLocale, LOCALES, setLocale, t } from '../data/strings/index';
 import { clockOf, monthOfYear, yearOf } from '../sim/time';
+import { contentIdOfName, contentKey } from '../data/strings/content';
 import { exactReasonId, reasonId } from './reasons';
 
 export { reasonId } from './reasons';
@@ -70,8 +71,16 @@ export function localizeReason(reason: string): string {
   if (!m) return reason;
   const params = { ...m.params };
   for (const [k, v] of Object.entries(params)) {
-    const inner = typeof v === 'string' ? exactReasonId(v) : null;
-    if (inner) params[k] = t(inner);
+    if (typeof v !== 'string') continue;
+    const inner = exactReasonId(v);
+    if (inner) {
+      params[k] = t(inner);
+      continue;
+    }
+    // A catalog name inside a reason ("Test failed: train stopped on piece 4 (Steep Slope Up)") is shown in the
+    // current locale too (`content.<id>`, Build 3 gate).
+    const content = contentIdOfName(v);
+    if (content !== undefined) params[k] = t(contentKey(content));
   }
   return t(m.id, params);
 }

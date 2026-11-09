@@ -21,7 +21,7 @@ import type { ZoomBucket } from '../camera';
 import { Layer, viewPointDepth } from '../depth';
 import { walkerHeights, type GuestPos } from '../guestPos';
 import { STEP_PX, TILE_H, TILE_W } from '../iso';
-import { mix32 } from '../palette';
+import { GHOST_FILL_INVALID, GHOST_LIGHT_INVALID, mix32 } from '../palette';
 import { pathJoinMask } from '../paths';
 import type { Sprite } from '../spriteCache';
 import { DECAL_MESS, decalSpriteKey, pathItemSpriteKey, staffSpriteKey, type SpriteBank } from '../sprites/bank';
@@ -555,7 +555,7 @@ export class ManagementLayer {
     ctx.globalAlpha = 1;
   }
 
-  /** Patrol stroke colours: paint (violet) or erase (red). */
+  /** Patrol stroke colours: paint (violet) or erase (the safe vermillion of `../palette.ts`). */
   strokeColours(tool: ToolState): { fill: string; stroke: string } {
     const o = toolOptions(tool);
     return (o.strokeMode ?? o.patrolMode) === 'erase' ? ERASE_COLOURS : PAINT_COLOURS;
@@ -563,7 +563,7 @@ export class ManagementLayer {
 }
 
 const PAINT_COLOURS = { fill: 'rgba(124,92,255,0.4)', stroke: '#d6ccff' };
-const ERASE_COLOURS = { fill: 'rgba(229,72,77,0.4)', stroke: '#ffb3b5' };
+const ERASE_COLOURS = { fill: GHOST_FILL_INVALID, stroke: GHOST_LIGHT_INVALID };
 
 function findIndexById(list: ReadonlyArray<{ id: number }>, id: number): number {
   let lo = 0;

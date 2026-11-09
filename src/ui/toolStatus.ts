@@ -4,6 +4,8 @@
  */
 import { getFlatRideDef, getStallDef } from '../data/catalog';
 import { text } from '../data/strings/en';
+import { contentName } from './contentName';
+import { localizeReason } from '../i18n';
 import type { Dir } from '../sim/map';
 import type { UiContext } from './context';
 import { h, setText, toggleClass } from './dom';
@@ -78,11 +80,11 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
       if (place) {
         const g = t.ghost;
         const def = t.defId ? (t.tool === 'placeRide' ? getFlatRideDef(t.defId) : getStallDef(t.defId)) : undefined;
-        const name = def?.name ?? '';
+        const name = def ? contentName(def.id) : '';
         setText(msg, def ? text('ui.status.placeCost', { name, cost: formatMoney(def.buildCost) }) : '');
         if (g) {
           valid = g.valid;
-          setText(detail, g.valid ? text('ui.ghost.valid') : (g.reason ?? ''));
+          setText(detail, g.valid ? text('ui.ghost.valid') : localizeReason(g.reason ?? ''));
         } else {
           setText(detail, '');
         }
@@ -93,7 +95,7 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
         // The cost and the refusal come from the build command's dry run (`pathLinePreview`).
         if (d?.reason) {
           valid = false;
-          setText(detail, d.reason);
+          setText(detail, localizeReason(d.reason));
         } else if (d) setText(detail, d.tiles.length === 1 ? text('ui.status.pathTile', { cost: formatMoney(d.cost) }) : text('ui.status.pathTiles', { count: d.tiles.length, cost: formatMoney(d.cost) }));
         else setText(detail, text('ui.status.pathHint'));
       } else {

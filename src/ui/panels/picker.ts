@@ -4,6 +4,7 @@
  */
 import { FLAT_RIDES, STALLS, type FlatRideDef, type StallDef } from '../../data/catalog';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
 import { drawPreview } from '../../render/renderer';
 import { isUnlocked } from '../../sim/research/api';
 import type { PanelView, UiContext } from '../context';
@@ -59,7 +60,7 @@ function rideCard(ctx: UiContext, def: FlatRideDef): HTMLElement {
       onclick: () => choose(ctx, 'placeRide', def.id),
     },
     preview(def.id),
-    cardTitle(def.name),
+    cardTitle(contentName(def.id)),
     h('span', { class: 'tag-chip', text: tag }),
     ...stats.map(([l, v]) => miniBar(l, v)),
     h('span', { class: 'card-cost', text: cost }),
@@ -79,7 +80,7 @@ function stallCard(ctx: UiContext, def: StallDef): HTMLElement {
       onclick: () => choose(ctx, 'placeStall', def.id),
     },
     preview(def.id),
-    cardTitle(def.name),
+    cardTitle(contentName(def.id)),
     h('span', { class: 'tag-chip', text: kind }),
     h('span', { class: 'card-price', text: price }),
     h('span', { class: 'card-cost', text: cost }),

@@ -2,6 +2,7 @@
  * Progress storage (Phase 5 §4.12): validation on read, errors and no writes after a failed read, the merge rule,
  * the player's reset, the tutorial flag, unlock thresholds (§4.7), and a win recorded once.
  */
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   emptyProgress,
@@ -132,6 +133,16 @@ describe('reading progress', () => {
     expect(store.blocked()).toBe(false);
     expect(store.recordResult('meadow_start', 1, 'standard', best())).toBe(true);
     expect(store.read()).toEqual({ ok: true, progress: { ...emptyProgress(), scenarios: { meadow_start: { defVersion: 1, best: { standard: best() } } } } });
+  });
+
+  it('writes stay blocked after a failed read even when a later import is refused', () => {
+    const s = stored('not json');
+    const store = new ProgressStore(s);
+    expect(store.read().ok).toBe(false);
+    expect(store.importRaw('[]')).toEqual({ ok: false, reason: 'invalid', error: ERR_PROGRESS_UNREADABLE });
+    expect(store.blocked()).toBe(true);
+    expect(s.writes).toBe(0);
+    expect(s.getItem(PROGRESS_KEY)).toBe('not json');
   });
 
   it('a record with an older defVersion stays as it is', () => {
@@ -327,5 +338,82 @@ describe('progress from sim events: a win is recorded once (Phase 5 §4.4)', () 
     expect(recordProgressEvents(store, w, drainEvents(w), 't')).toBe(1);
     const r = store.read();
     expect(r.ok && r.progress.tutorialDone).toBe(true);
+  });
+});
+
+describe('importing a progress file (Settings → Data)', () => {
+  it('a valid file replaces the stored progress and becomes the current read', () => {
+    const s = stored(emptyProgress());
+    const store = new ProgressStore(s);
+    expect(store.read().ok).toBe(true);
+    expect(store.importRaw(SPEC_EXAMPLE)).toEqual({ ok: true, progress: good() });
+    expect(s.writes).toBe(1);
+    expect(JSON.parse(s.getItem(PROGRESS_KEY) as string)).toEqual(good());
+    expect(store.current()).toEqual({ ok: true, progress: good() });
+    expect(new ProgressStore(s).read()).toEqual({ ok: true, progress: good() });
+  });
+
+  it('the Build 2 progress fixture imports', () => {
+    const raw = readFileSync('tests/fixtures/progress-v2.json', 'utf8');
+    const s = new FakeStore();
+    const r = new ProgressStore(s).importRaw(raw);
+    expect(r.ok).toBe(true);
+    expect(new ProgressStore(s).read()).toEqual(parseProgress(raw));
+  });
+
+  const refused: Array<[string, unknown]> = [
+    ['bad JSON', '{"format": "thrills-and-chills-progress", '],
+    ['not an object', '[]'],
+    ['wrong format', { ...good(), format: 'thrills-and-chills-save' }],
+    ['version 0', { ...good(), version: 0 }],
+    ['missing tutorialDone', { format: 'thrills-and-chills-progress', version: 1, scenarios: {} }],
+    ['record without best', { ...good(), scenarios: { meadow_start: { defVersion: 1 } } }],
+    ['stars out of range', { ...good(), scenarios: { meadow_start: { defVersion: 1, best: { standard: best({ stars: 4 }) } } } }],
+    ['unknown preset', { ...good(), scenarios: { meadow_start: { defVersion: 1, best: { insane: best() } } } }],
+    ['extra field', { ...good(), cheats: true }],
+    ['a newer version', { ...good(), version: 2 }],
+  ];
+  for (const [name, data] of refused) {
+    it(`${name}: the same error as a load, nothing written, the last read kept`, () => {
+      const raw = typeof data === 'string' ? data : JSON.stringify(data);
+      const s = stored(good());
+      const before = s.getItem(PROGRESS_KEY);
+      const store = new ProgressStore(s);
+      const last = store.read();
+      const load = parseProgress(raw);
+      expect(load.ok).toBe(false);
+      const r = store.importRaw(raw);
+      expect(r).toEqual({ ok: false, reason: 'invalid', error: load.ok ? '' : load.error });
+      expect(s.writes).toBe(0);
+      expect(s.getItem(PROGRESS_KEY)).toBe(before);
+      expect(store.current()).toEqual(last);
+      expect(store.blocked()).toBe(false);
+    });
+  }
+
+  it('a newer file says so (not the generic message)', () => {
+    expect(new ProgressStore(new FakeStore()).importRaw(JSON.stringify({ ...good(), version: 2 }))).toEqual({ ok: false, reason: 'invalid', error: ERR_PROGRESS_NEWER });
+  });
+
+  it('a valid file after a failed read (the player chose it) is stored and unblocks the store', () => {
+    const s = stored('not json');
+    const store = new ProgressStore(s);
+    expect(store.read().ok).toBe(false);
+    expect(store.importRaw(SPEC_EXAMPLE).ok).toBe(true);
+    expect(store.blocked()).toBe(false);
+    expect(store.recordResult('meadow_start', 1, 'tough', best())).toBe(true);
+  });
+
+  it('a device that refuses the write reports storage and keeps the last read', () => {
+    expect(new ProgressStore(null).importRaw(SPEC_EXAMPLE)).toEqual({ ok: false, reason: 'storage' });
+    const s = stored(emptyProgress());
+    const store = new ProgressStore(s);
+    const last = store.read();
+    s.setItem = () => {
+      throw new Error('QuotaExceededError');
+    };
+    expect(store.importRaw(SPEC_EXAMPLE)).toEqual({ ok: false, reason: 'storage' });
+    expect(store.current()).toEqual(last);
+    expect(JSON.parse(s.data.get(PROGRESS_KEY) as string)).toEqual(emptyProgress());
   });
 });

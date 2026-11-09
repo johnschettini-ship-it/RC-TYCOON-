@@ -2,9 +2,10 @@
  * Land and water tool ghosts (Phase 4 §7): the brush outline with its cost, the marked corner, the level rectangle,
  * drawn from `tool.brush` in `drawOverlay`. Owner: W3-A.
  *
- * Each covered tile is outlined on its top face (its 4 corner heights), green when the command would succeed and
- * red when not (the bar shows the reason with an icon, so colour is never the only signal); the Water tool uses
- * blue. Corner mode adds a ring on the vertex. A cost label sits above the ghost. Map points go through the view
+ * Each covered tile is outlined on its top face (its 4 corner heights), in the colour-blind safe pair of
+ * `../palette.ts`: blue when the command would succeed and vermillion when not (the bar shows the reason with an icon,
+ * so colour is never the only signal); the Water tool uses the palette's sky blue. Outlines are doubled with high
+ * contrast. Corner mode adds a ring on the vertex. A cost label sits above the ghost. Map points go through the view
  * rotation (the `mapToViewContinuous` table, inlined to avoid allocations) and then the master 6.4 projection.
  * No allocations per frame: scratch numbers only; the label text and width are cached per value.
  */
@@ -12,6 +13,7 @@ import type { Dir, MapState } from '../../sim/map';
 import type { World } from '../../sim/types';
 import { STEP_PX, TILE_H, TILE_W } from '../iso';
 import type { LayerFrame, WorldLayer } from '../layers';
+import { GHOST_FILL_INVALID, GHOST_INVALID, GHOST_VALID, GHOST_WATER, ghostLineWidth, withAlpha } from '../palette';
 import type { ToolState } from '../types';
 import { isTerrainTool } from './toolState';
 
@@ -23,9 +25,9 @@ export interface GhostColours {
   stroke: string;
 }
 
-const LAND_OK: GhostColours = { fill: 'rgba(70,205,95,0.30)', stroke: '#7dff9a' };
-const WATER_OK: GhostColours = { fill: 'rgba(80,170,255,0.32)', stroke: '#a8dcff' };
-const BAD: GhostColours = { fill: 'rgba(235,60,60,0.38)', stroke: '#ff8a8a' };
+const LAND_OK: GhostColours = { fill: withAlpha(GHOST_VALID, 0.32), stroke: GHOST_VALID };
+const WATER_OK: GhostColours = { fill: withAlpha(GHOST_WATER, 0.32), stroke: GHOST_WATER };
+const BAD: GhostColours = { fill: GHOST_FILL_INVALID, stroke: GHOST_INVALID };
 
 export function terrainGhostColours(tool: 'land' | 'water', valid: boolean): GhostColours {
   if (!valid) return BAD;
@@ -99,7 +101,7 @@ export function createTerrainToolLayer(): WorldLayer {
       const map = world.state.map;
       const n = map.width * map.height;
       const col = terrainGhostColours(tool.tool, b.valid);
-      const lw = Math.max(1, 1.5 * f.scale);
+      const lw = ghostLineWidth(Math.max(1, 1.5 * f.scale));
       let top = Infinity;
       let left = Infinity;
       let right = -Infinity;

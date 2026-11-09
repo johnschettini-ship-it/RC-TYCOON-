@@ -4,6 +4,7 @@
  */
 import { getTrackRideDef } from '../../data/catalog/trackRides';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
 import type { TrackTypeDef } from '../../data/track';
 import { drawTrackPreview } from '../../render/track';
 import type { UiContext } from '../context';
@@ -31,7 +32,7 @@ function preview(typeId: string): HTMLCanvasElement {
 
 function trackCard(ctx: UiContext, type: TrackTypeDef): HTMLElement {
   const cat = getTrackRideDef(type.id);
-  const name = cat?.name ?? type.id;
+  const name = cat ? contentName(type.id) : type.id;
   const tagId = cat?.tag ?? 'thrill';
   const tag = text(`ui.tag.${tagId}`);
   const cost = formatMoney(stationCost(type, minStationTiles(type, type.vehicle.defaultCars)));

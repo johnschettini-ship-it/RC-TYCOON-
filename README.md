@@ -81,7 +81,7 @@ Build 3 ships **English** and **`en-XA`**, a pseudo-locale (every letter accente
 
 **Add a language:**
 1. Copy `src/data/strings/en.ts` to `src/data/strings/<code>.ts` (or build the table from the English sections as `en-XA.ts` does).
-2. Translate every value. Keep every `{placeholder}` exactly. Give the plural forms your language needs (`zero`, `one`, `two`, `few`, `many`, `other`) for each key in `plurals.ts`. `date.clock` is `24` or `12`.
+2. Translate every value, including the content names (`content.<id>`: rides, track types and pieces, stalls, scenery, show sites, campaigns, and scenario names and descriptions; `src/data/strings/content.ts` lists them from the catalogs). Keep every `{placeholder}` exactly. Give the plural forms your language needs (`zero`, `one`, `two`, `few`, `many`, `other`) for each key in `plurals.ts`. `date.clock` is `24` or `12`.
 3. Add the locale to `LOCALES` in `src/data/strings/index.ts`.
 4. Run `npm test`. The completeness test fails for a missing key, an extra key, or a placeholder mismatch.
 5. Check the screens at 175% text scale.

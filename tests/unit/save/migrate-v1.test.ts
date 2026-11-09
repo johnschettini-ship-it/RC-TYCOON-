@@ -139,6 +139,17 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
     runTicks(w, 1200);
     expect(validateState(w.state)).toBeNull();
   });
+
+  // Phase 4 §10 names 3 fixtures: the new and the rich Build 1 parks play a whole game month too (Build 2 audit).
+  for (const name of ['save-v1-new.tcsave.json', 'save-v1-rich.tcsave.json'] as const) {
+    it(`${name} keeps playing for a game month (Phase 4 §10)`, { timeout: 60_000 }, () => {
+      const w = load(read(name));
+      const monthBefore = Math.floor(w.state.tick / 3600);
+      runTicks(w, 3600);
+      expect(Math.floor(w.state.tick / 3600)).toBe(monthBefore + 1);
+      expect(validateState(w.state)).toBeNull();
+    });
+  }
 });
 
 describe('migration 1 → 2 rejects bad Build 1 saves (Phase 4 §5.1 steps 1 and 6, Review Focus 3)', () => {

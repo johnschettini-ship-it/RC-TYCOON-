@@ -24,6 +24,7 @@ import { buildSprite } from '../canvas';
 import { footprintColumns, Layer, type ColumnTile } from '../depth';
 import { LAYER_KIND, type LayerFrame, type LayerSink, type WorldLayer } from '../layers';
 import { darknessAt } from '../lighting/darkness';
+import { ghostFill, ghostLineWidth, ghostStroke } from '../palette';
 import { SpriteCache, spriteKey, type Sprite } from '../spriteCache';
 import { GHOST_TINT_INVALID, GHOST_TINT_VALID } from '../sprites/bank';
 import { drawGhostIcon } from '../sprites/props';
@@ -193,7 +194,7 @@ export function createShowLayer(): ShowLayer {
     for (const t of footprint) if (t >= 0 && t < map.width * map.height) tilePath(ctx, f, world, t);
     ctx.fillStyle = fill;
     ctx.fill();
-    ctx.lineWidth = Math.max(1, f.scale);
+    ctx.lineWidth = ghostLineWidth(Math.max(1, f.scale));
     ctx.strokeStyle = stroke;
     ctx.stroke();
     ctx.restore();
@@ -316,8 +317,8 @@ export function createShowLayer(): ShowLayer {
         const g = showGhostOf(tool);
         const def = g ? getShowSiteDef(g.defId) : undefined;
         if (!g || !def) return;
-        const fill = g.valid ? 'rgba(70,205,95,0.30)' : 'rgba(235,60,60,0.35)';
-        const stroke = g.valid ? '#7dff9a' : '#ff8a8a';
+        const fill = ghostFill(g.valid);
+        const stroke = ghostStroke(g.valid);
         drawViewingArea(ctx, f, world, g.x, g.y, def, g.tiles, fill, stroke);
         const z = g.tiles.length > 0 ? (map.heights[g.tiles[0] as number] ?? 0) : 0;
         const { ax, ay } = anchorOf(g.x, g.y, def.w, z);
