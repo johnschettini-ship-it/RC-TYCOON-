@@ -27,7 +27,8 @@ test.describe('HUD and toolbar', () => {
 
   test('the HUD shows the park name, cash, and a date with the clock', async ({ page }, info) => {
     await expect(page.getByTestId('hud-date')).toHaveText(/^(Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Jan|Feb) · Year \d+ · \d\d:\d\d$/);
-    await expect(page.getByTestId('hud-cash')).toHaveText('$15,000');
+    // A new park runs at 1×, so hourly costs (research budget) start at once: check format and range, not an exact amount.
+    await expect(page.getByTestId('hud-cash')).toHaveText(/^\$1[45],\d{3}(\.\d{2})?$/);
     if (info.project.name === 'desktop') await expect(page.getByTestId('hud-name')).toHaveText('Test Park');
   });
 
