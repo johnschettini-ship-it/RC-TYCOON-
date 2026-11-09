@@ -171,6 +171,47 @@ describe('place ride and stall tools', () => {
     expect(cmds).toEqual([]);
   });
 
+  it('a second finger during ghost placement starts a pinch: the ghost stays and nothing is placed', () => {
+    const { game, ctl, cmds, at, ev } = setup();
+    game.tool.tool = 'placeRide';
+    game.tool.defId = 'carousel';
+    ctl.update(0);
+    const before = game.tool.ghost?.tile;
+    const p = at(12, 12);
+    ev({ type: 'down', id: 1, ...p });
+    ev({ type: 'down', id: 2, x: p.x + 80, y: p.y, t: 20 });
+    ev({ type: 'up', id: 1, ...p, t: 40 });
+    ev({ type: 'up', id: 2, x: p.x + 80, y: p.y, t: 50 });
+    ctl.update(60);
+    expect(game.tool.ghost?.tile).toBe(before);
+    expect(cmds).toEqual([]);
+  });
+
+  it('the mouse leaving the map keeps the ghost where it was (so Confirm and Rotate can be reached)', () => {
+    const { game, ctl, at, ev } = setup();
+    game.tool.tool = 'placeStall';
+    game.tool.defId = 'fizz_stand';
+    ev({ type: 'move', pointerType: 'mouse', ...at(9, 9) });
+    ctl.hoverOut();
+    ctl.update(0);
+    expect(game.tool.ghost?.tile).toBe(tileIndex(game.world.state.map, 9, 9));
+  });
+
+  it('after touch input, a new placement starts its ghost at the screen centre', () => {
+    const { game, ctl, at, ev } = setup();
+    ev({ type: 'down', ...at(5, 5) });
+    ev({ type: 'up', ...at(5, 5), t: 30 });
+    expect(game.tool.hoverTile).toBe(tileIndex(game.world.state.map, 5, 5));
+    game.tool.tool = 'placeRide';
+    game.tool.defId = 'carousel';
+    ctl.update(40);
+    const centre = game.tool.ghost?.tile ?? -1;
+    const w = game.world.state.map.width;
+    // Carousel ghost origin is one tile up-left of the anchor; the anchor is near the map middle.
+    expect(Math.abs((centre % w) + 1 - 32)).toBeLessThanOrEqual(2);
+    expect(Math.abs(Math.floor(centre / w) + 1 - 32)).toBeLessThanOrEqual(2);
+  });
+
   it('leaving the place tool removes the ghost', () => {
     const { game, ctl } = setup();
     game.tool.tool = 'placeRide';

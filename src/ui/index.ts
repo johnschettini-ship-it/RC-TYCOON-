@@ -169,6 +169,14 @@ export function mountUI(root: HTMLElement, game: Game): void {
     lastSelection = null;
   });
 
+  // After a mouse or touch click on a HUD or toolbar button, drop its focus so Space pauses the game
+  // instead of pressing the button again. Keyboard activation (detail 0) keeps focus.
+  root.addEventListener('click', (e) => {
+    if ((e as MouseEvent).detail === 0) return;
+    const b = (e.target as Element | null)?.closest('.toolbar button, .hud button, .tool-status button');
+    if (b instanceof HTMLElement) b.blur();
+  });
+
   window.addEventListener(UI_INTENT_EVENT, (e) => {
     const intent = (e as CustomEvent<string>).detail;
     if (intent === 'finance') {

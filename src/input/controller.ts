@@ -10,7 +10,7 @@ import { pickTile, screenToTileFlat } from '../render/iso';
 import { defaultToolState, type ToolId } from '../render/types';
 import type { Dir } from '../sim/map';
 import { KEY_ZOOM_FACTOR, centerOnMap, clampToMap, panCamera, wheelZoomFactor } from './camera';
-import { GestureRecognizer, type DragMode, type GestureAction, type GesturePointerEvent } from './gestures';
+import { GestureRecognizer, type DragMode, type GestureAction, type GesturePointerEvent, type PointerKind } from './gestures';
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
 import { computeGhost, pathKindOf, pathLineCost, pathLineEnd, pathLineTiles, pickEntity } from './tools';
 
@@ -32,6 +32,7 @@ export class InputController {
   private lastSpeed: 1 | 2 | 4 = 1;
   private lastUpdate: number | null = null;
   private readonly held = new Set<PanDir>();
+  private lastPointer: PointerKind = 'mouse';
 
   constructor(
     private readonly game: Game,
@@ -47,6 +48,7 @@ export class InputController {
   }
 
   pointer(ev: GesturePointerEvent): void {
+    this.lastPointer = ev.pointerType;
     this.apply(this.gestures.handle(ev));
   }
 
@@ -74,8 +76,11 @@ export class InputController {
     clampToMap(this.game.camera, this.game.world.state.map);
   }
 
+  /** The mouse left the map. A place-tool ghost stays put so the Confirm and Rotate buttons can be reached. */
   hoverOut(): void {
-    if (!this.gestures.active) this.game.tool.hoverTile = null;
+    const t = this.game.tool;
+    if (this.gestures.active || t.tool === 'placeRide' || t.tool === 'placeStall') return;
+    t.hoverTile = null;
   }
 
   /** Returns true when the key was used (the caller then prevents the browser default). */
@@ -150,10 +155,13 @@ export class InputController {
   }
 
   private toolChanged(): void {
-    this.lastTool = this.game.tool.tool;
+    const t = this.game.tool;
+    this.lastTool = t.tool;
     this.apply(this.gestures.reset());
-    this.game.tool.drag = null;
-    this.game.tool.ghost = null;
+    t.drag = null;
+    t.ghost = null;
+    // Touch has no hover: a new placement starts at the screen centre, not at an old tap.
+    if ((t.tool === 'placeRide' || t.tool === 'placeStall') && this.lastPointer !== 'mouse') t.hoverTile = null;
     this.refreshGhost();
   }
 
@@ -262,6 +270,8 @@ export class InputController {
         if (tile !== null) game.dispatch({ type: 'demolish', x: tile % w, y: Math.floor(tile / w) });
         return;
       default:
+        // Touch has no hover: the highlight follows the tapped tile (Phase 0 §10).
+        tool.hoverTile = tile;
         tool.selectedTile = tile;
         tool.selectedEntity = pickEntity(game.world, tile);
     }
