@@ -32,6 +32,7 @@ The player builds a track ride piece by piece, tests it, sees its ratings, and o
 
 ### 4.1 Track grid and joint state
 - Track pieces align to tiles. Directions: 0 = +x, 1 = +y, 2 = −x, 3 = −y. A right turn is `dir + 1 (mod 4)`.
+- This **track direction** (`TrackDir`) is used only inside the track system (pieces, joints, `TrackPieceInstance.dir`). Commands and `Ride.rotation` use the map `Dir` (master spec: 0 = N (−y), 1 = E (+x), 2 = S (+y), 3 = W (−x)). `placeStation` converts at the command boundary: `trackDir = (mapDir + 3) mod 4`, so map E builds the station along +x.
 - A **joint** is the point where two pieces meet. A joint state is: tile edge midpoint, rail height `z` (integer metres), direction, slope, bank.
 - **Slopes:** `F` flat (0°), `G+`/`G−` gentle (2 m per tile, 26.57°), `X+`/`X−` steep (6 m per tile, 56.31°).
 - **Reason for these slopes:** gentle suits lift hills and family rides. Steep gives real drops. Both rises are integers, so heights stay integer.
@@ -149,7 +150,7 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
 | Open without both gates | `Place an entrance and an exit` |
 | Open without a passed test | `Run a test first` |
 | Station shorter than the train | `Station is too short for this train. Needs {n} tiles` |
-| Trains > allowed by blocks | `Too many trains for the block brakes. Add a block brake or remove a train` |
+| Trains > allowed by blocks, or (2+ trains) a block section not longer than a train + 1 m (§4.8) | `Too many trains for the block brakes. Add a block brake or remove a train` |
 | Edit while open | `Close the ride first` |
 | Edit with guests on board | `Ride must be empty to edit the track` |
 | Edit during a test | `Wait for the test to finish` |
@@ -161,8 +162,9 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
   1. `a = −g·sinθ − μ·g·cosθ − c_d·v²` (friction and drag act only when v > 0).
   2. `v' = v + a·dt`.
   3. Chain piece and `v' < chainSpeed`: `v' = min(chainSpeed, v + 3.0·dt)`.
-  4. Brakes and `v' > target`: `v' = max(target, v − 6.0·dt)`.
-  5. Block brake: trim to 2.0 m/s the same way. If the next block is occupied, stop the train (decelerate at 6.0 m/s²) so its front halts at the piece exit joint. The train is **held**. On release it accelerates at 2.0 m/s² to 2.0 m/s.
+  4. Brakes and `v' > target`: `v' = max(target, v − a·dt)` with `a = max(6.0, (v² − target²) / (2·d))` m/s², where `d` is the distance to the end of the brake piece. So the train always leaves the piece at the target speed.
+  5. Block brake: trim to 2.0 m/s the same way. A train slower than 2.0 m/s is lifted to 2.0 m/s at 2.0 m/s². If the next block is occupied, stop the train (decelerate at `max(6.0 m/s², rate needed to halt on the point)`) so its front halts at the piece exit joint. The train is **held**. On release it accelerates at 2.0 m/s² to 2.0 m/s.
+  - *Note (W1-G, as implemented and tested):* the first draft used a fixed 6.0 m/s² and only trimmed fast trains. A 4 m piece cannot hold to that: at 6.0 m/s² a train entering at 17 m/s leaves at √(17² − 2·6·4) ≈ 15.5 m/s, and a train that reaches a block brake below 2.0 m/s (or starts from a hold) would leave below 2.0 m/s. Either way brakes and block brakes would not output fixed speeds, which the equivalence guarantee below needs.
   6. Station pieces: trim to station speed 2.0 m/s. Stop with 4.0 m/s² so the front halts 0.5 m before the station exit joint.
   7. `s += v'·dt`.
 - **Drive `powered`:** `v` moves toward the target speed at 1.5 m/s² (up) or 4.0 m/s² (down), on any slope. On turn pieces the target is the corner speed (section 8).
@@ -176,7 +178,9 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
 ### 4.8 Blocks, trains, and dispatch
 - **Block points:** the station and each `block_brake`. A block runs from one block point to the next.
 - A block is occupied from the moment a train's front passes its start point until the train's tail passes its end point.
-- **Max trains** (gravity types) = `max(1, number of block brakes)`, also capped by the type's max trains. This rule makes deadlock impossible.
+- **Max trains** (gravity types) = `max(1, number of block brakes)`, also capped by the type's max trains.
+- **Block length** (gravity types, 2 or more trains): every block section, from one block point to the next around the circuit, must be longer than one train + 1 m. Otherwise `startTestRun` and opening fail with `Too many trains for the block brakes. Add a block brake or remove a train`.
+- Together these two rules make deadlock impossible. *Note (W1-G):* the count rule alone does not: a held train in a section shorter than a train would sit in two blocks at once, and two trains could then block each other for good.
 - **Powered and guest-driven types** have no blocks. The gap rule separates vehicles. The station holds waiting vehicles in a line.
 - **Station cycle:** arrive → unload (2 s) → load → dispatch.
   - Loading ends at max dwell, or when the train is full and min dwell has passed. Defaults: min 3 s, max 15 s. Player range: min 0–30 s, max 5–60 s.
@@ -231,20 +235,21 @@ Steps in order:
 | Ghost Train | 2.0 | 0.3 | 0.0 | 1.0 | `min(0.4 × spooky tunnels, 2.0)` |
 | Go-Kart Track | 1.5 | 0.5 | 0.0 | 1.0 | `0.2 × laps` |
 
-**Worked example — reference circuit R1 (section 9.2), Steel Coaster:**
+**Worked example — reference circuit R1 (section 9.2), Steel Coaster** (the values the R1 test lap measures):
 
 | Input | Value | | Input | Value |
 |---|---|---|---|---|
-| vMax | 17.4 m/s | | vertGMin | 0.57 |
-| rideTime | 52.0 s | | airtime | 0.0 s |
-| length | 204.4 m | | latMax | 0.66 |
+| vMax | 17.41 m/s | | vertGMin | 0.23 |
+| rideTime | 48.25 s | | airtime | 0.0 s |
+| length | 204.37 m | | latMax | 0.65 |
 | drops / dropMax | 1 / 16 m | | inversions | 0 |
-| posGMax | 2.24 | | turnPieces | 4 |
+| posGMax | 2.25 | | turnPieces | 4 |
 
-- E = 1.392 + 0.64 + 0.3 + 0 + 0 + 0.165 + 1.5 + 1.0 = 4.997 → **5.00**
-- I = 0.992 + 0 + 0.66 + 0.87 + 0 + 0.32 + 0.3 = 3.142 → **3.14**
-- N = 0.37 + 0.66 + 0 + 0 + 0.4 + 0 = 1.43 → **1.43**
-- A unit test feeds these inputs to the rating function and expects 500 / 314 / 143.
+- E = 1.3928 + 0.64 + 0.3 + 0 + 0 + 0.1625 + 1.5 + 1.0 = 4.9953 → **5.00**
+- I = 1.0 + 0.324 + 0.65 + 0.8705 + 0 + 0.32 + 0.3 = 3.4645 → **3.46**
+- N = 0.375 + 0.65 + 0 + 0 + 0.4 + 0 = 1.425 → **1.42** (in binary floating point the sum is 1.4249999…, so `Math.round(x × 100)` gives 142)
+- A unit test feeds these inputs to the rating function and expects 500 / 346 / 142.
+- *Note (W1-G, as implemented and tested):* the first draft of this example (vMax 17.4, rideTime 52.0, posGMax 2.24, vertGMin 0.57, latMax 0.66 → 5.00 / 3.14 / 1.43) cannot hold. `steep_down` alone has a constant pitch of 56.31° and κv = 0, so its vertical G is cos 56.31° = 0.555 < 0.57, and the crest transitions before it (κv −1/24 and −1/20 at speed) go lower still.
 
 **Warnings** (ride panel and test toast):
 
@@ -325,7 +330,7 @@ interface TrainState { id: number; s: number; v: number; state: 'loading'|'runni
 
 | Command | Rules |
 |---|---|
-| `placeStation { typeId, x, y, dir }` | Creates a `TrackRide` in `building` with one station piece. Pays base cost + piece. |
+| `placeStation { typeId, x, y, dir }` | `dir` is a map `Dir` (§4.1). Creates a `TrackRide` in `building` with one station piece. Pays base cost + piece. |
 | `addTrackPiece { rideId, defId, chain?, brakeSpeed? }` | Appends at the track end. Auto-closes the circuit when the exit joint equals the station entry joint. |
 | `removeLastTrackPiece { rideId }` | Not the first station piece. Reopens a closed circuit. Refund per 4.12. |
 | `setPieceOptions { rideId, index, chain?, brakeSpeed? }` | Ride `building` or `closed`. Clears the test. |
@@ -383,8 +388,8 @@ interface TrainState { id: number; s: number; v: number; state: 'loading'|'runni
 | g | 9.81 m/s² |
 | Bank angle | 35° |
 | Chain pull acceleration | 3.0 m/s² |
-| Brake deceleration | 6.0 m/s² |
-| Station speed / block brake exit speed | 2.0 m/s |
+| Brake deceleration | 6.0 m/s² at least; more when needed to reach the target by the end of the piece (§4.7) |
+| Station speed / block brake exit speed | 2.0 m/s (block brakes also lift slower trains to it at 2.0 m/s²) |
 | Station stop deceleration | 4.0 m/s² |
 | Powered acceleration / deceleration | 1.5 / 4.0 m/s² |
 | Corner speed, powered (small / medium turn) | 3.0 / 6.0 m/s |
@@ -407,17 +412,17 @@ interface TrainState { id: number; s: number; v: number; state: 'loading'|'runni
 - **Validation:** one minimal case per error string in 4.6.
 - **Clearance:** path under rail at 4 m passes; at 3 m fails. Span rule passes at 2 and fails at 3.
 - **Closure:** the circuit closes only on an exact joint match.
-- **Physics:** a steep drop of 18 m gives `v² = 2·g·h` minus losses within 1%. Chain holds chain speed. Brakes trim to target. Block brake trims to 2.0 m/s. Powered speed reaches the target. Gap rule keeps ≥ 3 m.
+- **Physics:** a steep drop of 18 m gives `v² = 2·g·h` minus losses within 1%. Chain holds chain speed. Brakes trim to target by the end of the piece. Block brake trims to 2.0 m/s and lifts a slow train to 2.0 m/s. Powered speed reaches the target. Gap rule keeps ≥ 3 m.
 - **Stall:** a lift without chain fails with `Test failed: train stops on piece {n} ({name})`. A loop after a 6 m drop fails with the loop message.
 - **G formulas:** flat turn `Gl = v²/(g·R)`. Loop top `Gv = −1 + v²/(g·4)`.
-- **Ratings:** worked example → 500 / 314 / 143. One case each for soft cap, every penalty, and the clamp.
-- **Blocks:** max trains = `max(1, block brakes)`. Over 10 game days with 3 trains, the distance between any two trains is always ≥ train length + 1 m.
+- **Ratings:** worked example → 500 / 346 / 142. One case each for soft cap, every penalty, and the clamp.
+- **Blocks:** max trains = `max(1, block brakes)`; with 2+ trains a block section that is not longer than a train + 1 m fails. Over 10 game days with 3 trains, the distance between any two trains is always ≥ train length + 1 m.
 - **Trig:** table sin/cos match `Math.sin`/`Math.cos` within 1e−6 (tests only).
 - **Costs:** build cost, running cost, refunds, and asset value formulas.
 - **Save:** round-trip with trains in motion and seated guests. Each load check in section 5 rejects a corrupted save.
 
 ### 9.2 Integration — reference circuit R1
-Steel Coaster, 1 train of 4 cars, built by commands. Station at world (4, 2), direction 0. Piece list:
+Steel Coaster, 1 train of 4 cars, built by commands. Station at world (4, 2), heading +x (track direction 0, `placeStation` map direction E = 1). Piece list:
 1. `station` ×3
 2. Chain: `flat_to_gentle_up`, `gentle_to_steep_up`, `steep_up`, `steep_to_gentle_up`, `gentle_up_to_flat` (top at 16 m)
 3. `straight` ×2, `turn_medium_right`
@@ -425,7 +430,7 @@ Steel Coaster, 1 train of 4 cars, built by commands. Station at world (4, 2), di
 5. `brakes` (8 m/s), `turn_medium_right`, `straight` ×10, `turn_medium_right`, `straight` ×6, `turn_medium_right` (closes the circuit)
 
 Script: build R1 → gates + queue + footpath → test → open → run 1 game month with guests. Checks:
-- The test passes. Ratings are within ±0.30 of the worked example.
+- The test passes. Ratings are within ±0.05 of the worked example (5.00 / 3.46 / 1.42).
 - Riders > 0. Ride ticket income in the ledger = riders × price.
 - Every guest who boarded also unloaded or is still seated at the end.
 - The no-contact invariant holds every tick.
@@ -442,7 +447,7 @@ Script: build R1 → gates + queue + footpath → test → open → run 1 game m
 - [ ] All 29 pieces exist with sample tables that pass the piece table tests.
 - [ ] A player builds R1 by hand on desktop and on a phone.
 - [ ] Every error string in 4.6 has a passing test.
-- [ ] R1 passes its test with ratings near 5.00 / 3.14 / 1.43, and guests ride it for a month.
+- [ ] R1 passes its test with ratings near 5.00 / 3.46 / 1.42, and guests ride it for a month.
 - [ ] A 3-train coaster with 3 block brakes runs 10 game days with no contact.
 - [ ] Test-only defs for powered, guest-driven, and spinning types pass their physics tests.
 - [ ] Save round-trip with moving trains passes.
@@ -454,7 +459,7 @@ Script: build R1 → gates + queue + footpath → test → open → run 1 game m
 - **Edit from the end only:** Build 1 edits a finished track by removing pieces from the closing end. Mid-track insertion waits for Phase 6.
 - **No sloped turns or helixes:** turns are flat only. Phase 6 adds the helix piece.
 - **No diagonal track:** a deliberate Build 1 limit.
-- **Strict block rule:** `max(1, block brakes)` trains is safe but conservative. Real parks often allow one more train. Revisit after play-testing.
+- **Strict block rule:** `max(1, block brakes)` trains, each block section longer than a train + 1 m, is safe but conservative. Real parks often allow one more train. Revisit after play-testing.
 - **Go-karts are a time trial:** single-lane tracks give no overtaking.
 - **Slice sorting:** loops and large turns can show small sort errors at some angles. Mitigation: per-tile slices and a visual test fixture.
 - **Rating tuning:** formulas need play-testing. All weights live in `src/data/track.ts`.

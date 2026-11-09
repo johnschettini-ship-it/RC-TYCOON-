@@ -130,6 +130,26 @@ describe('blocks and dispatch (phase-2 §4.8)', () => {
     expectOk(executeCommand(w2, { type: 'startTestRun', rideId: id2 }));
   });
 
+  it('with 2+ trains every block section must be longer than a train + 1 m, even when the count allows them', () => {
+    // R1_BLOCKS with the straight before the second block brake turned into a 4th block brake: a 4 m section.
+    const short = R1_BLOCKS.map((p, i) => (i === 18 ? 'block_brake' : p));
+    expect(R1_BLOCKS[18]).toBe('straight');
+    const w = makeTestWorld();
+    const id = place(w, 'steel_coaster', 4, 2, EAST);
+    addAll(w, id, short);
+    const layout = getLayout(dataOf(w, id));
+    expect(layout.blockBrakeCount).toBe(4);
+    const train = 4 * (getTrackTypeDef('steel_coaster') as TrackTypeDef).vehicle.carLengthMm;
+    const sections = layout.blockPoints.map((a, k) => modL((layout.blockPoints[(k + 1) % layout.blockPoints.length] as number) - a, layout.lengthMm));
+    expect(Math.min(...sections)).toBe(4_000);
+    expect(Math.min(...sections)).toBeLessThan(train + 1_000);
+    expectOk(executeCommand(w, { type: 'setTrainConfig', rideId: id, trains: 2, carsPerTrain: 4 }, { setup: true }));
+    expect(executeCommand(w, { type: 'startTestRun', rideId: id })).toEqual({ ok: false, reason: TRACK_ERR.tooManyTrains });
+    // One train has no block rule.
+    expectOk(executeCommand(w, { type: 'setTrainConfig', rideId: id, trains: 1, carsPerTrain: 4 }, { setup: true }));
+    expectOk(executeCommand(w, { type: 'startTestRun', rideId: id }));
+  });
+
   it('3 trains with 3 block brakes run 10 game days with no contact', () => {
     const w = makeTestWorld();
     const id = readyRide(w, 'steel_coaster', 4, 2, R1_BLOCKS, 3);
@@ -230,9 +250,10 @@ describe('guests on track rides (phase-2 §4.11) and the R1 script (§9.2)', () 
   it('builds R1 by commands, tests, opens, and carries guests for a month', () => {
     const { w, ride, d, boarded, worst } = r1Script();
     expect(d.test?.passed).toBe(true);
-    expect(Math.abs((d.test?.excitement ?? 0) - 500)).toBeLessThanOrEqual(30);
-    expect(Math.abs((d.test?.nausea ?? 0) - 143)).toBeLessThanOrEqual(30);
-    expect(Math.abs((d.test?.intensity ?? 0) - 314)).toBeLessThanOrEqual(35);
+    // Within ±0.05 of the phase-2 §4.10 worked example (5.00 / 3.46 / 1.42).
+    expect(Math.abs((d.test?.excitement ?? 0) - 500)).toBeLessThanOrEqual(5);
+    expect(Math.abs((d.test?.intensity ?? 0) - 346)).toBeLessThanOrEqual(5);
+    expect(Math.abs((d.test?.nausea ?? 0) - 142)).toBeLessThanOrEqual(5);
     expect(ride.totals.riders).toBeGreaterThan(0);
     expect(boarded.size).toBe(ride.totals.riders);
     const tickets = w.state.economy.ledger.reduce((a, m) => a + m.lines.rideTickets, 0);

@@ -5,17 +5,17 @@ import { computeRatings, ratingWarnings, type RatingInputs } from '../../../src/
 
 const steel = getTrackTypeDef('steel_coaster') as TrackTypeDef;
 
-/** Worked example: reference circuit R1 (phase-2 §4.10). */
+/** Worked example: reference circuit R1 (phase-2 §4.10), the values the R1 test lap measures. */
 const R1: RatingInputs = {
-  vMax: 17.4,
-  rideTime: 52.0,
-  length: 204.4,
+  vMax: 17.41,
+  rideTime: 48.25,
+  length: 204.37,
   drops: 1,
   dropMax: 16,
-  posGMax: 2.24,
-  vertGMin: 0.57,
+  posGMax: 2.25,
+  vertGMin: 0.23,
   airtime: 0,
-  latMax: 0.66,
+  latMax: 0.65,
   inversions: 0,
   turnPieces: 4,
   smallTurns: 0,
@@ -24,11 +24,11 @@ const R1: RatingInputs = {
 };
 
 describe('ratings (phase-2 §4.10)', () => {
-  it('reproduces the worked example R1: 500 / 314 / 143', () => {
+  it('reproduces the worked example R1: 500 / 346 / 142', () => {
     const r = computeRatings(R1, steel);
     expect(r.excitement).toBe(500);
-    expect(r.intensity).toBe(314);
-    expect(r.nausea).toBe(143);
+    expect(r.intensity).toBe(346);
+    expect(r.nausea).toBe(142);
     expect(r.penalty).toBe(false);
   });
 
@@ -58,7 +58,7 @@ describe('ratings (phase-2 §4.10)', () => {
 
     const short = computeRatings({ ...R1, rideTime: 10 }, steel);
     expect(short.penalty).toBe(true);
-    const shortRaw = 0.08 * 17.4 + 0.04 * 16 + 0.3 + 0.165 + 10 / 30 + 1.0;
+    const shortRaw = 0.08 * 17.41 + 0.04 * 16 + 0.3 + 0.25 * 0.65 + 10 / 30 + 1.0;
     expect(short.excitement).toBe(Math.round(shortRaw * 0.5 * 100));
   });
 
