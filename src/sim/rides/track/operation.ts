@@ -9,16 +9,12 @@ import {
   BLOCK_MARGIN_MM,
   GAP_RULE_MM,
   KART_DISPATCH_SPACING_TICKS,
-  REACTION_HAPPINESS,
   TEST_KART_TEMPERAMENT,
-  THRILL_AIRTIME_S,
   UNLOAD_TICKS,
 } from '../../../data/tuning/track';
-import { TICKS_PER_DAY } from '../../../data/tuning/core';
 import { onRideDispatch } from '../../breakdowns/api';
 import { emit } from '../../events';
 import { boardRide, findGuest, finishRide, leaveQueue } from '../../guests/api';
-import type { Guest } from '../../guests/types';
 import type { World } from '../../types';
 import type { Ride } from '../types';
 import { kartSpeedMms } from './testRun';
@@ -91,18 +87,11 @@ function lapsFor(type: TrackTypeDef, data: TrackRideData, t: TrainState, L: numb
   return Math.max(data.operation.laps, Math.floor(t.dist / L) + 1);
 }
 
-function addThought(world: World, g: Guest, id: string): void {
-  const tick = world.state.tick;
-  const last = g.thoughtCooldowns[id];
-  if (last !== undefined && tick - last < TICKS_PER_DAY) return;
-  g.thoughtCooldowns[id] = tick;
-  g.thoughts.push({ id, tick });
-  while (g.thoughts.length > 5) g.thoughts.shift();
-}
-
-/** Unload one train: riders leave through the exit gate (finishRide) with the §4.11 temperament reactions. */
-function unloadTrain(world: World, ride: Ride, data: TrackRideData, t: TrainState): void {
-  const test = data.test;
+/**
+ * Unload one train: riders leave through the exit gate. `finishRide` (guest module) applies the ride effects,
+ * including the §4.11 temperament reactions and their thoughts (`airtimeAwesome`, `neverUpsideDown`).
+ */
+function unloadTrain(world: World, ride: Ride, t: TrainState): void {
   for (let k = 0; k < t.seats.length; k++) {
     const gid = t.seats[k] as number;
     if (gid < 0) continue;
@@ -113,16 +102,6 @@ function unloadTrain(world: World, ride: Ride, data: TrackRideData, t: TrainStat
     if (!g) continue;
     g.seat = null;
     finishRide(world, g, ride);
-    if (test?.passed) {
-      if (g.temperament >= 65 && test.airtimeTicks / 20 >= THRILL_AIRTIME_S) {
-        g.needs.happiness = Math.min(255, g.needs.happiness + REACTION_HAPPINESS);
-        addThought(world, g, 'airtimeAwesome');
-      }
-      if (g.temperament <= 35 && test.inversions >= 1) {
-        g.needs.happiness = Math.max(0, g.needs.happiness - REACTION_HAPPINESS);
-        addThought(world, g, 'neverUpsideDown');
-      }
-    }
   }
 }
 
@@ -164,7 +143,7 @@ function stationTile(world: World, ride: Ride): number {
 /** Fault guard (§4.7): a stall in operation closes the ride; riders appear at the exit gate. */
 export function faultClose(world: World, ride: Ride, data: TrackRideData, pieceIndex: number): void {
   console.error(`Track ride ${ride.id} (${ride.name}): train stalled on piece ${pieceIndex + 1} in operation`);
-  for (const t of data.trains) unloadTrain(world, ride, data, t);
+  for (const t of data.trains) unloadTrain(world, ride, t);
   ride.status = 'closed';
   ride.stats = null;
   data.test = null;
@@ -261,7 +240,7 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
       case 'unloading':
         t.dwellTicks++;
         if (t.dwellTicks >= UNLOAD_TICKS) {
-          unloadTrain(world, ride, data, t);
+          unloadTrain(world, ride, t);
           t.state = 'loading';
           t.dwellTicks = 0;
         }

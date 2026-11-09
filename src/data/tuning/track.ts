@@ -107,7 +107,3 @@ export const RATING = {
 
 /** Warning thresholds (§4.10). */
 export const WARN = { intensity: 8.0, nausea: 7.0, dullExcitement: 2.0 } as const;
-
-/** Guest reactions on unloading (§4.11). */
-export const THRILL_AIRTIME_S = 1.0;
-export const REACTION_HAPPINESS = 10;

@@ -9,6 +9,16 @@ import { stepTick } from '../../src/sim/tick';
 import { getFlatRideDef, getStallDef } from '../../src/data/catalog';
 import { flatRideGates, footprintTiles, stallServiceTile } from '../../src/sim/footprint';
 import { INSPECT_DEFAULT, REL_MAX } from '../../src/data/tuning/staff';
+import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
+import {
+  BRAKE_SPEED,
+  DEFAULT_MAX_DWELL_TICKS,
+  DEFAULT_MIN_DWELL_TICKS,
+  LAPS_RANGE,
+  TEST_CHART_EVERY_TICKS,
+} from '../../src/data/tuning/track';
+import { jointsEqual, pieceEntryJoint, pieceExitJoint, trackDirFromMapDir } from '../../src/sim/rides/track/geometry';
+import type { TestResult, TrackDir, TrackPieceInstance, TrackRideData } from '../../src/sim/rides/track/types';
 import type { World } from '../../src/sim/types';
 import type { Ride } from '../../src/sim/rides/types';
 import type { Stall } from '../../src/sim/stalls/types';
@@ -109,6 +119,101 @@ export function placeStallDirect(world: World, defId: string, x: number, y: numb
   };
   s.stalls.push(stall);
   return stall;
+}
+
+/**
+ * Track pieces laid joint to joint with the track module's own geometry (`pieceExitJoint`): the first piece enters
+ * at tile (x, y), rail height z (absolute m), heading `dir` (a `TrackDir`: 0 = +x, 1 = +y, 2 = −x, 3 = −y).
+ * Brakes get the default brake speed; costs are 0. The map is not changed.
+ */
+export function trackPiecesDirect(x: number, y: number, z: number, dir: TrackDir, defIds: readonly string[]): TrackPieceInstance[] {
+  const pieces: TrackPieceInstance[] = [];
+  let at = { x, y, z, dir };
+  for (const defId of defIds) {
+    const def = getTrackPieceDef(defId);
+    if (!def) throw new Error(`Unknown track piece ${defId}`);
+    const p: TrackPieceInstance = {
+      defId,
+      x: at.x,
+      y: at.y,
+      z: at.z,
+      dir: at.dir,
+      chain: false,
+      brakeSpeed: def.special === 'brakes' ? BRAKE_SPEED.default : null,
+      cost: 0,
+    };
+    pieces.push(p);
+    at = pieceExitJoint(p);
+  }
+  return pieces;
+}
+
+/**
+ * The track slice entry of a track ride, without commands, in the full W1-G shape. Default pieces: 3 station tiles
+ * from the ride origin at ground height, heading `ride.rotation` (a map `Dir`). `circuitClosed` follows the
+ * geometry; no trains, no test. Stores the entry in `world.state.track.rides` and returns it. Override with `patch`.
+ */
+export function makeTrackRideDataDirect(world: World, ride: Ride, patch: Partial<TrackRideData> = {}): TrackRideData {
+  const type = getTrackTypeDef(ride.defId);
+  if (!type) throw new Error(`Unknown track ride type ${ride.defId}`);
+  const map = world.state.map;
+  const ground = map.heights[tileIndex(map, ride.x, ride.y)] as number;
+  const pieces = patch.pieces ?? trackPiecesDirect(ride.x, ride.y, ground, trackDirFromMapDir(ride.rotation), ['station', 'station', 'station']);
+  const first = pieces[0];
+  const last = pieces[pieces.length - 1];
+  const data: TrackRideData = {
+    rideId: ride.id,
+    typeId: type.id,
+    pieces,
+    circuitClosed: !!first && !!last && jointsEqual(pieceExitJoint(last), pieceEntryJoint(first)),
+    trainConfig: { trains: 1, carsPerTrain: type.vehicle.defaultCars },
+    operation: { minDwellTicks: DEFAULT_MIN_DWELL_TICKS, maxDwellTicks: DEFAULT_MAX_DWELL_TICKS, laps: LAPS_RANGE.default },
+    trains: [],
+    test: null,
+    colours: { ...type.render.colours },
+    openedOnce: false,
+    testRun: null,
+    lastDispatchTick: -1,
+    bestLapTicks: null,
+    ...patch,
+  };
+  world.state.track.rides[String(ride.id)] = data;
+  return data;
+}
+
+/**
+ * A passed `TestResult` in the W1-G units (mm, mm/s, ticks, hundredths) with the measured values of reference
+ * circuit R1 (phase-2 §4.10 worked example). Override any field with `patch`.
+ */
+export function testResultDirect(patch: Partial<TestResult> = {}): TestResult {
+  return {
+    passed: true,
+    failPiece: null,
+    failKind: null,
+    ticks: 965,
+    vMaxMms: 17_411,
+    vAvgMms: 4_236,
+    rideTimeTicks: 965,
+    lengthMm: 204_374,
+    drops: 1,
+    dropMaxMm: 16_000,
+    posGMax: 225,
+    vertGMin: 23,
+    airtimeTicks: 0,
+    latMax: 65,
+    inversions: 0,
+    highestM: 16,
+    turnPieces: 4,
+    smallTurns: 0,
+    spookyTunnels: 0,
+    laps: 1,
+    excitement: 500,
+    intensity: 346,
+    nausea: 142,
+    penalty: false,
+    chart: { every: TEST_CHART_EVERY_TICKS, speedCms: [200, 1741, 800], gv: [100, 225, 23], gl: [0, 65, 0] },
+    ...patch,
+  };
 }
 
 /** Add a guest standing on `tile` with neutral needs. Override any field with `patch`. */

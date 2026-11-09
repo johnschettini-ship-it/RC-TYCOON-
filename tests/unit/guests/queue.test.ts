@@ -5,7 +5,7 @@ import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import { currentLedger } from '../../../src/sim/economy/ledger';
 import { Content } from '../../../src/sim/map';
 import { GUEST_WALK_TICKS_PER_TILE, QUEUE_MAX_JOIN, QUEUE_MAX_WAIT } from '../../../src/data/tuning/guests';
-import { addGuestDirect, makeTestWorld, placeRideDirect } from '../../helpers/world';
+import { addGuestDirect, makeTestWorld, makeTrackRideDataDirect, placeRideDirect, testResultDirect } from '../../helpers/world';
 import { buildPark } from './park';
 import type { World } from '../../../src/sim/types';
 import type { Guest } from '../../../src/sim/guests/types';
@@ -273,18 +273,8 @@ describe('ride effects (Phase 1 §4.3 Riding)', () => {
     r.defId = 'steel_coaster';
     r.status = 'open';
     r.stats = { excitement: 500, intensity: 400, nausea: 143 };
-    w.state.track.rides[String(r.id)] = {
-      rideId: r.id,
-      typeId: 'steel_coaster',
-      pieces: [],
-      circuitClosed: true,
-      trainConfig: { trains: 1, carsPerTrain: 2 },
-      operation: { minDwellTicks: 0, maxDwellTicks: 0, laps: 1 },
-      trains: [],
-      test: { airtime: 1.2, inversions: 1 },
-      colours: { track: 0, supports: 0, cars: 0 },
-      openedOnce: true,
-    };
+    // W1-G units: airtime in ticks (24 ticks = 1.2 s at 20 ticks per second), inversions as a count.
+    makeTrackRideDataDirect(w, r, { test: testResultDirect({ airtimeTicks: 24, inversions: 1 }), openedOnce: true });
     const thrill = calmGuest(w, 0, { temperament: 70 });
     const chill = calmGuest(w, 0, { temperament: 20 });
     const family = calmGuest(w, 0, { temperament: 50 });
@@ -300,5 +290,30 @@ describe('ride effects (Phase 1 §4.3 Riding)', () => {
     expect(chill.thoughts.map((t) => t.id)).toContain(THOUGHT.neverUpsideDown);
     expect(family.needs.happiness).toBe(100 + 12);
     expect(family.thoughts.map((t) => t.id)).not.toContain(THOUGHT.airtimeAwesome);
+  });
+
+  it('track rides: the airtime threshold is 1.0 s = 20 ticks of the W1-G test result', () => {
+    const ride = (w: World, airtimeTicks: number) => {
+      const r = placeRideDirect(w, 'carousel', 10, 10);
+      r.kind = 'track';
+      r.defId = 'steel_coaster';
+      r.status = 'open';
+      r.stats = { excitement: 500, intensity: 400, nausea: 143 };
+      makeTrackRideDataDirect(w, r, { test: testResultDirect({ airtimeTicks }), openedOnce: true });
+      return r;
+    };
+    for (const [ticks, reacts] of [
+      [19, false],
+      [20, true],
+    ] as const) {
+      const w = makeTestWorld();
+      const r = ride(w, ticks);
+      const g = calmGuest(w, 0, { temperament: 70 });
+      g.needs.happiness = 100;
+      boardRide(w, g, r);
+      finishRide(w, g, r);
+      expect(g.needs.happiness).toBe(100 + 14 + (reacts ? 10 : 0));
+      expect(g.thoughts.some((t) => t.id === THOUGHT.airtimeAwesome)).toBe(reacts);
+    }
   });
 });

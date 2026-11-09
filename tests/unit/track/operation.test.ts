@@ -282,7 +282,7 @@ describe('guests on track rides (phase-2 §4.11) and the R1 script (§9.2)', () 
     expect(stateHash(a.w)).toBe(stateHash(b.w));
   });
 
-  it('thrill guests love airtime; chill guests dislike inversions', () => {
+  it('unloading hands each rider to finishRide once; the guest module applies the §4.11 reactions', () => {
     const w = makeTestWorld();
     const id = readyRide(w, 'steel_coaster', 4, 2, R1_BLOCKS, 1);
     const d = dataOf(w, id);
@@ -294,10 +294,14 @@ describe('guests on track rides (phase-2 §4.11) and the R1 script (§9.2)', () 
     const h0 = thrill.needs.happiness;
     const c0 = chill.needs.happiness;
     tick(w, 1500);
-    expect(thrill.thoughts.map((t) => t.id)).toContain('airtimeAwesome');
-    expect(chill.thoughts.map((t) => t.id)).toContain('neverUpsideDown');
-    expect(thrill.needs.happiness).toBe(h0 + 10);
-    expect(chill.needs.happiness).toBe(c0 - 10);
+    const unloaded = vi.mocked(finishRide).mock.calls.filter((c) => c[2] === ride).map((c) => c[1].id);
+    expect(unloaded).toEqual([thrill.id, chill.id]);
+    // One thought writer (master R5): the track system adds no thoughts and changes no needs itself.
+    // The airtime / inversion reactions are tested with the real `finishRide` in tests/unit/guests/queue.test.ts.
+    expect(thrill.thoughts).toEqual([]);
+    expect(chill.thoughts).toEqual([]);
+    expect(thrill.needs.happiness).toBe(h0);
+    expect(chill.needs.happiness).toBe(c0);
   });
 
   it('a closed ride finishes the lap, unloads, and can then be edited', () => {

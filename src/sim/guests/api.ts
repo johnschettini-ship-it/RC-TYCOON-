@@ -9,6 +9,7 @@
  * - `leaveQueue` and `forgetDestination` remove guests from `ride.queue` (iterate over a copy).
  */
 import { temperamentGroup } from '../../data/catalog';
+import { TICKS_PER_SECOND } from '../../data/tuning/core';
 import {
   AIRTIME_HAPPY,
   AIRTIME_THRILL_SECONDS,
@@ -112,17 +113,23 @@ export function finishRide(world: World, guest: Guest, ride: Ride): void {
   if (!tileOk(world, guest.tile)) relocate(world, guest);
 }
 
-/** Phase 2 §4.11: airtime pleases Thrill guests, inversions upset Chill guests. Reads the W1-G test result. */
+/**
+ * Phase 2 §4.11: airtime pleases Thrill guests, inversions upset Chill guests. Reads the W1-G test result.
+ * The only place these reactions happen: the track system unloads riders through `finishRide`.
+ */
 function applyTrackExtras(world: World, guest: Guest, ride: Ride): void {
   const data = world.state.track.rides[String(ride.id)];
   const test = data?.test ?? null;
-  if (!test) return;
+  if (!test || !test.passed) return;
   const group = temperamentGroup(guest.temperament);
-  if (group === 'thrill' && (test['airtime'] ?? 0) >= AIRTIME_THRILL_SECONDS) {
+  // `TestResult.airtimeTicks` counts ticks; the threshold is in seconds (20 ticks = 1 s).
+  const airtimeSeconds = test.airtimeTicks / TICKS_PER_SECOND;
+  if (group === 'thrill' && airtimeSeconds >= AIRTIME_THRILL_SECONDS) {
     changeNeed(guest, 'happiness', AIRTIME_HAPPY);
     addThought(world, guest, THOUGHT.airtimeAwesome);
   }
-  if (group === 'chill' && (test['inversions'] ?? 0) >= 1) {
+  // `TestResult.inversions` is a plain count of loop pieces.
+  if (group === 'chill' && test.inversions >= 1) {
     changeNeed(guest, 'happiness', INVERSION_CHILL_HAPPY);
     addThought(world, guest, THOUGHT.neverUpsideDown);
   }

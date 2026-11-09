@@ -1,5 +1,5 @@
 /**
- * Track strings (phase-2-coasters.md §4.6, §4.7, §4.10, §4.11). Owner: W1-G.
+ * Track strings (phase-2-coasters.md §4.6, §4.7, §4.10). Owner: W1-G.
  * Master R4: no final period. `{n}` and `{name}` are filled in by `fillTrackString`.
  */
 
@@ -61,14 +61,15 @@ export const TRACK_RATING_WARN = {
   testFailedLoop: 'Test failed: train is too slow for the loop on piece {n}',
 } as const;
 
-/** String table entries (master R5): message and thought ids. */
+/**
+ * String table entries (master R5): message ids. The §4.11 thoughts (`airtimeAwesome`, `neverUpsideDown`) live with
+ * every other guest thought in `guests.ts` (`THOUGHT` ids).
+ */
 export const trackStrings: Record<string, string> = {
   'track.testPassed': '{name}: test complete',
   'track.testFailedStop': TRACK_RATING_WARN.testFailedStop,
   'track.testFailedLoop': TRACK_RATING_WARN.testFailedLoop,
   'track.fault': 'Ride closed after a fault. Run a new test',
-  airtimeAwesome: 'Floating out of my seat was awesome!',
-  neverUpsideDown: 'Upside down? Never again',
 };
 
 /** Fill `{key}` placeholders. */
