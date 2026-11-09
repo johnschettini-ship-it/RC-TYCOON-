@@ -17,6 +17,13 @@ export const STALLS: readonly StallDef[] = Object.freeze([
   { id: 'cash_machine', name: 'Cash Machine', phase: 3, unlock: 'shops', kind: 'facility', buildCost: 80000, runningCostMonthly: 2000, defaultPrice: 0, stockCost: 0, effects: fx({}, null, { belowCents: 1000, minCents: 4000, maxCents: 8000 }), weatherFactors: {} },
 ]);
 
+/** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */
+const STALLS_BY_ID: ReadonlyMap<string, StallDef> = (() => {
+  const byId = new Map<string, StallDef>();
+  for (const d of STALLS) if (!byId.has(d.id)) byId.set(d.id, d);
+  return byId;
+})();
+
 export function getStallDef(id: string): StallDef | undefined {
-  return STALLS.find((s) => s.id === id);
+  return STALLS_BY_ID.get(id);
 }

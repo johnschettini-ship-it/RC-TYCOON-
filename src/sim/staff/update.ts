@@ -248,17 +248,24 @@ export function hourlyStaff(world: World): void {
  */
 function clearOrphans(world: World): void {
   const map = world.state.map;
-  for (let i = 0; i < map.content.length; i++) {
-    const c = map.content[i];
-    if (map.pathItem[i] !== PathItem.None && c !== Content.Footpath) {
-      if (map.pathItem[i] === PathItem.Bench) standUpFromBench(world, i);
-      map.pathItem[i] = PathItem.None;
-      map.pathItemFlags[i] = 0;
-      map.binFill[i] = 0;
+  const { content, pathItem, pathItemFlags, binFill, litter, mess } = map;
+  // Local copies keep the hourly 4,096-tile scan tight (master §10 hour-start budget).
+  const footpath = Content.Footpath;
+  const queue = Content.Queue;
+  const none = PathItem.None;
+  const n = content.length;
+  for (let i = 0; i < n; i++) {
+    const c = content[i];
+    if (c === footpath) continue; // every item, litter and mess may stay on a footpath
+    if (pathItem[i] !== none) {
+      if (pathItem[i] === PathItem.Bench) standUpFromBench(world, i);
+      pathItem[i] = none;
+      pathItemFlags[i] = 0;
+      binFill[i] = 0;
     }
-    if (c !== Content.Footpath && c !== Content.Queue && ((map.litter[i] as number) > 0 || (map.mess[i] as number) > 0)) {
-      map.litter[i] = 0;
-      map.mess[i] = 0;
+    if (c !== queue && ((litter[i] as number) > 0 || (mess[i] as number) > 0)) {
+      litter[i] = 0;
+      mess[i] = 0;
     }
   }
 }
@@ -277,8 +284,11 @@ function chargeWages(world: World): void {
 function autoRepair(world: World): void {
   const map = world.state.map;
   let short = false;
-  for (let i = 0; i < map.pathItem.length; i++) {
-    if (map.pathItem[i] === PathItem.None || !isBroken(map, i)) continue;
+  const { pathItem, pathItemFlags } = map;
+  const n = pathItem.length;
+  for (let i = 0; i < n; i++) {
+    // Only items with the broken flag cost anything; most tiles fail the first test (hourly scan).
+    if (pathItemFlags[i] === 0 || pathItem[i] === PathItem.None || !isBroken(map, i)) continue;
     const cost = repairCost(map.pathItem[i] as number);
     if (world.state.park.cash >= cost) {
       if (cost > 0) recordLedger(world, 'repairs', -cost);

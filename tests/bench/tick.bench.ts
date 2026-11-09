@@ -8,10 +8,12 @@
  * normal test runner (`perf-budget.test.ts`), so these numbers are an upper bound.
  */
 import { test } from 'vitest';
+import { TICKS_PER_HOUR } from '../../src/data/tuning/core';
 import { executeCommand } from '../../src/sim/commands';
 import { rebuildAllFields } from '../../src/sim/pathing';
 import { stepTick } from '../../src/sim/tick';
-import { BUILD1_SCENE, PHASE3_SCENE, buildBenchPark } from './benchPark';
+import { isHourStart } from '../../src/sim/time';
+import { BUILD1_SCENE, PHASE3_SCENE, buildBenchPark, summarize, type BenchParkOptions } from './benchPark';
 
 const RUN = { time: 3_000, warmupTime: 500 };
 
@@ -46,3 +48,31 @@ test('distance fields: rebuild every guest field after a path change (budget 5 m
   }).run({ time: 2_000 });
   report('field rebuild', r.latency.mean, r.latency.p99 ?? r.latency.max, 5);
 }, 60_000);
+
+/**
+ * Hour-start ticks (master R13 hour-start work: hourly charges, wages, research, park value, rating) are
+ * timed one by one with a plain timer, because a bench function cannot pick them out of the tick stream.
+ */
+function hourStartTicks(scene: BenchParkOptions, hours: number): number[] {
+  const world = buildBenchPark(scene);
+  for (let k = 0; k < 200; k++) stepTick(world);
+  const out: number[] = [];
+  for (let k = 0; k < hours * TICKS_PER_HOUR; k++) {
+    const hourStart = isHourStart(world.state.tick);
+    const t0 = performance.now();
+    stepTick(world);
+    if (hourStart) out.push(performance.now() - t0);
+  }
+  return out;
+}
+
+test('hour-start tick: 2,000 guests (budget 3 ms)', () => {
+  for (const [label, scene] of [
+    ['Build 1 scene hour-start tick', BUILD1_SCENE],
+    ['Phase 3 scene hour-start tick', PHASE3_SCENE],
+    ['lockstep crowd hour-start tick (worst case, not a budget scene)', { ...BUILD1_SCENE, lockstep: true }],
+  ] as const) {
+    const s = summarize(hourStartTicks(scene, 40));
+    report(label, s.mean, s.p95, 3);
+  }
+}, 120_000);

@@ -1,11 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/sim/litter/metrics', () => ({ cleanliness: vi.fn() }));
 vi.mock('../../../src/sim/breakdowns/api', () => ({ onRideDispatch: vi.fn(() => false), reliabilityScore: vi.fn() }));
 
 import { cleanliness } from '../../../src/sim/litter/metrics';
 import { reliabilityScore } from '../../../src/sim/breakdowns/api';
-import { computeRating, ratingParts, updateRating } from '../../../src/sim/park/rating';
+import { TOO_EXPENSIVE_THOUGHT_IDS, computeRating, ratingParts, updateRating } from '../../../src/sim/park/rating';
+import { THOUGHT, addThought } from '../../../src/sim/guests/thoughts';
 import { en } from '../../../src/data/strings/en';
 import { getFlatRideDef } from '../../../src/data/catalog';
 import {
@@ -117,14 +118,12 @@ describe('rating parts at their edges', () => {
   });
 
   describe('fair prices: 1 − min(1, 3 × too-expensive thoughts today / guests)', () => {
-    const ids = ['__testRideTooMuch', '__testSnackTooMuch'];
-    beforeEach(() => {
-      en[ids[0] as string] = TOO_EXPENSIVE_THOUGHT_TEXTS[0] as string;
-      en[ids[1] as string] = TOO_EXPENSIVE_THOUGHT_TEXTS[1] as string;
-      en.__testHungry = 'I am hungry';
-    });
-    afterEach(() => {
-      for (const id of [...ids, '__testHungry']) delete en[id];
+    const ids = [THOUGHT.rideTooExpensive, THOUGHT.snackTooExpensive];
+
+    it('finds the too-expensive thought ids by their spec text, once', () => {
+      expect([...TOO_EXPENSIVE_THOUGHT_IDS]).toEqual([THOUGHT.drinkTooExpensive, THOUGHT.rideTooExpensive, THOUGHT.snackTooExpensive]);
+      for (const id of TOO_EXPENSIVE_THOUGHT_IDS) expect(TOO_EXPENSIVE_THOUGHT_TEXTS).toContain(en[id]);
+      expect(Object.isFrozen(TOO_EXPENSIVE_THOUGHT_IDS)).toBe(true);
     });
 
     it('is 1 with no such thoughts, and falls with each one', () => {
@@ -133,21 +132,42 @@ describe('rating parts at their edges', () => {
       expect(ratingParts(w).fairPrices).toBe(1);
       const g = w.state.guests[0]!;
       g.thoughtCooldowns[ids[0] as string] = w.state.tick - 10;
-      g.thoughtCooldowns.__testHungry = w.state.tick - 10;
+      g.thoughtCooldowns[THOUGHT.hungry] = w.state.tick - 10;
       expect(ratingParts(w).fairPrices).toBeCloseTo(1 - 3 / 6, 10);
       g.thoughtCooldowns[ids[1] as string] = w.state.tick;
       expect(ratingParts(w).fairPrices).toBe(0);
     });
 
-    it('counts thoughts in the guest thought list too, and only within the last game day', () => {
+    it('counts thoughts shown through addThought, and only within the last game day', () => {
       const w = makeTestWorld();
       w.state.tick = 10_000;
       guests(w, 9);
       const [a, b] = w.state.guests;
-      a!.thoughts.push({ id: ids[0] as string, tick: w.state.tick - 5 });
-      b!.thoughts.push({ id: ids[0] as string, tick: w.state.tick - FAIR_PRICE_WINDOW_TICKS });
-      b!.thoughtCooldowns[ids[1] as string] = w.state.tick - FAIR_PRICE_WINDOW_TICKS - 1;
+      w.state.tick = 10_000 - FAIR_PRICE_WINDOW_TICKS - 1;
+      addThought(w, b!, ids[1] as string);
+      w.state.tick = 10_000 - FAIR_PRICE_WINDOW_TICKS;
+      addThought(w, b!, ids[0] as string);
+      w.state.tick = 10_000 - 5;
+      addThought(w, a!, ids[0] as string);
+      w.state.tick = 10_000;
+      // Only a's thought is within the last game day (the thought list holds b's too, but they are a day old).
+      expect(b!.thoughts.map((t) => t.id)).toEqual([ids[1], ids[0]]);
       expect(ratingParts(w).fairPrices).toBeCloseTo(1 - 3 / 9, 10);
+    });
+
+    it('addThought records every shown thought in the cooldowns, so the list never has a newer entry', () => {
+      const w = makeTestWorld();
+      guests(w, 1);
+      const g = w.state.guests[0]!;
+      for (let k = 0; k < 40; k++) {
+        w.state.tick += 97;
+        addThought(w, g, k % 3 === 0 ? (ids[k % 2] as string) : THOUGHT.hungry);
+        for (const t of g.thoughts) {
+          const last = g.thoughtCooldowns[t.id];
+          // A list entry without a cooldown (or with an older one) is at least a game day old.
+          if (last === undefined || last < t.tick) expect(w.state.tick - t.tick).toBeGreaterThanOrEqual(FAIR_PRICE_WINDOW_TICKS);
+        }
+      }
     });
   });
 

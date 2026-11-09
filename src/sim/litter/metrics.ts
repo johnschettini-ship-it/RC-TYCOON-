@@ -12,14 +12,18 @@ export interface DirtTotals {
 /** Totals over the map. Walkable tiles are footpath and queue tiles. */
 export function dirtTotals(world: World): DirtTotals {
   const { content, litter, mess } = world.state.map;
+  // Local copies: the rating and guest decisions call this scan every hour and tick (master §10 budget).
+  const footpath = Content.Footpath;
+  const queue = Content.Queue;
+  const n = content.length;
   let l = 0;
   let m = 0;
   let w = 0;
-  for (let i = 0; i < content.length; i++) {
+  for (let i = 0; i < n; i++) {
     l += litter[i] as number;
     m += mess[i] as number;
     const c = content[i];
-    if (c === Content.Footpath || c === Content.Queue) w++;
+    if (c === footpath || c === queue) w++;
   }
   return { litter: l, mess: m, walkableTiles: w };
 }

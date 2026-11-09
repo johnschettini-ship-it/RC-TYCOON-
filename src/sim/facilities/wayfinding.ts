@@ -56,8 +56,8 @@ export function resetWayfinding(guest: Guest): void {
 export function isJunction(world: World, tile: number): boolean {
   const map = world.state.map;
   let n = 0;
-  for (const d of DIRS) {
-    const t = neighbour(map, tile, d);
+  for (let k = 0; k < DIRS.length; k++) {
+    const t = neighbour(map, tile, DIRS[k] as Dir);
     if (t >= 0 && isWalkable(world, t, 'guest')) n++;
   }
   return n >= JUNCTION_MIN_NEIGHBOURS;

@@ -45,10 +45,16 @@ import { recentBreakFactor } from '../breakdowns/api';
 
 const DIRS: readonly Dir[] = [0, 1, 2, 3];
 
-/** The tile itself, then its 4-neighbours in N, E, S, W order (−1 outside the map). */
-function area(world: World, tile: number): number[] {
+/**
+ * The tile itself, then its 4-neighbours in N, E, S, W order (−1 outside the map), written into `out`.
+ * Guests call this every tick (bins, dirt), so it reuses one module-level buffer instead of allocating.
+ */
+const AREA = new Int32Array(5);
+function area(world: World, tile: number, out: Int32Array = AREA): Int32Array {
   const map = world.state.map;
-  return [tile, ...DIRS.map((d) => neighbour(map, tile, d))];
+  out[0] = tile;
+  for (let k = 0; k < DIRS.length; k++) out[k + 1] = neighbour(map, tile, DIRS[k] as Dir);
+  return out;
 }
 
 function isPathTile(world: World, tile: number): boolean {
@@ -70,7 +76,9 @@ function trashAfterPurchase(world: World, guest: Guest, stall: Stall): void {
 
 function tryBin(world: World, guest: Guest): boolean {
   const map = world.state.map;
-  for (const t of area(world, guest.tile)) {
+  const tiles = area(world, guest.tile);
+  for (let k = 0; k < tiles.length; k++) {
+    const t = tiles[k] as number;
     if (t >= 0 && isUsableBin(map, t)) {
       map.binFill[t] = (map.binFill[t] as number) + 1;
       guest.trashTimer = 0;
@@ -125,7 +133,9 @@ function dirt(world: World, guest: Guest): boolean {
   if (guest.tile < 0) return false;
   const map = world.state.map;
   let d = 0;
-  for (const t of area(world, guest.tile)) {
+  const tiles = area(world, guest.tile);
+  for (let k = 0; k < tiles.length; k++) {
+    const t = tiles[k] as number;
     if (t >= 0) d += (map.litter[t] as number) + MESS_DIRT_WEIGHT * (map.mess[t] as number);
   }
   if (d >= DIRT_BAD) {
