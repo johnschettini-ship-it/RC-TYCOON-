@@ -537,9 +537,9 @@ export class TerrainLayer {
   private stableFrames = 0;
 
   /** Build the image of `chunk` at `scale` image px per world px (a zoom bucket, or an exact device scale). */
-  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation): Sprite {
+  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation, geom?: ChunkGeom): Sprite {
     this.builds++;
-    const g = this.bounds[chunk] as ChunkGeom;
+    const g = geom ?? (this.bounds[chunk] as ChunkGeom);
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
     const { canvas, ctx } = makeCanvas(w, h);
@@ -663,6 +663,44 @@ export class TerrainLayer {
       this.images.get(base + EXACT_SLOT);
       this.images.get(base + bi);
     }
+  }
+
+  /** Chunk bounds per view rotation for `prefetch`, recomputed when the terrain changes. */
+  private turnBounds: Array<ChunkGeom[] | null> = [null, null, null, null];
+  private turnBoundsVersion = -1;
+  /** Chunk images `prefetch` built (tests and the debug overlay). */
+  prefetched = 0;
+
+  /**
+   * Idle-frame work (desktop): build one missing chunk image of view rotation `r` (another rotation than the one on
+   * screen) inside `view`, the view rectangle a turn to `r` would show. A later turn then finds its chunks ready
+   * instead of drawing placeholders. Returns true when it built one.
+   */
+  prefetch(map: MapState, env: TerrainEnv, view: ViewRect, bucket: ZoomBucket, r: ViewRotation): boolean {
+    if (this.bounds.length === 0) return false;
+    if (this.turnBoundsVersion !== this.tracker.version) {
+      this.turnBounds = [null, null, null, null];
+      this.turnBoundsVersion = this.tracker.version;
+    }
+    const cx = this.tracker.chunksX;
+    const n = cx * this.tracker.chunksY;
+    let bounds = this.turnBounds[r];
+    if (!bounds) {
+      bounds = new Array<ChunkGeom>(n);
+      for (let c = 0; c < n; c++) bounds[c] = chunkBounds(map, c % cx, Math.floor(c / cx), r);
+      this.turnBounds[r] = bounds;
+    }
+    const bi = bucketIndex(bucket);
+    for (let c = 0; c < n; c++) {
+      const g = bounds[c] as ChunkGeom;
+      if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      const key = c * KEYS_PER_CHUNK + r * 4 + bi;
+      if (this.images.peek(key)) continue;
+      this.images.set(key, this.build(map, c, bucket, env, r, g));
+      this.prefetched++;
+      return true;
+    }
+    return false;
   }
 
   /** A chunk not built yet: its ground as one flat diamond at the chunk's mean height. */

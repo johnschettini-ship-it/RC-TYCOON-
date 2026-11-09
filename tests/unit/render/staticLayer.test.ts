@@ -5,7 +5,8 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeCanvas, install, make } from './fakeCanvas';
 import { createCanvasRenderer } from '../../../src/render/renderer';
-import { terrainClock } from '../../../src/render/terrain';
+import { TerrainLayer, terrainClock } from '../../../src/render/terrain';
+import { rotateCameraView } from '../../../src/render/view';
 import { defaultToolState, type Camera } from '../../../src/render/types';
 import { spriteMemory } from '../../../src/render/spriteCache';
 import { AUTO_WARMUP_FRAMES, AUTO_WINDOW_FRAMES, setRenderQuality } from '../../../src/perf/quality';
@@ -149,6 +150,38 @@ describe('static terrain layer (Phase 6 §4.6 step 4)', () => {
       expect(spriteMemory.breakdown().static).toBe(W * H * 4);
     } finally {
       spriteMemory.budgetBytes = budget;
+    }
+  });
+
+  it('desktop idle frames build the chunks of both neighbouring view rotations, so a turn builds none', () => {
+    const world = park();
+    const canvas = make(W, H);
+    const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement);
+    r.resize(W, H, 1);
+    const tool = defaultToolState();
+    const build = vi.spyOn(TerrainLayer.prototype as unknown as { build: () => unknown }, 'build');
+    try {
+      const c = cam();
+      for (let k = 0; k < 60; k++) r.draw(world, c, tool, 0);
+      for (const dir of [1, -1] as const) {
+        const t: Camera = { ...c };
+        rotateCameraView(t, world.state.map, dir);
+        build.mockClear();
+        r.draw(world, t, tool, 0);
+        expect(build).not.toHaveBeenCalled();
+        // Back to the first view (its images are still cached).
+        r.draw(world, c, tool, 0);
+      }
+      // Phones keep their memory: no prefetch, so a turn builds its chunks.
+      r.resize(412, 915, 2);
+      for (let k = 0; k < 60; k++) r.draw(world, c, tool, 0);
+      const t: Camera = { ...c };
+      rotateCameraView(t, world.state.map, 1);
+      build.mockClear();
+      r.draw(world, t, tool, 0);
+      expect(build).toHaveBeenCalled();
+    } finally {
+      build.mockRestore();
     }
   });
 

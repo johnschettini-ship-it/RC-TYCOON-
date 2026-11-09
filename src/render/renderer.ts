@@ -30,7 +30,7 @@ import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, TerrainLayer, grassShade, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
@@ -41,6 +41,7 @@ import { perfProbe } from '../perf/stats';
 import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
 import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM } from '../data/tuning/perf';
 import {
+  rotateCameraView,
   viewAffine,
   viewCornerHeights,
   viewDir,
@@ -884,6 +885,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     dpr = plan.pixelRatio;
     lodZoom = plan.guestLodZoom;
     terrain.allowExact = plan.zoomBuckets > ZOOM_BUCKETS.length;
+    prefetchTurns = plan.device === 'desktop' && renderQuality() !== 'low';
     spriteMemory.budgetBytes = plan.budgetBytes;
     // Phone-sized screens keep the smaller chunk cap as well (Phase 4 §4.10, §11).
     terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
@@ -944,6 +946,25 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     k.map = map;
   };
 
+  /** Desktops (memory to spare) build the chunks of the neighbouring view rotations on idle frames. */
+  let prefetchTurns = false;
+  const turned: Camera = { centerX: 0, centerY: 0, zoom: 1, rotation: 0 };
+  const turnedView: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
+  function prefetchTurn(cam: Camera, map: MapState, env: TerrainEnv): void {
+    for (const dir of [1, -1] as const) {
+      turned.centerX = cam.centerX;
+      turned.centerY = cam.centerY;
+      turned.zoom = cam.zoom;
+      turned.rotation = cam.rotation;
+      rotateCameraView(turned, map, dir);
+      turnedView.x0 = turned.centerX - cssW / 2 / cam.zoom;
+      turnedView.x1 = turned.centerX + cssW / 2 / cam.zoom;
+      turnedView.y0 = turned.centerY - cssH / 2 / cam.zoom;
+      turnedView.y1 = turned.centerY + cssH / 2 / cam.zoom;
+      if (terrain.prefetch(map, env, turnedView, bucket, (turned.rotation & 3) as ViewRotation)) return;
+    }
+  }
+
   /** Sky and terrain: from the static layer when nothing changed, else drawn (and kept when the view is still). */
   function drawStatic(world: World, cam: Camera, map: MapState): number {
     const env = { seed: world.state.seed, rides: world.state.rides, stalls: world.state.stalls };
@@ -960,6 +981,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       c.drawImage(staticImage.canvas, 0, 0);
       // The chunks on screen stay cached for the next pan.
       terrain.touch(view, bucket, rot);
+      // Idle frame on a desktop: build ahead for a view turn either way.
+      if (prefetchTurns) prefetchTurn(cam, map, env);
       staticReuses++;
     } else if (sameView(lastKey, cam, map)) {
       // A still view: compose the static layer, then copy it.
