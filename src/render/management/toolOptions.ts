@@ -18,6 +18,8 @@ export interface ManagementToolOptions {
   brush: BrushSize;
   /** Staff member whose patrol the patrol tool edits, or −1. */
   patrolStaffId: number;
+  /** Mode of the stroke in progress (Shift flips it), or null between strokes. */
+  strokeMode: PatrolMode | null;
 }
 
 const store = new WeakMap<ToolState, ManagementToolOptions>();
@@ -25,7 +27,7 @@ const store = new WeakMap<ToolState, ManagementToolOptions>();
 export function toolOptions(tool: ToolState): ManagementToolOptions {
   let o = store.get(tool);
   if (!o) {
-    o = { patrolMode: 'paint', brush: 1, patrolStaffId: -1 };
+    o = { patrolMode: 'paint', brush: 1, patrolStaffId: -1, strokeMode: null };
     store.set(tool, o);
   }
   return o;

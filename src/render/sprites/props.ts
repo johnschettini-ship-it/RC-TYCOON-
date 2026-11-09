@@ -19,7 +19,7 @@ export interface GuestLook {
   hair: string;
   /** 0 = N, 1 = E, 2 = S, 3 = W (map direction the guest faces). */
   facing: Dir;
-  /** 0 standing, 1 and 2 walking steps. */
+  /** 0 standing, 1 and 2 walking steps, 3 sitting (on a bench, Phase 3). */
   walk: number;
   /** Temperament ring colour, or null. */
   ring: string | null;
@@ -44,8 +44,17 @@ export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
   const legL = g.walk === 1 ? -1.5 : 0;
   const legR = g.walk === 2 ? -1.5 : 0;
   ctx.fillStyle = '#2f3b55';
-  ctx.fillRect(-3, -6 + legL, 2.4, 6 - legL * 0.5);
-  ctx.fillRect(0.6, -6 + legR, 2.4, 6 - legR * 0.5);
+  if (g.walk === 3) {
+    // Sitting: knees forward at seat height, the body a little lower.
+    ctx.translate(0, 1.5);
+    ctx.fillRect(-3, -7, 2.4, 2.2);
+    ctx.fillRect(0.6, -7, 2.4, 2.2);
+    ctx.fillRect(-3, -5, 2.4, 3.5);
+    ctx.fillRect(0.6, -5, 2.4, 3.5);
+  } else {
+    ctx.fillRect(-3, -6 + legL, 2.4, 6 - legL * 0.5);
+    ctx.fillRect(0.6, -6 + legR, 2.4, 6 - legR * 0.5);
+  }
   // Torso and arms.
   ctx.fillStyle = shade(g.shirt, 0.8);
   ctx.fillRect(-5, -11.5, 1.6, 5);

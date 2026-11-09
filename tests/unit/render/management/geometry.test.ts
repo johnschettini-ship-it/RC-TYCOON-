@@ -87,26 +87,26 @@ describe('staff interpolation (like guests: tile → next tile by (progress + al
 });
 
 describe('path item placement (bench and bin sit at a tile edge without a path join)', () => {
-  const place = (mask: number): ItemPlacement => pathItemPlacement(mask, { u: 0, v: 0, alongX: true });
+  const place = (mask: number): ItemPlacement => pathItemPlacement(mask, { u: 0, v: 0, alongX: true, side: 0 });
   const N = 1;
   const E = 2;
   const S = 4;
   const W = 8;
 
   it('a path along x puts the item on the north edge, along x', () => {
-    expect(place(E | W)).toEqual({ u: 0.5, v: 0.14, alongX: true });
+    expect(place(E | W)).toEqual({ u: 0.5, v: 0.14, alongX: true, side: 0 });
   });
 
   it('a path along y puts the item on the west edge, along y', () => {
-    expect(place(N | S)).toEqual({ u: 0.14, v: 0.5, alongX: false });
+    expect(place(N | S)).toEqual({ u: 0.14, v: 0.5, alongX: false, side: 3 });
   });
 
   it('a T junction open to the north uses another free edge', () => {
     const p = place(N | E | W);
-    expect(p).toEqual({ u: 0.5, v: 0.86, alongX: true });
+    expect(p).toEqual({ u: 0.5, v: 0.86, alongX: true, side: 2 });
   });
 
   it('a crossroads uses the north-west corner', () => {
-    expect(place(N | E | S | W)).toEqual({ u: 0.16, v: 0.16, alongX: true });
+    expect(place(N | E | S | W)).toEqual({ u: 0.16, v: 0.16, alongX: true, side: 0 });
   });
 });

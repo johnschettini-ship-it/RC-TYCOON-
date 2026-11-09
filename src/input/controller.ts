@@ -263,6 +263,7 @@ export class InputController {
       case 'dragCancel':
         // A second finger drops the stroke (Phase 3 §7.2): nothing is sent.
         this.stroke = null;
+        toolOptions(tool).strokeMode = null;
         tool.drag = null;
         break;
       default:
@@ -331,6 +332,7 @@ export class InputController {
     if (staffId < 0 || !this.game.world.state.staff.members.some((m) => m.id === staffId)) return;
     const mode = this.shiftPress ? (opts.patrolMode === 'paint' ? 'erase' : 'paint') : opts.patrolMode;
     this.stroke = new PatrolStroke(staffId, mode);
+    opts.strokeMode = mode;
     this.strokeLast = -1;
     this.strokeMove(x, y);
   }
@@ -357,6 +359,7 @@ export class InputController {
   private strokeEnd(): void {
     const stroke = this.stroke;
     this.stroke = null;
+    toolOptions(this.game.tool).strokeMode = null;
     this.game.tool.drag = null;
     const cmd = stroke?.command();
     if (cmd) this.game.dispatch(cmd);

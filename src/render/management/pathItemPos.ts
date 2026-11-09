@@ -10,6 +10,8 @@ export interface ItemPlacement {
   v: number;
   /** The item's long side runs along map x (else along y). */
   alongX: boolean;
+  /** Tile edge the item stands at (0 N, 1 E, 2 S, 3 W); a bench faces away from it. */
+  side: 0 | 1 | 2 | 3;
 }
 
 const EDGE = 0.14;
@@ -20,22 +22,27 @@ export function pathItemPlacement(joinMask: number, out: ItemPlacement): ItemPla
     out.u = 0.5;
     out.v = EDGE;
     out.alongX = true;
+    out.side = 0;
   } else if ((joinMask & 8) === 0) {
     out.u = EDGE;
     out.v = 0.5;
     out.alongX = false;
+    out.side = 3;
   } else if ((joinMask & 2) === 0) {
     out.u = 1 - EDGE;
     out.v = 0.5;
     out.alongX = false;
+    out.side = 1;
   } else if ((joinMask & 4) === 0) {
     out.u = 0.5;
     out.v = 1 - EDGE;
     out.alongX = true;
+    out.side = 2;
   } else {
     out.u = CORNER;
     out.v = CORNER;
     out.alongX = true;
+    out.side = 0;
   }
   return out;
 }
