@@ -24,7 +24,7 @@ import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { TerrainLayer, grassShade, type ViewRect } from './terrain';
-import { KIND_TRACK, TrackLayer } from './track';
+import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 
@@ -558,7 +558,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
     if (sel.kind === 'ride') {
       const r = s.rides.find((q) => q.id === sel.id);
-      if (!r || r.kind !== 'flat') return;
+      if (!r) return;
+      if (r.kind === 'track') {
+        // Station, track, and gate tiles (elevated pieces outline the ground under them).
+        const tiles = trackRideTiles(world, r);
+        if (tiles.length > 0) outlineTiles(map, tiles, 'rgba(255,255,255,0.12)', '#ffffff', Math.max(1, 1.5 * scale));
+        return;
+      }
       const def = getFlatRideDef(r.defId);
       const tiles = footprintTiles(map, r.x, r.y, def?.w ?? 1, def?.d ?? 1, r.rotation);
       if (tiles) outlineTiles(map, tiles, 'rgba(255,255,255,0.12)', '#ffffff', Math.max(1, 1.5 * scale));
