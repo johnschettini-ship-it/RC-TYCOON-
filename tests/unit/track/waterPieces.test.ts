@@ -51,7 +51,9 @@ describe('water piece table (Phase 4 §4.4)', () => {
     const ids = TABLE.flatMap((r) => r.ids);
     expect(WATER_PIECES.map((p) => p.id)).toEqual(ids);
     expect(TRACK_PIECES).toHaveLength(29);
-    expect(ALL_TRACK_PIECES).toHaveLength(29 + 21);
+    // Build 3 (W4-D) appends the 6 Phase 6 pieces after the water pieces (tests/unit/track/phase6Pieces.test.ts).
+    expect(ALL_TRACK_PIECES).toHaveLength(29 + 21 + 6);
+    expect(ALL_TRACK_PIECES.slice(29, 50)).toEqual(WATER_PIECES);
     WATER_PIECES.forEach((p, i) => expect(p.num).toBe(30 + i));
     for (const id of ids) expect(getTrackPieceDef(id)?.id).toBe(id);
   });
@@ -158,7 +160,9 @@ describe('water piece table (Phase 4 §4.4)', () => {
 describe('water track types (catalog §2, Phase 4 §8)', () => {
   it('Log Flume and Rapids Raft use the water current drive, their set, and the catalog vehicle numbers', () => {
     expect(WATER_TRACK_TYPES.map((t) => t.id)).toEqual(['log_flume', 'rapids_raft']);
-    expect(ALL_TRACK_TYPES).toHaveLength(9);
+    // Build 3 (W4-D) appends the 3 Phase 6 types after the water types.
+    expect(ALL_TRACK_TYPES).toHaveLength(9 + 3);
+    expect(ALL_TRACK_TYPES.slice(7, 9)).toEqual(WATER_TRACK_TYPES);
     const flume = getTrackTypeDef('log_flume')!;
     const rapids = getTrackTypeDef('rapids_raft')!;
     expect([flume.drive, flume.medium, flume.pieceSet, flume.stationPiece]).toEqual(['waterCurrent', 'water', 'flume', 'flume_station']);

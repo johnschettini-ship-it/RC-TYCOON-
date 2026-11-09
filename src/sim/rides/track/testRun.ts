@@ -20,6 +20,7 @@ import { getLayout, type CircuitLayout } from './layout';
 import { newTrain, stepTrain, stopCentreMm, trainG, type StepContext } from './physics';
 import { highestAboveGround } from './placement';
 import { addWaterExtras, computeRatings, ratingInputsOf, waterRatingExtras } from './ratings';
+import { stepWithStops, usesStops } from './stops';
 import type { TestResult, TrackRideData, TrainState } from './types';
 
 /** Guest-driven target speed for a temperament (mm/s). */
@@ -134,6 +135,8 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
     leader: null,
     slowFactor: 1,
   };
+  // Phase 6 Monorail: the test train dwells at each stop too, so the ride time includes the stops.
+  const stops = usesStops(layout, type);
   const win: { gv: number; gl: number }[] = [];
   let posG = -Infinity;
   let negG = Infinity;
@@ -142,8 +145,17 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
   let vMax = 0;
   let ticks = 0;
   for (;;) {
-    const r = stepTrain(ctx, train);
+    const r = stops ? stepWithStops(ctx, layout, train) : stepTrain(ctx, train);
     ticks++;
+    if (r === null) {
+      // Dwelling at a stop: no move, no G measured (a station).
+      if (ticks % TEST_CHART_EVERY_TICKS === 0) {
+        res.chart.speedCms.push(0);
+        res.chart.gv.push(100);
+        res.chart.gl.push(0);
+      }
+      continue;
+    }
     if (r.stall) {
       res.failPiece = r.pieceIndex + 1;
       res.failKind = r.stall;

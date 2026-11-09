@@ -28,6 +28,7 @@ import { jointsEqual, localToWorld, pieceEntryJoint, pieceExitJoint, piecesForEn
 import { buildLayout, getLayout, newSamplePoint, poseAt, type TrackPose } from './layout';
 import { buildOccupancy, groundOwner, highestAboveGround, refreshGroundTiles } from './placement';
 import { ratingWarnings } from './ratings';
+import { stationAppendBlock } from './stops';
 import type { TrackPieceInstance, TrackRideData, TrainState } from './types';
 
 /** Null when the track ride may open, else the reason (phase-2 §4.6 strings). */
@@ -141,6 +142,7 @@ export function trackWarnings(world: World, rideId: number): string[] {
   if (!t.passed) {
     const piece = t.failPiece ?? 1;
     if (t.failKind === 'loop') return [fillTrackString(TRACK_RATING_WARN.testFailedLoop, { n: piece })];
+    if (t.failKind === 'corkscrew') return [fillTrackString(TRACK_RATING_WARN.testFailedCorkscrew, { n: piece })];
     const name = getTrackPieceDef(data.pieces[piece - 1]?.defId ?? '')?.name ?? '';
     return [fillTrackString(TRACK_RATING_WARN.testFailedStop, { n: piece, name })];
   }
@@ -153,8 +155,8 @@ export function nextTrackPieces(world: World, rideId: number): TrackPieceDef[] {
   const data = trackData(world, rideId);
   if (!ride || !data || data.circuitClosed) return [];
   const end = trackEnd(world, ride, data);
-  const onlyStations = data.pieces.every((p) => getTrackPieceDef(p.defId)?.special === 'station');
-  return piecesForEnd(data.typeId, end.slope, end.bank, onlyStations && data.pieces.length < 12);
+  const type = getTrackTypeDef(data.typeId);
+  return piecesForEnd(data.typeId, end.slope, end.bank, !!type && stationAppendBlock(data.pieces, type) === null);
 }
 
 /** Ghost preview for the builder: the same checks as `addTrackPiece`, without changing anything. */

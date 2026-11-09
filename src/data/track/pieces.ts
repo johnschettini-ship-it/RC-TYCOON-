@@ -1,5 +1,6 @@
 /** Piece table (phase-2-coasters.md §4.2). Owner: W1-G; the water sets (Phase 4 §4.4) are added by W3-C. Costs in cents; lengths in mm. */
 import type { PieceGeometry, PieceGroup, PieceSpecial, TrackBank, TrackPieceDef, TrackSlope } from './types';
+import { EXTRA_PIECES } from './extraPieces';
 import { WATER_PIECES } from './waterPieces';
 
 type Exit = TrackPieceDef['exit'];
@@ -87,6 +88,7 @@ function toDef(r: Row): TrackPieceDef {
     cost: r.dollars * 100,
     chainable: r.chainable === true,
     inversions: r.inversions ?? 0,
+    minEntryMms: 0,
     turnKind: r.turnKind ?? null,
     special: r.special ?? null,
     water: null,
@@ -96,10 +98,10 @@ function toDef(r: Row): TrackPieceDef {
 /** The 29 rail pieces of the phase-2 §4.2 table. */
 export const TRACK_PIECES: readonly TrackPieceDef[] = Object.freeze(ROWS.map(toDef));
 
-export { WATER_PIECES };
+export { EXTRA_PIECES, WATER_PIECES };
 
-/** Rail pieces then water pieces (Phase 4 §4.4): every piece any track type can build. */
-export const ALL_TRACK_PIECES: readonly TrackPieceDef[] = Object.freeze([...TRACK_PIECES, ...WATER_PIECES]);
+/** Rail pieces, water pieces (Phase 4 §4.4), then the Phase 6 pieces: every piece any track type can build. */
+export const ALL_TRACK_PIECES: readonly TrackPieceDef[] = Object.freeze([...TRACK_PIECES, ...WATER_PIECES, ...EXTRA_PIECES]);
 
 const BY_ID: ReadonlyMap<string, TrackPieceDef> = new Map(ALL_TRACK_PIECES.map((p) => [p.id, p]));
 

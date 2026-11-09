@@ -204,3 +204,9 @@ export function pitchStep(pitch: number): number {
   const k = Math.round((pitch / (Math.PI * 2)) * 24);
   return ((k % 24) + 24) % 24;
 }
+
+/** Quantized car roll (16 steps) from the bank's sine and cosine (Phase 6: cars roll with the track). */
+export function rollStep(bankSin: number, bankCos: number): number {
+  const k = Math.round((Math.atan2(bankSin, bankCos) / (Math.PI * 2)) * 16);
+  return ((k % 16) + 16) % 16;
+}

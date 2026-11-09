@@ -289,6 +289,8 @@ export function trainCountBlock(data: TrackRideData, typeId: string): string | n
   const layout = getLayout(data);
   const need = Math.ceil((data.trainConfig.carsPerTrain * type.vehicle.carLengthMm) / TILE_MM);
   if (layout.stationCount < need) return fillTrackString(TRACK_ERR.stationTooShort, { n: need });
+  // Phase 6 stops (Monorail): every stop holds the whole train too.
+  for (const r of layout.stopRuns) if (r.end - r.start < need) return fillTrackString(TRACK_ERR.stationTooShort, { n: need });
   if (type.drive === 'guestDriven') {
     const maxKarts = Math.min(KART_MAX, layout.stationCount * KARTS_PER_STATION_TILE);
     if (data.trainConfig.trains > maxKarts) {

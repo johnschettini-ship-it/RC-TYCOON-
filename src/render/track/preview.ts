@@ -1,7 +1,8 @@
 /**
  * Picker preview of a track ride type: a station, a small hill with supports, and a two-car train in the
  * type's default colours (phase-2 §7.1 step 1). Water types show a lift, a slope down, and their splash feature
- * (Phase 4 §4.4). Owner: W2-A; water W3-C.
+ * (Phase 4 §4.4). Phase 6 (W4-D): the Inverted Coaster shows a corkscrew, the Bobsled Run a banked turn.
+ * Owner: W2-A; water W3-C; Phase 6 W4-D.
  */
 import { getTrackPieceDef, getTrackTypeDef } from '../../data/track';
 import { pieceWorldSamples } from '../../sim/rides/track/api';
@@ -28,6 +29,13 @@ export function previewPieces(typeId: string): TrackPieceInstance[] {
       piece(p('slope_down'), 2, 2, 2, 1),
       piece(type.pieceSet === 'flume' ? 'flume_splashdown' : 'rapids_whirlpool', 2, 3, 0, 1),
     ];
+  }
+  if (typeId === 'inverted_coaster') {
+    return [piece('station', 0, 0, 0, 0), piece('station', 1, 0, 0, 0), piece('corkscrew_right', 2, 0, 0, 0)];
+  }
+  if (typeId === 'bobsled_run') {
+    // No unbanked turns on a bobsled: bank in, then a banked medium turn.
+    return [piece('station', 0, 0, 0, 0), piece('station', 1, 0, 0, 0), piece('bank_right_in', 2, 0, 0, 0), piece('banked_turn_medium_right', 3, 0, 0, 0)];
   }
   const special = type?.groups.includes('Sp') ? 'spooky_tunnel' : 'straight';
   // An L shape keeps the picture compact: station along +x, a small turn, then a small hill along +y.
@@ -65,7 +73,7 @@ export function drawTrackPreview(ctx: CanvasRenderingContext2D, typeId: string, 
         const x = P.x((s.x[k] as number) + d, (s.y[k] as number) - d);
         l = Math.min(l, x);
         r = Math.max(r, x);
-        t = Math.min(t, P.y(s.x[k] as number, s.y[k] as number, (s.z[k] as number) + 2.5));
+        t = Math.min(t, P.y(s.x[k] as number, s.y[k] as number, (s.z[k] as number) + 2.5 + (look.lift ?? 0)));
         b = Math.max(b, P.y((s.x[k] as number) + d, (s.y[k] as number) + d, 0));
       }
     }

@@ -1,6 +1,6 @@
 /**
  * Track ride operation (phase-2-coasters.md §4.7 fault guard, §4.8 blocks and dispatch, §4.9 live test, §4.11 guests).
- * Owner: W1-G. Trains update in ascending train id; decisions use a snapshot of the other trains taken at the start of
+ * Owner: W1-G; Phase 6 (W4-D): Monorail stops (`stops.ts`) and the `trainDrop` and `splash` sound cues (`cues.ts`). Trains update in ascending train id; decisions use a snapshot of the other trains taken at the start of
  * the ride's tick, so the order never changes the outcome.
  *
  * Breakdowns (Phase 3 §4.5, master R16): a broken ride (not `slow_running`) holds each train at the station or at the
@@ -27,7 +27,9 @@ import type { World } from '../../types';
 import type { Ride } from '../types';
 import { kartSpeedMms } from './testRun';
 import { getLayout, type CircuitLayout } from './layout';
-import { newTrain, stepTrain, stopCentreMm, type StepContext } from './physics';
+import { emitTrackCues } from './cues';
+import { newTrain, stepTrain, stopCentreMm, type StepContext, type StepResult } from './physics';
+import { stepWithStops, usesStops } from './stops';
 import type { TrackRideData, TrainState } from './types';
 
 /** Snapshot of a train for this tick's decisions (positions in mm). */
@@ -168,7 +170,8 @@ export function stepLiveTest(world: World, ride: Ride, data: TrackRideData, type
   }
   const layout = getLayout(data);
   const t = data.trains[0];
-  if (t && t.state === 'running') {
+  const stops = usesStops(layout, type);
+  if (t && (t.state === 'running' || (stops && t.state === 'held'))) {
     const ctx: StepContext = {
       layout,
       type,
@@ -179,8 +182,14 @@ export function stepLiveTest(world: World, ride: Ride, data: TrackRideData, type
       leader: null,
       slowFactor: 1,
     };
-    const r = stepTrain(ctx, t);
-    if (r.stall || r.arrived) t.state = 'waiting';
+    // Phase 6 Monorail: the live test train dwells at each stop, exactly as the precomputed lap did.
+    const from = t.s;
+    const dist0 = t.dist;
+    const r = stops ? stepWithStops(ctx, layout, t) : stepTrain(ctx, t);
+    if (r) {
+      emitTrackCues(world, ride, layout, t, from, t.dist - dist0);
+      if (r.stall || r.arrived) t.state = 'waiting';
+    }
   }
   run.ticksLeft--;
   if (run.ticksLeft > 0) return;
@@ -196,7 +205,7 @@ export function stepLiveTest(world: World, ride: Ride, data: TrackRideData, type
   } else {
     const n = res.failPiece ?? 1;
     const name = getTrackPieceDef(data.pieces[n - 1]?.defId ?? '')?.name ?? '';
-    const textId = res.failKind === 'loop' ? 'track.testFailedLoop' : 'track.testFailedStop';
+    const textId = res.failKind === 'loop' ? 'track.testFailedLoop' : res.failKind === 'corkscrew' ? 'track.testFailedCorkscrew' : 'track.testFailedStop';
     emit(world, { type: 'message', category: 'park', textId, params: { n, name }, tile, entityId: ride.id });
   }
 }
@@ -218,6 +227,7 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
   const len = trainLen(type, data);
   const stopC = stopCentreMm(layout, len);
   const gravity = type.drive === 'gravity';
+  const stops = usesStops(layout, type);
   const snaps = snapshot(data, layout, len);
   const snapOf = new Map(snaps.map((s) => [s.id, s]));
   const P = layout.blockPoints;
@@ -326,13 +336,25 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
           }
           if (gap !== Infinity) leader = { gapMm: gap, vMms: vL };
         }
-        if (t.state === 'held' && holdFrontMm === null) {
-          t.state = 'running';
-          t.release = gravity;
-        }
         const ctx: StepContext = { layout, type, pieces: data.pieces, trainLenMm: len, laps: lapsFor(type, data, t, L), holdFrontMm, leader, slowFactor };
         const lapsBefore = Math.floor(t.dist / L);
-        const r = stepTrain(ctx, t);
+        const from = t.s;
+        const dist0 = t.dist;
+        let r: StepResult;
+        if (stops) {
+          // Phase 6 Monorail: dwell at a stop (riders stay seated), else go on to the next stop or the station.
+          const sr = stepWithStops(ctx, layout, t);
+          if (!sr) break;
+          r = sr;
+        } else {
+          if (t.state === 'held' && holdFrontMm === null) {
+            t.state = 'running';
+            t.release = gravity;
+          }
+          ctx.holdFrontMm = holdFrontMm;
+          r = stepTrain(ctx, t);
+        }
+        emitTrackCues(world, ride, layout, t, from, t.dist - dist0);
         if (r.stall) {
           faultClose(world, ride, data, r.pieceIndex);
           return;

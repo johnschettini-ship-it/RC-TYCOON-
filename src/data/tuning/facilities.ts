@@ -1,5 +1,6 @@
 /**
- * Facility tuning (phase-3-management.md §4.10 and §8). Owner: W2-C. Starting values for play-testing.
+ * Facility tuning (phase-3-management.md §4.10 and §8; Phase 6 Photo Booth). Owner: W2-C, W4-D (Photo Booth).
+ * Starting values for play-testing.
  * Needs use the 0–255 scale. Money is integer cents. Times are ticks. Tests read these constants.
  * Item effects, prices, and the Cash Machine amounts stay in the catalog (`src/data/catalog/stalls.ts`).
  */
@@ -46,3 +47,11 @@ export const CASH_MACHINE_MAX_WITHDRAWALS = 2;
  * with thirst at or above this thinks it while the weather raises Cocoa Hut sales and one is open.
  */
 export const COCOA_THOUGHT_THIRST = 100;
+
+// ---------------------------------------------------------------- Photo Booth (Phase 6 §4.5, catalog §3)
+
+export const PHOTO_BOOTH_ID = 'photo_booth';
+/** "want ×2 within 6 tiles of a ride exit with excitement ≥ 5.00": radius (Chebyshev tiles), excitement (hundredths). */
+export const PHOTO_BOOTH_RADIUS = 6;
+export const PHOTO_BOOTH_MIN_EXCITEMENT = 500;
+export const PHOTO_BOOTH_WANT = 2;
