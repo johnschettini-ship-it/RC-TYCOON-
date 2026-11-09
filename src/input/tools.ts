@@ -110,6 +110,8 @@ export function pickEntity(world: World, tile: number | null): PickedEntity | nu
     const ref = s.map.contentRef[tile] ?? -1;
     if (s.rides.some((r) => r.id === ref)) return { kind: 'ride', id: ref };
     if (s.stalls.some((st) => st.id === ref)) return { kind: 'stall', id: ref };
+    // Phase 6 §7: a show site opens its panel (W4-C, `ui/shows`).
+    if (s.shows.some((site) => site.id === ref)) return { kind: 'showSite', id: ref };
   }
   // Phase 3 §7.3: a tap or long-press on a staff member opens the staff panel.
   const member = s.staff.members.find((m) => m.tile === tile);

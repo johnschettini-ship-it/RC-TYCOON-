@@ -1,10 +1,12 @@
-/** Game facade: world + loop + dispatch + event fan-out. Owner: integrator. */
+/** Game facade: world + loop + dispatch + event fan-out + settings. Owner: integrator. */
 import { executeCommand, type Command, type CommandResult } from './sim/commands';
 import { drainEvents } from './sim/events';
 import { stepTick } from './sim/tick';
 import type { SimEvent, World } from './sim/types';
 import { advance, alphaOf, type Speed } from './loop';
 import { defaultToolState, type Camera, type Renderer, type ToolState } from './render/types';
+import { memorySettingsStore, type SettingsStore } from './settings';
+import { perfProbe } from './perf/stats';
 
 export type EventListener = (events: SimEvent[]) => void;
 export type CommandListener = (cmd: Command, result: CommandResult) => void;
@@ -16,6 +18,11 @@ export class Game {
   tool: ToolState = defaultToolState();
   /** Set when the state changed since the last save. */
   dirty = false;
+  /**
+   * Player settings (Phase 6 §4.9): `tc.settings` in the browser (`main.ts`), in memory otherwise. Not game state;
+   * the simulation never reads it.
+   */
+  readonly settings: SettingsStore;
   private acc = 0;
   private last = 0;
   private raf = 0;
@@ -24,8 +31,9 @@ export class Game {
   private frameListeners: Array<() => void> = [];
   private worldListeners: Array<(w: World) => void> = [];
 
-  constructor(world: World, private renderer: Renderer | null = null) {
+  constructor(world: World, private renderer: Renderer | null = null, settings: SettingsStore = memorySettingsStore()) {
     this.world = world;
+    this.settings = settings;
   }
 
   setRenderer(r: Renderer): void {
@@ -75,11 +83,17 @@ export class Game {
   }
 
   frame(nowMs: number): void {
+    // Phase 6 §4.6 probes (W4-E): empty calls unless the overlay or a perf run turned them on.
+    perfProbe.frameStart(nowMs);
     const elapsed = this.last === 0 ? 0 : nowMs - this.last;
     this.last = nowMs;
     const { ticks, accMs } = advance(this.acc, elapsed, this.speed);
     this.acc = accMs;
-    for (let i = 0; i < ticks; i++) stepTick(this.world);
+    for (let i = 0; i < ticks; i++) {
+      perfProbe.tickStart();
+      stepTick(this.world);
+      perfProbe.tickEnd();
+    }
     if (ticks > 0) this.dirty = true;
     if (this.world.events.length > 0) {
       const evs = drainEvents(this.world);
@@ -87,6 +101,7 @@ export class Game {
     }
     this.renderer?.draw(this.world, this.camera, this.tool, alphaOf(this.acc, this.speed));
     for (const l of this.frameListeners) l();
+    perfProbe.frameEnd();
   }
 
   start(): void {

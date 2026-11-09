@@ -4,7 +4,7 @@
  */
 import { text } from '../data/strings/en';
 import type { Speed } from '../loop';
-import { formatDate } from '../sim/time';
+import { formatGameDate } from '../i18n';
 import type { UiContext } from './context';
 import { h, setAttr, setText, toggleClass } from './dom';
 import { formatMoney, sharePercents, temperamentShares } from './format';
@@ -66,7 +66,7 @@ export function createHud(ctx: UiContext): { el: HTMLElement; update(now: number
       toggleClass(cash, 'neg', s.park.cash < 0);
       setText(guests, String(s.guests.length));
       setText(rating, String(s.park.rating));
-      setText(date, formatDate(s.tick));
+      setText(date, formatGameDate(s.tick));
       weather.update();
       for (const p of extra) p.update(now);
       for (const b of speedButtons) {

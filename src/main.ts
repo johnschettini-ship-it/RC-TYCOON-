@@ -6,6 +6,12 @@ import { tileToScreen } from './render/iso';
 import { attachInput } from './input';
 import { mountUI } from './ui';
 import { createWorld } from './sim/world';
+import { browserStore } from './save';
+import { SettingsStore } from './settings';
+import { initI18n } from './i18n';
+import { mountA11y } from './a11y';
+import { mountAudio } from './audio';
+import { registerOffline } from './offline';
 
 function boot(): void {
   const canvas = document.getElementById('game') as HTMLCanvasElement | null;
@@ -13,7 +19,10 @@ function boot(): void {
   if (!canvas || !uiRoot) throw new Error('Missing #game canvas or #ui root');
   const world = createWorld({ seed: (Date.now() & 0x7fffffff) >>> 0, parkName: 'New Park' });
   const renderer = createCanvasRenderer(canvas);
-  const game = new Game(world, renderer);
+  // Phase 6 §4.9: settings from `tc.settings` (defaults in memory when storage is missing or the data unreadable).
+  const game = new Game(world, renderer, new SettingsStore(browserStore()));
+  // Phase 6 §4.8 (W4-G): the language is chosen before any UI text is built.
+  initI18n(game);
   const map = world.state.map;
   const c = tileToScreen(map.width / 2, map.height / 2, map.heights[0] ?? 0);
   game.camera.centerX = c.sx;
@@ -28,6 +37,10 @@ function boot(): void {
 
   attachInput(canvas, game);
   mountUI(uiRoot, game);
+  // Build 3 clients (Wave 4): accessibility (W4-F), audio (W4-A/B), offline play (W4-G).
+  mountA11y(game, uiRoot, canvas);
+  mountAudio(game);
+  registerOffline(game);
   // Debug hook for dev builds and e2e tests only (Phase 4 §4 note).
   (window as unknown as { __tc?: Game }).__tc = game;
   const loading = document.getElementById('loading');

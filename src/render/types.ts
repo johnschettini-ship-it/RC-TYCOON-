@@ -1,4 +1,4 @@
-/** Client contracts shared by render (W1-A), input and UI (W1-B), and the Wave 3 cards. Owner: integrator. */
+/** Client contracts shared by render (W1-A), input and UI (W1-B), and the Wave 3 and Wave 4 cards. Owner: integrator. */
 import type { Dir, TerrainCode } from '../sim/map';
 import type { World } from '../sim/types';
 import type { RampMode } from '../sim/commands/types';
@@ -36,11 +36,17 @@ export type ToolId =
   /** Land and construction-rights purchase (W3-G). */
   | 'buyLand'
   /** Scenery placement (W3-D). */
-  | 'scenery';
+  | 'scenery'
+  // Build 3 (Phase 6 §6, §7).
+  /** Show site placement (W4-C): `defId` is the `SHOW_SITES` id; router `src/input/shows`. */
+  | 'placeShowSite';
 
 export interface GhostState {
-  /** `scenery`: Phase 4 scenery ghost (W3-D); `rotation` is in map terms (view rotation already taken off). */
-  kind: 'ride' | 'stall' | 'pathItem' | 'trackPiece' | 'station' | 'scenery';
+  /**
+   * `scenery`: Phase 4 scenery ghost (W3-D); `rotation` is in map terms (view rotation already taken off).
+   * `showSite`: Phase 6 show site ghost (W4-C draws it in its layer's `drawOverlay`).
+   */
+  kind: 'ride' | 'stall' | 'pathItem' | 'trackPiece' | 'station' | 'scenery' | 'showSite';
   defId: string;
   tile: number;
   rotation: Dir;
@@ -113,8 +119,8 @@ export interface ToolState {
   drag: DragState | null;
   /** Active overlay (Phase 1: temperament; Phase 4: calm, buzz, light). */
   overlay: OverlayId;
-  /** Entity the panel shows (inspect / follow). */
-  selectedEntity: { kind: 'ride' | 'stall' | 'guest' | 'staff'; id: number } | null;
+  /** Entity the panel shows (inspect / follow). `showSite`: Phase 6 show site panel (W4-C, `ui/shows`). */
+  selectedEntity: { kind: 'ride' | 'stall' | 'guest' | 'staff' | 'showSite'; id: number } | null;
   // ---- Build 2 tool options (Wave 3.0) ----
   land: LandToolOptions;
   pathHeight: PathHeightOptions;

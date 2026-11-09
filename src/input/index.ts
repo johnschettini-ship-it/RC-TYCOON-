@@ -9,6 +9,7 @@ import type { PointerKind } from './gestures';
 import { keyAction } from './keyboard';
 import { isTrackKey } from './track';
 import { routerOf } from './toolRouters';
+import { KEY_HANDLERS } from './keyHandlers';
 
 /** Window event for panel requests; the UI layer listens for it. */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -89,6 +90,13 @@ export function attachInput(canvas: HTMLCanvasElement, game: Game): void {
       if (!e.repeat) ctl.keyDown(e.key);
       return;
     }
+    // Build 3 key handlers (Wave 4.0, `./keyHandlers.ts`): map cursor and shortcut list (W4-F), F3 (W4-E).
+    for (const handler of KEY_HANDLERS) {
+      if (handler.keyDown(game, e.key, { shift: e.shiftKey, repeat: e.repeat })) {
+        e.preventDefault();
+        return;
+      }
+    }
     const action = keyAction(e.key);
     if (!action) {
       // Keys of a Build 2 tool router (e.g. Enter confirms a Buy Land rectangle) reach the active tool.
@@ -99,7 +107,10 @@ export function attachInput(canvas: HTMLCanvasElement, game: Game): void {
     if (e.repeat && action.kind !== 'pan' && action.kind !== 'zoom') return;
     ctl.keyDown(e.key);
   });
-  window.addEventListener('keyup', (e) => ctl.keyUp(e.key));
+  window.addEventListener('keyup', (e) => {
+    for (const handler of KEY_HANDLERS) handler.keyUp?.(game, e.key);
+    ctl.keyUp(e.key);
+  });
   window.addEventListener('blur', () => ctl.blur());
 
   game.onFrame(() => ctl.update(performance.now()));

@@ -1,5 +1,6 @@
 /** Toast queue (Phase 1 §7): 3 s, one at a time, the newest replaces the oldest. Owner: W1-B. Pure. */
 import type { CommandResult } from '../sim/commands/types';
+import { localizeReason } from '../i18n';
 
 export const TOAST_MS = 3000;
 
@@ -36,9 +37,9 @@ export class ToastQueue {
   }
 }
 
-/** Every failed command shows its reason; warnings show too. */
+/** Every failed command shows its reason; warnings show too. Phase 6 §4.8: in the current locale (W4-G). */
 export function toastForResult(result: CommandResult): { message: string; kind: ToastKind } | null {
-  if (!result.ok) return { message: result.reason, kind: 'error' };
-  if (result.warnings.length > 0) return { message: result.warnings.join(' · '), kind: 'warning' };
+  if (!result.ok) return { message: localizeReason(result.reason), kind: 'error' };
+  if (result.warnings.length > 0) return { message: result.warnings.map(localizeReason).join(' · '), kind: 'warning' };
   return null;
 }

@@ -1,6 +1,7 @@
 /**
- * Build 2 render layer contract (Wave 3.0). Owner: integrator. The renderer (`renderer.ts`) calls every registered
- * layer at fixed points of the frame, so Wave 3 cards draw from their own folders without editing the renderer:
+ * Render layer contract (Wave 3.0; Build 3 layers Wave 4.0). Owner: integrator. The renderer (`renderer.ts`) calls
+ * every layer of `./worldLayers.ts` at fixed points of the frame, so cards draw from their own folders without
+ * editing the renderer:
  *
  * 1. terrain chunks → Build 1 ground (path items, litter) → `drawGround` of each layer (tints, water surfaces)
  * 2. `collect` of each layer pushes depth-sorted drawables (kinds below); the renderer sorts all objects together
@@ -47,6 +48,8 @@ export const LAYER_KIND = {
   /** Scenery items, per footprint-tile slice (W3-D). */
   scenery: 70,
   sceneryEdge: 71,
+  /** Build 3: show sites, per footprint-tile slice (W4-C). Beams and fireworks draw in `drawAfterObjects`. */
+  showSite: 80,
 } as const;
 
 export interface WorldLayer {

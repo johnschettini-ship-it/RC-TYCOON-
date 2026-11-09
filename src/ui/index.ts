@@ -33,7 +33,7 @@ import { createPathItemBar, createPatrolBar } from './management/toolBars';
 import { TOAST_MS } from './toasts';
 import { toolOptions } from '../render/management/toolOptions';
 import { mountTrackUi } from './track';
-import { UI_EXTENSIONS } from './extensions';
+import { extensionPanel, UI_EXTENSIONS } from './extensions';
 import { tileCentreWorld } from '../input/camera';
 
 /** Window event the input layer fires for panel requests (keyboard `F`, `Esc`). */
@@ -136,17 +136,24 @@ export function mountUI(root: HTMLElement, game: Game): void {
         case 'messages':
           view = createMessagesPanel(ctx);
           break;
+        case 'showSite': {
+          // Phase 6 (Wave 4.0): panels from UI extensions (the show site panel, W4-C); none yet = nothing opens.
+          const make = extensionPanel(kind);
+          if (!make) return;
+          view = make(ctx, id ?? null);
+          break;
+        }
         default:
           view = createPicker(ctx, kind);
       }
       const sel = game.tool.selectedEntity;
-      if ((kind === 'ride' || kind === 'stall' || kind === 'guest' || kind === 'staff') && id !== undefined && id >= 0) {
+      if ((kind === 'ride' || kind === 'stall' || kind === 'guest' || kind === 'staff' || kind === 'showSite') && id !== undefined && id >= 0) {
         // An entity panel selects its entity (message locate, long-press), so the frame loop does not reopen it.
         game.tool.selectedEntity = { kind, id };
         lastSelection = { kind, id };
       } else if (kind === 'staff' && sel?.kind === 'staff') {
         // The staff panel keeps the selected staff member.
-      } else if (kind !== 'ride' && kind !== 'stall' && kind !== 'guest') {
+      } else if (kind !== 'ride' && kind !== 'stall' && kind !== 'guest' && kind !== 'showSite') {
         // A non-entity panel replaces the inspected entity.
         game.tool.selectedEntity = null;
         lastSelection = null;
@@ -297,7 +304,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
         if (panels.current()?.kind !== 'staff' && game.tool.tool !== 'patrol') ctx.openPanel('staff', sel.id);
       } else if (!sel) {
         const cur = panels.current();
-        if (cur && (cur.kind === 'ride' || cur.kind === 'stall' || cur.kind === 'guest')) panels.close();
+        if (cur && (cur.kind === 'ride' || cur.kind === 'stall' || cur.kind === 'guest' || cur.kind === 'showSite')) panels.close();
       }
     }
     // Leaving the patrol tool (Done, Esc, another tool) brings the staff panel back.

@@ -15,10 +15,15 @@ export type PanelKind =
   | 'staff'
   | 'research'
   | 'marketing'
-  | 'messages';
+  | 'messages'
+  // Phase 6 (Wave 4.0): panels from UI extensions (`./extensions.ts` `panels`).
+  | ExtensionPanelKind;
+
+/** Panels a UI extension provides (Phase 6 §7): the show site panel (W4-C). */
+export type ExtensionPanelKind = 'showSite';
 
 /** Panels that show one entity; opening one selects that entity on the map. */
-export type EntityPanelKind = 'ride' | 'stall' | 'guest' | 'staff';
+export type EntityPanelKind = 'ride' | 'stall' | 'guest' | 'staff' | 'showSite';
 
 export interface UiContext {
   game: Game;

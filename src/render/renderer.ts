@@ -34,11 +34,7 @@ import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
-import { createTerrainToolLayer } from './terrainTools/layer';
-import { createElevatedPathLayer } from './elevated/layer';
-import { createSceneryLayer } from './scenery/layer';
-import { createFieldOverlayLayer } from './fields/overlay';
-import { createLightingLayer } from './lighting/layer';
+import { createWorldLayers } from './worldLayers';
 import {
   viewAffine,
   viewCornerHeights,
@@ -229,14 +225,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const bank = new SpriteBank((SPRITE_CACHE_MB * 1024 * 1024) / 4);
   const terrain = new TerrainLayer((CHUNK_CACHE_MB * 1024 * 1024) / 4);
   const track = new TrackLayer();
-  // Build 2 layers (Wave 3.0 contract, `./layers.ts`), called in this order at each frame stage.
-  const layers: readonly WorldLayer[] = [
-    createFieldOverlayLayer(),
-    createLightingLayer(),
-    createElevatedPathLayer(),
-    createSceneryLayer(),
-    createTerrainToolLayer(),
-  ];
+  // Build 2 and Build 3 layers (`./layers.ts`, registry `./worldLayers.ts`), called in this order at each frame stage.
+  const layers: readonly WorldLayer[] = createWorldLayers();
   const layerByKind = new Map<number, WorldLayer>();
   for (const l of layers) for (const k of l.kinds) layerByKind.set(k, l);
   const frame: LayerFrame = { scale: 1, offX: 0, offY: 0, dpr: 1, bucket: 1, view: { x0: 0, y0: 0, x1: 0, y1: 0 }, rotation: 0, alpha: 0, width: 1, height: 1 };
