@@ -49,7 +49,7 @@ export const settingsStrings: Record<string, string> = {
   'settings.controls.longPress': 'Long-press time',
 
   'settings.language.locale': 'Language',
-  'settings.language.auto': 'Device language',
+  'settings.language.note': 'Note',
 
   'settings.gameplay.autosave': 'Autosave',
   'settings.gameplay.autosaveDetail': 'Saves at the start of each game month',

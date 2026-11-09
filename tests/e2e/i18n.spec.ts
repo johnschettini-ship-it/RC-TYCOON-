@@ -87,20 +87,11 @@ test('a command reason shows in the current locale', async ({ page }) => {
  * fails on any other plain English, so new hard-coded text is caught; remove an entry once it is fixed.
  */
 const KNOWN_GAPS: readonly string[] = [
-  // Toolbar labels of Build 2 extensions are read with text() when their module loads, before the locale is set
-  // (ui/land, ui/scenery, ui/overlays, ui/view; W4-F).
-  'Buy Land',
-  'Overlays',
-  'Scenery',
-  'Water',
-  'Land',
   // The title logo wordmark (brand name, aria-hidden).
   'Thrills',
   'Chills',
   // The default park name of the boot world (main.ts) behind the title screen.
   'New Park',
-  // Month names in the finance chart and research estimate come from sim/time MONTH_NAMES (W4-F: use monthName).
-  ...['Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb'],
 ];
 
 /** Content names come from catalog `name` fields; the catalog has no `nameKey` yet (contract change request). */

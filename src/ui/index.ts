@@ -36,6 +36,7 @@ import { mountTrackUi } from './track';
 import { extensionPanel, UI_EXTENSIONS } from './extensions';
 import { tileCentreWorld } from '../input/camera';
 import { bindScenarioSettings } from './scenario/shared';
+import { localizeReason } from '../i18n';
 import { confirmDialog } from './dialogs';
 import { text } from '../data/strings/en';
 import type { Command } from '../sim/commands/types';
@@ -91,7 +92,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
       .then((result) => {
         if (saves.applyLoad(result)) done?.();
       })
-      .catch((e: unknown) => toast(e instanceof Error ? e.message : String(e), 'error'));
+      .catch((e: unknown) => toast(localizeReason(e instanceof Error ? e.message : String(e)), 'error'));
   });
 
   let lastSelection: Entity | null = null;

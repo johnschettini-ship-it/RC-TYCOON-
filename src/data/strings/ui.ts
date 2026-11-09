@@ -147,6 +147,7 @@ export const uiStrings: Record<string, string> = {
   'ui.finance.history': 'Profit, last 12 months',
   'ui.finance.noData': 'No income or costs yet',
   'ui.finance.bar': '{month}: {amount}',
+  'ui.finance.monthShort': '{month} Y{year}',
   'ui.ledger.construction': 'Construction',
   'ui.ledger.demolitionRefunds': 'Demolition refunds',
   'ui.ledger.rideRunning': 'Ride running costs',

@@ -8,6 +8,7 @@ import { exportFile } from '../save';
 import type { UiContext } from './context';
 import { confirmDialog, openDialog, type DialogAction, type DialogHandle } from './dialogs';
 import { openSettingsScreen } from './settings';
+import { localizeReason } from '../i18n';
 
 export function openMenu(ctx: UiContext): void {
   const { game, saves, root } = ctx;
@@ -80,7 +81,7 @@ export function openMenu(ctx: UiContext): void {
             exportFile(game.world);
             ctx.toast(text('ui.export.done'), 'info');
           } catch (e) {
-            ctx.toast(e instanceof Error ? e.message : String(e), 'error');
+            ctx.toast(localizeReason(e instanceof Error ? e.message : String(e)), 'error');
           }
         },
       },

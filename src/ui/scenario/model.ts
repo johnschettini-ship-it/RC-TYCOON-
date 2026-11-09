@@ -9,13 +9,14 @@ import { DIFFICULTIES, openScenarioIds, unlockWinsFor, type Progress } from '../
 import type { AwardId } from '../../sim/awards/types';
 import type { ScenarioResult } from '../../sim/scenario/api';
 import type { ObjectiveProgress } from '../../sim/scenario/types';
-import { MONTH_NAMES, monthIndexOf } from '../../sim/time';
+import { monthIndexOf } from '../../sim/time';
+import { monthName } from '../../i18n';
 import { formatMoney, formatRating } from '../format';
 
 /** "Feb · Year 2" for a month index (month 0 = March, Year 1). */
 export function monthLabel(monthIndex: number): string {
   const m = ((monthIndex % 12) + 12) % 12;
-  return `${MONTH_NAMES[m]} · Year ${Math.floor(monthIndex / 12) + 1}`;
+  return text('prog.monthYear', { month: monthName(m), year: Math.floor(monthIndex / 12) + 1 });
 }
 
 export const monthsText = (n: number): string => (n === 1 ? text('prog.months.one') : text('prog.months.many', { n }));

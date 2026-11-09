@@ -60,7 +60,9 @@ function hud(ctx: UiContext): UiPart {
 
 const buyLandEntry: ToolbarEntry = {
   id: 'buyLand',
-  label: text('land.tool.buyLand'),
+  get label() {
+    return text('land.tool.buyLand');
+  },
   icon: () => lineIcon(BUY_LAND_D),
   onClick(ctx) {
     const t = ctx.game.tool;

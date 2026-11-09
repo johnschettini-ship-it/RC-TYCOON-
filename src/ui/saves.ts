@@ -8,6 +8,7 @@ import type { Game } from '../game';
 import type { LoadResult, SlotId, SlotInfo } from '../save';
 import type { SimEvent, World } from '../sim/types';
 import type { ToastKind } from './toasts';
+import { localizeReason } from '../i18n';
 
 export interface SaveBackend {
   save(slot: SlotId, world: World): string | null;
@@ -56,7 +57,7 @@ export class SaveActions {
       error = messageOf(e);
     }
     if (error !== null) {
-      this.notify(error, 'error');
+      this.notify(localizeReason(error), 'error');
       return false;
     }
     this.game.dirty = false;
@@ -77,7 +78,7 @@ export class SaveActions {
   /** Shared by slot loads and file import. */
   applyLoad(result: LoadResult): boolean {
     if (!result.ok) {
-      this.notify(result.error, 'error');
+      this.notify(localizeReason(result.error), 'error');
       return false;
     }
     this.game.setWorld(result.world);
@@ -95,6 +96,6 @@ export class SaveActions {
     } catch (e) {
       error = messageOf(e);
     }
-    if (error !== null) this.notify(text('ui.autosave.failed', { error }), 'warning');
+    if (error !== null) this.notify(text('ui.autosave.failed', { error: localizeReason(error) }), 'warning');
   }
 }

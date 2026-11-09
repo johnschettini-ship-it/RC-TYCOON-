@@ -4,6 +4,7 @@ import { monthIndexOf } from '../../sim/time';
 import type { PanelView, UiContext } from '../context';
 import { h, toggleClass } from '../dom';
 import { financeSummary, monthLabel, profitHistory } from '../finance';
+import { monthName } from '../../i18n';
 import { formatMoney } from '../format';
 import { section } from '../widgets';
 import { isFinancing } from '../../sim/finance/ledger';
@@ -78,7 +79,7 @@ export function createFinancePanel(ctx: UiContext): PanelView {
           const bar = h('i', { class: p.profit < 0 ? 'bar neg' : 'bar pos' });
           bar.style.height = `${pct.toFixed(1)}%`;
           const label = text('ui.finance.bar', { month: monthLabel(p.monthIndex), amount: formatMoney(p.profit) });
-          return h('div', { class: 'bar-slot', role: 'listitem', 'aria-label': label, title: label }, bar, h('span', { class: 'bar-label', text: monthLabel(p.monthIndex).slice(0, 3) }));
+          return h('div', { class: 'bar-slot', role: 'listitem', 'aria-label': label, title: label }, bar, h('span', { class: 'bar-label', text: monthName(((p.monthIndex % 12) + 12) % 12) }));
         }),
       );
       return true;

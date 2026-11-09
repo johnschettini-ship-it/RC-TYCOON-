@@ -16,7 +16,7 @@ export type NumberKey = KeysOf<number>;
 export type BoolKey = KeysOf<boolean>;
 
 export type DataAction = 'exportSaves' | 'exportProgress' | 'importProgress' | 'resetProgress';
-export type InfoId = 'version' | 'credits' | 'originality' | 'license';
+export type InfoId = 'version' | 'credits' | 'originality' | 'license' | 'reloadHint';
 
 export type ControlSpec =
   | { kind: 'slider'; key: NumberKey; label: string; min: number; max: number; step: number; unit: 'percent' | 'number' }
@@ -86,8 +86,9 @@ export function settingsSections(opts: SectionOptions): SectionSpec[] {
         kind: 'choice',
         key: 'locale',
         label: text('settings.language.locale'),
-        options: [{ value: 'auto', label: text('settings.language.auto') }, ...opts.locales.map((l) => ({ value: l.code, label: l.name }))],
+        options: [{ value: 'auto', label: text('lang.auto') }, ...opts.locales.map((l) => ({ value: l.code, label: l.name }))],
       },
+      { kind: 'info', id: 'reloadHint', label: text('settings.language.note'), value: text('lang.reloadHint') },
     ]),
     s('gameplay', [
       toggle('autosave', 'settings.gameplay.autosave', { detail: text('settings.gameplay.autosaveDetail') }),

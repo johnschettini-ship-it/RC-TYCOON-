@@ -157,7 +157,9 @@ export const overlayUi: UiExtension = {
   toolbar: [
     {
       id: 'overlays',
-      label: text('fields.overlays'),
+      get label() {
+        return text('fields.overlays');
+      },
       icon: overlaysIcon,
       onClick: (ctx) => chipsOpen.set(ctx, chipsOpen.get(ctx) !== true),
       pressed: (ctx) => chipsOpen.get(ctx) === true,

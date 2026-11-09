@@ -3,12 +3,12 @@
  * issues), every button ≥ 44 × 44 px on a phone, and the 175% text scale layout with a pseudo-localized UI (accents,
  * 30% longer) on 1280 × 720 and 375 × 667. Owner: W4-F.
  *
- * The pseudo-localization is test-local until W4-G ships `en-XA`: an init script rewrites every text node of the UI
- * as it appears. At the Wave 4 gate the integrator switches it to `setLocale('en-XA')`.
+ * The layout test boots in W4-G's pseudo-locale `en-XA` (Phase 6 §4.8) at 175% text scale.
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 import { isPhone, newPark, watchErrors } from './helpers';
+import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Tc = {
   dispatch(c: unknown): { ok: boolean };
@@ -212,50 +212,15 @@ test.describe('touch targets (Phase 6 §4.7: ≥ 44 × 44 CSS px)', () => {
 });
 
 /**
- * Test-local pseudo-localization (accents, ≥ 30% longer): every text node under `#ui` is rewritten when it appears or
- * changes, so text built later (panels, dialogs) is covered too.
+ * Boot with the pseudo-locale `en-XA` (W4-G: accents, ≥ 30% longer, `[ … ]`) and 175% text, stored in `tc.settings`
+ * before the page loads (the language is picked before any UI is built).
  */
-const PSEUDO_SCRIPT = (): void => {
-  const accents: Record<string, string> = {
-    a: 'á', b: 'ƀ', c: 'ç', d: 'ð', e: 'é', f: 'ƒ', g: 'ĝ', h: 'ĥ', i: 'î', j: 'ĵ', k: 'ķ', l: 'ļ', m: 'ɱ', n: 'ñ', o: 'ö', p: 'þ', r: 'ŕ', s: 'š', t: 'ţ', u: 'û', w: 'ŵ', y: 'ý', z: 'ž',
-    A: 'Å', C: 'Ç', D: 'Ð', E: 'É', G: 'Ĝ', H: 'Ĥ', I: 'Î', L: 'Ļ', N: 'Ñ', O: 'Ö', R: 'Ŕ', S: 'Š', T: 'Ţ', U: 'Û', Y: 'Ý', Z: 'Ž',
-  };
-  const written = new WeakMap<Text, string>();
-  const pseudo = (s: string): string => {
-    if (!/[A-Za-z]/.test(s)) return s;
-    const body = s.replace(/[A-Za-z]/g, (ch) => accents[ch] ?? ch);
-    const extra = Math.ceil(s.trim().length * 0.3);
-    let pad = '';
-    while (pad.length < extra) pad += pad.length === 0 ? ' ẋẋ' : ' ẋẋẋ';
-    return body.replace(/\s+$/, '') + pad.slice(0, extra + 1);
-  };
-  const fix = (n: Node): void => {
-    if (n.nodeType === Node.TEXT_NODE) {
-      const t = n as Text;
-      const p = t.parentElement;
-      if (!p || !p.closest('#ui') || p.closest('style, script')) return;
-      if (written.get(t) === t.data) return;
-      const next = pseudo(t.data);
-      written.set(t, next);
-      if (next !== t.data) t.data = next;
-      return;
-    }
-    n.childNodes.forEach(fix);
-  };
-  const start = (): void => {
-    const root = document.getElementById('ui');
-    if (!root) return;
-    fix(root);
-    new MutationObserver((list) => {
-      for (const m of list) {
-        if (m.type === 'characterData') fix(m.target);
-        else m.addedNodes.forEach(fix);
-      }
-    }).observe(root, { subtree: true, childList: true, characterData: true });
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
-  else start();
-};
+async function bootLargePseudo(page: Page): Promise<void> {
+  const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
+  await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
+}
 
 /** Visible UI elements outside the viewport, and text clipped by its own box (outside scrolling areas). */
 async function layoutProblems(page: Page): Promise<string[]> {
@@ -302,9 +267,7 @@ test.describe('175% text scale with a pseudo-localized UI (Phase 6 §4.7, §9)',
     test.setTimeout(120_000);
     const watch = watchErrors(page);
     await page.setViewportSize(isPhone(info) ? { width: 375, height: 667 } : { width: 1280, height: 720 });
-    await page.addInitScript(PSEUDO_SCRIPT);
-    await page.goto('/');
-    await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.settings.set('textScale', 175));
+    await bootLargePseudo(page);
     await expect(page.locator('#ui')).toHaveAttribute('data-text-scale', '175');
     // The pseudo text is in place (accents and longer).
     await expect(page.getByTestId('title-new')).toContainText('Ñéŵ');
