@@ -2,15 +2,15 @@
  * Phase 3 §9.2–9.3 integration game (W2-D): the 6-month scripted management game on a fixed seed.
  * Setup: footpath loops, 4 Phase 1 rides with queues, 3 stalls, 6 bins, 6 benches, 2 Groundskeepers
  * (one with a patrol), 1 Mechanic, 1 Security Guard, 1 Performer (Spark), research at medium,
- * a $5,000 loan, Town Poster Run at month 2, the loan repaid at month 5.
- * Known gap: the Junior Coaster of §9.2 is left out because the track system is not merged yet.
+ * a $5,000 loan, Town Poster Run at month 2, the loan repaid at month 5, and the §9.2 Junior Coaster (built, tested,
+ * and opened in the setup).
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { RESEARCH_ORDER } from '../../src/data/research';
 import { STAFF } from '../../src/data/catalog/people';
 import { RESEARCH_POINTS_PER_HOUR } from '../../src/data/tuning/management';
 import { FIX_TICKS, INSPECTION_TICKS } from '../../src/data/tuning/staff';
-import { START_CASH, TICKS_PER_MONTH } from '../../src/data/tuning/core';
+import { START_CASH, START_TICK, TICKS_PER_HOUR, TICKS_PER_MONTH } from '../../src/data/tuning/core';
 import { RATING_MAX, RATING_MIN } from '../../src/data/tuning/economy';
 import { deserialize, GAME_VERSION, serialize, validateState } from '../../src/save';
 import { fixFactor } from '../../src/sim/breakdowns/reliability';
@@ -180,6 +180,12 @@ describe(`Phase 3 integration game (seed ${PHASE3_SEED}, ${MONTHS} game months)`
     expect(log.commandFailures).toEqual([]);
   });
 
+  it('the Junior Coaster carries guests all game', () => {
+    const coaster = world.state.rides.find((r) => r.id === park.juniorCoaster);
+    expect(coaster?.kind).toBe('track');
+    expect(coaster?.totals.riders).toBeGreaterThan(100);
+  });
+
   it('the finance check holds every month: cash change = income − expenses + loan in − loan out', () => {
     expect(log.months.length).toBe(MONTHS + 1);
     for (const m of log.months) expect(m.cashEnd - m.cashStart, `month ${m.monthIndex}`).toBe(m.ledgerSum);
@@ -208,8 +214,12 @@ describe(`Phase 3 integration game (seed ${PHASE3_SEED}, ${MONTHS} game months)`
 
   it('research unlocks exactly items 1–6 (6 × 216 = 1,296 points; item 7 needs 1,380)', () => {
     const r = world.state.management.research;
-    const points = MONTHS * 72 * RESEARCH_POINTS_PER_HOUR.medium;
-    expect(points).toBe(1_296);
+    expect(MONTHS * 72 * RESEARCH_POINTS_PER_HOUR.medium).toBe(1_296);
+    // Research also runs during the setup (the Junior Coaster's test run): count every hour start since START_TICK.
+    const hours = Math.floor((world.state.tick - 1) / TICKS_PER_HOUR) - Math.floor((START_TICK - 1) / TICKS_PER_HOUR);
+    const points = hours * RESEARCH_POINTS_PER_HOUR.medium;
+    expect(hours).toBeGreaterThanOrEqual(MONTHS * 72);
+    expect(points).toBeLessThan(1_380);
     expect(r.unlocked).toEqual(RESEARCH_ORDER.slice(0, 6).map((i) => i.id));
     expect(r.current).toBe(RESEARCH_ORDER[6]?.id);
     const spent = RESEARCH_ORDER.slice(0, 6).reduce((a, i) => a + i.cost, 0);

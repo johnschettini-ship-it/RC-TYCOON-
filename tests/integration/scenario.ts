@@ -15,7 +15,7 @@ import type { World } from '../../src/sim/types';
 import type { GuestStateName } from '../../src/sim/guests/types';
 import type { EntityId } from '../../src/sim/units';
 import { makeTestWorld, runTicks } from '../helpers/world';
-import { EAST, R1_PIECES } from '../unit/track/helpers';
+import { EAST, R1_PIECES, type PieceSpec } from '../unit/track/helpers';
 
 /** Happiness of the last `k` guests who left (newest last), from the park's rolling leaver list. */
 export function recentLeavers(world: World, k: number): number[] {
@@ -70,9 +70,59 @@ export function buildPhase1Park(world: World): Phase1Park {
   return { carousel, swingTower, snack, fizz, restrooms };
 }
 
+const chainPiece = (id: string): PieceSpec => ({ id, chain: true });
+const repeat = (n: number, p: PieceSpec): PieceSpec[] => Array.from({ length: n }, () => p);
+
+/**
+ * Junior Coaster circuit after the placed station (heading east): an 8 m gentle chain lift straight into its drop,
+ * then a rectangle back to the station (legs of 15, 6, 15, and 6 tiles). It passes its test at about 4.65 / 2.71 / 1.91.
+ */
+export const JUNIOR_COASTER: readonly PieceSpec[] = Object.freeze([
+  'station',
+  'station',
+  ...['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up_to_flat'].map(chainPiece),
+  'flat_to_gentle_down',
+  'gentle_down',
+  'gentle_down',
+  'gentle_down',
+  'gentle_down_to_flat',
+  'straight',
+  'straight',
+  'turn_medium_right',
+  { id: 'brakes', brakeSpeed: 10 },
+  ...repeat(5, 'straight'),
+  'turn_medium_right',
+  ...repeat(15, 'straight'),
+  'turn_medium_right',
+  ...repeat(6, 'straight'),
+  'turn_medium_right',
+]);
+
+/** Phase 3 §9.2 Junior Coaster: built, gated, tested, and opened by commands. Returns the ride id. */
+function buildJuniorCoaster(world: World): EntityId {
+  const sx = 14;
+  const sy = 26;
+  line(world, sx + 1, sy - 2, 39, sy - 2);
+  line(world, 39, sy - 1, 39, 38);
+  line(world, sx, sy - 2, sx, sy - 2, 'queue');
+  const rideId = must(world, { type: 'placeStation', typeId: 'junior_coaster', x: sx, y: sy, dir: EAST }).id as EntityId;
+  for (const spec of JUNIOR_COASTER) {
+    const p = typeof spec === 'string' ? { id: spec } : spec;
+    must(world, { type: 'addTrackPiece', rideId, defId: p.id, chain: p.chain, brakeSpeed: p.brakeSpeed });
+  }
+  must(world, { type: 'placeTrackGate', rideId, kind: 'entrance', x: sx, y: sy - 1 });
+  must(world, { type: 'placeTrackGate', rideId, kind: 'exit', x: sx + 1, y: sy - 1 });
+  must(world, { type: 'startTestRun', rideId });
+  runTicks(world, (world.state.track.rides[String(rideId)]?.testRun?.ticksLeft ?? 0) + 1);
+  if (!world.state.track.rides[String(rideId)]?.test?.passed) throw new Error('Junior Coaster test run failed');
+  must(world, { type: 'setRideOpen', rideId, open: true });
+  return rideId;
+}
+
 export interface Phase3Park extends Phase1Park {
   bigWheel: EntityId;
   teacups: EntityId;
+  juniorCoaster: EntityId;
   groundskeepers: [EntityId, EntityId];
   mechanic: EntityId;
   security: EntityId;
@@ -86,7 +136,8 @@ export interface Phase3Park extends Phase1Park {
  * Phase 3 §9.2 park (W2-D): the Phase 1 park plus an upper loop (y 38–48) with a Big Wheel and a Teacup Twirl,
  * 6 bins, 6 benches, 2 Groundskeepers (the second patrols the lower loop), 1 Mechanic, 1 Security Guard,
  * 1 Performer in the Spark costume. Research stays at the default (medium).
- * The Junior Coaster of §9.2 is left out: the track system is not merged yet (known gap in the W2-D report).
+ * The §9.2 Junior Coaster sits north of the upper loop (`JUNIOR_COASTER`, station at (14, 26) heading east, footprint
+ * x 11–31, y 26–37), gated on the north side and joined to the upper loop by a footpath along y = 24 and x = 39.
  */
 export function buildPhase3Park(world: World): Phase3Park {
   const p1 = buildPhase1Park(world);
@@ -102,6 +153,7 @@ export function buildPhase3Park(world: World): Phase3Park {
   line(world, 35, 43, 35, 47, 'queue');
   line(world, 35, 39, 35, 39);
   for (const id of [bigWheel, teacups]) must(world, { type: 'setRideOpen', rideId: id, open: true });
+  const juniorCoaster = buildJuniorCoaster(world);
 
   const bins: number[] = [];
   const benches: number[] = [];
@@ -124,7 +176,7 @@ export function buildPhase3Park(world: World): Phase3Park {
   const security = must(world, { type: 'hireStaff', staffType: 'security' }).id as EntityId;
   const performer = must(world, { type: 'hireStaff', staffType: 'performer' }).id as EntityId;
   must(world, { type: 'setCostume', staffId: performer, costume: 'spark' });
-  return { ...p1, bigWheel, teacups, groundskeepers: [gk1, gk2], mechanic, security, performer, bins, benches };
+  return { ...p1, bigWheel, teacups, juniorCoaster, groundskeepers: [gk1, gk2], mechanic, security, performer, bins, benches };
 }
 
 /** Footpath, queue, and park entrance tiles. */
