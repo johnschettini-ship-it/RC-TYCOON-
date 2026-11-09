@@ -12,6 +12,11 @@ const TAU = Math.PI * 2;
 
 /** Guest art is drawn around the feet at (0, 0); about 10 × 16 px at zoom 1. */
 export const GUEST_BOUNDS: ArtBounds = { left: -8, right: 8, top: -20, bottom: 5 };
+/** Bounds of a guest with a held item: the balloon floats above the head, the umbrella spreads wider. */
+export const GUEST_ITEM_BOUNDS: ArtBounds = { left: -13, right: 13, top: -40, bottom: 5 };
+
+/** Balloon and umbrella colours (bright, readable on grass and paths). */
+export const ITEM_COLOURS: readonly string[] = Object.freeze(['#e5484d', '#f5b82e', '#3e9ce6', '#8e5cd9', '#30a46c', '#ff7eb6']);
 
 export interface GuestLook {
   shirt: string;
@@ -23,6 +28,99 @@ export interface GuestLook {
   walk: number;
   /** Temperament ring colour, or null. */
   ring: string | null;
+  /** Balloon colour while the guest holds a balloon, or null. */
+  balloon?: string | null;
+  /** Open umbrella colour (shown in rain and storms), or null. */
+  umbrella?: string | null;
+}
+
+/**
+ * Hand that holds an item, in art x: the screen-right hand for front facings (E, S), the screen-left hand
+ * for back facings (N, W), so the item stays on the near side of the body.
+ */
+function itemHandX(facing: Dir): number {
+  return facing === 1 || facing === 2 ? 4.2 : -4.2;
+}
+
+/**
+ * A balloon on a string from the hand, floating above the head; `walk` sways it a little. With an open
+ * umbrella in the item hand, the balloon goes to the other hand so it does not cross the canopy.
+ */
+function drawBalloon(ctx: Ctx, colour: string, facing: Dir, walk: number, otherHand: boolean): void {
+  const hx = otherHand ? -itemHandX(facing) : itemHandX(facing);
+  const sway = walk === 1 ? -0.8 : walk === 2 ? 0.8 : 0;
+  const bx = hx * 1.25 + sway;
+  const by = -31;
+  ctx.strokeStyle = 'rgba(70,70,70,0.85)';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(hx, -6.4);
+  ctx.quadraticCurveTo(hx + 1.6, -17, bx, by + 5.2);
+  ctx.stroke();
+  ctx.fillStyle = shade(colour, 0.75);
+  ctx.beginPath();
+  ctx.moveTo(bx - 0.9, by + 6.2);
+  ctx.lineTo(bx + 0.9, by + 6.2);
+  ctx.lineTo(bx, by + 4.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.ellipse(bx, by, 4.1, 5, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(bx - 1.4, by - 1.9, 1.1, 1.6, -0.5, 0, TAU);
+  ctx.fill();
+}
+
+/** An open umbrella: the shaft from the hand and a scalloped canopy over the head, with ribs and a tip. */
+function drawUmbrella(ctx: Ctx, colour: string, facing: Dir): void {
+  const hx = itemHandX(facing);
+  const cx = hx * 0.35;
+  const cy = -22.5;
+  const rx = 10.5;
+  const ry = 6.2;
+  ctx.strokeStyle = '#3b3b3b';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(hx, -6.4);
+  ctx.lineTo(cx, cy);
+  ctx.stroke();
+  // Canopy: the upper half of an ellipse, closed by 4 shallow scallops.
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, Math.PI, TAU);
+  const n = 4;
+  for (let k = n - 1; k >= 0; k--) {
+    const x0 = cx - rx + ((k + 1) * 2 * rx) / n;
+    const x1 = cx - rx + (k * 2 * rx) / n;
+    ctx.quadraticCurveTo((x0 + x1) / 2, cy - 1.6, x1, cy);
+  }
+  ctx.closePath();
+  ctx.fill();
+  // Alternate panels a shade darker, and ribs from the tip.
+  ctx.fillStyle = shade(colour, 0.8);
+  for (let k = 1; k < n; k += 2) {
+    const x0 = cx - rx + (k * 2 * rx) / n;
+    const x1 = cx - rx + ((k + 1) * 2 * rx) / n;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - ry);
+    ctx.lineTo(x0, cy);
+    ctx.quadraticCurveTo((x0 + x1) / 2, cy - 1.6, x1, cy);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = shade(colour, 0.6);
+  ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  for (let k = 0; k <= n; k++) {
+    ctx.moveTo(cx, cy - ry);
+    ctx.lineTo(cx - rx + (k * 2 * rx) / n, cy);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#3b3b3b';
+  ctx.fillRect(cx - 0.4, cy - ry - 1.6, 0.8, 1.7);
 }
 
 export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
@@ -82,6 +180,9 @@ export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
     ctx.arc(0, -15.4, 3.2, 0, TAU);
     ctx.fill();
   }
+  // Held items (Phase 3 §4.10): drawn last so they sit in front of the body and over the head.
+  if (g.umbrella) drawUmbrella(ctx, g.umbrella, g.facing);
+  if (g.balloon) drawBalloon(ctx, g.balloon, g.facing, g.walk, !!g.umbrella);
 }
 
 // ---------------------------------------------------------------- fence
