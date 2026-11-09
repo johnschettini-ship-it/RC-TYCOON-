@@ -11,7 +11,7 @@ import type { Ride } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
 import { bucketIndex, SpriteCache, type Sprite } from './spriteCache';
 import type { ZoomBucket } from './camera';
-import { makeCanvas } from './canvas';
+import { isPhoneScreen, makeCanvas } from './canvas';
 import { STEP_PX } from './iso';
 import { JOIN_E, JOIN_N, JOIN_S, JOIN_W, pathJoinMask } from './paths';
 import { mapToView, rotateSlopeMask, viewCornerHeights, viewSize, viewToMap, type ViewRotation } from './view';
@@ -414,6 +414,11 @@ const KEYS_PER_CHUNK = 16;
 /** Phase 4 §8 `CHUNK_CACHE_MB` (32 MB on phones, §11): chunk image memory cap at 4 bytes per pixel. */
 export const CHUNK_CACHE_MB = 64;
 export const CHUNK_CACHE_MB_PHONE = 32;
+
+/** Chunk image cap in pixels (4 bytes each) for a canvas of this CSS size: the phone cap on phone-sized screens. */
+export function chunkCacheBudgetPixels(cssW: number, cssH: number): number {
+  return ((isPhoneScreen(cssW, cssH) ? CHUNK_CACHE_MB_PHONE : CHUNK_CACHE_MB) * 1024 * 1024) / 4;
+}
 
 /** Image cache key of a chunk image: (chunk, view rotation, zoom bucket). */
 export function chunkImageKey(chunk: number, r: ViewRotation, bucket: ZoomBucket): number {

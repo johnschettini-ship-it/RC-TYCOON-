@@ -17,7 +17,7 @@ import type { Guest } from '../sim/guests/types';
 import type { World } from '../sim/types';
 import { GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
 import { clampCameraToMap, zoomBucket, type ZoomBucket } from './camera';
-import { canvasPixelRatio, isPhoneScreen } from './canvas';
+import { canvasPixelRatio } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, type GuestPos } from './guestPos';
@@ -29,7 +29,7 @@ import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { CHUNK_CACHE_MB, CHUNK_CACHE_MB_PHONE, TerrainLayer, grassShade, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, TerrainLayer, grassShade, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
@@ -845,7 +845,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       cssH = Math.max(1, h);
       // Phone-sized screens: capped pixel ratio and the smaller chunk cache (Phase 4 §4.10, §11).
       dpr = canvasPixelRatio(cssW, cssH, d);
-      terrain.budgetPixels = ((isPhoneScreen(cssW, cssH) ? CHUNK_CACHE_MB_PHONE : CHUNK_CACHE_MB) * 1024 * 1024) / 4;
+      terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
       canvas.width = Math.max(1, Math.round(cssW * dpr));
       canvas.height = Math.max(1, Math.round(cssH * dpr));
       canvas.dataset.pixelRatio = String(dpr);

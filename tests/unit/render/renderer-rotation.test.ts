@@ -8,6 +8,8 @@ import { Owned, PathItem, tileIndex } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
 import { addGuestDirect, placeFootpath, placeQueue, placeRideDirect, placeStallDirect, runTicks, stateHash } from '../../helpers/world';
 import { canvasPixelRatio, isPhoneScreen, PHONE_MAX_PIXEL_RATIO } from '../../../src/render/canvas';
+import { chunkCacheBudgetPixels } from '../../../src/render/terrain';
+import { SpriteBank } from '../../../src/render/sprites/bank';
 
 beforeAll(() => install());
 
@@ -164,6 +166,12 @@ describe('canvas pixel ratio (phone frame-rate finding)', () => {
     expect(canvasPixelRatio(412, 915, 1.5)).toBe(1.5);
     expect(canvasPixelRatio(1280, 800, 3)).toBe(3);
     expect(canvasPixelRatio(1280, 800, 0)).toBe(1);
+  });
+
+  it('phone-sized screens get the 32 MB chunk cache, others 64 MB (Phase 4 §4.10, §11); sprites 96 MB', () => {
+    expect(chunkCacheBudgetPixels(412, 915) * 4).toBe(32 * 1024 * 1024);
+    expect(chunkCacheBudgetPixels(1280, 800) * 4).toBe(64 * 1024 * 1024);
+    expect(new SpriteBank().cache.budgetPixels * 4).toBe(96 * 1024 * 1024);
   });
 
   it('the renderer sizes its canvas with the capped ratio', () => {
