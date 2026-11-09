@@ -5,6 +5,7 @@
  */
 import { CAMPAIGNS, getCampaignDef, type CampaignDef } from '../../data/tuning/management';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
 import type { PanelView, UiContext } from '../context';
 import { h, newId, setText, toggleClass } from '../dom';
 import { formatMoney } from '../format';
@@ -40,7 +41,7 @@ export function createMarketingPanel(ctx: UiContext): PanelView {
       type: 'button',
       class: 'btn primary',
       'data-testid': `campaign-start-${def.id}`,
-      'aria-label': text('ui.marketing.startLabel', { name: def.name, cost }),
+      'aria-label': text('ui.marketing.startLabel', { name: contentName(def.id), cost }),
       text: text('ui.marketing.start'),
       onclick: () => {
         const raw = select?.value ?? '';
@@ -51,7 +52,7 @@ export function createMarketingPanel(ctx: UiContext): PanelView {
     const el = h(
       'article',
       { class: 'campaign-card', 'data-campaign': def.id },
-      h('div', { class: 'campaign-head' }, h('h4', { class: 'campaign-name', text: def.name }), running),
+      h('div', { class: 'campaign-head' }, h('h4', { class: 'campaign-name', text: contentName(def.id) }), running),
       h('p', { class: 'campaign-effect', text: campaignEffectText(def) }),
       h(
         'div',
@@ -114,7 +115,7 @@ export function createMarketingPanel(ctx: UiContext): PanelView {
           ...camps.map((c) => {
             const def = getCampaignDef(c.type);
             const target = c.targetId >= 0 ? (world.state.rides.find((r) => r.id === c.targetId)?.name ?? world.state.stalls.find((s) => s.id === c.targetId)?.name ?? '') : '';
-            const label = `${def?.name ?? c.type}${target ? ` · ${target}` : ''}`;
+            const label = `${def ? contentName(def.id) : c.type}${target ? ` · ${target}` : ''}`;
             return h('li', {}, h('span', { text: label }), h('span', { class: 'muted', text: ` · ${text('ui.marketing.running', { left: campaignTimeLeftText(world, c) })}` }));
           }),
         );

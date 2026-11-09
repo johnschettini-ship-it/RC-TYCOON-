@@ -27,6 +27,8 @@ import { settingsStrings } from './settings';
 import { a11yStrings } from './a11y';
 import { perfStrings } from './perf';
 import { offlineStrings } from './offline';
+// Build 3 gate: content names generated from the catalogs (`content.<id>`).
+import { contentStrings } from './content';
 import { fillParams, lookupString } from './resolve';
 
 export const en: Record<string, string> = {
@@ -50,6 +52,7 @@ export const en: Record<string, string> = {
   ...a11yStrings,
   ...perfStrings,
   ...offlineStrings,
+  ...contentStrings,
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {

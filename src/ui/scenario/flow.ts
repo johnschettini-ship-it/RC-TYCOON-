@@ -8,6 +8,7 @@
 import { SCENARIOS, getScenarioDef, type Difficulty, type ScenarioDef } from '../../data/scenarios';
 import type { Climate, TerrainStyle } from '../../data/scenarios/types';
 import { text } from '../../data/strings/en';
+import { scenarioDescription, scenarioName } from '../contentName';
 import { MAP_SIZES } from '../../data/tuning/land';
 import { DIFFICULTIES, PROGRESS_KEY } from '../../progress';
 import { scenarioResult, type ScenarioResult } from '../../sim/scenario/api';
@@ -183,9 +184,9 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
     const sheet = h(
       'div',
       { class: 'tc-detail', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, 'data-testid': 'scenario-detail' },
-      h('div', { class: 'tc-view-head' }, h('h2', { id: titleId, text: text(def.nameKey) }), close),
+      h('div', { class: 'tc-view-head' }, h('h2', { id: titleId, text: scenarioName(def) }), close),
       h('span', { class: 'tc-stars', text: starsText(def.stars, 5), 'aria-label': text('prog.select.difficultyStars', { n: def.stars }) }),
-      h('p', { text: def.description }),
+      h('p', { text: scenarioDescription(def) }),
       h('h3', { class: 'tc-section-title', text: text('prog.detail.goals') }),
       h('ul', { class: 'tc-goals' }, ...def.objectives.map((o) => h('li', { text: goalText(o) }))),
       def.objectives.length > 1 ? h('p', { class: 'tc-muted', text: text('prog.detail.allGoals') }) : null,

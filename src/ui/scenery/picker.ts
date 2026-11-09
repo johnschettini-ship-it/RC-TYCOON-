@@ -5,6 +5,7 @@
  */
 import { SCENERY_THEMES, sceneryOfTheme, type SceneryDef, type SceneryThemeId } from '../../data/catalog';
 import { text } from '../../data/strings/en';
+import { contentName } from '../contentName';
 import { chooseSceneryItem } from '../../input/scenery';
 import { drawSceneryPreview } from '../../render/scenery/preview';
 import { isUnlocked } from '../../sim/research/api';
@@ -79,7 +80,7 @@ export function createPicker(ctx: UiContext): Picker {
     const el = h(
       'button',
       { type: 'button', role: 'tab', class: `scn-tab scn-mood-${MOOD[t.id]}`, 'aria-selected': 'false', 'data-testid': `scenery-tab-${t.id}`, onclick: () => showTheme(t.id) },
-      h('span', { text: t.name }),
+      h('span', { text: contentName(t.id) }),
       lock,
     );
     tabs.set(t.id, { el, lock });
@@ -122,7 +123,7 @@ export function createPicker(ctx: UiContext): Picker {
           onclick: () => pick(def),
         },
         preview(def.id),
-        h('span', { class: 'scn-name', text: def.name }),
+        h('span', { class: 'scn-name', text: contentName(def.id) }),
         h('span', { class: 'scn-cost', text: cost }),
         h('span', { class: 'scn-fields', text: fieldsLine(def) }),
       );
@@ -137,7 +138,7 @@ export function createPicker(ctx: UiContext): Picker {
     const themeDef = SCENERY_THEMES.find((t) => t.id === theme);
     const themeLocked = locked(theme);
     note.hidden = !themeLocked;
-    if (themeLocked && themeDef) setText(note, text('scenery.picker.locked', { theme: themeDef.name }));
+    if (themeLocked && themeDef) setText(note, text('scenery.picker.locked', { theme: contentName(themeDef.id) }));
     const chosen = game.tool.tool === 'scenery' ? game.tool.scenery.defId : null;
     for (const { el: card, def } of cards.values()) {
       card.disabled = locked(def.id);

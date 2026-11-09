@@ -1,6 +1,7 @@
 /** Message log view model (Phase 3 §4.14): order, unread state, text, icons, locate targets. Owner: W2-B. Pure. */
 import { getFlatRideDef } from '../../data/catalog';
 import { text } from '../../data/strings/en';
+import { localizeContentParams } from '../contentName';
 import { contentInfo } from '../../sim/research/api';
 import type { Message, MessageCategory } from '../../sim/management/types';
 import type { World } from '../../sim/types';
@@ -23,7 +24,7 @@ export function unreadIds(messages: readonly Message[], readUpTo: number): Set<n
 }
 
 export function messageLine(m: MessageLike): string {
-  return text(m.textId, m.params);
+  return text(m.textId, localizeContentParams(m.params));
 }
 
 const CATEGORY_ICONS: Readonly<Record<MessageCategory, MgmtIconName>> = {

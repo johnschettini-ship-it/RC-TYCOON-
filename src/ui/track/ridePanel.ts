@@ -5,6 +5,7 @@
  */
 import { getTrackRideDef } from '../../data/catalog/trackRides';
 import { text } from '../../data/strings/en';
+import { localizeReason } from '../../i18n';
 import { getTrackTypeDef } from '../../data/track';
 import { LAPS_RANGE, MAX_DWELL_RANGE_S, MIN_DWELL_RANGE_S, TICKS_PER_S } from '../../data/tuning/track';
 import { TRACK_PALETTE } from '../../render/track/colours';
@@ -243,9 +244,9 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
           bars[k].el.hidden = r.stats === null;
         }
         noRatings.hidden = r.stats !== null;
-        warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw : [])]);
+        warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
         nextStep.hidden = block === null || r.status === 'testing';
-        if (block) setText(nextStep, `${text('ui.track.nextStep')}: ${block}`);
+        if (block) setText(nextStep, `${text('ui.track.nextStep')}: ${localizeReason(block)}`);
         queue.set(text('ui.ride.queueValue', { count: r.queue.length }));
         riding.set(String(r.riders.length));
         riders.set(String(r.totals.ridersThisMonth));

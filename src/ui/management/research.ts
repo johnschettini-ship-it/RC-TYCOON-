@@ -3,6 +3,7 @@ import { RESEARCH_ORDER } from '../../data/research';
 import type { ResearchCategory } from '../../data/catalog/types';
 import { TICKS_PER_HOUR } from '../../data/tuning/core';
 import { contentInfo, researchStatus } from '../../sim/research/api';
+import { contentName } from '../contentName';
 import type { World } from '../../sim/types';
 
 /** Whole percent of `progress` toward `cost`, 0–100 (0 when there is no item). */
@@ -45,11 +46,11 @@ export function researchView(world: World): ResearchView {
   const unlocked: string[] = [];
   for (let k = r.unlocked.length - 1; k >= 0; k--) {
     const id = r.unlocked[k] as string;
-    unlocked.push(contentInfo(id)?.name ?? id);
+    unlocked.push(contentInfo(id) ? contentName(id) : id);
   }
   return {
     current: st.current,
-    name: st.name,
+    name: st.current !== null && contentInfo(st.current) ? contentName(st.current) : st.name,
     category: st.category,
     progress: st.progress,
     cost: st.cost,

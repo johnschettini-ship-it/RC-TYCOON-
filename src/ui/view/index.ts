@@ -7,6 +7,7 @@
  */
 import { LAND_ERR } from '../../data/strings/land';
 import { text } from '../../data/strings/en';
+import { localizeReason } from '../../i18n';
 import { rotateView } from '../../input/camera';
 import { buyLandSelection, cancelBuyLand, confirmBuyLand } from '../../input/landPurchase';
 import { buyLandQuote } from '../../sim/land/commands';
@@ -138,13 +139,13 @@ function bar(ctx: UiContext): UiPart {
       let valid: boolean | null = null;
       if (b && sel) {
         const q = buyLandQuote(game.world.state, sel.x0, sel.y0, sel.x1, sel.y1);
-        setText(msg, q.land + q.rights > 0 ? text('land.buy.total', { land: q.land, rights: q.rights, cost: formatMoney(q.cost) }) : LAND_ERR.nothingToBuy);
-        setText(detail, b.reason ?? '');
+        setText(msg, q.land + q.rights > 0 ? text('land.buy.total', { land: q.land, rights: q.rights, cost: formatMoney(q.cost) }) : localizeReason(LAND_ERR.nothingToBuy));
+        setText(detail, localizeReason(b.reason ?? ''));
         valid = b.valid;
       } else if (b && b.cost > 0) {
         // Desktop hover: the tile under the cursor.
         setText(msg, formatMoney(b.cost));
-        setText(detail, b.reason ?? text('land.buy.hint'));
+        setText(detail, b.reason ? localizeReason(b.reason) : text('land.buy.hint'));
         valid = b.valid;
       } else {
         setText(msg, text('land.tool.buyLand'));
