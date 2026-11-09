@@ -25,6 +25,11 @@ import { cycleOverlay } from './overlays';
 import { mapRotationFromView, viewSize, viewToMap } from '../render/view';
 import { pickElevatedPath } from '../render/elevated/pick';
 import type { ElevatedPath } from '../sim/paths/types';
+import type { Command } from '../sim/commands/types';
+import { worldToScreen } from '../render/camera';
+import { centerOnTile, tileCentreWorld } from './camera';
+import { resetMapCursor, type CursorInput } from '../a11y/cursor';
+import { edgeScrollDir, EDGE_SCROLL_SPEED_PX } from './edgeScroll';
 
 /** Requests for the UI layer (it owns panels). */
 export type UiIntent = 'finance' | 'closePanel' | 'staff' | 'office' | 'messages';
@@ -33,6 +38,11 @@ export interface InputControllerOptions {
   /** Canvas size in CSS px. */
   viewport: () => { width: number; height: number };
   onIntent?: (intent: UiIntent) => void;
+  /**
+   * Phase 6 §4.9 Confirm demolish: called before a demolish command is sent while the setting is on. Return true
+   * when the caller takes the command (it asks the player and dispatches it on yes); false sends it now.
+   */
+  confirm?: (cmd: Command) => boolean;
 }
 
 /** Longest frame step used for keyboard panning, so a stall does not jump the camera. */
@@ -53,11 +63,15 @@ export class InputController {
   /** Elevated path under the mouse for the deck-aware tools (demolish, path items), by id; −1 for none. */
   private hoverDeckId = -1;
 
+  /** Last mouse position over the canvas (edge scrolling), or null when the mouse is away. */
+  private mouseAt: { x: number; y: number } | null = null;
+
   constructor(
     private readonly game: Game,
     private readonly opts: InputControllerOptions,
   ) {
-    this.gestures = new GestureRecognizer({ primaryDrag: () => this.primaryDrag() });
+    // Phase 6 §4.7, §8: long-press time from Settings → Controls; the drag threshold is 8 px (gestures.ts).
+    this.gestures = new GestureRecognizer({ primaryDrag: () => this.primaryDrag(), longPressMs: () => game.settings.get('longPressMs') });
     this.lastTool = game.tool.tool;
   }
 
@@ -71,6 +85,7 @@ export class InputController {
 
   pointer(ev: GesturePointerEvent): void {
     this.lastPointer = ev.pointerType;
+    this.mouseAt = ev.pointerType === 'mouse' ? { x: ev.x, y: ev.y } : null;
     if (ev.type === 'down' && !this.gestures.active) this.shiftPress = ev.pointerType === 'mouse' && ev.shift === true;
     this.apply(this.gestures.handle(ev));
   }
@@ -80,12 +95,25 @@ export class InputController {
     const dt = this.lastUpdate === null ? 0 : Math.min(MAX_FRAME_MS, Math.max(0, nowMs - this.lastUpdate));
     this.lastUpdate = nowMs;
     this.apply(this.gestures.update(nowMs));
+    // Pan speed (Settings → Controls) scales keyboard and edge panning.
+    const speed = this.game.settings.get('panSpeed') / 100;
     if (this.held.size > 0 && dt > 0) {
       const cam = this.game.camera;
-      const { dx, dy } = keyboardPan(this.held, dt, cam.zoom);
+      const { dx, dy } = keyboardPan(this.held, dt, cam.zoom, speed);
       cam.centerX += dx;
       cam.centerY += dy;
       clampToMap(cam, this.game.world.state.map);
+    }
+    if (dt > 0 && this.mouseAt && !this.gestures.active && this.game.settings.get('edgeScrolling')) {
+      const v = this.opts.viewport();
+      const e = edgeScrollDir(this.mouseAt.x, this.mouseAt.y, v.width, v.height);
+      if (e.dx !== 0 || e.dy !== 0) {
+        const cam = this.game.camera;
+        const step = (EDGE_SCROLL_SPEED_PX * speed * dt) / 1000 / cam.zoom;
+        cam.centerX += e.dx * step;
+        cam.centerY += e.dy * step;
+        clampToMap(cam, this.game.world.state.map);
+      }
     }
     if (this.game.tool.tool !== this.lastTool) this.toolChanged();
     routerOf(this.game.tool.tool)?.update?.(this.game, nowMs);
@@ -102,6 +130,7 @@ export class InputController {
 
   /** The mouse left the map. A place-tool ghost stays put so the Confirm and Rotate buttons can be reached. */
   hoverOut(): void {
+    this.mouseAt = null;
     const t = this.game.tool;
     if (this.gestures.active || t.tool === 'placeRide' || t.tool === 'placeStall') return;
     t.hoverTile = null;
@@ -180,6 +209,7 @@ export class InputController {
   /** Window lost focus: release held keys and drop pointers. */
   blur(): void {
     this.held.clear();
+    this.mouseAt = null;
     this.apply(this.gestures.reset());
   }
 
@@ -192,6 +222,7 @@ export class InputController {
 
   /** A new or loaded world: reset the tool and centre the camera on the map. */
   worldChanged(): void {
+    resetMapCursor();
     this.apply(this.gestures.reset());
     Object.assign(this.game.tool, defaultToolState());
     this.lastTool = this.game.tool.tool;
@@ -255,12 +286,7 @@ export class InputController {
           this.strokeStart(a.x, a.y);
           break;
         }
-        const kind = pathKindOf(tool.tool);
-        if (!kind) break;
-        const start = this.tileAtClamped(a.x, a.y);
-        const preview = pathLinePreview(game.world, kind, start, start, pathCommandHeight(tool));
-        tool.drag = { startTile: start, endTile: start, tiles: [start], cost: preview.cost, reason: preview.reason };
-        tool.hoverTile = start;
+        this.pathDragStart(this.tileAtClamped(a.x, a.y));
         break;
       }
       case 'dragMove': {
@@ -268,14 +294,7 @@ export class InputController {
           this.strokeMove(a.x, a.y);
           break;
         }
-        const kind = pathKindOf(tool.tool);
-        if (!kind || !tool.drag) break;
-        const cur = this.tileAtClamped(a.x, a.y);
-        const tiles = pathLineTiles(map, tool.drag.startTile, cur);
-        const end = pathLineEnd(map, tool.drag.startTile, cur);
-        const preview = pathLinePreview(game.world, kind, tool.drag.startTile, end, pathCommandHeight(tool));
-        tool.drag = { startTile: tool.drag.startTile, endTile: end, tiles, cost: preview.cost, reason: preview.reason };
-        tool.hoverTile = tool.drag.endTile;
+        this.pathDragMove(this.tileAtClamped(a.x, a.y));
         break;
       }
       case 'dragEnd': {
@@ -283,20 +302,7 @@ export class InputController {
           this.strokeEnd();
           break;
         }
-        const kind = pathKindOf(tool.tool);
-        const drag = tool.drag;
-        tool.drag = null;
-        if (!kind || !drag) break;
-        const w = map.width;
-        game.dispatch({
-          type: 'buildPathLine',
-          x0: drag.startTile % w,
-          y0: Math.floor(drag.startTile / w),
-          x1: drag.endTile % w,
-          y1: Math.floor(drag.endTile / w),
-          kind,
-          ...pathCommandHeight(tool),
-        });
+        this.pathDragEnd();
         break;
       }
       case 'dragCancel':
@@ -342,8 +348,8 @@ export class InputController {
       case 'demolish': {
         // An elevated deck under the pointer goes by its height (Phase 4 §6 `demolish { z }`); else the ground tile.
         const deck = this.deckAt(x, y);
-        if (deck) game.dispatch({ type: 'demolish', x: deck.x, y: deck.y, z: deck.z });
-        else if (tile !== null) game.dispatch({ type: 'demolish', x: tile % w, y: Math.floor(tile / w) });
+        if (deck) this.demolish({ type: 'demolish', x: deck.x, y: deck.y, z: deck.z });
+        else if (tile !== null) this.demolish({ type: 'demolish', x: tile % w, y: Math.floor(tile / w) });
         return;
       }
       case 'patrol':
@@ -368,6 +374,105 @@ export class InputController {
         tool.selectedTile = tile;
         tool.selectedEntity = pickEntity(game.world, tile);
     }
+  }
+
+  /** Phase 6 §4.9 Confirm demolish: the UI may ask first (see `InputControllerOptions.confirm`). */
+  private demolish(cmd: Command): void {
+    if (this.game.settings.get('confirmDemolish') && this.opts.confirm?.(cmd)) return;
+    this.game.dispatch(cmd);
+  }
+
+  /** Path line drag (footpath and queue tools), by tiles: pointer drags and the map cursor share it. */
+  private pathDragStart(start: number): void {
+    const tool = this.game.tool;
+    const kind = pathKindOf(tool.tool);
+    if (!kind) return;
+    const preview = pathLinePreview(this.game.world, kind, start, start, pathCommandHeight(tool));
+    tool.drag = { startTile: start, endTile: start, tiles: [start], cost: preview.cost, reason: preview.reason };
+    tool.hoverTile = start;
+  }
+
+  private pathDragMove(cur: number): void {
+    const tool = this.game.tool;
+    const kind = pathKindOf(tool.tool);
+    if (!kind || !tool.drag) return;
+    const map = this.game.world.state.map;
+    const tiles = pathLineTiles(map, tool.drag.startTile, cur);
+    const end = pathLineEnd(map, tool.drag.startTile, cur);
+    const preview = pathLinePreview(this.game.world, kind, tool.drag.startTile, end, pathCommandHeight(tool));
+    tool.drag = { startTile: tool.drag.startTile, endTile: end, tiles, cost: preview.cost, reason: preview.reason };
+    tool.hoverTile = tool.drag.endTile;
+  }
+
+  private pathDragEnd(): void {
+    const tool = this.game.tool;
+    const kind = pathKindOf(tool.tool);
+    const drag = tool.drag;
+    tool.drag = null;
+    if (!kind || !drag) return;
+    const w = this.game.world.state.map.width;
+    this.game.dispatch({
+      type: 'buildPathLine',
+      x0: drag.startTile % w,
+      y0: Math.floor(drag.startTile / w),
+      x1: drag.endTile % w,
+      y1: Math.floor(drag.endTile / w),
+      kind,
+      ...pathCommandHeight(tool),
+    });
+  }
+
+  /** Screen point (CSS px) of the centre of `tile` on its ground. */
+  private tileScreenPoint(tile: number): { x: number; y: number } {
+    const map = this.game.world.state.map;
+    const v = this.opts.viewport();
+    const p = tileCentreWorld(map, tile, this.game.camera.rotation);
+    return worldToScreen(this.game.camera, p.sx, p.sy, v.width, v.height);
+  }
+
+  private cursorBridge: CursorInput | null = null;
+
+  /**
+   * The map cursor's way in (Phase 6 §4.7, `src/a11y/cursor.ts`): hover and click run through the same gesture
+   * actions as a mouse at the tile's centre, so every tool (and tool router) behaves as with a pointer.
+   */
+  cursorInput(): CursorInput {
+    this.cursorBridge ??= {
+      hover: (tile) => {
+        const p = this.tileScreenPoint(tile);
+        this.lastPointer = 'mouse';
+        this.apply([{ type: 'hover', x: p.x, y: p.y }]);
+        this.refreshGhost();
+      },
+      click: (tile) => {
+        const p = this.tileScreenPoint(tile);
+        this.lastPointer = 'mouse';
+        this.apply([{ type: 'tap', x: p.x, y: p.y, pointerType: 'mouse' }]);
+        this.refreshGhost();
+      },
+      dragTo: (from, tile) => {
+        if (!pathKindOf(this.game.tool.tool)) return false;
+        if (!this.game.tool.drag) this.pathDragStart(from);
+        this.pathDragMove(tile);
+        return true;
+      },
+      dragEnd: () => this.pathDragEnd(),
+      dragCancel: () => {
+        this.game.tool.drag = null;
+      },
+      reveal: (tile) => {
+        const v = this.opts.viewport();
+        const p = this.tileScreenPoint(tile);
+        const mx = Math.min(120, v.width * 0.2);
+        const my = Math.min(120, v.height * 0.2);
+        if (p.x < mx || p.y < my || p.x > v.width - mx || p.y > v.height - my) centerOnTile(this.game.camera, this.game.world.state.map, tile);
+      },
+      centreTile: () => {
+        const v = this.opts.viewport();
+        return this.tileAtClamped(v.width / 2, v.height / 2);
+      },
+    };
+    return this.cursorBridge;
   }
 
   /** Patrol stroke: paint or erase (Shift + mouse uses the other mode) for the patrol tool's staff member. */

@@ -35,7 +35,7 @@ export function createMessagesPanel(ctx: UiContext): PanelView {
         class: `message-row cat-${m.category}${isNew ? ' new' : ''}`,
         'data-testid': 'message-row',
         'data-message-id': m.id,
-        'aria-label': text('ui.messages.item', { category, text: line, date }),
+        // Phase 6 §4.7: the visible line, category, date, and New chip are the accessible name.
         onclick: () => {
           const t = locateTarget(game.world, m);
           if (t) goToTarget(ctx, t);

@@ -65,7 +65,7 @@ export function createStaffPanel(ctx: UiContext, focusId: number | null): PanelV
         type: 'button',
         class: 'btn hire-btn',
         'data-testid': `hire-${def.id}`,
-        'aria-label': text('ui.staff.hireLabel', { type: staffTypeName(def.id), cost: formatMoney(def.hireCost), wage: formatMoney(def.wageMonthly) }),
+        // Phase 6 §4.7: the visible name and cost are the accessible name; the section heading says "Hire staff".
         onclick: () => {
           const r = game.dispatch({ type: 'hireStaff', staffType: def.id });
           if (r.ok && r.id !== undefined) selectStaff(ctx, r.id);
@@ -106,7 +106,7 @@ export function createStaffPanel(ctx: UiContext, focusId: number | null): PanelV
         'data-testid': 'staff-row',
         'data-staff-id': m.id,
         'aria-pressed': 'false',
-        'aria-label': text('ui.staff.pick', { name: m.name, type: staffTypeName(m.type) }),
+        // Phase 6 §4.7: the visible name, type, and status are the accessible name (aria-pressed says it is selected).
         onclick: () => selectStaff(ctx, selectedStaffId(ctx) === m.id ? null : m.id),
       },
       h('span', { class: `staff-dot type-${m.type}`, 'aria-hidden': 'true' }),

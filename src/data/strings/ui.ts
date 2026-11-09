@@ -147,6 +147,7 @@ export const uiStrings: Record<string, string> = {
   'ui.finance.history': 'Profit, last 12 months',
   'ui.finance.noData': 'No income or costs yet',
   'ui.finance.bar': '{month}: {amount}',
+  'ui.finance.monthShort': '{month} Y{year}',
   'ui.ledger.construction': 'Construction',
   'ui.ledger.demolitionRefunds': 'Demolition refunds',
   'ui.ledger.rideRunning': 'Ride running costs',
@@ -185,6 +186,7 @@ export const uiStrings: Record<string, string> = {
   'ui.menu.export': 'Export',
   'ui.menu.import': 'Import',
   'ui.menu.quit': 'Quit to title',
+  'ui.menu.settings': 'Settings',
   'ui.slot.label': 'Slot {n}',
   'ui.slot.auto': 'Autosave',
   'ui.slot.empty': 'Empty',
@@ -200,6 +202,7 @@ export const uiStrings: Record<string, string> = {
   'ui.quit.no': 'Keep playing',
   'ui.dialog.cancel': 'Cancel',
   'ui.toast.dismiss': 'Dismiss message',
+  'ui.toast.dismissText': '{message}, tap to dismiss',
 
   // ---------------------------------------------------------------- Phase 3 management (W2-B)
   'ui.tool.staff': 'Staff',

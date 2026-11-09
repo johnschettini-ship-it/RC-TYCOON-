@@ -1,6 +1,7 @@
 /** Finance panel data (Phase 1 §4.5, Phase 3 §4.15 financing rule). Owner: W1-B. Pure. */
 import { LEDGER_CATEGORIES, type LedgerCategory, type LedgerMonth } from '../sim/economy/types';
-import { MONTH_NAMES } from '../sim/time';
+import { monthName } from '../i18n';
+import { text } from '../data/strings/en';
 import type { Cents } from '../sim/units';
 
 /** Borrowed and repaid amounts are financing: they change cash but not profit. */
@@ -38,7 +39,7 @@ export function profitHistory(ledger: readonly LedgerMonth[], monthIndex: number
     .map((m) => ({ monthIndex: m.monthIndex, profit: monthProfit(m) }));
 }
 
-/** "Mar Y1" for month index 0. */
+/** "Mar Y1" for month index 0 (month names from the string table, Phase 6 §4.8). */
 export function monthLabel(monthIndex: number): string {
-  return `${MONTH_NAMES[monthIndex % 12]} Y${Math.floor(monthIndex / 12) + 1}`;
+  return text('ui.finance.monthShort', { month: monthName(((monthIndex % 12) + 12) % 12), year: Math.floor(monthIndex / 12) + 1 });
 }

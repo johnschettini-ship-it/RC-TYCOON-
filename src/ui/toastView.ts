@@ -32,6 +32,8 @@ export function createToastView(): { el: HTMLElement; show(message: string, kind
         button.dataset.kind = t.kind;
         warn.style.display = t.kind === 'info' ? 'none' : '';
         setAttr(button, 'title', t.message);
+        // Phase 6 §4.7: the accessible name holds the visible message (then what a press does).
+        setAttr(button, 'aria-label', text('ui.toast.dismissText', { message: t.message }));
         button.hidden = false;
         // Restart the entry animation.
         button.classList.remove('enter');

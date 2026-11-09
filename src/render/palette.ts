@@ -1,6 +1,17 @@
 /**
- * Colours (master §2.5): flat colours, warm hues = thrill, cool hues = chill. Owner: W1-A.
+ * Colours (master §2.5): flat colours, warm hues = thrill, cool hues = chill. Owner: W1-A (Build 3: W4-F).
+ * Phase 6 §4.7: every meaning colour is colour-blind safe (the blue–orange family of `SAFE_PALETTE`), and colour is
+ * never the only signal (check / cross icons and hatching on ghosts, full / notched temperament rings).
  */
+import { SAFE_PALETTE } from '../data/tuning/a11y';
+
+/** Valid ghosts and "OK" marks: blue (`#0072B2`). Invalid ghosts and errors: vermillion (`#D55E00`). */
+export const GHOST_VALID = SAFE_PALETTE[0];
+export const GHOST_INVALID = SAFE_PALETTE[3];
+/** Hatch over an invalid ghost footprint (drawn by the a11y layer). */
+export const GHOST_HATCH = 'rgba(255,255,255,0.75)';
+/** The map cursor diamond. */
+export const CURSOR_COLOUR = '#ffd23f';
 
 export const SKY = '#1d2b3a';
 
@@ -38,8 +49,9 @@ export function shirtIndex(id: number): number {
 
 /** Temperament overlay: quantized steps from pure Chill (0) to pure Thrill (TINT_STEPS − 1). */
 export const TINT_STEPS = 9;
-const CHILL_RGB: readonly [number, number, number] = [52, 128, 235];
-const THRILL_RGB: readonly [number, number, number] = [255, 138, 30];
+/** Chill sky blue (`#56B4E9`) to Thrill orange (`#E69F00`), the safe palette's pair. */
+const CHILL_RGB: readonly [number, number, number] = [86, 180, 233];
+const THRILL_RGB: readonly [number, number, number] = [230, 159, 0];
 
 /** Chill (T ≤ 35) → step 0; Thrill (T ≥ 65) → last step; linear between (master R6 group bounds). */
 export function tintStep(t: number): number {

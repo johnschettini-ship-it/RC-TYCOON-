@@ -4,6 +4,9 @@
  * Sandbox (the scenario flow, `./scenario/flow.ts`) and the free-play New Park form (name 1–32 characters, map size
  * 64–256). Owner: W3-I (Build 2; W1-B built the Build 1 screen).
  *
+ * Settings opens the Phase 6 settings screen (`./settings`, W4-F), which replaced the Build 2 settings view; its
+ * Gameplay section holds "Unlock all scenarios" (now a stored setting).
+ *
  * Map sizes: 64 keeps the Build 1 park layout (every tile owned inside the fence), which Build 1 flows and their
  * end-to-end tests use (they pick 64 on the form); 96–256 use the Phase 4 free-play layout (`layout: 'freePlay'`,
  * W3-G). The form starts on 96, the Phase 4 / Phase 5 §4.5 default.
@@ -13,13 +16,14 @@ import type { SlotInfo } from '../save';
 import { MAP_SIZES } from '../data/tuning/land';
 import { createWorld } from '../sim/world';
 import type { UiContext } from './context';
-import { h, newId, popModal, pushModal, setAttr, setText } from './dom';
+import { h, newId, popModal, pushModal, setText } from './dom';
 import { MASCOT_H, MASCOT_W, drawMascots } from './mascots';
 import { PARK_NAME_MAX, validateParkName } from './names';
 import { chipGroup } from './scenario/controls';
 import { createScenarioFlow, type FlowHost } from './scenario/flow';
 import { newestSlot } from './scenario/model';
-import { progressStore, randomSeed, registerTitle, settings, type TitleView } from './scenario/shared';
+import { progressStore, randomSeed, registerTitle, type TitleView } from './scenario/shared';
+import { openSettingsScreen } from './settings';
 import { injectScenarioStyles } from './scenario/styles';
 
 /** Free-play map size the form starts on (see the file comment). */
@@ -28,7 +32,7 @@ export const NEW_PARK_DEFAULT_SIZE = 96;
 const CLASSIC_SIZE = 64;
 const LARGE_MAP = 192;
 
-type View = 'main' | 'new' | 'load' | 'settings' | 'credits' | 'flow';
+type View = 'main' | 'new' | 'load' | 'credits' | 'flow';
 
 export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): void; hide(): void; isOpen(): boolean } {
   injectScenarioStyles();
@@ -79,7 +83,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-load', text: text('ui.title.load'), onclick: () => showView('load') }),
     h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-import', text: text('ui.title.import'), onclick: () => ctx.importSave(() => hide()) }),
     h('div', { class: 'title-buttons row-buttons' },
-      h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-settings', text: text('prog.title.settings'), onclick: () => showView('settings') }),
+      h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-settings', 'aria-haspopup': 'dialog', text: text('prog.title.settings'), onclick: () => openSettingsScreen(ctx) }),
       h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-credits', text: text('prog.title.credits'), onclick: () => showView('credits') }),
     ),
   );
@@ -175,24 +179,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     slotList.replaceChildren(...rows, h('button', { type: 'button', class: 'btn big', text: text('ui.title.back'), onclick: () => showView('main') }));
   };
 
-  // Settings (Phase 6 adds the full menu; Build 2 has the scenario lock switch) and credits.
-  const unlockBtn = h('button', {
-    type: 'button',
-    class: 'btn big',
-    'data-testid': 'title-unlock-all',
-    'aria-pressed': 'false',
-    onclick: () => {
-      settings.unlockAll = !settings.unlockAll;
-      setAttr(unlockBtn, 'aria-pressed', settings.unlockAll ? 'true' : 'false');
-    },
-  }, h('span', { class: 'btn-label', text: text('prog.settings.unlockAll') }), h('span', { class: 'btn-detail', text: text('prog.settings.unlockAllDetail') }));
-  const settingsView = h(
-    'div',
-    { class: 'tc-view' },
-    h('h2', { class: 'dialog-title', text: text('prog.settings.title') }),
-    unlockBtn,
-    h('button', { type: 'button', class: 'btn big', text: text('ui.title.back'), onclick: () => showView('main') }),
-  );
+  // Credits.
   const creditsView = h(
     'div',
     { class: 'tc-view' },
@@ -204,7 +191,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
 
   // Views lent by the scenario flow (scenario select, sandbox setup).
   const flowSlot = h('div', { class: 'tc-flow' });
-  const card = h('div', { class: 'title-card' }, art, logo, tagline, main, newView, loadView, settingsView, creditsView, flowSlot);
+  const card = h('div', { class: 'title-card' }, art, logo, tagline, main, newView, loadView, creditsView, flowSlot);
   const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, card);
 
   const host: FlowHost = {
@@ -223,7 +210,6 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     main.hidden = view !== 'main';
     newView.hidden = view !== 'new';
     loadView.hidden = view !== 'load';
-    settingsView.hidden = view !== 'settings';
     creditsView.hidden = view !== 'credits';
     flowSlot.hidden = view !== 'flow';
     // The card grid uses the full width; the art and tagline make room for it.
@@ -245,9 +231,6 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     } else if (view === 'load') {
       renderSlots();
       (slotList.querySelector('button') as HTMLButtonElement | null)?.focus();
-    } else if (view === 'settings') {
-      setAttr(unlockBtn, 'aria-pressed', settings.unlockAll ? 'true' : 'false');
-      unlockBtn.focus();
     } else if (view === 'credits') {
       (creditsView.querySelector('button') as HTMLButtonElement | null)?.focus();
     }

@@ -10,6 +10,10 @@ import { keyAction } from './keyboard';
 import { isTrackKey } from './track';
 import { routerOf } from './toolRouters';
 import { KEY_HANDLERS } from './keyHandlers';
+import { setCursorInput } from '../a11y/cursor';
+
+/** Window event for a demolish that needs the player's yes (Settings → Confirm demolish); the UI listens. */
+export const CONFIRM_DEMOLISH_EVENT = 'tc-confirm-demolish';
 
 /** Window event for panel requests; the UI layer listens for it. */
 export const UI_INTENT_EVENT = 'tc-ui-intent';
@@ -37,7 +41,13 @@ export function attachInput(canvas: HTMLCanvasElement, game: Game): void {
   const ctl = new InputController(game, {
     viewport,
     onIntent: (intent: UiIntent) => window.dispatchEvent(new CustomEvent(UI_INTENT_EVENT, { detail: intent })),
+    confirm: (cmd) => {
+      window.dispatchEvent(new CustomEvent(CONFIRM_DEMOLISH_EVENT, { detail: cmd }));
+      return true;
+    },
   });
+  // Phase 6 §4.7: the map cursor keys act through this controller.
+  setCursorInput(ctl.cursorInput());
   const local = (e: PointerEvent | WheelEvent): { x: number; y: number } => {
     const r = canvas.getBoundingClientRect();
     return { x: e.clientX - r.left, y: e.clientY - r.top };

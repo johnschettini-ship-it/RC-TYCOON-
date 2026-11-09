@@ -60,7 +60,9 @@ function hud(ctx: UiContext): UiPart {
 
 const buyLandEntry: ToolbarEntry = {
   id: 'buyLand',
-  label: text('land.tool.buyLand'),
+  get label() {
+    return text('land.tool.buyLand');
+  },
   icon: () => lineIcon(BUY_LAND_D),
   onClick(ctx) {
     const t = ctx.game.tool;
@@ -83,7 +85,7 @@ function coarsePointer(): boolean {
 function swatch(colour: string, label: string): HTMLElement {
   return h(
     'span',
-    { class: 'buy-legend-item', style: 'display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted)' },
+    { class: 'buy-legend-item', style: 'display:inline-flex;align-items:center;gap:4px;font-size: calc(12px * var(--ts, 1));color:var(--muted)' },
     h('i', { 'aria-hidden': 'true', style: `display:inline-block;width:12px;height:12px;border-radius:3px;background:${colour}` }),
     label,
   );

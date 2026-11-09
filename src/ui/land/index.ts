@@ -71,6 +71,8 @@ const SWATCH: Record<TerrainCode, string> = { 0: '#5fa84a', 1: '#e2cf8f', 2: '#8
 
 const MODES: readonly LandMode[] = ['raise', 'lower', 'smooth', 'corner', 'level', 'paint'];
 const TERRAINS: readonly TerrainCode[] = [Terrain.Grass, Terrain.Sand, Terrain.Dirt, Terrain.Rock, Terrain.Snow];
+/** Test ids by terrain code (fixed, whatever the language). */
+const TERRAIN_IDS: readonly string[] = ['grass', 'sand', 'dirt', 'rock', 'snow'];
 
 function selectTool(ctx: UiContext, tool: 'land' | 'water'): void {
   const t = ctx.game.tool;
@@ -139,7 +141,7 @@ const LAND_BAR_CSS = `
 .land-bar .land-target { min-width: 84px; text-align: center; }
 .land-bar .land-swatch { flex: none; }
 @media (max-width: 599px) {
-  .land-bar .seg-btn { padding: 4px 5px; font-size: 13px; }
+  .land-bar .seg-btn { padding: 4px 5px; font-size: calc(13px * var(--ts, 1)); }
   .land-bar .segmented { gap: 3px; }
 }`;
 
@@ -182,7 +184,7 @@ function createLandBar(ctx: UiContext): UiPart {
   );
   const sizes = segmented<BrushSize>(
     text('landUi.sizes'),
-    BRUSH_SIZES.map((n) => ({ value: n, label: text('landUi.size', { n }), ariaLabel: text('landUi.sizeAria', { n }), testId: `land-size-${n}` })),
+    BRUSH_SIZES.map((n) => ({ value: n, label: text('landUi.size', { n }), testId: `land-size-${n}` })),
     (n) => {
       tool.land.size = n;
     },
@@ -190,7 +192,7 @@ function createLandBar(ctx: UiContext): UiPart {
   );
   const paints = segmented<TerrainCode>(
     text('landUi.terrains'),
-    TERRAINS.map((t) => ({ value: t, label: text(`landUi.terrain.${t}`), testId: `land-paint-${text(`landUi.terrain.${t}`).toLowerCase()}` })),
+    TERRAINS.map((t) => ({ value: t, label: text(`landUi.terrain.${t}`), testId: `land-paint-${TERRAIN_IDS[t]}` })),
     (t) => {
       tool.land.paint = t;
     },
@@ -333,14 +335,18 @@ export const landUi: UiExtension = {
   toolbar: [
     {
       id: 'land',
-      label: text('landUi.tool.land'),
+      get label() {
+        return text('landUi.tool.land');
+      },
       icon: () => lineIcon('land'),
       onClick: (ctx) => selectTool(ctx, 'land'),
       pressed: (ctx) => ctx.game.tool.tool === 'land',
     },
     {
       id: 'water',
-      label: text('landUi.tool.water'),
+      get label() {
+        return text('landUi.tool.water');
+      },
       icon: () => lineIcon('water'),
       onClick: (ctx) => selectTool(ctx, 'water'),
       pressed: (ctx) => ctx.game.tool.tool === 'water',
