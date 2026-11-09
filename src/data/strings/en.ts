@@ -9,6 +9,16 @@ import { trackStrings } from './track';
 import { staffStrings } from './staff';
 import { managementStrings } from './management';
 import { trackUiStrings } from './trackUi';
+// Build 2 sections (Wave 3.0), one per card.
+import { landUiStrings } from './landUi';
+import { pathStrings } from './paths';
+import { waterRideStrings } from './waterRides';
+import { sceneryStrings } from './scenery';
+import { fieldStrings } from './fields';
+import { nightStrings } from './night';
+import { landStrings } from './land';
+import { scenarioStrings } from './scenario';
+import { progressionStrings } from './progression';
 
 export const en: Record<string, string> = {
   ...guestStrings,
@@ -17,6 +27,15 @@ export const en: Record<string, string> = {
   ...staffStrings,
   ...managementStrings,
   ...trackUiStrings,
+  ...landUiStrings,
+  ...pathStrings,
+  ...waterRideStrings,
+  ...sceneryStrings,
+  ...fieldStrings,
+  ...nightStrings,
+  ...landStrings,
+  ...scenarioStrings,
+  ...progressionStrings,
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {

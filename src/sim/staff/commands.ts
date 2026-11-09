@@ -16,8 +16,10 @@ import { findRide, findStaff, indexById } from './lookup';
 import { abortInspection, releaseFix } from './mechanics';
 import { createPatrol, patrolIsEmpty, patrolSet } from './patrol';
 import type { Staff } from './types';
+import { BUILD_MAX_PHASE } from '../../data/tuning/management';
 
-const PHASE = 3;
+/** Path items of later phases (the Phase 4 lamp) come with the build's content phase (W3-D raises it). */
+const PHASE = BUILD_MAX_PHASE;
 const err = STAFF_ERRORS;
 
 /** The walkable tile next to the park entrance (N, E, S, W order), else the entrance tile. */
