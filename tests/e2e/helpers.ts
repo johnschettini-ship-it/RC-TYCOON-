@@ -78,6 +78,8 @@ const DECK_OF: Readonly<Record<string, string>> = {
  * brought into view (the chip row and the hand scroll sideways).
  */
 export async function toolControl(page: Page, id: string, opts: PressOptions = {}): Promise<Locator> {
+  // The UI applies a press on its next frame (the phone hand tucks away while a card is pressed).
+  await nextFrames(page);
   const control = page.locator(`[data-tool="${id}"]`);
   const deck = DECK_OF[id];
   if (deck && !(await control.isVisible())) {
@@ -88,6 +90,11 @@ export async function toolControl(page: Page, id: string, opts: PressOptions = {
   }
   await control.scrollIntoViewIfNeeded();
   return control;
+}
+
+/** Waits two animation frames, so the frame loop has applied the last press. */
+async function nextFrames(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
 }
 
 /** Press the control of an old toolbar id. `inspect` has no control: Put back (or Esc) selects it. */
@@ -102,6 +109,7 @@ export async function openTool(page: Page, id: string, opts: PressOptions = {}):
     return;
   }
   await press(await toolControl(page, id, opts), opts);
+  await nextFrames(page);
 }
 
 export type CardKind = 'flat' | 'track' | 'stall';

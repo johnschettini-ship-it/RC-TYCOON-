@@ -31,11 +31,16 @@ function chevron(dir: 'prev' | 'next'): SVGSVGElement {
 
 export interface HandView {
   el: HTMLElement;
+  /** Shows the hand with a deck (and ends a tuck). */
   show(deck: DeckId): void;
   hide(): void;
-  /** The open deck, or null when the hand is closed. */
+  /** Phone tuck: the hand keeps its deck but is hidden while `on`. */
+  setTucked(on: boolean): void;
+  /** The open deck (also while tucked), or null when the hand is closed. */
   deck(): DeckId | null;
-  /** The card of a tool in the open deck, or null. */
+  /** The hand is on the screen: a deck is open and it is not tucked. */
+  visible(): boolean;
+  /** The card of a tool in the open deck while the hand is visible, or null. */
   cardFor(toolId: string): HTMLElement | null;
   update(): void;
 }
@@ -51,9 +56,14 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
   /** Card views per deck, built the first time the deck opens. */
   const views = new Map<DeckId, ToolCardView[]>();
   let open: DeckId | null = null;
+  let tucked = false;
   let shown: ToolCardView[] = [];
   let lastLayout = '';
 
+  const applyHidden = (): void => {
+    const hide = open === null || tucked;
+    if (el.hidden !== hide) el.hidden = hide;
+  };
   const refreshArrows = (): void => {
     const show = open !== null && ctx.root.dataset.layout === 'side' && scroller.scrollWidth > scroller.clientWidth + 1;
     if (prev.hidden === show) prev.hidden = !show;
@@ -149,16 +159,24 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
         setAttr(el, 'aria-label', text('ui.deck.cards', { deck: text(`ui.deck.${deck}`) }));
       }
       for (const v of shown) v.update();
-      if (el.hidden) el.hidden = false;
+      tucked = false;
+      applyHidden();
       refreshArrows();
     },
     hide() {
       open = null;
-      if (!el.hidden) el.hidden = true;
+      applyHidden();
+    },
+    setTucked(on) {
+      if (tucked === on) return;
+      tucked = on;
+      applyHidden();
+      if (!on) refreshArrows();
     },
     deck: () => open,
+    visible: () => open !== null && !tucked,
     cardFor(toolId) {
-      if (open === null) return null;
+      if (open === null || tucked) return null;
       return shown.find((v) => v.def.id === toolId)?.card ?? null;
     },
     update() {

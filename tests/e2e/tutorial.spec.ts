@@ -165,9 +165,6 @@ test.describe('Tutorial: phone', () => {
     await expect(footpathTool).toHaveAttribute('data-tutorial-target', 'footpath');
     await expectBubbleClearOfRing(page);
     await footpathTool.tap();
-    // A tap on the open deck closes the hand, so the tool bars above it leave the zoomed-in map free; Footpath stays held.
-    await page.getByTestId('deck-paths').tap();
-    await expect(page.getByTestId('hand')).toBeHidden();
     await centerOn(page, 24, 42);
     for (const y of [43, 42, 41]) {
       const p = await tilePoint(page, 24, y);
