@@ -44,9 +44,15 @@ export async function toolControl(page: Page, id: string): Promise<Locator> {
   return control;
 }
 
-/** Press the control of an old toolbar id. */
-export async function openTool(page: Page, id: string): Promise<void> {
-  await (await toolControl(page, id)).click();
+/** Press a control the way the device does: a tap on a touch context (the phone project), a click otherwise. */
+async function press(page: Page, control: Locator, input: 'auto' | 'click' = 'auto'): Promise<void> {
+  if (input === 'auto' && (await page.evaluate(() => navigator.maxTouchPoints > 0))) await control.tap();
+  else await control.click();
+}
+
+/** Press the control of an old toolbar id (tap on touch devices, click otherwise; `input: 'click'` clicks on every device). */
+export async function openTool(page: Page, id: string, input: 'auto' | 'click' = 'auto'): Promise<void> {
+  await press(page, await toolControl(page, id), input);
 }
 
 export type CardKind = 'flat' | 'track' | 'stall';
@@ -64,13 +70,13 @@ export async function cardOf(page: Page, kind: CardKind, defId: string): Promise
   }
   const tab = page.getByTestId(kind === 'track' ? 'picker-tab-track' : 'picker-tab-flat');
   if (!(await tab.isVisible())) await openTool(page, 'rides');
-  await tab.click();
+  await press(page, tab);
   return card;
 }
 
 /** Hold a picker card (the next tap on the map places it). */
 export async function pickCard(page: Page, kind: CardKind, defId: string): Promise<void> {
-  await (await cardOf(page, kind, defId)).click();
+  await press(page, await cardOf(page, kind, defId));
 }
 
 /** Centre the camera on a tile (debug hook; the same as panning there). */
