@@ -1,5 +1,5 @@
 /**
- * UI layer (Phase 0 §4.11, Phase 1 §4.7 and §7): HUD, toolbar, tool status, panels, pickers,
+ * UI layer (Phase 0 §4.11, Phase 1 §4.7 and §7, Phase 7 §4.1): top region, decks, tool status, panels, pickers,
  * toasts, title screen, in-game menu, autosave. Owner: W1-B.
  * Talks to input only through the shared ToolState and the `tc-ui-intent` window event.
  */
@@ -7,6 +7,7 @@ import type { Game } from '../game';
 import { SaveStore, importFile, type KeyValueStore } from '../save';
 import type { PanelKind, PanelView, UiContext } from './context';
 import { h } from './dom';
+import { createDecks, type DecksUi } from './decks';
 import { createHud } from './hud';
 import { toolbarPlacement } from './layout';
 import { openMenu } from './menu';
@@ -21,7 +22,6 @@ import { SaveActions } from './saves';
 import { createTitleScreen } from './title';
 import { toastForResult } from './toasts';
 import { createToastView } from './toastView';
-import { createToolbar } from './toolbar';
 import { createToolStatus } from './toolStatus';
 import { createMarketingPanel } from './management/marketingPanel';
 import { createMessageToast } from './management/messageToast';
@@ -188,10 +188,18 @@ export function mountUI(root: HTMLElement, game: Game): void {
       afterImport = onLoaded ?? null;
       fileInput.click();
     },
+    openDeck(deck, zone) {
+      decks.open(deck, zone);
+    },
+    controlFor(toolId) {
+      return decks.controlFor(toolId);
+    },
   };
 
   const hud = createHud(ctx, () => openMenu(ctx));
-  const toolbar = createToolbar(ctx);
+  // Phase 7 §4.4: the Rides deck is open when a park starts.
+  const decks: DecksUi = createDecks(ctx);
+  decks.open('rides');
   const status = createToolStatus(ctx);
   const patrolBar = createPatrolBar(ctx);
   const pathItemBar = createPathItemBar(ctx);
@@ -202,7 +210,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   const title = createTitleScreen(ctx);
   // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).
   const extraBars = UI_EXTENSIONS.flatMap((x) => (x.bars ? [x.bars(ctx)] : []));
-  root.append(hud.el, toolbar.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), panels.el, toastView.el, messageToast.el, fileInput, title.el);
+  root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), panels.el, toastView.el, messageToast.el, fileInput, title.el);
   mountTrackUi(ctx);
 
   const applyLayout = (): void => {
@@ -212,17 +220,21 @@ export function mountUI(root: HTMLElement, game: Game): void {
   };
   window.addEventListener('resize', applyLayout);
   applyLayout();
-  // The HUD wraps on narrow screens: panels, toasts, and the side toolbar sit below its real height.
+  // The top region wraps on narrow screens: panels, toasts, and the deck list sit below its real height. The bottom
+  // region is the hand on desktop (0 when closed) and the chip row with the hand on the phone.
   const measure = (): void => {
     root.style.setProperty('--hud-bottom', `${Math.ceil(hud.el.getBoundingClientRect().bottom)}px`);
-    const bar = toolbar.el.getBoundingClientRect();
-    const space = root.dataset.layout === 'bottom' ? Math.ceil(window.innerHeight - bar.top) : 0;
+    const tops: number[] = [];
+    if (!decks.hand.hidden) tops.push(decks.hand.getBoundingClientRect().top);
+    if (root.dataset.layout === 'bottom') tops.push(decks.list.getBoundingClientRect().top);
+    const space = tops.length > 0 ? Math.ceil(window.innerHeight - Math.min(...tops)) : 0;
     root.style.setProperty('--toolbar-space', `${Math.max(0, space)}px`);
   };
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(measure);
     ro.observe(hud.el);
-    ro.observe(toolbar.el);
+    ro.observe(decks.list);
+    ro.observe(decks.hand);
   }
   window.addEventListener('resize', measure);
   measure();
@@ -245,6 +257,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     }
   });
   game.onWorldChanged(() => {
+    decks.open('rides');
     panels.close();
     ctx.follow.guestId = null;
     lastSelection = null;
@@ -253,11 +266,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
     toolOptions(game.tool).patrolStaffId = -1;
   });
 
-  // After a mouse or touch click on a HUD or toolbar button, drop its focus so Space pauses the game
-  // instead of pressing the button again. Keyboard activation (detail 0) keeps focus.
+  // After a mouse or touch click on a top region, deck, card, or tool status button, drop its focus so Space pauses the
+  // game instead of pressing the button again. Keyboard activation (detail 0) keeps focus.
   root.addEventListener('click', (e) => {
     if ((e as MouseEvent).detail === 0) return;
-    const b = (e.target as Element | null)?.closest('.toolbar button, .hud button, .tool-status button');
+    const b = (e.target as Element | null)?.closest('.deck-list button, .hand button, .hud button, .tool-status button');
     if (b instanceof HTMLElement) b.blur();
   });
 
@@ -335,7 +348,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     }
     follow();
     hud.update(now);
-    toolbar.update();
+    decks.update(now);
     status.update();
     patrolBar.update();
     pathItemBar.update(now);

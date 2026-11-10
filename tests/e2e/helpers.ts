@@ -42,13 +42,6 @@ export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed
   await expect(page.locator(`.speed-btn[aria-label="${label}"]`)).toHaveAttribute('aria-pressed', 'true');
 }
 
-/** The control of an old toolbar id (`footpath`, `scenery`, `menu`, ...), brought into view first (the phone toolbar scrolls sideways). */
-export async function toolControl(page: Page, id: string): Promise<Locator> {
-  const control = page.locator(`[data-tool="${id}"]`);
-  await control.scrollIntoViewIfNeeded();
-  return control;
-}
-
 /** How a control is pressed: a click by default, a tap when `tap` is set (touch tests pass it, as they tapped before). */
 export interface PressOptions {
   tap?: boolean;
@@ -59,10 +52,56 @@ async function press(control: Locator, opts: PressOptions): Promise<void> {
   else await control.click();
 }
 
-/** Press the control of an old toolbar id. */
+/** The deck of each old toolbar id that became a tool card (Phase 7 §4.4); the other ids keep a control on the screen. */
+const DECK_OF: Readonly<Record<string, string>> = {
+  rides: 'rides',
+  shows: 'rides',
+  stalls: 'stalls',
+  footpath: 'paths',
+  queue: 'paths',
+  pathItems: 'paths',
+  scenery: 'scenery',
+  land: 'scenery',
+  water: 'scenery',
+  buyLand: 'scenery',
+  staff: 'manage',
+  research: 'manage',
+  marketing: 'manage',
+  finance: 'manage',
+  park: 'manage',
+  overlays: 'manage',
+};
+
+/**
+ * The control of an old toolbar id (`footpath`, `demolish`, `menu`, ...): a tool card, with its deck opened first (with
+ * the same input kind) when the card is not on the screen, or the deck list, mood bar, or controls element. It is
+ * brought into view (the chip row and the hand scroll sideways).
+ */
+export async function toolControl(page: Page, id: string, opts: PressOptions = {}): Promise<Locator> {
+  const control = page.locator(`[data-tool="${id}"]`);
+  const deck = DECK_OF[id];
+  if (deck && !(await control.isVisible())) {
+    const button = page.getByTestId(`deck-${deck}`);
+    await button.scrollIntoViewIfNeeded();
+    await press(button, opts);
+    await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', deck);
+  }
+  await control.scrollIntoViewIfNeeded();
+  return control;
+}
+
+/** Press the control of an old toolbar id. `inspect` has no control: Put back (or Esc) selects it. */
 export async function openTool(page: Page, id: string, opts: PressOptions = {}): Promise<void> {
-  // Messages and Menu are controls of the top region (`data-tool` stays); `toolControl` finds them like any other.
-  await press(await toolControl(page, id), opts);
+  if (id === 'inspect') {
+    const tool = await page.evaluate(() => (window as unknown as { __tc: { tool: { tool: string } } }).__tc.tool.tool);
+    if (tool === 'inspect') return;
+    const back = page.getByTestId('card-put-back');
+    if ((await back.count()) === 1 && (await back.isVisible())) await press(back, opts);
+    else await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __tc: { tool: { tool: string } } }).__tc.tool.tool)).toBe('inspect');
+    return;
+  }
+  await press(await toolControl(page, id, opts), opts);
 }
 
 export type CardKind = 'flat' | 'track' | 'stall';

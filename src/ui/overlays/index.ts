@@ -4,7 +4,7 @@
  * `render/lighting`). Owner: W3-E. Registered in `../extensions.ts`.
  *
  * Desktop: `V` cycles the overlays (`src/input/overlays.ts`); the legend sits in the bottom-left corner beside the
- * toolbar. Touch: the Overlays toolbar button opens the chip row; the legend is a small card under the HUD.
+ * toolbar. Touch: the Overlays card opens the chip row; the legend is a small card under the HUD.
  * Every button is at least 44 × 44 CSS px with a text label. Data and text: `./legend.ts`.
  */
 import { text } from '../../data/strings/en';
@@ -18,7 +18,7 @@ import { legendFor, overlayChips, overlayName, tileValueText, type Legend, type 
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-/** Chip row open per UI root (the toolbar button and the card share it). */
+/** Chip row open per UI root (the Overlays card and the legend card share it). */
 const chipsOpen = new WeakMap<UiContext, boolean>();
 
 function coarsePointer(): boolean {
@@ -32,7 +32,7 @@ function coarsePointer(): boolean {
 const STYLE_ID = 'tc-overlay-styles';
 const CSS = `
 .tc-overlay-card { position: absolute; pointer-events: none; display: flex; flex-direction: column; gap: 8px; max-width: min(300px, calc(100% - 20px)); }
-#ui[data-layout='side'] .tc-overlay-card { left: calc(var(--toolbar-w) + 24px + var(--safe-left)); bottom: calc(16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .tc-overlay-card { left: calc(var(--deck-w) + 30px + var(--safe-left)); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
 #ui[data-layout='bottom'] .tc-overlay-card { right: calc(8px + var(--safe-right)); top: calc(var(--hud-bottom) + 8px); max-width: min(260px, calc(100% - 16px)); }
 .tc-overlay-box { pointer-events: auto; background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); padding: 8px 10px; }
 .tc-overlay-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -62,7 +62,7 @@ function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement 
   return el;
 }
 
-/** Overlays toolbar icon: three stacked map layers. */
+/** Overlays card icon: three stacked map layers. */
 function overlaysIcon(): Element {
   const svg = svgEl('svg', { viewBox: '0 0 24 24', class: 'icon', 'aria-hidden': 'true', focusable: 'false' });
   svg.append(

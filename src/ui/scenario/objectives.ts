@@ -1,7 +1,7 @@
 /**
  * Objectives panel behind the HUD flag icon (Phase 5 §7): each goal with a progress bar, current value, target, and
  * streak; the deadline as "8 months left"; the result once the run is won or lost. Owner: W3-I. Browser only.
- * Side panel on desktop, bottom sheet above the toolbar on phones.
+ * Side panel on desktop, bottom sheet above the decks on phones.
  */
 import { getScenarioDef } from '../../data/scenarios';
 import { text } from '../../data/strings/en';

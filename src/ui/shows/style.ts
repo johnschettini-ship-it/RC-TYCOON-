@@ -10,7 +10,7 @@ const CSS = `
 }
 #ui[data-layout='side'] .shw-picker {
   top: calc(var(--hud-bottom) + 10px); right: calc(10px + var(--safe-right)); width: 340px;
-  max-height: calc(100% - var(--hud-bottom) - 120px - var(--safe-bottom)); border-radius: var(--radius-surface);
+  max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 120px - var(--safe-bottom)); border-radius: var(--radius-surface);
 }
 #ui[data-layout='bottom'] .shw-picker {
   left: 0; right: 0; bottom: var(--toolbar-space); max-height: min(60vh, calc(100% - var(--hud-bottom) - var(--toolbar-space)));

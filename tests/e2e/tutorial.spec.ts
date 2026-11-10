@@ -69,9 +69,13 @@ test.describe('Tutorial: desktop', () => {
       await page.waitForTimeout(100);
     }
     await expect(stepTitle(page)).toHaveText('Build a footpath from the entrance');
-    await expect(page.getByTestId('tutorial-hint')).toHaveText(/^Click Footpath/);
+    await expect(page.getByTestId('tutorial-hint')).toHaveText(/^Click Paths, then Footpath/);
 
-    // 4: the ring is on the Footpath tool and the bubble stays clear of it.
+    // 4: the ring is on the Paths deck button until the deck opens, then on the Footpath card; the bubble stays clear.
+    await expect(page.getByTestId('deck-paths')).toHaveAttribute('data-tutorial-target', 'footpath');
+    await expect(page.locator('.tc-ring')).toBeVisible();
+    await expectBubbleClearOfRing(page);
+    await page.getByTestId('deck-paths').click();
     const footpathTool = await toolControl(page, 'footpath');
     await expect(footpathTool).toHaveAttribute('data-tutorial-target', 'footpath');
     await expect(page.locator('.tc-ring')).toBeVisible();
@@ -149,13 +153,21 @@ test.describe('Tutorial: phone', () => {
     }
     await touch(cdp, 'touchEnd', []);
     await expect(stepTitle(page)).toHaveText('Build a footpath from the entrance');
-    await expect(page.getByTestId('tutorial-hint')).toHaveText(/^Tap Footpath/);
+    await expect(page.getByTestId('tutorial-hint')).toHaveText(/^Tap Paths, then Footpath/);
 
-    // 4: the ring is on the Footpath tool, the bubble moved away from it; tap three path tiles.
-    const footpathTool = await toolControl(page, 'footpath');
+    // 4: the ring is on the Paths deck chip until the deck opens, then on the Footpath card; the bubble moved away
+    // from it. Tap three path tiles.
+    await expect(page.getByTestId('deck-paths')).toHaveAttribute('data-tutorial-target', 'footpath');
+    await expect(page.locator('.tc-ring')).toBeVisible();
+    await expectBubbleClearOfRing(page);
+    await page.getByTestId('deck-paths').tap();
+    const footpathTool = await toolControl(page, 'footpath', { tap: true });
     await expect(footpathTool).toHaveAttribute('data-tutorial-target', 'footpath');
     await expectBubbleClearOfRing(page);
     await footpathTool.tap();
+    // A tap on the open deck closes the hand, so the tool bars above it leave the zoomed-in map free; Footpath stays held.
+    await page.getByTestId('deck-paths').tap();
+    await expect(page.getByTestId('hand')).toBeHidden();
     await centerOn(page, 24, 42);
     for (const y of [43, 42, 41]) {
       const p = await tilePoint(page, 24, y);

@@ -14,11 +14,11 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
   --hud-h: 52px;
-  --toolbar-w: 92px;
-  --toolbar-h: 62px;
+  /* Width of the desktop deck list; the hand keeps this much clear on both sides. */
+  --deck-w: calc(148px * var(--ts, 1));
   /* Measured by the UI (ResizeObserver); these are fallbacks. */
   --hud-bottom: calc(var(--hud-h) + var(--safe-top));
-  --toolbar-space: calc(var(--toolbar-h) + var(--safe-bottom));
+  --toolbar-space: var(--safe-bottom);
   color: var(--ink);
   background: var(--surface-2);
 }
@@ -46,7 +46,7 @@ html, body {
 
 /* Buttons */
 button { font: inherit; color: inherit; }
-.btn, .icon-btn, .tool-btn, .speed-btn, .hud-btn, .status-pill, .card, .toast {
+.btn, .icon-btn, .deck-btn, .speed-btn, .hud-btn, .status-pill, .card, .toast {
   pointer-events: auto;
   cursor: pointer;
   border: var(--control-outline);
@@ -64,12 +64,12 @@ button { font: inherit; color: inherit; }
   gap: 8px;
   font-weight: 600;
 }
-.btn:hover, .tool-btn:hover, .speed-btn:hover, .hud-btn:hover, .status-pill:hover, .card:hover, .icon-btn:hover { background: var(--surface-3); }
+.btn:hover, .deck-btn:hover, .speed-btn:hover, .hud-btn:hover, .status-pill:hover, .card:hover, .icon-btn:hover { background: var(--surface-3); }
 .btn.primary { background: var(--accent-chill); color: var(--ink); min-height: 48px; }
 .btn.danger, .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, var(--surface)); color: var(--danger-text); }
 /* Pressed controls are ink with white text (§4.9); labels inside them follow the text colour. */
 .btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
-:is(.btn, .tool-btn, .speed-btn, .seg-btn, .tc-chip)[aria-pressed='true'] :is(.btn-detail, .seg-detail, .muted, .tc-muted) { color: inherit; }
+:is(.btn, .speed-btn, .seg-btn, .tc-chip)[aria-pressed='true'] :is(.btn-detail, .seg-detail, .muted, .tc-muted) { color: inherit; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.big { min-height: 52px; font-size: calc(16px * var(--ts, 1)); width: 100%; }
 .btn .btn-detail { display: block; font-weight: 400; font-size: calc(12px * var(--ts, 1)); color: var(--muted-ink); }
@@ -77,7 +77,7 @@ button { font: inherit; color: inherit; }
 .icon-btn { width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; background: transparent; border-color: transparent; }
 /*
  * Focus ring (§4.9): 2 px white, then 3 px ink, on every control. Inside scrolling panels, which clip it, it sits on the
- * inner edge (the toolbar's 6 px padding holds the outer ring). The transparent 3 px outline keeps a ring in
+ * inner edge (the deck list's and the hand's padding holds the outer ring). The transparent 3 px outline keeps a ring in
  * forced-colours mode.
  */
 :focus-visible { outline: 3px solid transparent; outline-offset: 2px; box-shadow: var(--focus-ring); }
@@ -167,56 +167,6 @@ button { font: inherit; color: inherit; }
 }
 .hud-clock { font-weight: 600; font-variant-numeric: tabular-nums; }
 
-/* Toolbar */
-.toolbar {
-  position: absolute;
-  display: flex;
-  gap: 8px;
-  padding: 6px;
-  background: var(--surface);
-  border: var(--outline);
-  box-shadow: var(--shadow);
-  pointer-events: auto;
-}
-.tool-btn {
-  min-width: var(--touch);
-  min-height: var(--touch);
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 4px;
-  flex: none;
-}
-.tool-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
-.tool-btn[data-tool='temperament'][aria-pressed='true'] { background: linear-gradient(90deg, var(--accent-chill), var(--accent-thrill)); color: var(--ink); }
-.tool-label { font-size: calc(11px * var(--ts, 1)); line-height: 1.1; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-#ui[data-layout='side'] .toolbar {
-  top: calc(var(--hud-bottom) + 10px);
-  left: calc(10px + var(--safe-left));
-  flex-direction: column;
-  width: var(--toolbar-w);
-  max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom));
-  overflow-y: auto;
-  border-radius: var(--radius-surface);
-}
-#ui[data-layout='side'] .tool-btn { width: 100%; min-height: 56px; padding: 4px 2px; }
-#ui[data-layout='bottom'] .toolbar {
-  left: 0; right: 0; bottom: 0;
-  flex-direction: row;
-  overflow-x: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: 6px calc(6px + var(--safe-right)) calc(6px + var(--safe-bottom)) calc(6px + var(--safe-left));
-  border-width: 0;
-  border-top: var(--outline);
-  box-shadow: none;
-}
-#ui[data-layout='bottom'] .toolbar::-webkit-scrollbar { display: none; }
-#ui[data-layout='bottom'] .tool-btn { min-width: 52px; min-height: 50px; padding: 4px 6px; }
-#ui[data-layout='bottom'] .tool-label { font-size: calc(10px * var(--ts, 1)); }
-
 /* Phone (Phase 7 §4.1): row 1 status pill and controls, row 2 mood slot, row 3 day pill (scrolls sideways). */
 #ui[data-layout='bottom'] .hud {
   grid-template-columns: minmax(0, 1fr) auto;
@@ -241,6 +191,132 @@ button { font: inherit; color: inherit; }
 }
 #ui[data-layout='bottom'] .day-pill::-webkit-scrollbar { display: none; }
 #ui[data-layout='bottom'] .day-pill > * { flex: none; }
+
+/* Decks (Phase 7 §4.4, §4.5): the deck list, the hand, and tool cards. */
+.decks { display: contents; }
+.deck-list { position: absolute; pointer-events: auto; display: flex; gap: 8px; }
+.deck-btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  flex: none;
+  font-weight: 600;
+  font-size: calc(15px * var(--ts, 1));
+  line-height: 1.15;
+}
+.deck-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
+.deck-btn .icon { width: 20px; height: 20px; }
+.deck-list-title { font-size: calc(12px * var(--ts, 1)); font-weight: 600; color: var(--muted-ink); padding: 0 4px; }
+.deck-divider { flex: none; background: var(--muted-ink); border-radius: 2px; }
+#ui[data-layout='side'] .deck-list {
+  top: calc(var(--hud-bottom) + 10px);
+  left: calc(10px + var(--safe-left));
+  width: var(--deck-w);
+  max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom));
+  overflow-y: auto;
+  flex-direction: column;
+  padding: 10px;
+  background: var(--surface);
+  border: var(--outline);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow);
+}
+#ui[data-layout='side'] .deck-btn { width: 100%; padding: 6px 8px; overflow-wrap: break-word; }
+#ui[data-layout='side'] .deck-divider { height: 3px; margin: 2px 4px; }
+/* Phone: a row of chips directly above the hand; the row scrolls sideways. */
+#ui[data-layout='bottom'] .decks {
+  display: flex;
+  flex-direction: column;
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+#ui[data-layout='bottom'] .deck-list {
+  position: static;
+  align-items: center;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 6px calc(8px + var(--safe-right)) 8px calc(8px + var(--safe-left));
+}
+#ui[data-layout='bottom'] .deck-list::-webkit-scrollbar { display: none; }
+#ui[data-layout='bottom'] .deck-list-title { display: none; }
+#ui[data-layout='bottom'] .deck-btn { border-radius: 22px; background: var(--surface); white-space: nowrap; }
+#ui[data-layout='bottom'] .deck-btn[aria-pressed='true'] { background: var(--ink); }
+#ui[data-layout='bottom'] .deck-divider { width: 3px; align-self: stretch; margin: 6px 0; }
+
+/* The hand: a tray of cards at the bottom centre (desktop) or across the bottom (phone). */
+.hand {
+  /* Tool cards are smaller than ride and stall cards, so the bars above the hand keep the middle of the map free. */
+  --card-w: calc(104px * min(var(--ts, 1), 1.5));
+  --card-h: calc(124px * min(var(--ts, 1), 1.5));
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: var(--outline);
+  box-shadow: var(--shadow);
+}
+#ui[data-layout='side'] .hand {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(10px + var(--safe-bottom));
+  max-width: calc(100% - 2 * (var(--deck-w) + 30px + var(--safe-left)));
+  padding: 0 8px;
+  border-radius: var(--radius-surface);
+}
+#ui[data-layout='bottom'] .hand {
+  --card-w: calc(92px * min(var(--ts, 1), 1.5));
+  --card-h: calc(108px * min(var(--ts, 1), 1.5));
+  position: static;
+  padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
+  border-width: 0;
+  border-top: var(--outline);
+  box-shadow: none;
+}
+.hand-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+.hand-scroll::-webkit-scrollbar { display: none; }
+/* Cards centre while they fit and scroll from the first card when they do not. */
+.hand-cards { display: flex; gap: 8px; width: max-content; margin: 0 auto; padding: calc(var(--card-lift, 12px) + 6px) 8px 8px; }
+.hand-arrow { flex: none; padding: 0; border-radius: 50%; background: var(--surface-2); }
+.card-wrap { position: relative; flex: none; transition: transform 120ms ease-out; }
+.card-wrap.held { transform: translateY(calc(-1 * var(--card-lift, 12px))); }
+.card.tool-card {
+  width: var(--card-w);
+  min-height: var(--card-h);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 8px;
+  background: var(--surface);
+  border: var(--outline);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow);
+}
+.card.tool-card:hover { background: var(--surface); }
+.card.tool-card[aria-pressed='true'] { box-shadow: 0 0 0 4px var(--gold), var(--shadow); }
+.tool-card-art { flex: 1 1 auto; min-height: 44px; display: grid; place-items: center; border-radius: var(--radius); background: var(--surface-2); }
+.tool-card:hover .tool-card-art { background: var(--surface-3); }
+.tool-card-art .icon { width: 40%; height: auto; max-height: 56px; }
+.tool-card-label { flex: none; font-weight: 700; font-size: calc(14px * var(--ts, 1)); line-height: 1.15; text-align: center; overflow-wrap: break-word; }
+/* Put back sits on the picture of the held card (above its middle), so the label stays readable and a press on the
+   middle of the card still reaches the card. */
+.card-put-back { position: absolute; left: 8px; right: 8px; top: 8px; min-height: var(--touch); padding: 4px 8px; font-size: calc(13px * var(--ts, 1)); background: var(--surface); }
 
 /* Tool status bar */
 .tool-status {
@@ -267,7 +343,7 @@ button { font: inherit; color: inherit; }
 .status-detail { color: var(--muted-ink); font-size: calc(13px * var(--ts, 1)); }
 .tool-status.invalid .status-detail { color: var(--danger-text); }
 .status-actions { display: flex; gap: 8px; }
-#ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
 #ui[data-layout='bottom'] .tool-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 
 /* Panels: side panel on desktop, bottom sheet on phones */
@@ -285,7 +361,7 @@ button { font: inherit; color: inherit; }
   top: calc(var(--hud-bottom) + 10px);
   right: calc(10px + var(--safe-right));
   width: 360px;
-  max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom));
+  max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px - var(--safe-bottom));
   border-radius: var(--radius-surface);
 }
 .panel[data-layout='bottom'] {
@@ -506,25 +582,6 @@ button { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------------ Phase 3 management (W2-B) */
 
-/* Side toolbar: two columns so all tools fit without scrolling on a laptop screen. */
-#ui[data-layout='side'] .toolbar {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: calc(var(--toolbar-w) * 1.6);
-  align-content: start;
-}
-/*
- * At 100% text the labels stay on one line, so the side toolbar grows to its longest label (two equal columns, never
- * narrower than before, at most 280 px) instead of cutting it to "Tempera…". Larger text scales wrap labels (below).
- */
-#ui[data-layout='side'][data-text-scale='100'] .toolbar {
-  grid-template-columns: repeat(2, minmax(max-content, 1fr));
-  width: max-content;
-  min-width: calc(var(--toolbar-w) * 1.6);
-  max-width: 280px;
-}
-#ui[data-layout='side'] .tool-btn { min-height: 54px; }
-.tool-btn { position: relative; }
 .tool-badge {
   position: absolute; top: 2px; right: 4px;
   min-width: 18px; height: 18px; padding: 0 5px;
@@ -664,7 +721,7 @@ button { font: inherit; color: inherit; }
 /* Tool bars (patrol painting, path items) */
 .mgmt-bar { max-width: min(760px, calc(100% - 20px)); }
 .status-actions.wrap { flex-wrap: wrap; align-items: center; }
-#ui[data-layout='side'] .mgmt-bar { left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .mgmt-bar { left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
 #ui[data-layout='bottom'] .mgmt-bar { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 .mgmt-bar .segmented { gap: 4px; }
 .mgmt-bar .seg-btn { min-width: 52px; padding: 4px 8px; }
@@ -701,7 +758,7 @@ button { font: inherit; color: inherit; }
   top: calc(var(--hud-bottom) + 10px);
   right: calc(10px + var(--safe-right));
   width: 360px;
-  max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom));
+  max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px - var(--safe-bottom));
   border-radius: var(--radius-surface);
 }
 .track-builder[data-layout='bottom'] {
@@ -893,17 +950,12 @@ dl.row dt, dl.row dd { margin: 0; }
 kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; border: 2px solid var(--ink); background: var(--surface-2); }
 
 /* Long text at large text scales wraps instead of clipping (Phase 6 §4.7: nothing clips at 175%). */
-#ui:not([data-text-scale='100']) :is(.tool-label, .panel-title, .mini-label, .tb-title) {
+#ui:not([data-text-scale='100']) :is(.panel-title, .mini-label, .tb-title) {
   white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; hyphens: auto;
 }
-#ui:not([data-text-scale='100']) .tool-label { text-align: center; }
 /* Phones: the bottom sheet's drag handle is a 44 px target too. */
 .panel[data-layout='bottom'] .panel-handle { height: var(--touch); }
 .panel[data-layout='bottom'] .panel-handle::after { top: 12px; }
-/* The side toolbar widens with the text so whole words fit; the bottom bar scrolls sideways. */
-#ui[data-layout='side'][data-text-scale='125'] .toolbar,
-#ui[data-layout='side'][data-text-scale='150'] .toolbar,
-#ui[data-layout='side'][data-text-scale='175'] .toolbar { width: min(280px, calc(var(--toolbar-w) * 1.6 * var(--ts, 1))); }
 #ui[data-text-scale='150'] .panel-title, #ui[data-text-scale='175'] .panel-title { white-space: normal; overflow-wrap: break-word; }
 #ui[data-text-scale='150'] .hud-item, #ui[data-text-scale='175'] .hud-item { white-space: normal; }
 #ui:not([data-text-scale='100']) .hud-name { white-space: normal; overflow-wrap: anywhere; }

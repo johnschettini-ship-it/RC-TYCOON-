@@ -1,5 +1,5 @@
 /**
- * UI extension points (Wave 3.0 contract; Build 3 entries and `panels` Wave 4.0). Owner: integrator. The toolbar, HUD,
+ * UI extension points (Wave 3.0 contract; Build 3 entries and `panels` Wave 4.0). Owner: integrator. The decks, HUD,
  * park panel, and UI root mount every registered extension, so cards add UI from their own folders without editing
  * Build 1 files. Every control needs a text label or `aria-label` and a 44 × 44 CSS px touch target (plan Global
  * Constraints).
@@ -25,7 +25,7 @@ export interface UiPart {
   update(now: number): void;
 }
 
-/** A toolbar button (inserted before Demolish, in registry order). */
+/** A tool card (Phase 7 §4.4): in the deck that `deck` names, after the base cards, in registry order. */
 export interface ToolbarEntry {
   /** `data-tool` and `data-testid="tool-<id>"`. */
   id: string;

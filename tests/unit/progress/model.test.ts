@@ -189,7 +189,7 @@ describe('end screen, mascots, pointer words, newest save', () => {
   it('click for a mouse, tap for touch', () => {
     expect(actVerb('mouse')).toBe('Click');
     expect(actVerb('touch')).toBe('Tap');
-    expect(text('prog.tutorial.hint.footpath', { act: actVerb('touch') })).toMatch(/^Tap Footpath/);
+    expect(text('prog.tutorial.hint.footpath', { act: actVerb('touch') })).toMatch(/^Tap Paths, then Footpath/);
   });
 
   it('Continue picks the newest save or autosave', () => {

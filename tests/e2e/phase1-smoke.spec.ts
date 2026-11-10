@@ -178,6 +178,9 @@ test.describe('Phase 1 smoke: phone', () => {
     await setSpeed(page, 'Pause');
     await centerOn(page, 25, 50);
     await openTool(page, 'footpath');
+    // The second finger spreads down to the bars above the hand: a press on the open deck closes the hand (Footpath stays held).
+    await page.getByTestId('deck-paths').click();
+    await expect(page.getByTestId('hand')).toBeHidden();
     const zoomBefore = Number(await page.locator('#game').getAttribute('data-zoom'));
     const countPaths = (): Promise<number> =>
       page.evaluate(() => {

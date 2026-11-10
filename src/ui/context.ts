@@ -1,5 +1,6 @@
 /** Shared UI context passed to every view. Owner: W1-B. */
 import type { Game } from '../game';
+import type { DeckId } from './decks/model';
 import type { SaveActions } from './saves';
 import type { ToastKind } from './toasts';
 
@@ -39,6 +40,13 @@ export interface UiContext {
   hideTitle(): void;
   /** Pick a `.tcsave.json` file and load it. Calls `onLoaded` after a good load. */
   importSave(onLoaded?: () => void): void;
+  /** Opens the hand with a deck (Phase 7 §4.4). */
+  openDeck(deck: DeckId, zone?: string): void;
+  /**
+   * The control of an old toolbar id: its card when its deck is open, else its deck button; Demolish, the mood bar,
+   * Messages, and Menu for their ids; null for `inspect`.
+   */
+  controlFor(toolId: string): HTMLElement | null;
 }
 
 /** One panel view inside the panel host. */

@@ -1,7 +1,6 @@
 /** Owner: W1-B. UI strings (master R4: no final period; `!` and `?` stay). Keys start with `ui.`. */
 export const uiStrings: Record<string, string> = {
-  // Toolbar (Phase 1 §7)
-  'ui.toolbar.label': 'Tools',
+  // Tools (Phase 1 §7; Phase 7 tool cards and controls)
   'ui.tool.inspect': 'Inspect',
   'ui.tool.footpath': 'Footpath',
   'ui.tool.queue': 'Queue',
@@ -11,8 +10,6 @@ export const uiStrings: Record<string, string> = {
   'ui.tool.finance': 'Finance',
   'ui.tool.park': 'Park',
   'ui.tool.menu': 'Menu',
-  'ui.tool.temperament': 'Temperament',
-  'ui.tool.temperamentLong': 'Temperament overlay',
 
   // HUD
   'ui.hud.label': 'Park status',

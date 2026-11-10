@@ -11,7 +11,7 @@ async function newPark(page: Page, name = 'Test Park'): Promise<void> {
   await expect(page.locator('.title-screen')).toBeHidden();
 }
 
-test.describe('HUD and toolbar', () => {
+test.describe('HUD and deck list', () => {
   let errors: string[] = [];
 
   test.beforeEach(async ({ page }) => {
@@ -56,33 +56,35 @@ test.describe('HUD and toolbar', () => {
     await expect(two).not.toHaveClass(/active/);
   });
 
-  test('the toolbar is visible with labelled buttons of at least 44 × 44 px', async ({ page }, info) => {
-    const bar = page.getByRole('toolbar', { name: 'Tools' });
-    await expect(bar).toBeVisible();
-    for (const name of ['Inspect', 'Footpath', 'Queue', 'Rides', 'Stalls', 'Demolish', 'Finance', 'Park']) {
-      const b = bar.getByRole('button', { name, exact: true });
-      await expect(b).toHaveCount(1);
-      const box = await b.boundingBox();
+  test('the deck list shows 5 decks and Demolish of at least 44 × 44 px, at the top left or above the hand', async ({ page }, info) => {
+    const list = page.getByRole('toolbar', { name: 'Card decks' });
+    await expect(list).toBeVisible();
+    const controls = ['deck-rides', 'deck-stalls', 'deck-paths', 'deck-scenery', 'deck-manage', 'tool-demolish'].map((id) => list.getByTestId(id));
+    for (const c of controls) {
+      await c.scrollIntoViewIfNeeded();
+      const box = await c.boundingBox();
       expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
       expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
     }
-    const box = await bar.boundingBox();
-    const vp = page.viewportSize();
-    if (!box || !vp) throw new Error('no layout');
+    const box = await list.boundingBox();
+    const pill = await page.getByTestId('status-pill').boundingBox();
+    const hand = await page.getByTestId('hand').boundingBox();
+    if (!box || !pill || !hand) throw new Error('no layout');
     if (info.project.name === 'desktop') {
-      // Wide screen: toolbar on the left side.
+      // Wide screen: a column at the top left, below the status pill.
       expect(box.x).toBeLessThan(40);
+      expect(box.y).toBeGreaterThanOrEqual(pill.y + pill.height);
+      expect(box.y).toBeLessThan(page.viewportSize()!.height / 2);
       expect(box.height).toBeGreaterThan(box.width);
     } else {
-      // Narrow screen: toolbar at the bottom.
-      expect(Math.round(box.y + box.height)).toBeGreaterThanOrEqual(vp.height - 2);
+      // Narrow screen: a row of chips directly above the hand.
+      expect(Math.abs(box.y + box.height - hand.y)).toBeLessThanOrEqual(2);
       expect(box.width).toBeGreaterThan(box.height);
     }
-    // Picking a tool marks it pressed.
-    const footpath = bar.getByRole('button', { name: 'Footpath', exact: true });
-    await footpath.click();
-    await expect(footpath).toHaveAttribute('aria-pressed', 'true');
-    await expect(bar.getByRole('button', { name: 'Inspect', exact: true })).toHaveAttribute('aria-pressed', 'false');
+    // Demolish selects its tool.
+    const demolish = list.getByTestId('tool-demolish');
+    await demolish.click();
+    await expect(demolish).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('the status pill shows cash, guests, and rating, and opens the Park panel', async ({ page }, info) => {

@@ -1,7 +1,7 @@
 /**
- * Tutorial bubbles (Phase 5 §4.11, §7): Frost and Spark speak in a bubble near the HUD; a ring highlights the target
- * element (`data-tutorial-target`); text says "click" or "tap" after the last pointer type; the bubble moves to the
- * half of the screen away from the target so it never covers it. The `ui` checks (Next, camera, zoom, guest panel,
+ * Tutorial bubbles (Phase 5 §4.11, §7; Phase 7 §4.11): Frost and Spark speak in a bubble near the HUD; a ring
+ * highlights the target element (`data-tutorial-target`); text says "click" or "tap" after the last pointer type; the
+ * bubble moves to the half of the screen away from the target so it never covers it. The `ui` checks (Next, camera, zoom, guest panel,
  * finance panel) are measured here and sent as `tutorialAdvance`. Owner: W3-I. Browser only.
  */
 import { text } from '../../data/strings/en';
@@ -20,21 +20,23 @@ import { lastPointer, modalOpen } from './shared';
 export const TUTORIAL_CAMERA_TILES = 4;
 export const TUTORIAL_ZOOM_CHANGE = 0.25;
 
-/** Element each step points at (toolbar buttons and HUD values); none for the map gestures and the welcome. */
-const TARGETS: Partial<Record<TutorialStepId, string>> = {
-  footpath: '[data-tool="footpath"]',
-  carousel: '[data-tool="rides"]',
-  connectCarousel: '[data-tool="queue"]',
-  openRide: '[data-tool="inspect"]',
-  stalls: '[data-tool="stalls"]',
-  openPark: '[data-tool="park"]',
-  inspectGuest: '[data-tool="inspect"]',
-  swingTower: '[data-tool="rides"]',
-  changePrice: '[data-tool="park"]',
-  juniorCoaster: '[data-tool="rides"]',
-  groundskeeper: '[data-tool="staff"]',
-  financePanel: '[data-tool="finance"]',
-  guests100: '[data-testid="hud-guests"]',
+/**
+ * Control each step points at (Phase 7 §4.11): an old toolbar tool id, resolved with `ctx.controlFor` (its card, or
+ * its deck button while the deck is closed), or a selector for HUD values. None for the map gestures, the welcome,
+ * and the steps done on the map (`openRide`, `inspectGuest`).
+ */
+const TARGETS: Partial<Record<TutorialStepId, { tool: string } | { selector: string }>> = {
+  footpath: { tool: 'footpath' },
+  carousel: { tool: 'rides' },
+  connectCarousel: { tool: 'queue' },
+  stalls: { tool: 'stalls' },
+  openPark: { tool: 'park' },
+  swingTower: { tool: 'rides' },
+  changePrice: { tool: 'park' },
+  juniorCoaster: { tool: 'rides' },
+  groundskeeper: { tool: 'staff' },
+  financePanel: { tool: 'finance' },
+  guests100: { selector: '[data-testid="hud-guests"]' },
 };
 
 /** Steps whose hint differs between mouse and touch beyond the "click / tap" word. */
@@ -90,6 +92,15 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
     target?.removeAttribute('data-tutorial-target');
     target = t;
     if (t && current) t.setAttribute('data-tutorial-target', current.id);
+    // Phones: the chip row and the hand scroll sideways; bring a new target into view once.
+    if (t instanceof HTMLElement && typeof t.scrollIntoView === 'function') t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  /** The control of the current step, looked up every update: the ring moves from the deck button to the card. */
+  function resolveTarget(): Element | null {
+    const goal = current ? TARGETS[current.id] : undefined;
+    if (!goal) return null;
+    return 'tool' in goal ? ctx.controlFor(goal.tool) : document.querySelector(goal.selector);
   }
 
   let current: TutorialStep | null = null;
@@ -106,11 +117,6 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
     current = TUTORIAL_STEPS[run.stepIndex] ?? null;
     cam0 = { x: game.camera.centerX, y: game.camera.centerY, zoom: game.camera.zoom };
     setTarget(null);
-    const sel = current ? TARGETS[current.id] : undefined;
-    const t = sel ? document.querySelector(sel) : null;
-    // Phones: the toolbar scrolls sideways; bring the target into view once.
-    if (t instanceof HTMLElement && typeof t.scrollIntoView === 'function') t.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    setTarget(t);
   }
 
   function setGuide(guide: 'frost' | 'spark' | 'both', mood: 'happy' | 'sad'): void {
@@ -180,6 +186,7 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
       if (world !== shownWorld || run.stepIndex !== shownStep) enterStep(world, run);
       const step = current;
       if (!step) return;
+      setTarget(resolveTarget());
       setGuide(step.guide, 'happy');
       setText(title, text(`prog.tutorial.step.${step.id}`));
       setText(hint, hintOf(step, pointer));

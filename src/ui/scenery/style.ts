@@ -10,7 +10,7 @@ const CSS = `
 }
 #ui[data-layout='side'] .scn-picker {
   top: calc(var(--hud-bottom) + 10px); right: calc(10px + var(--safe-right)); width: 372px;
-  max-height: calc(100% - var(--hud-bottom) - 120px - var(--safe-bottom)); border-radius: var(--radius-surface);
+  max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 120px - var(--safe-bottom)); border-radius: var(--radius-surface);
 }
 #ui[data-layout='bottom'] .scn-picker {
   left: 0; right: 0; bottom: var(--toolbar-space); max-height: min(56vh, calc(100% - var(--hud-bottom) - var(--toolbar-space)));
@@ -49,7 +49,7 @@ const CSS = `
 .scn-card .scn-cost { align-self: flex-start; color: var(--ink); background: var(--gold); border-radius: 999px; padding: 0 6px; font-weight: 700; }
 .scn-card .scn-fields { color: var(--muted-ink); }
 .scn-status .btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
-#ui[data-layout='side'] .scn-status { left: 50%; transform: translateX(-50%); bottom: calc(16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .scn-status { left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
 #ui[data-layout='bottom'] .scn-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 .scn-status .status-actions { flex-wrap: wrap; }
 `;
