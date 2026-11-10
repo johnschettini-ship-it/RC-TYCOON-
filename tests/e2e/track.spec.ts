@@ -156,8 +156,8 @@ test.describe('track builder', () => {
     await layPaths(page);
 
     // 1. Rides → Track rides → Steel Coaster.
-    await expect(await cardOf(page, 'track', 'steel_coaster')).toBeVisible();
-    await pickCard(page, 'track', 'steel_coaster');
+    await expect(await cardOf(page, 'track', 'steel_coaster', { tap: phone })).toBeVisible();
+    await pickCard(page, 'track', 'steel_coaster', { tap: phone });
     const builder = page.getByTestId('track-builder');
     await expect(builder).toBeVisible();
     await expect(page.getByTestId('track-station-length')).toHaveText('3 tiles');

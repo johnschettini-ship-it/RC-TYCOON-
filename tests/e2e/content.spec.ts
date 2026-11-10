@@ -73,9 +73,9 @@ test.describe('Build 3 extra content', () => {
     await newPark(page, 'Content Park');
     await unlockBuild3(page);
 
-    for (const id of ['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']) await expect(await cardOf(page, 'flat', id)).toHaveCount(1);
-    for (const id of ['inverted_coaster', 'bobsled_run', 'monorail']) await expect(await cardOf(page, 'track', id)).toBeVisible();
-    await pickCard(page, 'track', 'inverted_coaster');
+    for (const id of ['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']) await expect(await cardOf(page, 'flat', id, { tap: phone })).toHaveCount(1);
+    for (const id of ['inverted_coaster', 'bobsled_run', 'monorail']) await expect(await cardOf(page, 'track', id, { tap: phone })).toBeVisible();
+    await pickCard(page, 'track', 'inverted_coaster', { tap: phone });
     const builder = page.getByTestId('track-builder');
     await expect(builder).toBeVisible();
     await expect(page.getByTestId('track-station-length')).toHaveText('3 tiles');
@@ -102,7 +102,7 @@ test.describe('Build 3 extra content', () => {
     await press(page, phone, 'track-done');
     await expect(builder).toBeHidden();
 
-    for (const id of ['noodle_bar', 'smoothie_bar', 'photo_booth']) await expect(await cardOf(page, 'stall', id)).toHaveCount(1);
+    for (const id of ['noodle_bar', 'smoothie_bar', 'photo_booth']) await expect(await cardOf(page, 'stall', id, { tap: phone })).toHaveCount(1);
     // A few frames with the new art on screen.
     await page.evaluate(() => (window as unknown as { __tc: ContentTc }).__tc.step(60));
     await page.waitForTimeout(300);

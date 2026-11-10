@@ -73,7 +73,7 @@ test.describe('Calm and Buzz overlays', () => {
     await addFountain(page);
     await centerOn(page, FOUNTAIN_X, FOUNTAIN_Y);
 
-    await openTool(page, 'overlays');
+    await openTool(page, 'overlays', { tap: true });
     const chips = page.getByTestId('overlay-chips');
     await expect(chips).toBeVisible();
     for (const id of ['none', 'calm', 'buzz', 'light', 'temperament']) {
@@ -95,7 +95,7 @@ test.describe('Calm and Buzz overlays', () => {
     await page.touchscreen.tap(p.x, p.y);
     await expect(page.getByTestId('overlay-value')).toHaveText('Calm here: 102 (Medium)');
 
-    await openTool(page, 'overlays');
+    await openTool(page, 'overlays', { tap: true });
     await page.getByTestId('overlay-chip-none').tap();
     await expect(legend).toBeHidden();
     watch.expectNoErrors();

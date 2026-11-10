@@ -44,39 +44,43 @@ export async function toolControl(page: Page, id: string): Promise<Locator> {
   return control;
 }
 
-/** Press a control the way the device does: a tap on a touch context (the phone project), a click otherwise. */
-async function press(page: Page, control: Locator, input: 'auto' | 'click' = 'auto'): Promise<void> {
-  if (input === 'auto' && (await page.evaluate(() => navigator.maxTouchPoints > 0))) await control.tap();
+/** How a control is pressed: a click by default, a tap when `tap` is set (touch tests pass it, as they tapped before). */
+export interface PressOptions {
+  tap?: boolean;
+}
+
+async function press(control: Locator, opts: PressOptions): Promise<void> {
+  if (opts.tap) await control.tap();
   else await control.click();
 }
 
-/** Press the control of an old toolbar id (tap on touch devices, click otherwise; `input: 'click'` clicks on every device). */
-export async function openTool(page: Page, id: string, input: 'auto' | 'click' = 'auto'): Promise<void> {
-  await press(page, await toolControl(page, id), input);
+/** Press the control of an old toolbar id. */
+export async function openTool(page: Page, id: string, opts: PressOptions = {}): Promise<void> {
+  await press(await toolControl(page, id), opts);
 }
 
 export type CardKind = 'flat' | 'track' | 'stall';
 
-/** A picker card, with the right picker (and tab) open first when the card is not visible. It does not click the card. */
-export async function cardOf(page: Page, kind: CardKind, defId: string): Promise<Locator> {
+/** A picker card, with the right picker (and tab) open first when the card is not visible. It does not press the card. */
+export async function cardOf(page: Page, kind: CardKind, defId: string, opts: PressOptions = {}): Promise<Locator> {
   const card =
     kind === 'track'
       ? page.getByTestId(`track-card-${defId}`)
       : page.locator(`.panel button.card[data-def="${defId}"]:not(.track-card)`);
   if (await card.isVisible()) return card;
   if (kind === 'stall') {
-    await openTool(page, 'stalls');
+    await openTool(page, 'stalls', opts);
     return card;
   }
   const tab = page.getByTestId(kind === 'track' ? 'picker-tab-track' : 'picker-tab-flat');
-  if (!(await tab.isVisible())) await openTool(page, 'rides');
-  await press(page, tab);
+  if (!(await tab.isVisible())) await openTool(page, 'rides', opts);
+  await press(tab, opts);
   return card;
 }
 
 /** Hold a picker card (the next tap on the map places it). */
-export async function pickCard(page: Page, kind: CardKind, defId: string): Promise<void> {
-  await press(page, await cardOf(page, kind, defId));
+export async function pickCard(page: Page, kind: CardKind, defId: string, opts: PressOptions = {}): Promise<void> {
+  await press(await cardOf(page, kind, defId, opts), opts);
 }
 
 /** Centre the camera on a tile (debug hook; the same as panning there). */

@@ -114,7 +114,7 @@ test('desktop: Page Up sets the path height, a drag builds an elevated line that
 test('phone: + / − and the ramp toggle in the mini-bar; a tap builds at the height', async ({ page }, info) => {
   test.skip(info.project.name !== 'phone', 'touch');
   const errors = await newPark(page);
-  await openTool(page, 'footpath');
+  await openTool(page, 'footpath', { tap: true });
   const bar = page.getByTestId('path-height-bar');
   await expect(bar).toBeVisible();
   await expect(page.getByTestId('path-ramp-up')).toBeDisabled();

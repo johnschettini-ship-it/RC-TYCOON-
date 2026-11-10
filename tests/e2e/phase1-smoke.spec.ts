@@ -110,7 +110,7 @@ test.describe('Phase 1 smoke: phone', () => {
     await expect.poll(() => contentAt(page, 30, 59)).toBe(FOOTPATH);
 
     // Ride picker in the bottom sheet; a tap moves the ghost; Confirm places the ride.
-    await pickCard(page, 'flat', 'carousel');
+    await pickCard(page, 'flat', 'carousel', { tap: true });
     const anchor = await tilePoint(page, 34, 56);
     await page.touchscreen.tap(anchor.x, anchor.y);
     expect(await rides(page)).toEqual([]);

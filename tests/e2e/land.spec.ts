@@ -120,7 +120,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
 
   test('phone: tap Land, tap a tile, tap Raise twice', async ({ page }, info) => {
     test.skip(!isPhone(info), 'touch flow');
-    await openTool(page, 'land');
+    await openTool(page, 'land', { tap: true });
     await expect(page.getByTestId('land-bar')).toBeVisible();
     await centerOn(page, 20, 20);
     const p = await tilePoint(page, 20, 20);

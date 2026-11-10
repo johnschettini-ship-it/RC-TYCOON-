@@ -107,7 +107,7 @@ test.describe('scenery tool', () => {
     await newPark(page, 'Pocket Garden');
     await page.evaluate(() => (window as unknown as { __tc: SceneryGame }).__tc.setSpeed(0));
     await centerOn(page, 28, 44);
-    await openTool(page, 'scenery');
+    await openTool(page, 'scenery', { tap: true });
     await expect(page.getByTestId('scenery-picker')).toBeVisible();
     await page.getByTestId('scenery-tab-classic_fair').tap();
     await page.getByTestId('scenery-item-balloon_cluster').tap();

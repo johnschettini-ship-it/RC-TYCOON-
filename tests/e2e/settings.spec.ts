@@ -127,8 +127,7 @@ test.describe('settings screen', () => {
       });
     expect(await content()).toBe(1);
     await centerOn(page, 20, 20);
-    // This test drives the map with the mouse on both projects, so the tool is clicked too.
-    await openTool(page, 'demolish', 'click');
+    await openTool(page, 'demolish');
     const at = await tilePoint(page, 20, 20);
     await page.mouse.click(at.x, at.y);
     await expect(page.getByRole('dialog', { name: 'Demolish this?' })).toBeVisible();

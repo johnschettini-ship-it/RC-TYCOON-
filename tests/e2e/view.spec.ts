@@ -173,7 +173,7 @@ test.describe('phone', () => {
     await expect(canvas).toHaveAttribute('data-rotation', '0');
     expect(await centreTile(page)).toBe(start);
 
-    await openTool(page, 'buyLand');
+    await openTool(page, 'buyLand', { tap: true });
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
     const a = await tilePointR(page, 20, 30);

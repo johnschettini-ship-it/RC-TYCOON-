@@ -136,9 +136,9 @@ for (const [set, typeId, name] of [
       const phone = info.project.name === 'phone';
       await setUp(page);
 
-      const card = await cardOf(page, 'track', typeId);
+      const card = await cardOf(page, 'track', typeId, { tap: phone });
       test.skip((await card.count()) === 0, 'water rides unlock once BUILD_MAX_PHASE reaches 4 (W3-D)');
-      await pickCard(page, 'track', typeId);
+      await pickCard(page, 'track', typeId, { tap: phone });
       const builder = page.getByTestId('track-builder');
       await expect(builder).toBeVisible();
       // One boat is one tile long: the station starts at 1 tile; make it 2.
