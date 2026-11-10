@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { cardOf, openTool, pickCard } from './helpers';
 
 /**
  * Track builder smoke (phase-2 §7, §9.4): build the reference circuit R1 (§9.2) through the builder UI on desktop
@@ -155,12 +156,8 @@ test.describe('track builder', () => {
     await layPaths(page);
 
     // 1. Rides → Track rides → Steel Coaster.
-    const rides = page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Rides', exact: true });
-    if (phone) await rides.tap();
-    else await rides.click();
-    await press(page, phone, 'picker-tab-track');
-    await expect(page.getByTestId('track-card-steel_coaster')).toBeVisible();
-    await press(page, phone, 'track-card-steel_coaster');
+    await expect(await cardOf(page, 'track', 'steel_coaster')).toBeVisible();
+    await pickCard(page, 'track', 'steel_coaster');
     const builder = page.getByTestId('track-builder');
     await expect(builder).toBeVisible();
     await expect(page.getByTestId('track-station-length')).toHaveText('3 tiles');
@@ -247,9 +244,7 @@ test.describe('track builder', () => {
 
   test('undo refunds the last piece; Esc leaves the builder and the track stays', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'keyboard shortcuts are a desktop feature');
-    await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Rides', exact: true }).click();
-    await page.getByTestId('picker-tab-track').click();
-    await page.getByTestId('track-card-junior_coaster').click();
+    await pickCard(page, 'track', 'junior_coaster');
     await page.getByTestId('track-confirm').click();
     await expect.poll(() => pieceCount(page)).toBeGreaterThan(0);
     const n0 = await pieceCount(page);

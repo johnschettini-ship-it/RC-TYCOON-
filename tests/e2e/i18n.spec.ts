@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
+import { cardOf, openTool, toolControl } from './helpers';
 
 /**
  * Localization (Phase 6 §4.8, §9; master R28). The pseudo-locale `en-XA` accents every letter of every string, so
@@ -132,16 +133,15 @@ test.describe('hard-coded text', () => {
     await expect(page.locator('.title-screen')).toBeHidden();
     expect(unexpectedEnglish(await plainEnglish(page))).toEqual([]);
     for (const tool of ['park', 'finance', 'rides', 'stalls', 'staff', 'research', 'marketing', 'messages']) {
-      await page.getByTestId(`tool-${tool}`).click();
-      await expect(page.getByTestId(`tool-${tool}`)).toHaveAttribute('aria-pressed', 'true');
+      await openTool(page, tool);
+      await expect(await toolControl(page, tool)).toHaveAttribute('aria-pressed', 'true');
       expect(unexpectedEnglish(await plainEnglish(page)), tool).toEqual([]);
       if (tool === 'rides') {
         // Track ride types in the second tab of the picker.
-        await page.getByTestId('picker-tab-track').click();
-        await expect(page.getByTestId('track-card-steel_coaster')).toBeVisible();
+        await expect(await cardOf(page, 'track', 'steel_coaster')).toBeVisible();
         expect(unexpectedEnglish(await plainEnglish(page)), 'track rides').toEqual([]);
       }
-      await page.getByTestId(`tool-${tool}`).click();
+      await openTool(page, tool);
     }
   });
 
@@ -152,7 +152,7 @@ test.describe('hard-coded text', () => {
     await page.getByTestId('title-name').fill('Ļåķéšîðé');
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
-    await page.getByTestId('tool-scenery').click();
+    await openTool(page, 'scenery');
     await expect(page.getByTestId('scenery-picker')).toBeVisible();
     // Every theme tab: an open theme lists its items; a locked one names the theme in its note.
     for (const theme of ['base', 'classic_fair', 'frost_peaks', 'volcano_ridge', 'spooky_hollow', 'jungle_lagoon', 'starport']) {
@@ -161,7 +161,7 @@ test.describe('hard-coded text', () => {
       expect(unexpectedEnglish(await plainEnglish(page)), theme).toEqual([]);
     }
     await page.getByTestId('scenery-close').click();
-    await page.getByTestId('tool-shows').click();
+    await openTool(page, 'shows');
     await expect(page.getByTestId('show-picker')).toBeVisible();
     await expect(page.getByTestId('show-card-lightshow_tower')).not.toContainText('Lightshow');
     expect(unexpectedEnglish(await plainEnglish(page)), 'shows').toEqual([]);

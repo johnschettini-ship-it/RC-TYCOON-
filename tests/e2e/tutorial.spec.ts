@@ -3,7 +3,7 @@
  * and tap, then Skip tutorial. Bubbles never cover the ringed target. Every test fails on any console error.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, contentAt, isPhone, tilePoint, touch, watchErrors } from './helpers';
+import { centerOn, contentAt, isPhone, tilePoint, toolControl, touch, watchErrors } from './helpers';
 
 const FOOTPATH = 1;
 
@@ -72,7 +72,7 @@ test.describe('Tutorial: desktop', () => {
     await expect(page.getByTestId('tutorial-hint')).toHaveText(/^Click Footpath/);
 
     // 4: the ring is on the Footpath tool and the bubble stays clear of it.
-    const footpathTool = page.locator('[data-tool="footpath"]');
+    const footpathTool = await toolControl(page, 'footpath');
     await expect(footpathTool).toHaveAttribute('data-tutorial-target', 'footpath');
     await expect(page.locator('.tc-ring')).toBeVisible();
     await expectBubbleClearOfRing(page);
@@ -152,7 +152,7 @@ test.describe('Tutorial: phone', () => {
     await expect(page.getByTestId('tutorial-hint')).toHaveText(/^Tap Footpath/);
 
     // 4: the ring is on the Footpath tool, the bubble moved away from it; tap three path tiles.
-    const footpathTool = page.locator('[data-tool="footpath"]');
+    const footpathTool = await toolControl(page, 'footpath');
     await expect(footpathTool).toHaveAttribute('data-tutorial-target', 'footpath');
     await expectBubbleClearOfRing(page);
     await footpathTool.tap();

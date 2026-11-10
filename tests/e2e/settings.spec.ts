@@ -1,6 +1,6 @@
 /** Settings screen (Phase 6 §4.9, §7, §9 "a volume change persists after reload"). Owner: W4-F. */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, isPhone, newPark, tilePoint, watchErrors } from './helpers';
+import { centerOn, isPhone, newPark, openTool, tilePoint, watchErrors } from './helpers';
 
 async function openFromTitle(page: Page): Promise<void> {
   await page.getByTestId('title-settings').click();
@@ -98,7 +98,7 @@ test.describe('settings screen', () => {
   test('the in-game menu opens the settings screen and Back returns to the menu', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page);
-    await page.getByTestId('tool-menu').click();
+    await openTool(page, 'menu');
     await page.getByTestId('menu-settings').click();
     await expect(page.getByTestId('settings-screen')).toBeVisible();
     await page.keyboard.press('Escape');
@@ -127,7 +127,7 @@ test.describe('settings screen', () => {
       });
     expect(await content()).toBe(1);
     await centerOn(page, 20, 20);
-    await page.getByTestId('tool-demolish').click();
+    await openTool(page, 'demolish');
     const at = await tilePoint(page, 20, 20);
     await page.mouse.click(at.x, at.y);
     await expect(page.getByRole('dialog', { name: 'Demolish this?' })).toBeVisible();

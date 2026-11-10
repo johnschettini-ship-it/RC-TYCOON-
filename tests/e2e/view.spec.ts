@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, setSpeed, touch, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, setSpeed, touch, watchErrors } from './helpers';
 
 /**
  * View rotation and land purchase (Phase 4 §9.5, W3-G), plus the opt-in 128 × 128 frame-rate measurement
@@ -133,7 +133,7 @@ test.describe('desktop', () => {
     await setSpeed(page, 'Pause');
     await landForSale(page, 10, 20, 13, 22);
     await page.keyboard.press(']');
-    await page.getByTestId('tool-buyLand').click();
+    await openTool(page, 'buyLand');
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
     const a = await tilePointR(page, 10, 20);
@@ -173,7 +173,7 @@ test.describe('phone', () => {
     await expect(canvas).toHaveAttribute('data-rotation', '0');
     expect(await centreTile(page)).toBe(start);
 
-    await page.getByTestId('tool-buyLand').tap();
+    await openTool(page, 'buyLand');
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
     const a = await tilePointR(page, 20, 30);

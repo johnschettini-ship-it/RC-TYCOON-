@@ -3,7 +3,7 @@
  * Every test fails on any console error.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, contentAt, guestCount, isPhone, newPark, setSpeed, tilePoint, tool, touch, watchErrors } from './helpers';
+import { centerOn, contentAt, guestCount, isPhone, newPark, openTool, pickCard, setSpeed, tilePoint, touch, watchErrors } from './helpers';
 
 const FOOTPATH = 1;
 const QUEUE = 2;
@@ -34,7 +34,7 @@ test.describe('Phase 1 smoke: desktop', () => {
     await centerOn(page, 31, 57);
 
     // Drag-build a 5-tile footpath along the row north of the entrance stub.
-    await tool(page, 'Footpath');
+    await openTool(page, 'footpath');
     const a = await tilePoint(page, 29, 59);
     const b = await tilePoint(page, 33, 59);
     await page.mouse.move(a.x, a.y);
@@ -45,8 +45,7 @@ test.describe('Phase 1 smoke: desktop', () => {
     for (let x = 29; x <= 33; x++) expect(await contentAt(page, x, 59), `footpath at (${x}, 59)`).toBe(FOOTPATH);
 
     // Place a Carousel north of the path: its footprint centre is the tile under the pointer.
-    await tool(page, 'Rides');
-    await page.getByRole('button', { name: /^Carousel,/ }).click();
+    await pickCard(page, 'flat', 'carousel');
     const anchor = await tilePoint(page, 31, 56);
     await page.mouse.move(anchor.x, anchor.y);
     await expect(page.getByTestId('tool-status')).toHaveText(/Carousel/);
@@ -54,19 +53,19 @@ test.describe('Phase 1 smoke: desktop', () => {
     await expect.poll(async () => (await rides(page)).map((r) => `${r.defId}@${r.x},${r.y}`)).toEqual(['carousel@30,55']);
 
     // A queue tile from the entrance gate to the path.
-    await tool(page, 'Queue');
+    await openTool(page, 'queue');
     const q = await tilePoint(page, 31, 58);
     await page.mouse.click(q.x, q.y);
     expect(await contentAt(page, 31, 58)).toBe(QUEUE);
 
     // Open the ride from its panel, then the park from the Park panel.
-    await tool(page, 'Inspect');
+    await openTool(page, 'inspect');
     const rideTile = await tilePoint(page, 31, 55);
     await page.mouse.click(rideTile.x, rideTile.y);
     await page.getByRole('button', { name: 'Open ride' }).click();
     await expect(page.getByTestId('ride-status')).toBeVisible();
     await expect.poll(async () => (await rides(page))[0]?.status).toBe('open');
-    await tool(page, 'Park');
+    await openTool(page, 'park');
     await page.getByRole('button', { name: 'Open park' }).click();
     await expect(page.getByRole('button', { name: 'Close park' })).toBeVisible();
 
@@ -78,7 +77,7 @@ test.describe('Phase 1 smoke: desktop', () => {
     expect(before).toBeGreaterThan(0);
 
     // Save to slot 1, reload the page, load slot 1: the guest count matches.
-    await tool(page, 'Menu');
+    await openTool(page, 'menu');
     await page.getByTestId('menu-save').click();
     await page.getByTestId('slot-1').click();
     await expect(page.getByTestId('toast')).toHaveText(/saved to slot 1/i);
@@ -105,14 +104,13 @@ test.describe('Phase 1 smoke: phone', () => {
     await centerOn(page, 31, 57);
 
     // Tap builds one footpath tile.
-    await tool(page, 'Footpath');
+    await openTool(page, 'footpath');
     const p = await tilePoint(page, 30, 59);
     await page.touchscreen.tap(p.x, p.y);
     await expect.poll(() => contentAt(page, 30, 59)).toBe(FOOTPATH);
 
     // Ride picker in the bottom sheet; a tap moves the ghost; Confirm places the ride.
-    await tool(page, 'Rides');
-    await page.getByRole('button', { name: /^Carousel,/ }).tap();
+    await pickCard(page, 'flat', 'carousel');
     const anchor = await tilePoint(page, 34, 56);
     await page.touchscreen.tap(anchor.x, anchor.y);
     expect(await rides(page)).toEqual([]);
@@ -179,7 +177,7 @@ test.describe('Phase 1 smoke: phone', () => {
     await newPark(page, 'Overlap Park');
     await setSpeed(page, 'Pause');
     await centerOn(page, 25, 50);
-    await tool(page, 'Footpath');
+    await openTool(page, 'footpath');
     const zoomBefore = Number(await page.locator('#game').getAttribute('data-zoom'));
     const countPaths = (): Promise<number> =>
       page.evaluate(() => {

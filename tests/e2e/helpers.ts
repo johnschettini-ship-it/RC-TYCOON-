@@ -3,7 +3,7 @@
  * Tile positions on screen follow `src/render/iso.ts` (64 × 32 px tiles, 8 px per height step) and
  * `src/render/camera.ts` (`worldToScreen`).
  */
-import { expect, type CDPSession, type Page, type TestInfo } from '@playwright/test';
+import { expect, type CDPSession, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 /** Collect console errors and page errors; call `expectNoErrors` at the end of the test. */
 export function watchErrors(page: Page): { errors: string[]; expectNoErrors(): void } {
@@ -37,8 +37,40 @@ export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed
   await expect(button).toHaveAttribute('aria-pressed', 'true');
 }
 
-export async function tool(page: Page, name: string): Promise<void> {
-  await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name, exact: true }).click();
+/** The control of an old toolbar id (`footpath`, `scenery`, `menu`, ...), brought into view first (the phone toolbar scrolls sideways). */
+export async function toolControl(page: Page, id: string): Promise<Locator> {
+  const control = page.locator(`[data-tool="${id}"]`);
+  await control.scrollIntoViewIfNeeded();
+  return control;
+}
+
+/** Press the control of an old toolbar id. */
+export async function openTool(page: Page, id: string): Promise<void> {
+  await (await toolControl(page, id)).click();
+}
+
+export type CardKind = 'flat' | 'track' | 'stall';
+
+/** A picker card, with the right picker (and tab) open first when the card is not visible. It does not click the card. */
+export async function cardOf(page: Page, kind: CardKind, defId: string): Promise<Locator> {
+  const card =
+    kind === 'track'
+      ? page.getByTestId(`track-card-${defId}`)
+      : page.locator(`.panel button.card[data-def="${defId}"]:not(.track-card)`);
+  if (await card.isVisible()) return card;
+  if (kind === 'stall') {
+    await openTool(page, 'stalls');
+    return card;
+  }
+  const tab = page.getByTestId(kind === 'track' ? 'picker-tab-track' : 'picker-tab-flat');
+  if (!(await tab.isVisible())) await openTool(page, 'rides');
+  await tab.click();
+  return card;
+}
+
+/** Hold a picker card (the next tap on the map places it). */
+export async function pickCard(page: Page, kind: CardKind, defId: string): Promise<void> {
+  await (await cardOf(page, kind, defId)).click();
 }
 
 /** Centre the camera on a tile (debug hook; the same as panning there). */

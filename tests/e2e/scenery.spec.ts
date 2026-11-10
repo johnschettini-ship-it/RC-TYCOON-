@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, isPhone, newPark, tilePoint, watchErrors } from './helpers';
+import { centerOn, isPhone, newPark, openTool, tilePoint, toolControl, watchErrors } from './helpers';
 
 /**
  * Scenery tool (Phase 4 §7, §9.5): desktop picks an item from the theme grid, clicks to place (cash drops),
@@ -46,7 +46,7 @@ test.describe('scenery tool', () => {
     await page.evaluate(() => (window as unknown as { __tc: SceneryGame }).__tc.setSpeed(0));
     await centerOn(page, 24, 40);
 
-    await page.getByTestId('tool-scenery').click();
+    await openTool(page, 'scenery');
     await expect(page.getByTestId('scenery-picker')).toBeVisible();
     // Locked theme: marked, cards disabled.
     await page.getByTestId('scenery-tab-frost_peaks').click();
@@ -64,11 +64,11 @@ test.describe('scenery tool', () => {
     await expect.poll(() => scenery(page)).toEqual([expect.objectContaining({ defId: 'oak_round', x: 22, y: 40 })]);
     expect(await cash(page)).toBe(before - 4_000);
     // Without Shift the tool ends.
-    await expect(page.getByTestId('tool-scenery')).toHaveAttribute('aria-pressed', 'false');
+    await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'false');
 
     // Researched theme, Shift-click keeps the tool, R turns the next statue.
     await researchThemes(page);
-    await page.getByTestId('tool-scenery').click();
+    await openTool(page, 'scenery');
     await page.getByTestId('scenery-tab-frost_peaks').click();
     await page.getByTestId('scenery-item-statue_frost').click();
     const q = await tilePoint(page, 24, 40);
@@ -76,7 +76,7 @@ test.describe('scenery tool', () => {
     await page.keyboard.down('Shift');
     await page.mouse.click(q.x, q.y);
     await page.keyboard.up('Shift');
-    await expect(page.getByTestId('tool-scenery')).toHaveAttribute('aria-pressed', 'true');
+    await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('r');
     const r = await tilePoint(page, 26, 40);
     await page.mouse.move(r.x, r.y);
@@ -88,7 +88,7 @@ test.describe('scenery tool', () => {
     ]);
 
     // Remove mode: click the oak for a $20 refund.
-    await page.getByTestId('tool-scenery').click();
+    await openTool(page, 'scenery');
     await page.getByTestId('scenery-close').click();
     await page.getByTestId('scenery-remove').click();
     const c0 = await cash(page);
@@ -107,7 +107,7 @@ test.describe('scenery tool', () => {
     await newPark(page, 'Pocket Garden');
     await page.evaluate(() => (window as unknown as { __tc: SceneryGame }).__tc.setSpeed(0));
     await centerOn(page, 28, 44);
-    await page.getByTestId('tool-scenery').tap();
+    await openTool(page, 'scenery');
     await expect(page.getByTestId('scenery-picker')).toBeVisible();
     await page.getByTestId('scenery-tab-classic_fair').tap();
     await page.getByTestId('scenery-item-balloon_cluster').tap();
@@ -121,10 +121,10 @@ test.describe('scenery tool', () => {
     await page.getByTestId('scenery-repeat').tap();
     await page.getByTestId('scenery-confirm').tap();
     await expect.poll(() => scenery(page)).toEqual([expect.objectContaining({ defId: 'balloon_cluster', x: 28, y: 44 })]);
-    await expect(page.getByTestId('tool-scenery')).toHaveAttribute('aria-pressed', 'true');
+    await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'true');
     await page.getByTestId('scenery-rotate').tap();
     await page.getByTestId('scenery-done').tap();
-    await expect(page.getByTestId('tool-scenery')).toHaveAttribute('aria-pressed', 'false');
+    await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'false');
     errors.expectNoErrors();
   });
 });

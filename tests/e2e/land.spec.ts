@@ -3,7 +3,7 @@
  * snow, hold to repeat, raise water. Phone: tap Land, tap a tile, tap Raise twice. No console errors.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, isPhone, tilePoint, type TcGame } from './helpers';
+import { centerOn, isPhone, openTool, type TcGame, tilePoint } from './helpers';
 
 interface TcWorld extends TcGame {
   world: { state: { map: { width: number; heights: ArrayLike<number>; content: ArrayLike<number>; terrain: ArrayLike<number>; water: ArrayLike<number> }; park: { cash: number } } };
@@ -52,7 +52,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
 
   test('desktop: raise land with the 3 × 3 brush (cash drops), paint snow, hold to repeat, raise water', async ({ page }, info) => {
     test.skip(isPhone(info), 'mouse flow');
-    await page.getByTestId('tool-land').click();
+    await openTool(page, 'land');
     await expect(page.getByTestId('land-bar')).toBeVisible();
     await page.getByTestId('land-size-3').click();
     await expect(page.getByTestId('land-size-3')).toHaveAttribute('aria-pressed', 'true');
@@ -98,7 +98,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
     await page.mouse.up();
 
     // Water: a click raises the surface above the ground.
-    await page.getByTestId('tool-water').click();
+    await openTool(page, 'water');
     await expect(page.getByTestId('water-mode-raise')).toHaveAttribute('aria-pressed', 'true');
     await centerOn(page, 16, 26);
     const w = await tilePoint(page, 16, 26);
@@ -108,7 +108,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
 
   test('desktop: Page Up raises at the ghost and Esc leaves the tool', async ({ page }, info) => {
     test.skip(isPhone(info), 'keyboard flow');
-    await page.getByTestId('tool-land').click();
+    await openTool(page, 'land');
     await centerOn(page, 20, 30);
     const p = await tilePoint(page, 20, 30);
     await page.mouse.move(p.x, p.y);
@@ -120,7 +120,7 @@ test.describe('Land and Water tools (Phase 4 §7)', () => {
 
   test('phone: tap Land, tap a tile, tap Raise twice', async ({ page }, info) => {
     test.skip(!isPhone(info), 'touch flow');
-    await page.getByTestId('tool-land').tap();
+    await openTool(page, 'land');
     await expect(page.getByTestId('land-bar')).toBeVisible();
     await centerOn(page, 20, 20);
     const p = await tilePoint(page, 20, 20);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { cardOf, pickCard } from './helpers';
 
 /**
  * Water rides smoke (Phase 4 §4.4, §9.1; W3-C "Done"): build a Log Flume and a Rapids Raft through the builder on
@@ -135,13 +136,9 @@ for (const [set, typeId, name] of [
       const phone = info.project.name === 'phone';
       await setUp(page);
 
-      const rides = page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Rides', exact: true });
-      if (phone) await rides.tap();
-      else await rides.click();
-      await press(page, phone, 'picker-tab-track');
-      const card = page.getByTestId(`track-card-${typeId}`);
+      const card = await cardOf(page, 'track', typeId);
       test.skip((await card.count()) === 0, 'water rides unlock once BUILD_MAX_PHASE reaches 4 (W3-D)');
-      await press(page, phone, `track-card-${typeId}`);
+      await pickCard(page, 'track', typeId);
       const builder = page.getByTestId('track-builder');
       await expect(builder).toBeVisible();
       // One boat is one tile long: the station starts at 1 tile; make it 2.

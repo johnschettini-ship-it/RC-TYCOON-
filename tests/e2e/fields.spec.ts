@@ -4,7 +4,7 @@
  * 4 band names and thresholds. No console errors.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, newPark, tilePoint, watchErrors } from './helpers';
+import { centerOn, newPark, openTool, tilePoint, watchErrors } from './helpers';
 
 const FOUNTAIN_X = 30;
 const FOUNTAIN_Y = 30;
@@ -73,7 +73,7 @@ test.describe('Calm and Buzz overlays', () => {
     await addFountain(page);
     await centerOn(page, FOUNTAIN_X, FOUNTAIN_Y);
 
-    await page.getByTestId('tool-overlays').tap();
+    await openTool(page, 'overlays');
     const chips = page.getByTestId('overlay-chips');
     await expect(chips).toBeVisible();
     for (const id of ['none', 'calm', 'buzz', 'light', 'temperament']) {
@@ -95,7 +95,7 @@ test.describe('Calm and Buzz overlays', () => {
     await page.touchscreen.tap(p.x, p.y);
     await expect(page.getByTestId('overlay-value')).toHaveText('Calm here: 102 (Medium)');
 
-    await page.getByTestId('tool-overlays').tap();
+    await openTool(page, 'overlays');
     await page.getByTestId('overlay-chip-none').tap();
     await expect(legend).toBeHidden();
     watch.expectNoErrors();

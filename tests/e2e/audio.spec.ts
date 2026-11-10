@@ -5,7 +5,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import { centerOn, isPhone, newPark, setSpeed, tilePoint, tool, watchErrors } from './helpers';
+import { centerOn, isPhone, newPark, openTool, setSpeed, tilePoint, watchErrors } from './helpers';
 
 interface TcAudio {
   state(): string;
@@ -55,7 +55,7 @@ test.describe('sounds in play', () => {
     await newPark(page, 'Audio Park');
     await expect.poll(() => audioState(page)).toBe('running');
     await setSpeed(page, 'Pause');
-    await page.getByTestId('tool-staff').click();
+    await openTool(page, 'staff');
     await expect(page.locator('.panel[data-kind=staff]')).toBeVisible();
     await expect.poll(() => played(page)).toEqual(expect.arrayContaining(['ui_click', 'ui_open']));
     // A path tile (the cue table: path tile built → build_path). Phones build with tap + Confirm, so dispatch there.
@@ -63,7 +63,7 @@ test.describe('sounds in play', () => {
     if (isPhone(info)) {
       await page.evaluate(() => (window as unknown as { __tc: { dispatch(c: unknown): unknown } }).__tc.dispatch({ type: 'buildPath', x: 29, y: 59, kind: 'footpath' }));
     } else {
-      await tool(page, 'Footpath');
+      await openTool(page, 'footpath');
       const p = await tilePoint(page, 29, 59);
       await page.mouse.click(p.x, p.y);
     }

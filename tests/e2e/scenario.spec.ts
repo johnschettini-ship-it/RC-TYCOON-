@@ -5,7 +5,7 @@
  * Every test fails on any console error.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, watchErrors } from './helpers';
+import { isPhone, openTool, watchErrors } from './helpers';
 
 type Debug = {
   world: { events: unknown[]; state: { scenario: { kind: string } & Record<string, unknown>; map: { width: number }; park: { afterDark: boolean } } };
@@ -61,7 +61,7 @@ test.describe('Scenario flow: desktop', () => {
     await expect(page.getByTestId('objectives-deadline')).toHaveText(/months? left/);
     const before = await panel.innerText();
 
-    await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Menu', exact: true }).click();
+    await openTool(page, 'menu');
     await page.getByTestId('menu-save').click();
     await page.getByTestId('slot-1').click();
     await expect(page.getByTestId('toast')).toHaveText(/saved to slot 1/i);
@@ -242,7 +242,7 @@ test.describe('Scenario flow: desktop', () => {
     await page.getByTestId('end-keep-playing').click();
     await expect(end).toBeHidden();
     expect((await state(page)).scenario).toMatchObject({ status: 'won', continued: true, progressRecorded: true });
-    await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: 'Menu', exact: true }).click();
+    await openTool(page, 'menu');
     await page.getByTestId('menu-save').click();
     await page.getByTestId('slot-1').click();
     await expect(page.getByTestId('toast')).toHaveText(/saved to slot 1/i);

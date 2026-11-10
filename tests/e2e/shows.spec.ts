@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getShowSiteDef } from '../../src/data/catalog';
 import { buildShowPlan } from '../../src/render/shows/timeline';
-import { centerOn, isPhone, newPark, setSpeed, tilePoint, tool, watchErrors } from './helpers';
+import { centerOn, isPhone, newPark, openTool, setSpeed, tilePoint, watchErrors } from './helpers';
 
 /**
  * After Dark shows (W4-C, Phase 6 §4.4, §7, §9).
@@ -154,7 +154,7 @@ async function writeSite(page: Page, defId: string, x: number, y: number): Promi
 
 /** Place a site with the picker and a click when the picker card is unlocked; else write it (see `writeSite`). */
 async function placeSite(page: Page, defId: 'lightshow_tower' | 'fireworks_launcher', x: number, y: number): Promise<number> {
-  await tool(page, 'Shows');
+  await openTool(page, 'shows');
   const picker = page.getByTestId('show-picker');
   await expect(picker).toBeVisible();
   const card = page.getByTestId(`show-card-${defId}`);
@@ -216,7 +216,7 @@ test.describe('After Dark shows: desktop', () => {
     const watch = watchErrors(page);
     await newPark(page, 'Show Park');
     await setSpeed(page, 'Pause');
-    await tool(page, 'Shows');
+    await openTool(page, 'shows');
     await expect(page.getByTestId('show-picker')).toBeVisible();
     await expect(page.getByTestId('show-card-lightshow_tower')).toContainText('Lightshow Tower');
     await expect(page.getByTestId('show-card-lightshow_tower')).toContainText('$150 per show');
@@ -228,7 +228,7 @@ test.describe('After Dark shows: desktop', () => {
     const tower = await placeSite(page, 'lightshow_tower', TOWER.x, TOWER.y);
 
     // Inspect the tower: its panel opens with a switched-off schedule.
-    await tool(page, 'Inspect');
+    await openTool(page, 'inspect');
     await centerOn(page, TOWER.x, TOWER.y);
     const p = await tilePoint(page, TOWER.x + 1, TOWER.y + 1);
     await page.mouse.click(p.x, p.y);
@@ -320,7 +320,7 @@ test.describe('After Dark shows: phone', () => {
     const watch = watchErrors(page);
     await newPark(page, 'Pocket Shows');
     await setSpeed(page, 'Pause');
-    await tool(page, 'Shows');
+    await openTool(page, 'shows');
     const picker = page.getByTestId('show-picker');
     await expect(picker).toBeVisible();
     const vp = page.viewportSize();

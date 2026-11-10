@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openTool } from './helpers';
 
 /** "$14,774.45" → 1477445 cents; "−$5" → −500. */
 function cents(text: string): number {
@@ -36,7 +37,7 @@ test.describe('Phase 3 management UI', () => {
   });
 
   test('hire a Groundskeeper from the Staff panel, then open Research and Messages', async ({ page }) => {
-    await page.getByTestId('tool-staff').click();
+    await openTool(page, 'staff');
     await expect(page.locator('.panel[data-kind=staff]')).toBeVisible();
     const before = cents((await page.getByTestId('hud-cash').textContent()) ?? '');
     await page.getByTestId('hire-groundskeeper').click();
@@ -45,20 +46,20 @@ test.describe('Phase 3 management UI', () => {
     await expect.poll(async () => cents((await page.getByTestId('hud-cash').textContent()) ?? '')).toBe(before - 10_000);
     await expect(page.getByTestId('staff-detail')).toContainText('Groundskeeper');
 
-    await page.getByTestId('tool-research').click();
+    await openTool(page, 'research');
     await expect(page.locator('.panel[data-kind=research]')).toBeVisible();
     await expect(page.getByTestId('research-current')).toContainText('Spiral Slide');
     await page.getByTestId('research-level-high').click();
     await expect(page.getByTestId('research-level-high')).toHaveAttribute('aria-pressed', 'true');
 
-    await page.getByTestId('tool-messages').click();
+    await openTool(page, 'messages');
     await expect(page.locator('.panel[data-kind=messages]')).toBeVisible();
     await expect(page.locator('.panel[data-kind=messages] .panel-title')).toHaveText('Messages');
   });
 
   test('paint a patrol area with the mouse, borrow $1,000, and start a campaign', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'mouse painting and the side panel are desktop flows');
-    await page.getByTestId('tool-staff').click();
+    await openTool(page, 'staff');
     await page.getByTestId('hire-mechanic').click();
     await page.getByTestId('staff-edit-patrol').click();
     await expect(page.getByTestId('patrol-title')).toContainText('Patrol area of');
@@ -75,12 +76,12 @@ test.describe('Phase 3 management UI', () => {
     await expect(page.locator('.panel[data-kind=staff]')).toBeVisible();
     await expect(page.getByTestId('staff-detail')).toContainText(/\d+ tiles/);
 
-    await page.getByTestId('tool-finance').click();
+    await openTool(page, 'finance');
     await page.getByTestId('loan-borrow').click();
     await page.getByTestId('confirm-yes').click();
     await expect(page.getByTestId('loan-balance')).toContainText('$1,000');
 
-    await page.getByTestId('tool-marketing').click();
+    await openTool(page, 'marketing');
     await page.getByTestId('campaign-start-poster_run').click();
     await expect(page.getByTestId('campaigns-running')).toContainText('Town Poster Run');
     // A second start is refused with the exact reason.
@@ -90,7 +91,7 @@ test.describe('Phase 3 management UI', () => {
 
   test('phone: one finger paints a patrol, two fingers paint nothing, and the loan repays', async ({ page }, info) => {
     test.skip(info.project.name !== 'phone', 'touch flow');
-    await page.getByTestId('tool-staff').click();
+    await openTool(page, 'staff');
     await page.getByTestId('hire-mechanic').click();
     await page.getByTestId('staff-edit-patrol').click();
     // The bottom sheet closes so the map is free to paint.
@@ -133,7 +134,7 @@ test.describe('Phase 3 management UI', () => {
     await page.getByTestId('patrol-done').click();
     await expect(page.locator('.panel[data-kind=staff]')).toBeVisible();
 
-    await page.getByTestId('tool-finance').click();
+    await openTool(page, 'finance');
     await page.getByTestId('loan-borrow').click();
     await page.getByTestId('confirm-yes').click();
     await expect(page.getByTestId('loan-balance')).toContainText('$1,000');

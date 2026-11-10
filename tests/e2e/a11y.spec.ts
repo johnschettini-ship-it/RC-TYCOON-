@@ -7,7 +7,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Tc = {
@@ -31,8 +31,8 @@ async function scan(page: Page, where: string): Promise<void> {
 }
 
 /** Open a toolbar panel (the button toggles it). */
-async function panel(page: Page, testId: string): Promise<void> {
-  await page.getByTestId(testId).click();
+async function panel(page: Page, id: string): Promise<void> {
+  await openTool(page, id);
   await expect(page.locator('.panel')).toBeVisible();
 }
 
@@ -87,13 +87,13 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     await scan(page, 'HUD and toolbar');
-    await page.getByTestId('tool-footpath').click();
+    await openTool(page, 'footpath');
     await scan(page, 'footpath tool status');
     await page.keyboard.press('Escape');
-    for (const id of ['tool-park', 'tool-finance', 'tool-staff', 'tool-research', 'tool-marketing', 'tool-messages', 'tool-rides', 'tool-stalls']) {
+    for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages', 'rides', 'stalls']) {
       await panel(page, id);
       await scan(page, id);
-      await page.getByTestId(id).click();
+      await openTool(page, id);
     }
     const { ride, stall } = await furnish(page);
     await select(page, 'ride', ride);
@@ -101,7 +101,7 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
     await select(page, 'stall', stall);
     await scan(page, 'stall panel');
     await page.keyboard.press('Escape');
-    await page.getByTestId('tool-menu').click();
+    await openTool(page, 'menu');
     await expect(page.getByTestId('menu-resume')).toBeVisible();
     await scan(page, 'menu');
     await page.getByTestId('menu-settings').click();
@@ -122,13 +122,12 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
     const watch = watchErrors(page);
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
-    for (const id of ['tool-land', 'tool-water', 'tool-scenery', 'tool-overlays', 'tool-buyLand']) {
-      await page.getByTestId(id).scrollIntoViewIfNeeded();
-      await page.getByTestId(id).click();
+    for (const id of ['land', 'water', 'scenery', 'overlays', 'buyLand']) {
+      await openTool(page, id);
       await page.waitForTimeout(150);
       await scan(page, id);
       await page.keyboard.press('Escape');
-      if (id === 'tool-overlays') await page.getByTestId(id).click();
+      if (id === 'overlays') await openTool(page, id);
     }
     // A hired groundskeeper and a guest standing in the park.
     const ids = await page.evaluate(() => {
@@ -151,7 +150,7 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
   test('high contrast keeps the scan clean', async ({ page }) => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.settings.set('highContrast', true));
-    await panel(page, 'tool-park');
+    await panel(page, 'park');
     await scan(page, 'high contrast park panel');
   });
 });
@@ -189,12 +188,11 @@ test.describe('touch targets (Phase 6 §4.7: ≥ 44 × 44 CSS px)', () => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     expect(await smallTargets(page), 'HUD and toolbar').toEqual([]);
-    for (const id of ['tool-park', 'tool-finance', 'tool-staff', 'tool-research', 'tool-marketing', 'tool-messages', 'tool-rides', 'tool-stalls']) {
-      await page.getByTestId(id).scrollIntoViewIfNeeded();
-      await page.getByTestId(id).click();
+    for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages', 'rides', 'stalls']) {
+      await openTool(page, id);
       await expect(page.locator('.panel')).toBeVisible();
       expect(await smallTargets(page), id).toEqual([]);
-      await page.getByTestId(id).click();
+      await openTool(page, id);
     }
     const { ride, stall } = await furnish(page);
     await select(page, 'ride', ride);
@@ -204,8 +202,7 @@ test.describe('touch targets (Phase 6 §4.7: ≥ 44 × 44 CSS px)', () => {
     await page.evaluate(() => {
       (window as unknown as { __tc: Tc }).__tc.tool.selectedEntity = null;
     });
-    await page.getByTestId('tool-menu').scrollIntoViewIfNeeded();
-    await page.getByTestId('tool-menu').click();
+    await openTool(page, 'menu');
     expect(await smallTargets(page), 'menu').toEqual([]);
     watch.expectNoErrors();
   });
@@ -283,12 +280,11 @@ test.describe('175% text scale with a pseudo-localized UI (Phase 6 §4.7, §9)',
     await expect(page.locator('.title-screen')).toBeHidden();
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     await check('HUD and toolbar');
-    for (const id of ['tool-park', 'tool-finance', 'tool-research', 'tool-rides']) {
-      await page.getByTestId(id).scrollIntoViewIfNeeded();
-      await page.getByTestId(id).click();
+    for (const id of ['park', 'finance', 'research', 'rides']) {
+      await openTool(page, id);
       await expect(page.locator('.panel')).toBeVisible();
       await check(id);
-      await page.getByTestId(id).click();
+      await openTool(page, id);
     }
     const { ride } = await furnish(page);
     await select(page, 'ride', ride);
@@ -300,8 +296,7 @@ test.describe('175% text scale with a pseudo-localized UI (Phase 6 §4.7, §9)',
     await expect(page.getByTestId('cursor-line')).toBeVisible();
     await check('map cursor line');
     await page.keyboard.press('c');
-    await page.getByTestId('tool-menu').scrollIntoViewIfNeeded();
-    await page.getByTestId('tool-menu').click();
+    await openTool(page, 'menu');
     await check('menu');
     await page.getByTestId('menu-settings').click();
     await check('settings');

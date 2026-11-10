@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { newPark, watchErrors } from './helpers';
+import { cardOf, newPark, pickCard, watchErrors } from './helpers';
 
 /**
  * Build 3 extra content (phase-6-polish.md §4.5, W4-D) in the real game on desktop and phone: once researched, the 4 flat
@@ -41,12 +41,6 @@ async function press(page: Page, phone: boolean, testId: string): Promise<void> 
   else await b.click();
 }
 
-async function openTool(page: Page, phone: boolean, name: string): Promise<void> {
-  const b = page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name, exact: true });
-  if (phone) await b.tap();
-  else await b.click();
-}
-
 /** Move the camera so tile (x, y) shows at a clear spot of the screen; returns that point (CSS px). */
 async function showTile(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
   return page.evaluate(([tx, ty]) => {
@@ -79,11 +73,9 @@ test.describe('Build 3 extra content', () => {
     await newPark(page, 'Content Park');
     await unlockBuild3(page);
 
-    await openTool(page, phone, 'Rides');
-    for (const id of ['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']) await expect(page.locator(`.panel [data-def="${id}"]`)).toHaveCount(1);
-    await press(page, phone, 'picker-tab-track');
-    for (const id of ['inverted_coaster', 'bobsled_run', 'monorail']) await expect(page.getByTestId(`track-card-${id}`)).toBeVisible();
-    await press(page, phone, 'track-card-inverted_coaster');
+    for (const id of ['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']) await expect(await cardOf(page, 'flat', id)).toHaveCount(1);
+    for (const id of ['inverted_coaster', 'bobsled_run', 'monorail']) await expect(await cardOf(page, 'track', id)).toBeVisible();
+    await pickCard(page, 'track', 'inverted_coaster');
     const builder = page.getByTestId('track-builder');
     await expect(builder).toBeVisible();
     await expect(page.getByTestId('track-station-length')).toHaveText('3 tiles');
@@ -110,8 +102,7 @@ test.describe('Build 3 extra content', () => {
     await press(page, phone, 'track-done');
     await expect(builder).toBeHidden();
 
-    await openTool(page, phone, 'Stalls');
-    for (const id of ['noodle_bar', 'smoothie_bar', 'photo_booth']) await expect(page.locator(`.panel [data-def="${id}"]`)).toHaveCount(1);
+    for (const id of ['noodle_bar', 'smoothie_bar', 'photo_booth']) await expect(await cardOf(page, 'stall', id)).toHaveCount(1);
     // A few frames with the new art on screen.
     await page.evaluate(() => (window as unknown as { __tc: ContentTc }).__tc.step(60));
     await page.waitForTimeout(300);

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, isPhone, newPark, setSpeed, tool, watchErrors } from './helpers';
+import { centerOn, isPhone, newPark, openTool, setSpeed, watchErrors } from './helpers';
 
 /**
  * After Dark (W3-F, Phase 4 §9.5 brightness step and §7 park panel switch).
@@ -67,7 +67,7 @@ async function meanBrightness(page: Page): Promise<number> {
 }
 
 async function openParkPanel(page: Page): Promise<void> {
-  await tool(page, 'Park');
+  await openTool(page, 'park');
   await expect(page.getByTestId('after-dark-section')).toBeVisible();
 }
 
@@ -103,7 +103,7 @@ test.describe('After Dark: desktop', () => {
     await expect(sw).toHaveText('After Dark: Off');
     await page.keyboard.press('Enter');
     await expect(sw).toHaveText('After Dark: On');
-    await tool(page, 'Park');
+    await openTool(page, 'park');
 
     await centerOn(page, 31, 50);
     await clockTo(page, 22);

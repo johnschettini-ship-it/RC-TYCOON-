@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openTool } from './helpers';
 
 /**
  * Elevated paths (Phase 4 §4.2, §7 Path height row; W3-B): the path height mini-bar with `Page Up` / `Page Down`
@@ -74,7 +75,7 @@ async function pixelAt(page: Page, p: { x: number; y: number }): Promise<[number
 test('desktop: Page Up sets the path height, a drag builds an elevated line that draws', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'mouse and keyboard');
   const errors = await newPark(page);
-  await page.getByTestId('tool-footpath').click();
+  await openTool(page, 'footpath');
   const bar = page.getByTestId('path-height-bar');
   await expect(bar).toBeVisible();
   await expect(page.getByTestId('path-height-value')).toHaveText('Ground');
@@ -113,7 +114,7 @@ test('desktop: Page Up sets the path height, a drag builds an elevated line that
 test('phone: + / − and the ramp toggle in the mini-bar; a tap builds at the height', async ({ page }, info) => {
   test.skip(info.project.name !== 'phone', 'touch');
   const errors = await newPark(page);
-  await page.getByTestId('tool-footpath').tap();
+  await openTool(page, 'footpath');
   const bar = page.getByTestId('path-height-bar');
   await expect(bar).toBeVisible();
   await expect(page.getByTestId('path-ramp-up')).toBeDisabled();

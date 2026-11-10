@@ -3,8 +3,8 @@
  * Every step uses keys only: Tab to controls, Enter to press them, the map cursor (C, arrows, Shift + arrows, Enter)
  * on the map. The debug hook only reads the state for the checks.
  */
-import { expect, test, type Page } from '@playwright/test';
-import { watchErrors } from './helpers';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { cardOf, toolControl, watchErrors } from './helpers';
 
 type Tc = {
   world: { state: { map: { width: number; content: ArrayLike<number> }; rides: Array<{ id: number; defId: string }> } };
@@ -12,12 +12,16 @@ type Tc = {
 };
 
 /** Press Tab (or Shift + Tab) until the focused element matches `selector`. */
-async function tabTo(page: Page, selector: string, max = 120): Promise<void> {
+async function tabTo(page: Page, target: string | Locator, max = 120): Promise<void> {
   for (let i = 0; i < max; i++) {
-    if (await page.evaluate((s) => document.activeElement?.matches(s) ?? false, selector)) return;
+    const focused =
+      typeof target === 'string'
+        ? await page.evaluate((s) => document.activeElement?.matches(s) ?? false, target)
+        : await target.evaluate((el) => el === document.activeElement);
+    if (focused) return;
     await page.keyboard.press('Tab');
   }
-  throw new Error(`Tab never reached ${selector}`);
+  throw new Error(`Tab never reached ${String(target)}`);
 }
 
 const cursorTile = (page: Page): Promise<number> =>
@@ -61,10 +65,10 @@ test.describe('keyboard-only play', () => {
     await expect(page.getByTestId('cursor-line')).toHaveText(/footpath/);
 
     // Rides: Tab to the toolbar button, Enter opens the picker (focus moves into it), Tab to the Carousel, Enter.
-    await tabTo(page, '[data-testid="tool-rides"]');
+    await tabTo(page, await toolControl(page, 'rides'));
     await page.keyboard.press('Enter');
     await expect(page.locator('.panel')).toBeVisible();
-    await tabTo(page, '[data-def="carousel"]');
+    await tabTo(page, await cardOf(page, 'flat', 'carousel'));
     await page.keyboard.press('Enter');
     await expect.poll(() => page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.tool.tool)).toBe('placeRide');
     // Away from the path, then Enter places the ride at the cursor.
@@ -89,7 +93,7 @@ test.describe('keyboard-only play', () => {
     await expect(page.getByTestId('shortcut-list')).toBeHidden();
 
     // Save: Tab to Menu, Enter, Tab to Save, Enter, Enter on slot 1.
-    await tabTo(page, '[data-testid="tool-menu"]');
+    await tabTo(page, await toolControl(page, 'menu'));
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('menu-resume')).toBeFocused();
     await tabTo(page, '[data-testid="menu-save"]');
