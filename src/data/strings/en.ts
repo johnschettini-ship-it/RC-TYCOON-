@@ -7,6 +7,7 @@
  */
 import { guestStrings } from './guests';
 import { uiStrings } from './ui';
+import { interfaceStrings } from './interface';
 import { trackStrings } from './track';
 import { staffStrings } from './staff';
 import { managementStrings } from './management';
@@ -34,6 +35,7 @@ import { fillParams, lookupString } from './resolve';
 export const en: Record<string, string> = {
   ...guestStrings,
   ...uiStrings,
+  ...interfaceStrings,
   ...trackStrings,
   ...staffStrings,
   ...managementStrings,
