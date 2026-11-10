@@ -458,6 +458,16 @@ button { font: inherit; color: inherit; }
   width: calc(var(--toolbar-w) * 1.6);
   align-content: start;
 }
+/*
+ * At 100% text the labels stay on one line, so the side toolbar grows to its longest label (two equal columns, never
+ * narrower than before, at most 280 px) instead of cutting it to "Tempera…". Larger text scales wrap labels (below).
+ */
+#ui[data-layout='side'][data-text-scale='100'] .toolbar {
+  grid-template-columns: repeat(2, minmax(max-content, 1fr));
+  width: max-content;
+  min-width: calc(var(--toolbar-w) * 1.6);
+  max-width: 280px;
+}
 #ui[data-layout='side'] .tool-btn { min-height: 54px; }
 .tool-btn { position: relative; }
 .tool-badge {
