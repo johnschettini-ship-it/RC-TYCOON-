@@ -34,18 +34,18 @@ const CSS = `
 .tc-overlay-card { position: absolute; pointer-events: none; display: flex; flex-direction: column; gap: 8px; max-width: min(300px, calc(100% - 20px)); }
 #ui[data-layout='side'] .tc-overlay-card { left: calc(var(--toolbar-w) + 24px + var(--safe-left)); bottom: calc(16px + var(--safe-bottom)); }
 #ui[data-layout='bottom'] .tc-overlay-card { right: calc(8px + var(--safe-right)); top: calc(var(--hud-bottom) + 8px); max-width: min(260px, calc(100% - 16px)); }
-.tc-overlay-box { pointer-events: auto; background: color-mix(in srgb, var(--panel) 95%, transparent); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
+.tc-overlay-box { pointer-events: auto; background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); padding: 8px 10px; }
 .tc-overlay-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 /* 44 × 44 touch targets (a later \`.btn.small\` rule shrinks small buttons to 36 px). */
 .tc-overlay-box .btn.small { min-height: var(--touch); min-width: var(--touch); padding: 4px 10px; font-size: calc(13px * var(--ts, 1)); }
 .tc-overlay-legend h3 { margin: 0 0 6px; font-size: calc(14px * var(--ts, 1)); }
 .tc-legend-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: calc(13px * var(--ts, 1)); }
 .tc-legend-rows li { display: flex; align-items: center; gap: 8px; }
-.tc-legend-range { color: var(--muted); margin-left: auto; padding-left: 8px; }
+.tc-legend-range { color: var(--muted-ink); margin-left: auto; padding-left: 8px; }
 .tc-legend-value { margin: 8px 0 0; font-weight: 600; font-size: calc(13px * var(--ts, 1)); }
-.tc-legend-help { margin: 4px 0 0; font-size: calc(12px * var(--ts, 1)); color: var(--muted); }
+.tc-legend-help { margin: 4px 0 0; font-size: calc(12px * var(--ts, 1)); color: var(--muted-ink); }
 #ui[data-layout='bottom'] .tc-legend-help { display: none; }
-.tc-swatch { width: 28px; height: 16px; flex: none; border-radius: 3px; border: 1px solid rgba(0,0,0,0.35); }
+.tc-swatch { width: 28px; height: 16px; flex: none; border-radius: 3px; border: 1px solid var(--ink); }
 `;
 
 function ensureStyles(): void {

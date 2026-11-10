@@ -20,9 +20,9 @@ const CSS = `
   width: max-content; max-width: calc(100% - 24px - var(--safe-left) - var(--safe-right));
   display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px;
   padding: 8px 10px 8px 16px;
-  background: var(--panel-2); color: var(--panel-text);
-  border: 2px solid var(--accent-chill); border-radius: 10px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  background: var(--surface); color: var(--ink);
+  border: var(--outline); border-radius: var(--radius-surface);
+  box-shadow: inset 6px 0 0 var(--accent-chill), var(--shadow);
   pointer-events: auto;
 }
 .tc-update[hidden] { display: none; }

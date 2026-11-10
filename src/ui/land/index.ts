@@ -201,7 +201,7 @@ function createLandBar(ctx: UiContext): UiPart {
   );
   paints.buttons.forEach((b, k) => {
     const sw = h('span', { class: 'land-swatch', 'aria-hidden': 'true' });
-    sw.style.cssText = `display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,0.45);background:${SWATCH[TERRAINS[k] as TerrainCode]}`;
+    sw.style.cssText = `display:inline-block;width:14px;height:14px;border-radius:3px;border:1px solid var(--ink);background:${SWATCH[TERRAINS[k] as TerrainCode]}`;
     b.prepend(sw);
   });
 

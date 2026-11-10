@@ -27,6 +27,8 @@ export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  // The bundled font arrives after first paint (font-display: swap); boxes are measured with it in place.
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
 
 export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed 2×' | 'Speed 4×'): Promise<void> {

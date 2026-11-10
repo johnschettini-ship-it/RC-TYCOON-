@@ -31,7 +31,7 @@ export const settingsStrings: Record<string, string> = {
 
   'settings.display.textScale': 'Text scale',
   'settings.display.highContrast': 'High contrast',
-  'settings.display.highContrastDetail': 'Thicker outlines and darker panels',
+  'settings.display.highContrastDetail': 'Thicker outlines and stronger text',
   'settings.display.reducedMotion': 'Reduced motion',
   'settings.motion.auto': 'Auto',
   'settings.motion.on': 'On',

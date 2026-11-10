@@ -87,7 +87,7 @@ function coarsePointer(): boolean {
 function swatch(colour: string, label: string): HTMLElement {
   return h(
     'span',
-    { class: 'buy-legend-item', style: 'display:inline-flex;align-items:center;gap:4px;font-size: calc(12px * var(--ts, 1));color:var(--muted)' },
+    { class: 'buy-legend-item', style: 'display:inline-flex;align-items:center;gap:4px;font-size: calc(12px * var(--ts, 1));color:var(--muted-ink)' },
     h('i', { 'aria-hidden': 'true', style: `display:inline-block;width:12px;height:12px;border-radius:3px;background:${colour}` }),
     label,
   );

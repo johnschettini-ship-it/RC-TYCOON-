@@ -1,0 +1,103 @@
+/*
+ * Design tokens of the Thrills & Chills UI (Phase 7 §4.9 "Look"): white surfaces, a dark ink outline, a hard shadow,
+ * round corners, one bundled font. Every colour of `main.css` and of the style modules that the UI adds at run time
+ * comes from here. Text tokens have a contrast of 4.5:1 or more on the surface they sit on; graphic tokens (icons,
+ * borders, bars) 3:1 or more on white. The mood accents are fills with ink text on them, never text colours.
+ */
+
+/* Fredoka (SIL Open Font License 1.1, licence text in src/assets/fonts/fredoka/LICENSE), variable weight. Bundled: no other host. */
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 700;
+  src: url('../assets/fonts/fredoka/fredoka-latin-ext-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: 'Fredoka';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 300 700;
+  src: url('../assets/fonts/fredoka/fredoka-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+:root {
+  /* Spec values (§4.9). */
+  --ink: #1f2340;
+  --surface: #ffffff;
+  --surface-2: #eef0f7;
+  --muted-ink: #4d5170;
+  --gold: #ffc12e;
+  --accent-chill: #56b4e9;
+  --accent-family: #2fb38a;
+  --accent-thrill: #e69f00;
+  --danger-text: #b34700;
+  --outline: 3px solid var(--ink);
+  --shadow: 0 4px 0 var(--ink);
+  --radius: 12px;
+  --radius-surface: 18px;
+  /* Focus ring: 2 px white, then 3 px ink. The inset form is for controls inside scrolling areas, which clip it. */
+  --focus-ring: 0 0 0 2px #fff, 0 0 0 5px var(--ink);
+  --focus-ring-inset: inset 0 0 0 3px var(--ink), inset 0 0 0 5px #fff;
+
+  /* Controls: a thinner ink outline than surfaces; a hover fill one step darker than --surface-2. */
+  --control-outline: 2px solid var(--ink);
+  --surface-3: #dde1ee;
+  /* Separators inside a surface (decorative). */
+  --rule: #c9cddc;
+
+  /* States. Graphics (borders, bars, icons) ≥ 3:1 on white; *-text ≥ 4.5:1 on --surface and --surface-2. */
+  --ok: #0072b2;
+  --danger: #d55e00;
+  --warn: #c77c00;
+  --warn-text: #8a5a00;
+  --good-text: #1d7a4f;
+
+  /* HUD weather icons (≥ 3:1 on white). */
+  --weather-sun: #c77c00;
+  --weather-cloud: #5d6b7a;
+  --weather-rain: #0072b2;
+  --weather-storm: #6a4bc4;
+  --weather-cold: #2a8bd0;
+  --weather-night: #3f4a8a;
+
+  /* Staff dots, costume swatches, message categories (graphics with an ink edge). */
+  --staff-groundskeeper: #4f9d4a;
+  --staff-mechanic: #3f6fb5;
+  --staff-security: #26324f;
+  --staff-performer: #d457a8;
+  --costume-frost-a: #3fa7d6;
+  --costume-frost-b: #f4f8ff;
+  --costume-spark-a: #ffd166;
+  --costume-spark-b: #f07a3a;
+  --costume-boo-a: #ffffff;
+  --costume-boo-b: #9b6bff;
+  --cat-weather: #9b6bff;
+
+  /* Logo lettering (large text, ≥ 3:1 on white at its lightest stop). */
+  --logo-thrills-a: #e07a00;
+  --logo-thrills-b: #b34700;
+  --logo-chills-a: #2a8bd0;
+  --logo-chills-b: #1d5fa8;
+
+  /* Overlays: dialog backdrop, title screen tints, tutorial ring glow. */
+  --backdrop: rgba(31, 35, 64, 0.45);
+  --title-veil: rgba(238, 240, 247, 0.82);
+  --title-glow-chill: rgba(86, 180, 233, 0.45);
+  --title-glow-thrill: rgba(230, 159, 0, 0.4);
+  --ring-glow: rgba(255, 193, 46, 0.55);
+  --ring-glow-faint: rgba(255, 193, 46, 0.2);
+
+  font-family: 'Fredoka', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* High contrast (§4.9): thicker outlines, white buttons, labels in full ink. */
+.tc-hc {
+  --outline: 4px solid var(--ink);
+  --surface-2: #ffffff;
+  --muted-ink: var(--ink);
+  --control-outline: 3px solid var(--ink);
+  --rule: var(--ink);
+}

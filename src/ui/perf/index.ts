@@ -22,8 +22,8 @@ export const OVERLAY_WINDOW_FRAMES = 120;
 const CSS = `
 .tc-perf {
   position: absolute; left: 8px; top: calc(var(--hud-bottom, 52px) + 8px); z-index: 5;
-  margin: 0; padding: 6px 8px; border-radius: 6px;
-  background: rgba(10, 16, 26, 0.82); color: #e8f4ff;
+  margin: 0; padding: 6px 8px; border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); border: var(--control-outline);
   pointer-events: none;
 }
 .tc-perf[hidden] { display: none; }

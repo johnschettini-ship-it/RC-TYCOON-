@@ -58,8 +58,10 @@ describe('a real build', () => {
   it('sw-manifest.json lists every hashed asset of the build', () => {
     const hashed = files.filter((f) => f.startsWith('assets/') && !f.endsWith('.map')).sort();
     expect(hashed.length).toBeGreaterThanOrEqual(2);
-    for (const f of hashed) expect(f).toMatch(/-[A-Za-z0-9_-]{6,}\.(js|css)$/);
+    for (const f of hashed) expect(f).toMatch(/-[A-Za-z0-9_-]{6,}\.(js|css|woff2)$/);
     expect(manifest.assets).toEqual(hashed);
+    // The bundled font (Phase 7 §4.9) is in the offline cache list.
+    expect(manifest.assets.filter((f) => /^assets\/fredoka-latin(-ext)?-wght-normal-[A-Za-z0-9_-]{6,}\.woff2$/.test(f))).toHaveLength(2);
     expect(manifest.format).toBe('thrills-and-chills-sw-manifest');
   });
 
