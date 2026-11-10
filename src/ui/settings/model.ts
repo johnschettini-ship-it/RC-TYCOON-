@@ -93,6 +93,7 @@ export function settingsSections(opts: SectionOptions): SectionSpec[] {
     s('gameplay', [
       toggle('autosave', 'settings.gameplay.autosave', { detail: text('settings.gameplay.autosaveDetail') }),
       toggle('confirmDemolish', 'settings.gameplay.confirmDemolish', { detail: text('settings.gameplay.confirmDemolishDetail') }),
+      toggle('mascotTips', 'settings.gameplay.mascotTips', { detail: text('settings.gameplay.mascotTipsDetail') }),
       toggle('unlockAllScenarios', 'prog.settings.unlockAll', { detail: text('prog.settings.unlockAllDetail'), testId: 'title-unlock-all' }),
       toggle('offlinePlay', 'settings.gameplay.offline', { detail: text('settings.gameplay.offlineDetail') }),
     ]),

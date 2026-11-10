@@ -20,7 +20,7 @@ test.describe('settings screen', () => {
     await expect(page.getByTestId('settings-screen').getByText('35%')).toBeVisible();
     const doc = JSON.parse((await stored(page)) ?? '{}');
     expect(doc.format).toBe('thrills-and-chills-settings');
-    expect(doc.version).toBe(1);
+    expect(doc.version).toBe(2);
     expect(doc.values.masterVolume).toBe(35);
     await page.reload();
     await openFromTitle(page);

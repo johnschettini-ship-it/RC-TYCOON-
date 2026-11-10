@@ -1,6 +1,8 @@
 /**
  * Settings defaults and validation (Phase 6 §4.9). Owner: integrator (contract). Validated like saves: exact format
- * and version, every value present with the right type and range, no unknown values, nothing filled in.
+ * and version, every value present with the right type and range, no unknown values, nothing filled in. A document of
+ * an older version is read against that version's frozen key list and migrated (the settings added since get their
+ * defaults); a document of the current version must hold every current key.
  */
 import { VOLUME_DEFAULTS } from '../data/tuning/audio';
 import type { SettingKey, SettingsValues } from './types';
@@ -8,7 +10,7 @@ import type { SettingKey, SettingsValues } from './types';
 export const SETTINGS_KEY = 'tc.settings';
 export const SETTINGS_FORMAT = 'thrills-and-chills-settings';
 /** Version this build writes and reads. A newer version is unreadable (never silently replaced). */
-export const SETTINGS_VERSION = 1;
+export const SETTINGS_VERSION = 2;
 
 /** Player-facing notice for unreadable settings (Phase 6 §4.9). The detail goes to the console. */
 export const SETTINGS_UNREADABLE = 'Settings could not be read';
@@ -49,11 +51,35 @@ export const SETTING_SPECS: { readonly [K in SettingKey]: { check: Check; fallba
   locale: { check: isLocale, fallback: 'auto' },
   autosave: { check: isBool, fallback: true },
   confirmDemolish: { check: isBool, fallback: false },
+  mascotTips: { check: isBool, fallback: true },
   unlockAllScenarios: { check: isBool, fallback: false },
   offlinePlay: { check: isBool, fallback: true },
 };
 
 export const SETTING_KEYS = Object.keys(SETTING_SPECS) as SettingKey[];
+
+/** The 19 keys of version 1 (the released build), written out: later settings never change this list. */
+const V1_KEYS: readonly SettingKey[] = [
+  'masterVolume',
+  'musicVolume',
+  'sfxVolume',
+  'ambienceVolume',
+  'uiVolume',
+  'muteAll',
+  'textScale',
+  'highContrast',
+  'reducedMotion',
+  'renderQuality',
+  'perfOverlay',
+  'panSpeed',
+  'edgeScrolling',
+  'longPressMs',
+  'locale',
+  'autosave',
+  'confirmDemolish',
+  'unlockAllScenarios',
+  'offlinePlay',
+];
 
 /** Built-in defaults (first run, Reset settings). Default values keep the Build 2 behaviour. */
 export function defaultSettings(): SettingsValues {
@@ -90,14 +116,16 @@ export function parseSettings(json: string): SettingsParse {
   if (version > SETTINGS_VERSION) return { ok: false, error: 'newer version' };
   const values = raw.values;
   if (!isRecord(values)) return { ok: false, error: 'bad values' };
-  for (const k of Object.keys(values)) if (!Object.prototype.hasOwnProperty.call(SETTING_SPECS, k)) return { ok: false, error: `unknown setting ${k}` };
-  const out = {} as Record<SettingKey, unknown>;
-  for (const k of SETTING_KEYS) {
+  // The keys this document's version holds. Version 1 documents are migrated: settings added later get their default.
+  const keys = version === 1 ? V1_KEYS : SETTING_KEYS;
+  for (const k of Object.keys(values)) if (!(keys as readonly string[]).includes(k)) return { ok: false, error: `unknown setting ${k}` };
+  const out = defaultSettings() as unknown as Record<SettingKey, unknown>;
+  for (const k of keys) {
     if (!Object.prototype.hasOwnProperty.call(values, k)) return { ok: false, error: `missing setting ${k}` };
     if (!isValidSetting(k, values[k])) return { ok: false, error: `bad value at ${k}` };
     out[k] = values[k];
   }
-  return { ok: true, values: out as SettingsValues };
+  return { ok: true, values: out as unknown as SettingsValues };
 }
 
 /** The stored text for `values` (keys in `SETTING_KEYS` order). */

@@ -1,8 +1,9 @@
 /**
  * Player settings (Phase 6 §4.9). Owner: integrator (contract). Settings are not game state: they live in
  * `localStorage` under `tc.settings`, never in saves, and the simulation never reads them.
- * Adding a setting: add it here, to `SETTING_SPECS` (`./schema.ts`) with its default and check, and bump
- * `SETTINGS_VERSION` with a migration only once a build with version 1 has shipped (until then version 1 may change).
+ * Adding a setting: add it here, to `SETTING_SPECS` (`./schema.ts`) with its default and check. Version 1 has shipped,
+ * so a new setting also bumps `SETTINGS_VERSION` and adds a migration in `parseSettings` for every older version,
+ * so settings stored by an earlier build stay readable.
  */
 
 export type TextScale = 100 | 125 | 150 | 175;
@@ -39,6 +40,8 @@ export interface SettingsValues {
   // ---- Gameplay ----
   autosave: boolean;
   confirmDemolish: boolean;
+  /** Frost and Spark give short tips (Phase 7). Added in version 2. */
+  mascotTips: boolean;
   unlockAllScenarios: boolean;
   // ---- Offline (Phase 6 §4.10, W4-G) ----
   offlinePlay: boolean;

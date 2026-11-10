@@ -10,6 +10,8 @@ import { tileToScreen } from '../../../src/render/iso';
 import { Content } from '../../../src/sim/map';
 import { SaveActions, type SaveBackend } from '../../../src/ui/saves';
 import type { SimEvent } from '../../../src/sim/types';
+import type { KeyValueStore } from '../../../src/save';
+import { defaultSettings, SETTINGS_FORMAT, SETTINGS_KEY, SettingsStore } from '../../../src/settings';
 
 const VW = 800;
 const VH = 600;
@@ -88,5 +90,33 @@ describe('Autosave setting', () => {
     game.settings.set('autosave', false);
     actions.autosave(monthEnd);
     expect(saved).toEqual(['auto']);
+  });
+});
+
+class MemoryStore implements KeyValueStore {
+  data = new Map<string, string>();
+  getItem(key: string): string | null {
+    return this.data.get(key) ?? null;
+  }
+  setItem(key: string, value: string): void {
+    this.data.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.data.delete(key);
+  }
+}
+
+describe('settings stored by the released build (version 1)', () => {
+  it('a stored version 1 document is not rewritten until a setting changes; then it is version 2', () => {
+    const { mascotTips: _drop, ...rest } = defaultSettings();
+    const stored = JSON.stringify({ format: SETTINGS_FORMAT, version: 1, values: { ...rest, musicVolume: 30 } });
+    const storage = new MemoryStore();
+    storage.setItem(SETTINGS_KEY, stored);
+    const store = new SettingsStore(storage);
+    expect(store.problem).toBeNull();
+    expect(store.get('mascotTips')).toBe(true);
+    expect(storage.getItem(SETTINGS_KEY)).toBe(stored);
+    store.set('mascotTips', false);
+    expect(JSON.parse(storage.getItem(SETTINGS_KEY) as string)).toMatchObject({ version: 2, values: { mascotTips: false, musicVolume: 30 } });
   });
 });

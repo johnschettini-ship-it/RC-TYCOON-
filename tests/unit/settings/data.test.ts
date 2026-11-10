@@ -4,6 +4,7 @@ import { slotKey, type KeyValueStore } from '../../../src/save';
 import { PROGRESS_KEY, ProgressStore, emptyProgress } from '../../../src/progress';
 import { importProgress, savesExport, SAVES_EXPORT_FORMAT } from '../../../src/ui/settings/data';
 import { readFileSync } from 'node:fs';
+import { defaultSettings, parseSettings, serializeSettings, SETTINGS_FORMAT } from '../../../src/settings';
 
 class MemoryStore implements KeyValueStore {
   data = new Map<string, string>();
@@ -75,5 +76,32 @@ describe('import progress', () => {
     const src = readFileSync('src/ui/settings/data.ts', 'utf8') + readFileSync('src/ui/settings/index.ts', 'utf8');
     expect(src).toContain('importProgress(progressStore(), raw)');
     expect(src).not.toMatch(/setItem\(\s*PROGRESS_KEY/);
+  });
+});
+
+const doc = (version: number, values: Record<string, unknown>): string => JSON.stringify({ format: SETTINGS_FORMAT, version, values });
+const v1Values = (): Record<string, unknown> => {
+  const { mascotTips: _drop, ...rest } = defaultSettings();
+  return { ...rest, musicVolume: 30 };
+};
+
+describe('settings version 2 (Phase 7 §5)', () => {
+  it('a version 1 document loads, gets mascotTips true, and keeps its values', () => {
+    const r = parseSettings(doc(1, v1Values()));
+    expect(r).toMatchObject({ ok: true, values: { mascotTips: true, musicVolume: 30 } });
+  });
+  it('a version 1 document with mascotTips is unreadable', () => {
+    expect(parseSettings(doc(1, { ...v1Values(), mascotTips: false }))).toEqual({ ok: false, error: 'unknown setting mascotTips' });
+  });
+  it('a version 2 document needs a boolean mascotTips', () => {
+    expect(parseSettings(doc(2, v1Values()))).toEqual({ ok: false, error: 'missing setting mascotTips' });
+    expect(parseSettings(doc(2, { ...v1Values(), mascotTips: 'yes' }))).toEqual({ ok: false, error: 'bad value at mascotTips' });
+    expect(parseSettings(doc(2, { ...v1Values(), mascotTips: false }))).toMatchObject({ ok: true, values: { mascotTips: false } });
+  });
+  it('a version 3 document is unreadable', () => {
+    expect(parseSettings(doc(3, { ...v1Values(), mascotTips: true }))).toEqual({ ok: false, error: 'newer version' });
+  });
+  it('the build writes version 2', () => {
+    expect(JSON.parse(serializeSettings(defaultSettings()))).toMatchObject({ version: 2, values: { mascotTips: true } });
   });
 });

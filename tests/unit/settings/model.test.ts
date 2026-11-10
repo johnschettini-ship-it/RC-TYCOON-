@@ -45,7 +45,7 @@ describe('settings sections (Phase 6 §4.9 table)', () => {
     expect(keysOf('display')).toEqual(['textScale', 'highContrast', 'reducedMotion', 'renderQuality', 'perfOverlay']);
     expect(keysOf('controls')).toEqual(['panSpeed', 'edgeScrolling', 'longPressMs']);
     expect(keysOf('language')).toEqual(['locale']);
-    expect(keysOf('gameplay')).toEqual(['autosave', 'confirmDemolish', 'unlockAllScenarios', 'offlinePlay']);
+    expect(keysOf('gameplay')).toEqual(['autosave', 'confirmDemolish', 'mascotTips', 'unlockAllScenarios', 'offlinePlay']);
     const data = sections().find((s) => s.id === 'data')?.controls.map((c) => (c.kind === 'action' ? c.id : c.kind));
     expect(data).toEqual(['exportSaves', 'exportProgress', 'importProgress', 'resetProgress']);
     const about = sections().find((s) => s.id === 'about')?.controls.map((c) => (c.kind === 'info' ? c.id : c.kind));

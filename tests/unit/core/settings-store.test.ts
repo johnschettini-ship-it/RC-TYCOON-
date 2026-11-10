@@ -55,16 +55,17 @@ describe('settings defaults (Phase 6 §4.9, §8)', () => {
       locale: 'auto',
       autosave: true,
       confirmDemolish: false,
+      mascotTips: true,
       unlockAllScenarios: false,
       offlinePlay: true,
     });
   });
 
-  it('the stored document has the format, version 1, and every value', () => {
+  it('the stored document has the format, version 2, and every value', () => {
     const raw = JSON.parse(serializeSettings(defaultSettings()));
     expect(Object.keys(raw)).toEqual(['format', 'version', 'values']);
     expect(raw.format).toBe('thrills-and-chills-settings');
-    expect(raw.version).toBe(1);
+    expect(raw.version).toBe(2);
     expect(Object.keys(raw.values)).toEqual(SETTING_KEYS);
   });
 });
@@ -74,7 +75,7 @@ describe('settings validation (like saves: no defaults filled in)', () => {
     ['bad JSON', '{"format":', 'not JSON'],
     ['not an object', '[1]', 'not an object'],
     ['wrong format', doc((d) => (d.format = 'other')), 'wrong format'],
-    ['newer version', doc((d) => (d.version = 2)), 'newer version'],
+    ['newer version', doc((d) => (d.version = 3)), 'newer version'],
     ['version 0', doc((d) => (d.version = 0)), 'bad version'],
     ['unknown top field', doc((d) => (d.extra = 1)), 'unknown field extra'],
     ['missing value', doc((d) => delete d.values.musicVolume), 'missing setting musicVolume'],
