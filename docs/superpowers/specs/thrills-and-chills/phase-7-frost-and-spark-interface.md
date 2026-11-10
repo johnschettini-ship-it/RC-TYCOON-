@@ -188,7 +188,7 @@ A panel of the panel host, kind `cardDetails`. It shows the data of the held con
 - flat ride: seats, excitement, intensity, nausea, ticket price, running cost per month, footprint (`w × d` tiles),
 - track ride: drive, maximum height, seats per car, "From" cost (the values of the track card today),
 - stall: kind, default price, running cost per month,
-- the hint: "Drag the card to the map. Or press the card, then press the map." on desktop; "Tap the map to place it." on phone.
+- the hint: "Drag the card to the map. Or press the card, then press the map" on desktop; "Tap the map to place it" on phone.
 
 Rules:
 - Desktop: the panel opens when a content card becomes the held card.
@@ -203,9 +203,9 @@ The UI checks the rules every 2 s and shows the first rule that matches:
 
 | # | Id | Condition | Speaker | Text | Button |
 |---|---|---|---|---|---|
-| 1 | `cashLow` | `park.cash < 0` | Frost and Spark | "Cash is below zero. Look at Finance." | "Open Finance" opens the Finance panel. |
-| 2 | `noRide` | No ride has the status `open`. | Frost and Spark | "Build a ride and open it. Guests come for rides." | "Show rides" opens the Rides deck. |
-| 3 | `underServed` | See below. | Frost (Chill), Spark (Thrill), both (Family) | "My Chill guests need a calm ride." / "My Thrill guests need a wild ride." / "Family guests need a family ride." | "Show {zone} rides" opens the Rides deck and scrolls to that zone. |
+| 1 | `cashLow` | `park.cash < 0` | Frost and Spark | "Cash is below zero. Look at Finance" | "Open Finance" opens the Finance panel. |
+| 2 | `noRide` | No ride has the status `open`. | Frost and Spark | "Build a ride and open it. Guests come for rides" | "Show rides" opens the Rides deck. |
+| 3 | `underServed` | See below. | Frost (Chill), Spark (Thrill), both (Family) | "My Chill guests need a calm ride" / "My Thrill guests need a wild ride" / "Family guests need a family ride" | "Show {zone} rides" opens the Rides deck and scrolls to that zone. |
 
 **Rule 3.** The UI checks it only when rule 2 does not match, so at least one ride is open. It applies when the park has at least `TIP_MIN_GUESTS` guests.
 - `guestShare[g]` = percentage of guests in group `g` (the mood bar value).
@@ -314,14 +314,14 @@ All values are provisional until a play-test.
 | `MASCOT_MIN_WIDTH_PX` | 1100 | Bottom mascots show from this screen width. |
 
 ## 9. Text
-New texts go in the string table with ids. The English texts are:
+New texts go in the string table with ids. No text ends with a period (the rule of the string table). The English texts are:
 
 - Decks: "Card decks", "Rides", "Stalls", "Paths", "Scenery", "Manage", "{deck} cards".
-- Cards: "From {cost}", "Track", "Put back", "Details".
+- Cards: "From {cost}", "Track", "Put back", "Details", "Earlier cards", "More cards" (the two scroll arrows).
 - Mood: "No guests yet", "The park leans to Thrill", "The park leans to Chill", "The park is in balance".
 - Controls: "Speed", "Messages", "Messages, {count} unread", "Menu".
 - Details: "Seats", "Ticket", "Running cost per month", "Size", "{w} × {d} tiles", and the two hints of section 4.7.
-- Tips: the texts and button labels of section 4.8, "Close", "Mascot tips".
+- Tips: the texts and button labels of section 4.8, "Close", "Mascot tip" (the name of the bubble), "Mascot tips" and "Frost and Spark give short tips" (the setting and its detail).
 
 `en-XA` gets every new id. The completeness test of Phase 6 covers them.
 
