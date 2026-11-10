@@ -190,8 +190,8 @@ export function mountUI(root: HTMLElement, game: Game): void {
     },
   };
 
-  const hud = createHud(ctx);
-  const toolbar = createToolbar(ctx, () => openMenu(ctx));
+  const hud = createHud(ctx, () => openMenu(ctx));
+  const toolbar = createToolbar(ctx);
   const status = createToolStatus(ctx);
   const patrolBar = createPatrolBar(ctx);
   const pathItemBar = createPathItemBar(ctx);

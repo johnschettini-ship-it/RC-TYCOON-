@@ -32,9 +32,14 @@ export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
 }
 
 export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed 2×' | 'Speed 4×'): Promise<void> {
-  const button = page.getByRole('group', { name: 'Game speed' }).getByRole('button', { name: label });
+  const group = page.getByRole('group', { name: 'Game speed' });
+  const button = group.getByRole('button', { name: label });
+  // The phone keeps the speed buttons in a menu that its Speed button opens.
+  const toggle = page.getByTestId('speed-toggle');
+  if ((await toggle.isVisible()) && !(await group.isVisible())) await toggle.click();
   await button.click();
-  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  // The phone's menu closes on a choice, so the pressed state is read by label, not by role (a hidden button has none).
+  await expect(page.locator(`.speed-btn[aria-label="${label}"]`)).toHaveAttribute('aria-pressed', 'true');
 }
 
 /** The control of an old toolbar id (`footpath`, `scenery`, `menu`, ...), brought into view first (the phone toolbar scrolls sideways). */
@@ -56,6 +61,7 @@ async function press(control: Locator, opts: PressOptions): Promise<void> {
 
 /** Press the control of an old toolbar id. */
 export async function openTool(page: Page, id: string, opts: PressOptions = {}): Promise<void> {
+  // Messages and Menu are controls of the top region (`data-tool` stays); `toolControl` finds them like any other.
   await press(await toolControl(page, id), opts);
 }
 

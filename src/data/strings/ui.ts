@@ -21,6 +21,7 @@ export const uiStrings: Record<string, string> = {
   'ui.hud.guests': 'Guests in park',
   'ui.hud.rating': 'Park rating',
   'ui.hud.ratingShort': 'Rating',
+  'ui.hud.guestsShort': 'Guests',
   'ui.hud.date': 'Date and time',
   'ui.hud.balance': 'Thrill/Chill balance: {chill}% Chill, {family}% Family, {thrill}% Thrill',
   'ui.hud.balanceEmpty': 'Thrill/Chill balance: no guests yet',

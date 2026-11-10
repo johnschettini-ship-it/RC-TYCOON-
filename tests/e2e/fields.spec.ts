@@ -4,7 +4,7 @@
  * 4 band names and thresholds. No console errors.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, newPark, openTool, tilePoint, watchErrors } from './helpers';
+import { centerOn, newPark, openTool, setSpeed, tilePoint, watchErrors } from './helpers';
 
 const FOUNTAIN_X = 30;
 const FOUNTAIN_Y = 30;
@@ -22,7 +22,7 @@ async function addFountain(page: Page): Promise<void> {
 }
 
 async function pause(page: Page): Promise<void> {
-  await page.getByRole('group', { name: 'Game speed' }).getByRole('button', { name: 'Pause' }).click();
+  await setSpeed(page, 'Pause');
 }
 
 async function overlay(page: Page): Promise<string> {

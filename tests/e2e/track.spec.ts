@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, openTool, pickCard } from './helpers';
+import { cardOf, openTool, pickCard, setSpeed } from './helpers';
 
 /**
  * Track builder smoke (phase-2 §7, §9.4): build the reference circuit R1 (§9.2) through the builder UI on desktop
@@ -213,9 +213,7 @@ test.describe('track builder', () => {
     await expect(page.getByTestId('track-tab-test')).toHaveAttribute('aria-selected', 'true');
     await press(page, phone, 'track-test');
     await expect(page.getByTestId('track-test-status')).toContainText('Testing');
-    const fast = page.getByRole('group', { name: 'Game speed' }).getByRole('button', { name: 'Speed 4×' });
-    if (phone) await fast.tap();
-    else await fast.click();
+    await setSpeed(page, 'Speed 4×');
     await expect(page.getByTestId('track-test-status')).toHaveText('Test passed', { timeout: 90_000 });
     for (const k of ['excitement', 'intensity', 'nausea']) {
       await expect(page.getByTestId(`track-rating-${k}`)).toBeVisible();

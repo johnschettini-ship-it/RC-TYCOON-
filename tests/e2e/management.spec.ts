@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openTool } from './helpers';
+import { openTool, setSpeed } from './helpers';
 
 /** "$14,774.45" → 1477445 cents; "−$5" → −500. */
 function cents(text: string): number {
@@ -16,7 +16,7 @@ async function newPark(page: Page): Promise<void> {
   await page.locator('[data-testid=title-start]').click();
   await expect(page.locator('.title-screen')).toBeHidden();
   // Pause so hourly costs do not move the cash during the checks.
-  await page.getByRole('group', { name: 'Game speed' }).getByRole('button', { name: 'Pause' }).click();
+  await setSpeed(page, 'Pause');
 }
 
 test.describe('Phase 3 management UI', () => {

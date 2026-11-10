@@ -34,15 +34,23 @@ test.describe('HUD and toolbar', () => {
     if (info.project.name === 'desktop') await expect(page.getByTestId('hud-name')).toHaveText('Test Park');
   });
 
-  test('a speed button toggles its active state', async ({ page }) => {
+  test('a speed button toggles its active state', async ({ page }, info) => {
+    const phone = info.project.name === 'phone';
     const speeds = page.getByRole('group', { name: 'Game speed' });
     const two = speeds.getByRole('button', { name: 'Speed 2×' });
     const pause = speeds.getByRole('button', { name: 'Pause' });
+    // The phone keeps the group in a menu that a choice closes.
+    const openMenu = async (): Promise<void> => {
+      if (phone) await page.getByTestId('speed-toggle').click();
+    };
+    await openMenu();
     await two.click();
+    await openMenu();
     await expect(two).toHaveAttribute('aria-pressed', 'true');
     await expect(two).toHaveClass(/active/);
     await expect(pause).toHaveAttribute('aria-pressed', 'false');
     await pause.click();
+    await openMenu();
     await expect(pause).toHaveAttribute('aria-pressed', 'true');
     await expect(two).toHaveAttribute('aria-pressed', 'false');
     await expect(two).not.toHaveClass(/active/);
@@ -51,7 +59,7 @@ test.describe('HUD and toolbar', () => {
   test('the toolbar is visible with labelled buttons of at least 44 × 44 px', async ({ page }, info) => {
     const bar = page.getByRole('toolbar', { name: 'Tools' });
     await expect(bar).toBeVisible();
-    for (const name of ['Inspect', 'Footpath', 'Queue', 'Rides', 'Stalls', 'Demolish', 'Finance', 'Park', 'Temperament overlay', 'Menu']) {
+    for (const name of ['Inspect', 'Footpath', 'Queue', 'Rides', 'Stalls', 'Demolish', 'Finance', 'Park', 'Temperament overlay']) {
       const b = bar.getByRole('button', { name, exact: true });
       await expect(b).toHaveCount(1);
       const box = await b.boundingBox();
@@ -75,5 +83,52 @@ test.describe('HUD and toolbar', () => {
     await footpath.click();
     await expect(footpath).toHaveAttribute('aria-pressed', 'true');
     await expect(bar.getByRole('button', { name: 'Inspect', exact: true })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  test('the status pill shows cash, guests, and rating, and opens the Park panel', async ({ page }, info) => {
+    if (info.project.name === 'phone') await page.setViewportSize({ width: 390, height: 844 });
+    for (const id of ['hud-cash', 'hud-guests', 'hud-rating']) await expect(page.getByTestId(id)).toBeVisible();
+    await page.getByTestId('status-pill').click();
+    await expect(page.locator('.panel-title')).toHaveText('Test Park');
+  });
+
+  test('the phone has one Speed button that opens the speed group', async ({ page }, info) => {
+    test.skip(info.project.name !== 'phone');
+    const group = page.getByRole('group', { name: 'Game speed' });
+    await expect(group).toBeHidden();
+    await page.getByTestId('speed-toggle').click();
+    await group.getByRole('button', { name: 'Speed 2×' }).click();
+    await expect(group).toBeHidden();
+    await expect(page.getByTestId('speed-toggle')).toHaveText('2×');
+  });
+
+  test('a resize across 900 px keeps exactly one visible speed control', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop');
+    const group = page.getByRole('group', { name: 'Game speed' });
+    await page.setViewportSize({ width: 800, height: 800 });
+    await page.getByTestId('speed-toggle').click();
+    await expect(group).toBeVisible();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(group).toBeVisible();
+    await expect(page.getByTestId('speed-toggle')).toBeHidden();
+    await page.setViewportSize({ width: 800, height: 800 });
+    await expect(page.getByTestId('speed-toggle')).toBeVisible();
+    await expect(group).toBeHidden();
+  });
+
+  test('a long park name and a ten-digit cash value keep the controls on the screen', async ({ page }) => {
+    await page.evaluate(() => {
+      const park = (window as unknown as { __tc: { world: { state: { park: { name: string; cash: number } } } } }).__tc.world.state.park;
+      park.name = 'W'.repeat(32);
+      park.cash = 999_999_999_900;
+    });
+    const vp = page.viewportSize();
+    if (!vp) throw new Error('no viewport');
+    for (const id of ['status-pill', 'tool-messages', 'tool-menu']) {
+      const box = await page.getByTestId(id).boundingBox();
+      expect(box, id).not.toBeNull();
+      expect(box!.x, id).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width, id).toBeLessThanOrEqual(vp.width);
+    }
   });
 });

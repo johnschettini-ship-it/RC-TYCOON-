@@ -6,11 +6,10 @@
 import { text } from '../data/strings/en';
 import type { ToolId } from '../render/types';
 import type { PanelKind, UiContext } from './context';
-import { h, setAttr, setText } from './dom';
+import { h, setAttr } from './dom';
 import { icon, type IconName } from './icons';
 import { mgmtIcon, type MgmtIconName } from './management/icons';
 import { pathItemAction } from '../render/management/toolOptions';
-import { unreadCount } from '../sim/notifications';
 import { toolbarEntries } from './extensions';
 
 interface ButtonDef {
@@ -22,7 +21,7 @@ interface ButtonDef {
   pressed: () => boolean;
 }
 
-export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLElement; update(): void } {
+export function createToolbar(ctx: UiContext): { el: HTMLElement; update(): void } {
   const { game } = ctx;
   const setTool = (tool: ToolId): void => {
     const t = game.tool;
@@ -63,7 +62,6 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
     { id: 'marketing', label: text('ui.tool.marketing'), icon: { mgmt: 'marketing' }, onClick: () => togglePanel('marketing'), pressed: () => panelIs('marketing') },
     { id: 'finance', label: text('ui.tool.finance'), icon: 'finance', onClick: () => togglePanel('finance'), pressed: () => panelIs('finance') },
     { id: 'park', label: text('ui.tool.park'), icon: 'park', onClick: () => togglePanel('park'), pressed: () => panelIs('park') },
-    { id: 'messages', label: text('ui.tool.messages'), icon: { mgmt: 'messages' }, onClick: () => togglePanel('messages'), pressed: () => panelIs('messages') },
     {
       id: 'temperament',
       label: text('ui.tool.temperament'),
@@ -73,7 +71,6 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
       },
       pressed: () => game.tool.overlay === 'temperament',
     },
-    { id: 'menu', label: text('ui.tool.menu'), icon: 'menu', onClick: openMenu, pressed: () => false },
   ];
   // Build 2 tools (Wave 3 extensions) go before Demolish, in registry order.
   const extra: ButtonDef[] = toolbarEntries().map((e) => ({ id: e.id, label: e.label, icon: { el: e.icon }, onClick: () => e.onClick(ctx), pressed: () => e.pressed(ctx) }));
@@ -89,35 +86,12 @@ export function createToolbar(ctx: UiContext, openMenu: () => void): { el: HTMLE
     );
     return { def: d, el: b };
   });
-  // The menu opens a dialog: it is not a toggle.
-  const menu = buttons.find((b) => b.def.id === 'menu');
-  if (menu) {
-    menu.el.removeAttribute('aria-pressed');
-    menu.el.setAttribute('aria-haspopup', 'dialog');
-  }
-
-  // Unread badge on Messages (Phase 3 §4.14: `messagesReadUpTo` drives it).
-  const badge = h('span', { class: 'tool-badge', 'data-testid': 'messages-badge', 'aria-hidden': 'true', hidden: true });
-  const messages = buttons.find((b) => b.def.id === 'messages');
-  messages?.el.append(badge);
-  let lastUnread = -1;
-
   const el = h('nav', { class: 'toolbar', role: 'toolbar', 'aria-label': text('ui.toolbar.label') }, ...buttons.map((b) => b.el));
   return {
     el,
     update() {
       for (const b of buttons) {
-        if (b.def.id === 'menu') continue;
         setAttr(b.el, 'aria-pressed', b.def.pressed() ? 'true' : 'false');
-      }
-      const unread = unreadCount(game.world);
-      if (unread !== lastUnread && messages) {
-        lastUnread = unread;
-        badge.hidden = unread === 0;
-        setText(badge, unread > 99 ? '99+' : String(unread));
-        const label = unread > 0 ? text('ui.tool.messagesUnread', { count: unread }) : text('ui.tool.messages');
-        setAttr(messages.el, 'aria-label', label);
-        setAttr(messages.el, 'title', label);
       }
     },
   };

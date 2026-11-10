@@ -3,7 +3,7 @@
  * snow, hold to repeat, raise water. Phone: tap Land, tap a tile, tap Raise twice. No console errors.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, isPhone, openTool, type TcGame, tilePoint } from './helpers';
+import { centerOn, isPhone, openTool, setSpeed, type TcGame, tilePoint } from './helpers';
 
 interface TcWorld extends TcGame {
   world: { state: { map: { width: number; heights: ArrayLike<number>; content: ArrayLike<number>; terrain: ArrayLike<number>; water: ArrayLike<number> }; park: { cash: number } } };
@@ -17,7 +17,7 @@ async function newPausedPark(page: Page): Promise<void> {
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
   // Pause so hourly costs do not move the cash during the checks.
-  await page.getByRole('group', { name: 'Game speed' }).getByRole('button', { name: 'Pause' }).click();
+  await setSpeed(page, 'Pause');
 }
 
 async function mapValue(page: Page, layer: 'heights' | 'terrain' | 'water', x: number, y: number): Promise<number> {

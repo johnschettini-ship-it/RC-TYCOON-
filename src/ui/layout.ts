@@ -1,5 +1,7 @@
 /** Responsive layout rules (Phase 0 §4.11, Phase 1 §7). Owner: W1-B. Pure. */
 
+import type { TextScale } from '../settings/types';
+
 export const LAYOUT_BREAKPOINT_PX = 900;
 
 export type ToolbarPlacement = 'bottom' | 'side';
@@ -7,6 +9,14 @@ export type ToolbarPlacement = 'bottom' | 'side';
 /** Bottom toolbar and bottom-sheet panels below 900 CSS px; left toolbar and side panels from 900 px. */
 export function toolbarPlacement(viewportWidthCss: number): ToolbarPlacement {
   return viewportWidthCss < LAYOUT_BREAKPOINT_PX ? 'bottom' : 'side';
+}
+
+export type PillField = 'name' | 'cash' | 'guests' | 'rating';
+
+/** Fields of the status pill (Phase 7 §4.2): the phone drops the name, and at 150% text scale and more, guests and rating. */
+export function pillFields(layout: ToolbarPlacement, textScale: TextScale): PillField[] {
+  if (layout === 'side') return ['name', 'cash', 'guests', 'rating'];
+  return textScale >= 150 ? ['cash'] : ['cash', 'guests', 'rating'];
 }
 
 export type SheetHeight = 'peek' | 'half' | 'full';

@@ -46,7 +46,7 @@ html, body {
 
 /* Buttons */
 button { font: inherit; color: inherit; }
-.btn, .icon-btn, .tool-btn, .speed-btn, .hud-name, .card, .toast {
+.btn, .icon-btn, .tool-btn, .speed-btn, .hud-btn, .status-pill, .card, .toast {
   pointer-events: auto;
   cursor: pointer;
   border: var(--control-outline);
@@ -64,7 +64,7 @@ button { font: inherit; color: inherit; }
   gap: 8px;
   font-weight: 600;
 }
-.btn:hover, .tool-btn:hover, .speed-btn:hover, .card:hover, .icon-btn:hover { background: var(--surface-3); }
+.btn:hover, .tool-btn:hover, .speed-btn:hover, .hud-btn:hover, .status-pill:hover, .card:hover, .icon-btn:hover { background: var(--surface-3); }
 .btn.primary { background: var(--accent-chill); color: var(--ink); min-height: 48px; }
 .btn.danger, .btn.danger:hover { background: color-mix(in srgb, var(--danger) 10%, var(--surface)); color: var(--danger-text); }
 /* Pressed controls are ink with white text (§4.9); labels inside them follow the text colour. */
@@ -83,49 +83,81 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 3px solid transparent; outline-offset: 2px; box-shadow: var(--focus-ring); }
 .panel-body :focus-visible, .settings-body :focus-visible, .tb-palette :focus-visible { outline-offset: -3px; box-shadow: var(--focus-ring-inset); }
 
-/* HUD */
+/* Top region (Phase 7 §4.1): separate pills; the container has no background and takes no pointer events. */
 .hud {
   position: absolute;
   top: 0; left: 0; right: 0;
-  min-height: calc(var(--hud-h) + var(--safe-top));
-  padding: calc(4px + var(--safe-top)) calc(10px + var(--safe-right)) 4px calc(10px + var(--safe-left));
-  display: flex;
-  align-items: center;
-  gap: 6px 14px;
-  flex-wrap: wrap;
-  background: var(--surface);
-  border-bottom: var(--outline);
-  box-shadow: var(--shadow);
+  padding: calc(8px + var(--safe-top)) calc(10px + var(--safe-right)) 8px calc(10px + var(--safe-left));
+  display: grid;
+  align-items: start;
+  gap: 8px;
+  pointer-events: none;
+  /* Desktop: status pill | mood slot | controls over the day pill. */
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 40vw, 520px) minmax(304px, 1fr);
+  grid-template-areas: 'status mood controls' '. . day';
+}
+.pill {
   pointer-events: auto;
+  background: var(--surface);
+  border: var(--outline);
+  border-radius: var(--radius-surface);
+  box-shadow: var(--shadow);
 }
-.hud-name {
-  min-height: var(--touch);
-  padding: 6px 12px;
-  font-weight: 700;
-  font-size: calc(15px * var(--ts, 1));
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: transparent;
-  border-color: transparent;
+.status-pill {
+  grid-area: status;
+  justify-self: start;
+  max-width: 100%;
+  min-height: calc(var(--touch) + 6px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 6px 16px;
+  text-align: left;
+  background: var(--surface);
+  border-radius: var(--radius-surface);
+  font-variant-numeric: tabular-nums;
 }
-.hud-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.hud-item .icon { width: 18px; height: 18px; color: var(--muted-ink); }
-.hud-cash .hud-value { font-weight: 700; }
+.status-pill:hover { background: var(--surface-3); }
+.hud-field { display: inline-flex; flex-direction: column; min-width: 0; }
+.hud-label { font-size: calc(12px * var(--ts, 1)); font-weight: 500; line-height: 1.1; color: var(--muted-ink); }
+.hud-value { font-weight: 700; font-size: calc(18px * var(--ts, 1)); line-height: 1.15; }
 .hud-value.neg { color: var(--danger-text); }
-.hud-rating .icon { color: var(--ink); }
-.hud-balance { gap: 6px; font-size: calc(12px * var(--ts, 1)); }
-.balance { display: flex; width: 120px; height: 12px; border-radius: 6px; overflow: hidden; background: var(--surface-2); border: var(--control-outline); }
+.hud-field .icon { display: none; width: 18px; height: 18px; color: var(--muted-ink); }
+.hud-field-rating .icon { color: var(--ink); }
+.hud-name { font-weight: 700; font-size: calc(15px * var(--ts, 1)); max-width: calc(220px * var(--ts, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud-mood { grid-area: mood; justify-self: stretch; min-width: 0; }
+.hud-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.hud-balance { width: 100%; gap: 8px; padding: 10px 14px; background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); font-size: calc(12px * var(--ts, 1)); }
+.balance { display: flex; flex: 1 1 0; min-width: 0; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-2); border: var(--control-outline); }
 .balance .seg { display: block; flex-basis: 0; flex-grow: 0; min-width: 0; }
 .seg-chill { background: var(--accent-chill); }
 .seg-family { background: var(--accent-family); }
 .seg-thrill { background: var(--accent-thrill); }
-.hud-clock { font-weight: 600; }
-.speed { display: inline-flex; gap: 8px; margin-left: auto; }
-.speed-btn { width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; font-weight: 700; }
+.hud-controls { grid-area: controls; justify-self: end; display: flex; align-items: center; gap: 8px; }
+.speed-wrap { position: relative; display: flex; }
+.hud-btn { position: relative; width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; font-weight: 700; font-size: calc(15px * var(--ts, 1)); border-radius: 50%; background: var(--surface); box-shadow: var(--shadow); }
+.hud-btn .icon { width: 22px; height: 22px; }
+.hud-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
+.speed-toggle { width: auto; min-width: var(--touch); padding: 0 12px; border-radius: 22px; }
+.speed-toggle .icon { width: 18px; height: 18px; }
+.speed { display: inline-flex; gap: 4px; }
+.speed-menu { padding: 4px; pointer-events: auto; background: var(--surface); border: var(--outline); border-radius: 26px; box-shadow: var(--shadow); }
+.speed-btn { width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; font-weight: 700; background: transparent; border-color: transparent; border-radius: 22px; }
 .speed-btn .icon { width: 18px; height: 18px; }
 .speed-btn.active, .speed-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
+.day-pill {
+  grid-area: day;
+  justify-self: end;
+  max-width: 100%;
+  min-height: calc(var(--touch) + 6px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 3px 12px;
+}
+.hud-clock { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 /* Toolbar */
 .toolbar {
@@ -176,16 +208,30 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .toolbar::-webkit-scrollbar { display: none; }
 #ui[data-layout='bottom'] .tool-btn { min-width: 52px; min-height: 50px; padding: 4px 6px; }
 #ui[data-layout='bottom'] .tool-label { font-size: calc(10px * var(--ts, 1)); }
-#ui[data-layout='bottom'] .hud { gap: 4px 10px; }
-#ui[data-layout='bottom'] .hud-balance .balance-end { display: none; }
-#ui[data-layout='bottom'] .balance { width: 64px; }
 
-/* Phone: the top bar compresses to cash, date, and speed (Phase 0 §7). */
-@media (max-width: 599px) {
-  .hud-name, .hud-guests, .hud-rating, .hud-balance { display: none; }
-  .hud { font-size: calc(13px * var(--ts, 1)); gap: 4px 8px; padding-left: calc(8px + var(--safe-left)); padding-right: calc(8px + var(--safe-right)); }
-  .speed { gap: 8px; }
+/* Phone (Phase 7 §4.1): row 1 status pill and controls, row 2 mood slot, row 3 day pill (scrolls sideways). */
+#ui[data-layout='bottom'] .hud {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'status controls' 'mood mood' 'day day';
+  padding-left: calc(8px + var(--safe-left));
+  padding-right: calc(8px + var(--safe-right));
 }
+#ui[data-layout='bottom'] .status-pill { flex-direction: row; flex-wrap: wrap; gap: 0 12px; padding: 4px 14px; }
+#ui[data-layout='bottom'] .hud-field { flex-direction: row; align-items: center; gap: 4px; }
+#ui[data-layout='bottom'] .hud-field .icon { display: block; }
+#ui[data-layout='bottom'] .hud-value { font-size: calc(16px * var(--ts, 1)); }
+#ui[data-layout='bottom'] .hud-balance .balance-end { display: none; }
+#ui[data-layout='bottom'] .speed-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 3; }
+#ui[data-layout='bottom'] .day-pill {
+  justify-self: start;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 6px 12px;
+}
+#ui[data-layout='bottom'] .day-pill::-webkit-scrollbar { display: none; }
+#ui[data-layout='bottom'] .day-pill > * { flex: none; }
 
 /* Tool status bar */
 .tool-status {
@@ -479,7 +525,7 @@ button { font: inherit; color: inherit; }
   font-variant-numeric: tabular-nums;
   box-shadow: 0 0 0 2px var(--ink);
 }
-.tool-btn[data-tool='messages'][aria-pressed='true'] .tool-badge { box-shadow: 0 0 0 2px var(--surface); }
+.hud-btn[data-tool='messages'][aria-pressed='true'] .tool-badge { box-shadow: 0 0 0 2px var(--surface); }
 
 /* HUD weather */
 .hud-weather {
@@ -838,7 +884,7 @@ dl.row dt, dl.row dd { margin: 0; }
 kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; border: 2px solid var(--ink); background: var(--surface-2); }
 
 /* Long text at large text scales wraps instead of clipping (Phase 6 §4.7: nothing clips at 175%). */
-#ui:not([data-text-scale='100']) :is(.tool-label, .panel-title, .mini-label, .tb-title, .hud-name) {
+#ui:not([data-text-scale='100']) :is(.tool-label, .panel-title, .mini-label, .tb-title) {
   white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: break-word; hyphens: auto;
 }
 #ui:not([data-text-scale='100']) .tool-label { text-align: center; }
@@ -849,9 +895,9 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 #ui[data-layout='side'][data-text-scale='125'] .toolbar,
 #ui[data-layout='side'][data-text-scale='150'] .toolbar,
 #ui[data-layout='side'][data-text-scale='175'] .toolbar { width: min(280px, calc(var(--toolbar-w) * 1.6 * var(--ts, 1))); }
-.hud-name { max-width: calc(220px * var(--ts, 1)); }
 #ui[data-text-scale='150'] .panel-title, #ui[data-text-scale='175'] .panel-title { white-space: normal; overflow-wrap: break-word; }
 #ui[data-text-scale='150'] .hud-item, #ui[data-text-scale='175'] .hud-item { white-space: normal; }
+#ui:not([data-text-scale='100']) .hud-name { white-space: normal; overflow-wrap: anywhere; }
 #ui[data-text-scale='175'] .meter-row { grid-template-columns: minmax(0, 1fr) 1fr minmax(44px, auto); }
 #ui[data-text-scale='175'] .dialog { width: min(480px, 100%); }
 #ui[data-text-scale='175'] .title-card { width: min(520px, 100%); }
