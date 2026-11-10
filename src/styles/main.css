@@ -93,7 +93,7 @@ button { font: inherit; color: inherit; }
   gap: 8px;
   pointer-events: none;
   /* Desktop: status pill | mood slot | controls over the day pill. */
-  grid-template-columns: minmax(0, 1fr) clamp(280px, 40vw, 520px) minmax(304px, 1fr);
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 40vw, 520px) minmax(320px, 1fr);
   grid-template-areas: 'status mood controls' '. . day';
 }
 .pill {
@@ -141,7 +141,7 @@ button { font: inherit; color: inherit; }
 .hud-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
 .speed-toggle { width: auto; min-width: var(--touch); padding: 0 12px; border-radius: 22px; }
 .speed-toggle .icon { width: 18px; height: 18px; }
-.speed { display: inline-flex; gap: 4px; }
+.speed { display: inline-flex; gap: 8px; }
 .speed-menu { padding: 4px; pointer-events: auto; background: var(--surface); border: var(--outline); border-radius: 26px; box-shadow: var(--shadow); }
 .speed-btn { width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; font-weight: 700; background: transparent; border-color: transparent; border-radius: 22px; }
 .speed-btn .icon { width: 18px; height: 18px; }

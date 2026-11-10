@@ -31,13 +31,13 @@ export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
 
-export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed 2×' | 'Speed 4×'): Promise<void> {
+export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed 2×' | 'Speed 4×', opts: PressOptions = {}): Promise<void> {
   const group = page.getByRole('group', { name: 'Game speed' });
   const button = group.getByRole('button', { name: label });
   // The phone keeps the speed buttons in a menu that its Speed button opens.
   const toggle = page.getByTestId('speed-toggle');
-  if ((await toggle.isVisible()) && !(await group.isVisible())) await toggle.click();
-  await button.click();
+  if ((await toggle.isVisible()) && !(await group.isVisible())) await press(toggle, opts);
+  await press(button, opts);
   // The phone's menu closes on a choice, so the pressed state is read by label, not by role (a hidden button has none).
   await expect(page.locator(`.speed-btn[aria-label="${label}"]`)).toHaveAttribute('aria-pressed', 'true');
 }

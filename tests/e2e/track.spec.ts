@@ -213,7 +213,7 @@ test.describe('track builder', () => {
     await expect(page.getByTestId('track-tab-test')).toHaveAttribute('aria-selected', 'true');
     await press(page, phone, 'track-test');
     await expect(page.getByTestId('track-test-status')).toContainText('Testing');
-    await setSpeed(page, 'Speed 4×');
+    await setSpeed(page, 'Speed 4×', { tap: phone });
     await expect(page.getByTestId('track-test-status')).toHaveText('Test passed', { timeout: 90_000 });
     for (const k of ['excitement', 'intensity', 'nausea']) {
       await expect(page.getByTestId(`track-rating-${k}`)).toBeVisible();
