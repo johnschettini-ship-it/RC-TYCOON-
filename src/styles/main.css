@@ -128,9 +128,17 @@ button { font: inherit; color: inherit; }
 .hud-name { font-weight: 700; font-size: calc(15px * var(--ts, 1)); max-width: calc(220px * var(--ts, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-mood { grid-area: mood; justify-self: stretch; min-width: 0; }
 .hud-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.hud-balance { width: 100%; gap: 8px; padding: 10px 14px; background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); font-size: calc(12px * var(--ts, 1)); }
-.balance { display: flex; flex: 1 1 0; min-width: 0; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-2); border: var(--control-outline); }
-.balance .seg { display: block; flex-basis: 0; flex-grow: 0; min-width: 0; }
+/* Mood bar (Phase 7 §4.3): Frost, three segments with a knot, Spark; the lean text sits below the bar (desktop). */
+.mood-bar { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 4px 10px; color: var(--ink); background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); font: inherit; font-size: calc(12px * var(--ts, 1)); font-variant-numeric: tabular-nums; cursor: pointer; }
+.mood-bar:hover { background: var(--surface-3); }
+.mood-bar[aria-pressed='true'] { outline: 3px solid var(--ink); outline-offset: 1px; }
+.mood-face { display: inline-flex; flex: none; line-height: 0; }
+.mood-middle { display: flex; flex: 1 1 0; flex-direction: column; gap: 2px; min-width: 0; }
+.mood-track { position: relative; display: flex; height: 22px; border-radius: 11px; overflow: hidden; background: var(--surface-2); border: var(--control-outline); }
+.mood-track .seg { display: flex; align-items: center; justify-content: center; flex-basis: 0; flex-grow: 0; min-width: 0; overflow: hidden; font-style: normal; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.mood-knot { position: absolute; top: -1px; bottom: -1px; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--surface); border: 2px solid var(--ink); box-sizing: border-box; transition: left 0.4s ease; pointer-events: none; }
+.mood-text { display: block; text-align: center; font-weight: 600; line-height: 1.2; white-space: normal; }
+.tc-rm .mood-knot { transition: none; }
 .seg-chill { background: var(--accent-chill); }
 .seg-family { background: var(--accent-family); }
 .seg-thrill { background: var(--accent-thrill); }
@@ -220,7 +228,8 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .hud-field { flex-direction: row; align-items: center; gap: 4px; }
 #ui[data-layout='bottom'] .hud-field .icon { display: block; }
 #ui[data-layout='bottom'] .hud-value { font-size: calc(16px * var(--ts, 1)); }
-#ui[data-layout='bottom'] .hud-balance .balance-end { display: none; }
+#ui[data-layout='bottom'] .mood-text { display: none; }
+#ui[data-layout='bottom'] .mood-bar { padding: 2px 8px; }
 #ui[data-layout='bottom'] .speed-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 3; }
 #ui[data-layout='bottom'] .day-pill {
   justify-self: start;

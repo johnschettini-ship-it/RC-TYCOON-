@@ -62,22 +62,13 @@ export function createToolbar(ctx: UiContext): { el: HTMLElement; update(): void
     { id: 'marketing', label: text('ui.tool.marketing'), icon: { mgmt: 'marketing' }, onClick: () => togglePanel('marketing'), pressed: () => panelIs('marketing') },
     { id: 'finance', label: text('ui.tool.finance'), icon: 'finance', onClick: () => togglePanel('finance'), pressed: () => panelIs('finance') },
     { id: 'park', label: text('ui.tool.park'), icon: 'park', onClick: () => togglePanel('park'), pressed: () => panelIs('park') },
-    {
-      id: 'temperament',
-      label: text('ui.tool.temperament'),
-      icon: 'temperament',
-      onClick: () => {
-        game.tool.overlay = game.tool.overlay === 'temperament' ? 'none' : 'temperament';
-      },
-      pressed: () => game.tool.overlay === 'temperament',
-    },
   ];
   // Build 2 tools (Wave 3 extensions) go before Demolish, in registry order.
   const extra: ButtonDef[] = toolbarEntries().map((e) => ({ id: e.id, label: e.label, icon: { el: e.icon }, onClick: () => e.onClick(ctx), pressed: () => e.pressed(ctx) }));
   defs.splice(defs.findIndex((d) => d.id === 'demolish'), 0, ...extra);
 
   const buttons = defs.map((d) => {
-    const ariaLabel = d.id === 'temperament' ? text('ui.tool.temperamentLong') : d.label;
+    const ariaLabel = d.label;
     const b = h(
       'button',
       { type: 'button', class: 'tool-btn', 'data-tool': d.id, 'data-testid': `tool-${d.id}`, 'aria-label': ariaLabel, title: ariaLabel, 'aria-pressed': 'false', onclick: d.onClick },

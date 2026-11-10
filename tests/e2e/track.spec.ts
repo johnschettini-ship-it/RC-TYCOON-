@@ -51,9 +51,9 @@ async function showTile(page: Page, x: number, y: number): Promise<{ x: number; 
     const g = window.__tc;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    // Clear of the toolbar, HUD, and the builder (right side panel, or a bottom sheet on narrow screens).
+    // Clear of the toolbar, HUD (and the toast under it), and the builder (right side panel, or a bottom sheet on narrow screens).
     const fx = vw < 900 ? 0.5 : 0.42;
-    const fy = vw < 900 ? 0.3 : 0.45;
+    const fy = vw < 900 ? 0.36 : 0.45;
     const map = g.world.state.map;
     const z = map.heights[ty * map.width + tx] ?? 8;
     const sx = (tx - ty) * 32;

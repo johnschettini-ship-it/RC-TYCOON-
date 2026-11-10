@@ -23,3 +23,8 @@ export function leanTextId(p: SharePercents, totalGuests: number): LeanTextId {
   if (l <= -LEAN_BALANCE_POINTS) return 'ui.mood.chill';
   return 'ui.mood.balance';
 }
+
+/** Frost is sad while Chill is the under-served group, Spark while Thrill is; otherwise both are happy. */
+export function faceMoods(group: Group | null): { frost: 'happy' | 'sad'; spark: 'happy' | 'sad' } {
+  return { frost: group === 'chill' ? 'sad' : 'happy', spark: group === 'thrill' ? 'sad' : 'happy' };
+}

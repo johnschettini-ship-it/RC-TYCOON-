@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { knotPercent, lean, leanTextId } from '../../../src/ui/mood/model';
+import { faceMoods, knotPercent, lean, leanTextId } from '../../../src/ui/mood/model';
 
 const p = (chill: number, family: number, thrill: number) => ({ chill, family, thrill });
 
@@ -21,4 +21,10 @@ describe('mood model (Phase 7 §4.3)', () => {
     [p(0, 0, 100), 'ui.mood.thrill'],
   ])('%j gives %s', (shares, id) => expect(leanTextId(shares, 50)).toBe(id));
   it('no guests gives the no-guests text', () => expect(leanTextId(p(0, 0, 0), 0)).toBe('ui.mood.none'));
+  it('Frost is sad for Chill, Spark for Thrill; both are happy for Family and for no group', () => {
+    expect(faceMoods('chill')).toEqual({ frost: 'sad', spark: 'happy' });
+    expect(faceMoods('thrill')).toEqual({ frost: 'happy', spark: 'sad' });
+    expect(faceMoods('family')).toEqual({ frost: 'happy', spark: 'happy' });
+    expect(faceMoods(null)).toEqual({ frost: 'happy', spark: 'happy' });
+  });
 });

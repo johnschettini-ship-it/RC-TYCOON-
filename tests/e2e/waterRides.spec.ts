@@ -58,7 +58,7 @@ async function showTile(page: Page, x: number, y: number): Promise<{ x: number; 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     const fx = vw < 900 ? 0.5 : 0.42;
-    const fy = vw < 900 ? 0.3 : 0.45;
+    const fy = vw < 900 ? 0.36 : 0.45;
     const map = g.world.state.map;
     const z = map.heights[ty * map.width + tx] ?? 8;
     g.camera.centerX = (tx - ty) * 32 - (fx * vw - vw / 2) / g.camera.zoom;

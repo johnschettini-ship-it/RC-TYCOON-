@@ -59,7 +59,7 @@ test.describe('HUD and toolbar', () => {
   test('the toolbar is visible with labelled buttons of at least 44 × 44 px', async ({ page }, info) => {
     const bar = page.getByRole('toolbar', { name: 'Tools' });
     await expect(bar).toBeVisible();
-    for (const name of ['Inspect', 'Footpath', 'Queue', 'Rides', 'Stalls', 'Demolish', 'Finance', 'Park', 'Temperament overlay']) {
+    for (const name of ['Inspect', 'Footpath', 'Queue', 'Rides', 'Stalls', 'Demolish', 'Finance', 'Park']) {
       const b = bar.getByRole('button', { name, exact: true });
       await expect(b).toHaveCount(1);
       const box = await b.boundingBox();

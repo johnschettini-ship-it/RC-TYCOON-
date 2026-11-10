@@ -9,15 +9,15 @@ import { unreadCount } from '../sim/notifications';
 import type { TextScale } from '../settings/types';
 import type { UiContext } from './context';
 import { h, newId, setAttr, setText, toggleClass } from './dom';
-import { formatMoney, sharePercents, temperamentShares } from './format';
+import { formatMoney } from './format';
 import { icon } from './icons';
 import { pillFields, type PillField, type ToolbarPlacement } from './layout';
+import { createMoodBar } from './mood/moodBar';
 import { mgmtIcon } from './management/icons';
 import { createWeatherBadge } from './management/weatherBadge';
 import { UI_EXTENSIONS } from './extensions';
 
 const SPEEDS: readonly Speed[] = [0, 1, 2, 4];
-const BALANCE_MS = 500;
 
 export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLElement; moodSlot: HTMLElement; update(now: number): void } {
   const { game } = ctx;
@@ -50,16 +50,9 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     fields.rating,
   );
 
-  // Mood slot: the Thrill/Chill balance bar (Task 8 replaces it with the mood bar).
-  const segChill = h('i', { class: 'seg seg-chill' });
-  const segFamily = h('i', { class: 'seg seg-family' });
-  const segThrill = h('i', { class: 'seg seg-thrill' });
-  const balance = h('div', { class: 'balance', role: 'img', 'data-testid': 'hud-balance' }, segChill, segFamily, segThrill);
-  const moodSlot = h(
-    'div',
-    { class: 'hud-mood' },
-    h('div', { class: 'hud-item hud-balance' }, h('span', { class: 'balance-end chill', text: text('ui.tag.chill'), 'aria-hidden': 'true' }), balance, h('span', { class: 'balance-end thrill', text: text('ui.tag.thrill'), 'aria-hidden': 'true' })),
-  );
+  // Mood slot: the mood bar (Phase 7 §4.3).
+  const mood = createMoodBar(ctx);
+  const moodSlot = h('div', { class: 'hud-mood' }, mood.el);
 
   // Controls: speed (4 buttons; one Speed button opens them on the phone), Messages, Menu.
   const speedButtons = SPEEDS.map((s) =>
@@ -123,7 +116,6 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     if (speedOpen && !(e.target instanceof Node && speedGroup.parentElement?.contains(e.target))) setSpeedOpen(false);
   });
 
-  let lastBalance = -Infinity;
   let lastUnread = -1;
   let lastFields = '';
   let lastSpeed: Speed | -1 = -1;
@@ -175,16 +167,7 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
         setAttr(messages, 'aria-label', label);
         setAttr(messages, 'title', label);
       }
-      if (now - lastBalance >= BALANCE_MS) {
-        lastBalance = now;
-        const shares = temperamentShares(s.guests);
-        const p = sharePercents(shares);
-        segChill.style.flexGrow = String(p.chill);
-        segFamily.style.flexGrow = String(p.family);
-        segThrill.style.flexGrow = String(p.thrill);
-        toggleClass(balance, 'empty', shares.total === 0);
-        setAttr(balance, 'aria-label', shares.total === 0 ? text('ui.hud.balanceEmpty') : text('ui.hud.balance', p));
-      }
+      mood.update(now);
     },
   };
 }

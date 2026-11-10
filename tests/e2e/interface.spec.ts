@@ -12,3 +12,17 @@ test('the game loads the bundled font and asks no other host for anything', asyn
   expect(loaded).toBe(true);
   expect(foreign).toEqual([]);
 });
+
+test('the mood bar names the balance and toggles the Temperament overlay', async ({ page }, info) => {
+  await newPark(page);
+  const bar = page.getByTestId('hud-balance');
+  await expect(bar).toHaveAttribute('aria-label', 'Thrill/Chill balance: no guests yet, No guests yet');
+  if (info.project.name === 'desktop') await expect(page.getByTestId('mood-text')).toHaveText('No guests yet');
+  const overlay = () => page.evaluate(() => (window as unknown as { __tc: { tool: { overlay: string } } }).__tc.tool.overlay);
+  await bar.click();
+  await expect(bar).toHaveAttribute('aria-pressed', 'true');
+  expect(await overlay()).toBe('temperament');
+  await bar.click();
+  await expect(bar).toHaveAttribute('aria-pressed', 'false');
+  expect(await overlay()).toBe('none');
+});
