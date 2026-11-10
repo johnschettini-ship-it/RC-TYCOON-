@@ -11,7 +11,6 @@ interface IconDef {
 }
 
 const ICONS = {
-  inspect: { d: 'M15.5 15.5 L21 21', circles: [[10, 10, 6.5]] },
   footpath: { d: 'M12 3.5 L21 8.5 L12 13.5 L3 8.5 Z M3 13 L12 18 L21 13 M7 10.7 L16 6.3' },
   queue: { d: 'M4 5 H19 V10 H5 V15 H19 V20 H6' },
   rides: { d: 'M12 10 L7.5 21 M12 10 L16.5 21 M5 21 H19 M12 3.5 V16.5 M5.5 10 H18.5 M7.4 5.4 L16.6 14.6 M16.6 5.4 L7.4 14.6', circles: [[12, 10, 6.5]] },

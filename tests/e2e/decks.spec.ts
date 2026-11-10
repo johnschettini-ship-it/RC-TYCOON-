@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, openTool, toolControl } from './helpers';
+import { isPhone, newPark, openTool, pickCard, toolControl } from './helpers';
 
 const tc = <T>(page: Page, f: string): Promise<T> => page.evaluate(`(() => { const g = window.__tc; return ${f}; })()`) as Promise<T>;
 const toolNow = (page: Page): Promise<string> => tc<string>(page, 'g.tool.tool');
@@ -61,6 +61,28 @@ test('Put back, Esc, and Cancel select Inspect', async ({ page }) => {
   await page.getByRole('region', { name: 'Tool options' }).getByRole('button', { name: 'Cancel' }).click();
   expect(await toolNow(page)).toBe('inspect');
   await expect(page.getByTestId('card-put-back')).toHaveCount(0);
+});
+
+test('Put back on the Finance card closes its panel and keeps Inspect', async ({ page }) => {
+  await openTool(page, 'finance');
+  await expect(page.locator('.panel-title')).toHaveText('Finance');
+  // The phone tucks the hand while the card is pressed: the card is made visible first.
+  await toolControl(page, 'finance');
+  await page.locator('.card-wrap:has([data-tool="finance"]) [data-testid="card-put-back"]').click();
+  await expect(page.locator('.panel')).toBeHidden();
+  expect(await toolNow(page)).toBe('inspect');
+  await expect(page.getByTestId('tool-finance')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('Put back on the Rides card while a ride is placed selects Inspect and opens no picker', async ({ page }) => {
+  await pickCard(page, 'flat', 'carousel');
+  expect(await toolNow(page)).toBe('placeRide');
+  await toolControl(page, 'rides');
+  await expect(page.getByTestId('tool-rides')).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.card-wrap:has([data-tool="rides"]) [data-testid="card-put-back"]').click();
+  await expect.poll(() => toolNow(page)).toBe('inspect');
+  await expect(page.locator('.panel')).toBeHidden();
+  await expect(page.getByTestId('tool-rides')).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('no toolbar named Tools is on the screen', async ({ page }) => {

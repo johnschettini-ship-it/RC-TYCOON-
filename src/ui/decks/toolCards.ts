@@ -97,9 +97,9 @@ export function cardsOfDeck(deck: DeckId, cards: readonly ToolCardDef[]): ToolCa
 }
 
 /**
- * Put back (a press on Put back or on the held card). A card whose press opens a panel, a picker, or the overlay chips
- * and leaves `ToolState.tool` alone does what its second press does: it closes them. A card held through its tool (a
- * tool card, or the Rides card while a ride is placed) selects Inspect.
+ * Put back (a press on Put back or on the held card). A card pressed because its panel, picker, or chips are open does
+ * what its second press does: it closes them. A card pressed because its tool is active (a tool card, or Rides, Stalls,
+ * Staff, or Shows held through `placeRide`, `placeStall`, `patrol`, or `placeShowSite`) selects Inspect.
  */
 export function putBack(ctx: UiContext, def: ToolCardDef): void {
   const panel = PANEL_OF[def.id];
