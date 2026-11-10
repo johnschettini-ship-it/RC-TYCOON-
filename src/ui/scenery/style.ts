@@ -32,7 +32,9 @@ const CSS = `
 .scn-mood-family { border-top-color: var(--accent-family); }
 .scn-mood-neutral { border-top-color: var(--muted-ink); }
 .scn-note { margin: 0; padding: 4px 14px; color: var(--warn-text); font-size: calc(13px * var(--ts, 1)); flex: none; }
-.scn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 6px; padding: 8px; overflow-y: auto; }
+/* Rows take the full height of their cards and the grid scrolls; with plain auto rows the grid squeezed the rows to
+   fit the sheet (the preview canvas has a percentage width, so it counts as compressible), and text spilled out. */
+.scn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); grid-auto-rows: max-content; align-content: start; gap: 6px; padding: 8px; overflow-y: auto; }
 #ui[data-layout='bottom'] .scn-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
 .scn-card {
   pointer-events: auto; cursor: pointer; display: flex; flex-direction: column; align-items: stretch; gap: 2px; padding: 4px;
