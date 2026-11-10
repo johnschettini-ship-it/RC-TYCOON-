@@ -69,6 +69,7 @@ export const showsUi: UiExtension = {
   toolbar: [
     {
       id: 'shows',
+      deck: 'rides',
       // Read when the toolbar mounts (after the locale is chosen), not when this module loads.
       get label(): string {
         return text('shows.tool');

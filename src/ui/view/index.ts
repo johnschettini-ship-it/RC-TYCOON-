@@ -61,6 +61,7 @@ function hud(ctx: UiContext): UiPart {
 
 const buyLandEntry: ToolbarEntry = {
   id: 'buyLand',
+  deck: 'scenery',
   get label() {
     return text('land.tool.buyLand');
   },

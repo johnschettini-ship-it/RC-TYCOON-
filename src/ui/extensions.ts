@@ -4,6 +4,7 @@
  * Build 1 files. Every control needs a text label or `aria-label` and a 44 × 44 CSS px touch target (plan Global
  * Constraints).
  */
+import type { DeckId } from './decks/model';
 import type { SimEvent } from '../sim/types';
 import type { ExtensionPanelKind, PanelView, UiContext } from './context';
 import { landUi } from './land';
@@ -28,6 +29,8 @@ export interface UiPart {
 export interface ToolbarEntry {
   /** `data-tool` and `data-testid="tool-<id>"`. */
   id: string;
+  /** The deck whose tool cards include this tool (Phase 7 §4.4). */
+  deck: DeckId;
   label: string;
   icon(): Element;
   onClick(ctx: UiContext): void;

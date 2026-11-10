@@ -336,6 +336,7 @@ export const landUi: UiExtension = {
   toolbar: [
     {
       id: 'land',
+      deck: 'scenery',
       get label() {
         return text('landUi.tool.land');
       },
@@ -345,6 +346,7 @@ export const landUi: UiExtension = {
     },
     {
       id: 'water',
+      deck: 'scenery',
       get label() {
         return text('landUi.tool.water');
       },

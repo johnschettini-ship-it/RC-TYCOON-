@@ -157,6 +157,7 @@ export const overlayUi: UiExtension = {
   toolbar: [
     {
       id: 'overlays',
+      deck: 'manage',
       get label() {
         return text('fields.overlays');
       },

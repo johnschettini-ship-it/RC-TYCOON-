@@ -60,6 +60,7 @@ export const sceneryUi: UiExtension = {
   toolbar: [
     {
       id: 'scenery',
+      deck: 'scenery',
       get label() {
         return text('scenery.tool');
       },
