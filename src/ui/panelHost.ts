@@ -59,6 +59,11 @@ export class PanelHost {
     return this.view;
   }
 
+  /** The height in px that shows the whole open panel with no scroll: its header and all of its body. */
+  fullHeight(): number {
+    return this.el.offsetHeight - this.bodyEl.clientHeight + this.bodyEl.scrollHeight;
+  }
+
   open(view: PanelView): void {
     const prev = this.view;
     this.view = view;

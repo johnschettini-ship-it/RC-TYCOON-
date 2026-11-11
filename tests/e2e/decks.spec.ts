@@ -243,6 +243,112 @@ test('a held track ride card shows its four values, and the station builder stay
   expect(await toolNow(page)).toBe('track');
 });
 
+/** Sets the text scale setting and waits until the UI has it. */
+async function textScale(page: Page, scale: 100 | 175): Promise<void> {
+  await tc(page, `g.settings.set('textScale', ${scale})`);
+  await expect(page.locator('#ui')).toHaveAttribute('data-text-scale', String(scale));
+}
+
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+/** The free space between two boxes in px (0 when they touch or overlap). */
+const boxGap = (a: Box, b: Box): number => Math.hypot(Math.max(0, a.x - (b.x + b.width), b.x - (a.x + a.width)), Math.max(0, a.y - (b.y + b.height), b.y - (a.y + a.height)));
+
+for (const scale of [100, 175] as const) {
+  test(`phone, ${scale}% text: the Details button of the station builder is 8 px or more from each control near it`, async ({ page }) => {
+    test.skip(!isPhone(test.info()), 'phone layout');
+    await textScale(page, scale);
+    await pickCard(page, 'track', 'junior_coaster');
+    const builder = page.getByTestId('track-builder');
+    await expect(builder).toBeVisible();
+    const details = (await page.getByTestId('track-details').boundingBox())!;
+    expect(details.width).toBeGreaterThanOrEqual(44);
+    expect(details.height).toBeGreaterThanOrEqual(44);
+    // The button is on the screen, in the first line of the station controls (next to Rotate).
+    expect(details.x).toBeGreaterThanOrEqual(0);
+    expect(details.x + details.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    expect(details.y).toBe((await page.getByTestId('track-rotate').boundingBox())!.y);
+    // Leave, Rotate, Shorter station, Longer station, Cancel, Confirm.
+    const others = builder.locator('button:visible:not([data-testid="track-details"])');
+    await expect(others).toHaveCount(6);
+    for (const other of await others.all()) {
+      const name = (await other.getAttribute('aria-label')) ?? (await other.textContent());
+      expect(boxGap(details, (await other.boundingBox())!), `Details to ${name}`).toBeGreaterThanOrEqual(7.9);
+    }
+  });
+}
+
+test('desktop: a details panel that does not fit above the hand runs to the bottom, and the hand ends at its left edge', async ({ page }) => {
+  test.skip(isPhone(test.info()), 'desktop layout');
+  const ui = page.locator('#ui');
+  const panel = page.locator('.panel');
+  const hand = page.getByTestId('hand');
+  const right = (box: Box): number => box.x + box.width;
+  const bottom = (box: Box): number => box.y + box.height;
+
+  // 100% text on a high screen: the panel fits above the hand, and the hand keeps its place.
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const handBefore = (await hand.boundingBox())!;
+  await pickCard(page, 'flat', 'carousel');
+  await expect(panel.locator('.panel-title')).toHaveText('Carousel');
+  await expect(ui).not.toHaveAttribute('data-details');
+  expect(bottom((await panel.boundingBox())!)).toBeLessThanOrEqual(handBefore.y);
+  expect(await hand.boundingBox()).toEqual(handBefore);
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+
+  // 175% text on 1280 × 800: above the hand the panel has room for the title and one row only.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await textScale(page, 175);
+  const wide = (await hand.boundingBox())!;
+  await pickCard(page, 'flat', 'carousel');
+  await expect(panel.locator('.panel-title')).toHaveText('Carousel');
+  await expect(ui).toHaveAttribute('data-details', 'tall');
+  let p = (await panel.boundingBox())!;
+  let h = (await hand.boundingBox())!;
+  expect(bottom(p)).toBeGreaterThan(h.y);
+  expect(bottom(p)).toBeLessThanOrEqual(800 - 10);
+  expect(right(h)).toBeLessThanOrEqual(p.x - 8);
+  // The hand keeps its left edge (its cards do not move) and its height (the bars above it do not move).
+  expect(h.x).toBe(wide.x);
+  expect(h.height).toBe(wide.height);
+  // The whole panel shows with no scroll: the seven rows and the hint.
+  expect(await panel.locator('.panel-body').evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
+  await expect(panel.locator('.details-rows .row')).toHaveCount(7);
+  expect(bottom((await panel.locator('.details-hint').boundingBox())!)).toBeLessThanOrEqual(bottom(p));
+  // The held card stays in view in the narrower hand, with its Put back button.
+  const view = (await hand.locator('.hand-scroll').boundingBox())!;
+  const card = (await page.getByTestId('card-carousel').boundingBox())!;
+  expect(card.x).toBeGreaterThanOrEqual(view.x);
+  expect(right(card)).toBeLessThanOrEqual(right(view));
+
+  // 1280 × 720 (the size of spec §4.10): the panel ends 10 px above the bottom, and every data row is in view.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBe(720 - 10);
+  await expect(ui).toHaveAttribute('data-details', 'tall');
+  p = (await panel.boundingBox())!;
+  h = (await hand.boundingBox())!;
+  expect(right(h)).toBeLessThanOrEqual(p.x - 8);
+  expect(bottom((await panel.locator('.details-rows .row').last().boundingBox())!)).toBeLessThanOrEqual(bottom(p));
+
+  // Close: the hand takes its width back. A panel of another kind ends above the hand.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(panel).toBeHidden();
+  await expect(ui).not.toHaveAttribute('data-details');
+  await expect.poll(() => hand.boundingBox()).toEqual(wide);
+  await pickCard(page, 'flat', 'big_wheel');
+  await expect(ui).toHaveAttribute('data-details', 'tall');
+  await openTool(page, 'finance');
+  await expect(panel.locator('.panel-title')).toHaveText('Finance');
+  await expect(ui).not.toHaveAttribute('data-details');
+  expect(bottom((await panel.boundingBox())!)).toBeLessThanOrEqual((await hand.boundingBox())!.y);
+});
+
 test('no toolbar named Tools is on the screen', async ({ page }) => {
   await expect(page.getByRole('toolbar', { name: 'Tools' })).toHaveCount(0);
   await expect(page.getByRole('toolbar', { name: 'Card decks' })).toBeVisible();

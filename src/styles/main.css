@@ -511,6 +511,18 @@ button { font: inherit; color: inherit; }
   right: auto;
   max-width: calc(100% - var(--deck-w) - 410px - var(--safe-left) - var(--safe-right));
 }
+/* Desktop: a details panel that does not fit above the hand (the UI measures it and sets `data-details="tall"`) runs to
+   the bottom of the screen, and the hand ends at its left edge: it sits between the deck list and the panel, as the
+   tool status bar does. A hand that fills this space keeps its left edge, so its cards do not move. */
+#ui[data-details='tall'] .panel[data-layout='side'] { max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom)); }
+#ui[data-layout='side'][data-details='tall'] .hand {
+  left: calc(var(--deck-w) + 30px + var(--safe-left));
+  right: calc(380px + var(--safe-right));
+  width: fit-content;
+  max-width: calc(100% - var(--deck-w) - 410px - var(--safe-left) - var(--safe-right));
+  margin: 0 auto;
+  transform: none;
+}
 
 .meter-row { display: grid; grid-template-columns: 92px 1fr 44px; align-items: center; gap: 8px; }
 .meter-label { color: var(--muted-ink); font-size: calc(13px * var(--ts, 1)); }
@@ -853,6 +865,8 @@ button { font: inherit; color: inherit; }
 .tb-count { font-size: calc(12px * var(--ts, 1)); }
 .tb-body { display: flex; flex-direction: column; gap: 6px; }
 .tb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+/* The station controls hold the phone's Details button (Phase 7 §4.6): its controls are 8 px apart. */
+.tb-station .tb-row { gap: 8px; }
 .tb-hint { margin: 0; font-size: calc(13px * var(--ts, 1)); }
 .tb-keys { margin: 0; font-size: calc(11px * var(--ts, 1)); }
 .tb-status { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius); border: var(--control-outline); min-height: var(--touch); }

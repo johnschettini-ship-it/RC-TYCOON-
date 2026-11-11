@@ -94,8 +94,29 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
     if (prev.hidden === show) prev.hidden = !show;
     if (next.hidden === show) next.hidden = !show;
   };
+  /** Scrolls the strip so that the held ride or stall card is in view, with room for its ring. */
+  const showHeld = (): void => {
+    if (!heldWrap) return;
+    const view = scroller.getBoundingClientRect();
+    const card = heldWrap.getBoundingClientRect();
+    const pad = 8;
+    // A card that is wider than the strip shows its start.
+    if (card.left - pad < view.left || card.width + 2 * pad > view.width) scroller.scrollLeft += card.left - pad - view.left;
+    else if (card.right + pad > view.right) scroller.scrollLeft += card.right + pad - view.right;
+  };
+  /**
+   * Width of the strip at its last size change. A strip that gets narrower keeps the held card in view (Phase 7 §4.7:
+   * a tall card details panel takes the end of the hand).
+   */
+  let stripWidth = 0;
+  const onResize = (): void => {
+    refreshArrows();
+    const width = scroller.clientWidth;
+    if (width > 0 && width < stripWidth) showHeld();
+    stripWidth = width;
+  };
   if (typeof ResizeObserver !== 'undefined') {
-    const ro = new ResizeObserver(refreshArrows);
+    const ro = new ResizeObserver(onResize);
     ro.observe(scroller);
     ro.observe(cards);
   }

@@ -6,7 +6,7 @@
 import type { Game } from '../game';
 import { SaveStore, importFile, type KeyValueStore } from '../save';
 import type { PanelKind, PanelView, UiContext } from './context';
-import { h } from './dom';
+import { h, setAttr } from './dom';
 import { createDecks, type DecksUi } from './decks';
 import { heldCardId } from './decks/model';
 import { createHud } from './hud';
@@ -109,6 +109,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
       lastSelection = null;
     }
     if (closed.kind === 'guest' && ctx.follow.guestId === closed.id && panels.current() === null) ctx.follow.guestId = null;
+    if (closed.kind === 'cardDetails' && panels.current() === null) fitDetails();
   });
 
   const ctx: UiContext = {
@@ -172,6 +173,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
         lastSelection = null;
       }
       panels.open(view);
+      fitDetails();
     },
     closePanel() {
       panels.close();
@@ -223,6 +225,19 @@ export function mountUI(root: HTMLElement, game: Game): void {
   };
   window.addEventListener('resize', applyLayout);
   applyLayout();
+  // Phase 7 §4.7, desktop: a card details panel that does not fit above the hand runs to the bottom of the screen, and
+  // the hand ends at its left edge (`data-details="tall"`, main.css). The hand keeps its height, so the answer does not
+  // change with the state. Measured when the panel opens or closes and when a region changes its size, not per frame.
+  const fitDetails = (): void => {
+    let tall = false;
+    if (root.dataset.layout === 'side' && panels.current()?.kind === 'cardDetails' && !decks.hand.hidden) {
+      const hand = decks.hand.getBoundingClientRect();
+      // A side panel ends above the hand, as far from it as the hand is from the bottom of the screen.
+      const limit = Math.floor(hand.top) - (window.innerHeight - hand.bottom);
+      tall = panels.el.getBoundingClientRect().top + panels.fullHeight() > limit;
+    }
+    setAttr(root, 'data-details', tall ? 'tall' : null);
+  };
   // The top region wraps on narrow screens: panels, toasts, and the deck list sit below its real height. The bottom
   // region is the hand on desktop (0 when closed) and the chip row with the hand on the phone.
   const measure = (): void => {
@@ -232,6 +247,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     if (root.dataset.layout === 'bottom') tops.push(decks.list.getBoundingClientRect().top);
     const space = tops.length > 0 ? Math.ceil(window.innerHeight - Math.min(...tops)) : 0;
     root.style.setProperty('--toolbar-space', `${Math.max(0, space)}px`);
+    fitDetails();
   };
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(measure);
