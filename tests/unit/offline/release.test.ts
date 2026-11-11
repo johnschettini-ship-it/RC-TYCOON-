@@ -1,11 +1,11 @@
 /**
- * The automated part of the Build 3 release checklist (Phase 6 §4.11, `scripts/check-release.ts`).
+ * The automated part of the release checklist (Phase 6 §4.11, `scripts/check-release.ts`), Build 4 (4.0.0).
  */
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems } from '../../../scripts/check-release';
+import { distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems, RELEASE_VERSION } from '../../../scripts/check-release';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -49,6 +49,57 @@ describe('originality scan (checklist item 7)', () => {
       { path: 'docs/screenshots/wave1-park.png', text: null },
     ]);
     expect(problems).toEqual([`src/a.ts: names "${other}"`, 'public/sounds/pop.wav: audio file (all audio is generated in code)', 'public/fonts/x.woff2: font file', 'public/art/ride.png: image not made by the project']);
+  });
+});
+
+describe('the two vendored Fredoka files (Phase 7 §4.9; ruling I)', () => {
+  const latin = 'fredoka-latin-wght-normal';
+  const ext = 'fredoka-latin-ext-wght-normal';
+
+  it('the repository files pass at their exact sizes; any other font file, or another size, fails', () => {
+    expect(
+      originalityProblems([
+        { path: `src/assets/fonts/fredoka/${latin}.woff2`, text: null, bytes: 29_732 },
+        { path: `src/assets/fonts/fredoka/${ext}.woff2`, text: null, bytes: 4_576 },
+      ]),
+    ).toEqual([]);
+    expect(
+      originalityProblems([
+        { path: `src/assets/fonts/fredoka/${latin}.woff2`, text: null, bytes: 29_733 },
+        { path: `src/assets/fonts/fredoka/${ext}.woff2`, text: null },
+        { path: 'src/assets/fonts/fredoka/fredoka-bold.woff2', text: null, bytes: 4_576 },
+        { path: `public/fonts/${latin}.woff2`, text: null, bytes: 29_732 },
+        { path: `src/assets/fonts/fredoka/${latin}.ttf`, text: null, bytes: 29_732 },
+      ]),
+    ).toEqual([
+      `src/assets/fonts/fredoka/${latin}.woff2: font file`,
+      `src/assets/fonts/fredoka/${ext}.woff2: font file`,
+      'src/assets/fonts/fredoka/fredoka-bold.woff2: font file',
+      `public/fonts/${latin}.woff2: font file`,
+      `src/assets/fonts/fredoka/${latin}.ttf: font file`,
+    ]);
+  });
+
+  it('the built assets pass at their exact sizes; any other font file in the build fails', () => {
+    const files: Record<string, string> = { ...goodDist(), [`assets/${latin}-DM6njrJ3.woff2`]: 'x'.repeat(29_732), [`assets/${ext}-CYrqKuxd.woff2`]: 'x'.repeat(4_576) };
+    files['sw-manifest.json'] = JSON.stringify({ buildId: 'b1', assets: Object.keys(files).filter((f) => f.startsWith('assets/') && !f.endsWith('.map')).sort(), files: [] });
+    expect(distProblems(fakeDist(files))).toEqual([]);
+
+    const bad: Record<string, string> = { ...goodDist(), [`assets/${latin}-DM6njrJ3.woff2`]: 'x'.repeat(29_000), 'assets/other-font-AbCdEf12.woff2': 'x'.repeat(4_576), 'assets/fredoka-AbCdEf12.ttf': 'x' };
+    bad['sw-manifest.json'] = JSON.stringify({ buildId: 'b1', assets: Object.keys(bad).filter((f) => f.startsWith('assets/') && !f.endsWith('.map')).sort(), files: [] });
+    expect(distProblems(fakeDist(bad))).toEqual([
+      'assets/fredoka-AbCdEf12.ttf: font file in the build',
+      `assets/${latin}-DM6njrJ3.woff2: font file in the build`,
+      'assets/other-font-AbCdEf12.woff2: font file in the build',
+    ]);
+  });
+});
+
+describe('release version', () => {
+  it('is 4.0.0 and matches package.json', () => {
+    expect(RELEASE_VERSION).toBe('4.0.0');
+    const pkg = JSON.parse(readFileSync(join(__dirname, '../../../package.json'), 'utf8')) as { version: string };
+    expect(pkg.version).toBe(RELEASE_VERSION);
   });
 });
 
@@ -98,7 +149,7 @@ describe('done-when rows and acceptance audits (checklist item 1)', () => {
 
   it('the repository checklist and audits pass', () => {
     const read = (p: string): string => readFileSync(join(__dirname, '../../..', p), 'utf8');
-    const audits = ['docs/superpowers/specs/thrills-and-chills/build-2-acceptance.md', 'docs/superpowers/specs/thrills-and-chills/build-3-acceptance.md'];
+    const audits = ['build-2', 'build-3', 'build-4'].map((b) => `docs/superpowers/specs/thrills-and-chills/${b}-acceptance.md`);
     expect(doneWhenProblems(read('docs/release/build-3-checklist.md'), Object.fromEntries(audits.map((p) => [p, read(p)])))).toEqual([]);
   });
 });

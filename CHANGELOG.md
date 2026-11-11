@@ -2,6 +2,26 @@
 
 Every public build of Thrills & Chills. A build keeps saves from the builds before it: older saves upgrade when they load (save schema 1 → 2 → 3). Settings and scenario progress are stored apart from saves.
 
+## Build 4 — "Frost and Spark" (4.0.0, unreleased)
+Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document version 2.
+
+### Changed
+- **New interface** (Phase 7, `docs/superpowers/specs/thrills-and-chills/phase-7-frost-and-spark-interface.md`): the HUD top bar and the 21-button toolbar are replaced.
+  - A status pill (park name, cash, guests, rating; it opens the Park panel), the controls (speed, Messages, Menu; one Speed button with a menu on a phone), and a day pill (weather, date, view buttons).
+  - The **mood bar**: the guest mix (Chill, Family, Thrill) with Frost and Spark at its ends, a knot for the lean, a lean text, and faces that turn sad for an under-served group; a press turns the Temperament overlay on and off.
+  - Five **card decks** (Rides, Stalls, Paths, Scenery, Manage) and the Demolish button; every old tool keeps its place in a deck. A **hand of cards** replaces the ride and stall pickers: zone strips, previews, cost chips, press-then-place, and drag to the map with a mouse or pen. A **card details** panel shows the held card's data (the Details button on a phone). The phone hand tucks away while a card is held.
+  - **Mascot tips:** one short tip at a time from Frost and Spark (no ride open, cash below zero, an under-served guest group), with a button to the place it names and Close; a new setting turns them off.
+  - A **light look**: white surfaces, ink outlines, colour tokens in `src/styles/tokens.css`, and one bundled font, Fredoka (SIL Open Font License 1.1).
+- **Title screen:** a pixel-art skyline park with the game name and a menu with Continue for the newest save (`docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md`). The four pictures are data in the JavaScript bundle; there are no image files.
+- **Settings version 2:** adds `mascotTips` (default on). A version 1 document is checked as version 1 and gets `mascotTips: true`; the store writes version 2 at the next change.
+
+### Size
+- First load: **352.7 KB** gzipped (JavaScript 342.7 KB + CSS 10.1 KB) of the 400 KB budget (Build 3: JavaScript 306.4 KB + CSS 7.5 KB). The title pictures are part of the JavaScript.
+- Font files (not part of the first-load budget, cached for offline play): `fredoka-latin-wght-normal.woff2` **29,732 bytes** and `fredoka-latin-ext-wght-normal.woff2` **4,576 bytes**, with their licence in `src/assets/fonts/fredoka/LICENSE`. The release check allows exactly these two font files at these sizes.
+
+### Not yet checked by a person
+The owner accepts the screenshots of the real game (`docs/screenshots/phase-7-*.png`) before the `build-4` tag. The interface constants in `tuning-log.md` are provisional until a play-test.
+
 ## Build 3 — "Lights and Sound" (3.0.0, unreleased)
 Save schema 3. Build 1 and Build 2 saves load and upgrade; Build 2 progress files load.
 

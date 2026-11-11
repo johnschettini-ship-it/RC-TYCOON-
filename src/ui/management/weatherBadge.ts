@@ -24,7 +24,7 @@ export function createWeatherBadge(ctx: UiContext): { el: HTMLElement; update():
     next,
   );
   let key = '';
-  return {
+  const badge = {
     update() {
       const s = ctx.game.world.state;
       const w = s.management.weather;
@@ -42,4 +42,7 @@ export function createWeatherBadge(ctx: UiContext): { el: HTMLElement; update():
     },
     el,
   };
+  // The button has its icons and its name from the start: a scan before the first frame finds no unnamed button.
+  badge.update();
+  return badge;
 }

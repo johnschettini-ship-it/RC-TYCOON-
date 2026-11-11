@@ -10,10 +10,8 @@ import type { UiPart } from '../extensions';
 import { sharePercents, temperamentShares } from '../format';
 import { mascotCanvas } from '../scenario/mascotArt';
 import { tipInput, underServedGroup } from '../tips/model';
-import { faceMoods, knotPercent, leanTextId } from './model';
+import { faceMoods, knotPercent, leanTextId, segmentLabel } from './model';
 
-/** A segment shows its percentage as text from this width on (CSS px). */
-const MIN_LABEL_PX = 44;
 const PORTRAIT_PX = { side: 48, bottom: 40 } as const;
 
 export function createMoodBar(ctx: UiContext): UiPart {
@@ -48,6 +46,8 @@ export function createMoodBar(ctx: UiContext): UiPart {
     { el: segFamily, key: 'family' },
     { el: segThrill, key: 'thrill' },
   ] as const;
+  /** The padding each segment has now (written only when it changes). */
+  const pads = ['', '', ''];
 
   // A portrait is drawn again only when its mood or its size changes.
   const drawn = { frost: '', spark: '' };
@@ -63,6 +63,16 @@ export function createMoodBar(ctx: UiContext): UiPart {
     }
   };
 
+  /** The accessible name: the guest mix and the lean text. */
+  const nameOf = (shares: ReturnType<typeof temperamentShares>, p: ReturnType<typeof sharePercents>, lean: string): string =>
+    `${shares.total === 0 ? text('ui.hud.balanceEmpty') : text('ui.hud.balance', p)}, ${lean}`;
+  // The button has its name from the start: a scan before the first frame finds no unnamed button.
+  {
+    const shares = temperamentShares(game.world.state.guests);
+    const p = sharePercents(shares);
+    setAttr(el, 'aria-label', nameOf(shares, p, text(leanTextId(p, shares.total))));
+  }
+
   let last = -Infinity;
   return {
     el,
@@ -76,15 +86,22 @@ export function createMoodBar(ctx: UiContext): UiPart {
       const shares = temperamentShares(game.world.state.guests);
       const p = sharePercents(shares);
       const lean = text(leanTextId(p, shares.total));
-      setAttr(el, 'aria-label', `${shares.total === 0 ? text('ui.hud.balanceEmpty') : text('ui.hud.balance', p)}, ${lean}`);
+      setAttr(el, 'aria-label', nameOf(shares, p, lean));
       setText(line, lean);
       const width = track.clientWidth;
-      for (const s of segs) {
+      segs.forEach((s, i) => {
         const v = p[s.key];
         const grow = String(v);
         if (s.el.style.flexGrow !== grow) s.el.style.flexGrow = grow;
-        setText(s.el, v > 0 && (width * v) / 100 >= MIN_LABEL_PX ? `${v}%` : '');
-      }
+        // The percentage keeps clear of the knot (it moves to the larger part of its segment beside the knot).
+        const label = segmentLabel(p, s.key, width);
+        setText(s.el, label.show ? `${v}%` : '');
+        const pad = label.show && (label.padStart > 0 || label.padEnd > 0) ? `0 ${Math.round(label.padEnd)}px 0 ${Math.round(label.padStart)}px` : '';
+        if (pads[i] !== pad) {
+          pads[i] = pad;
+          s.el.style.padding = pad;
+        }
+      });
       toggleClass(el, 'empty', shares.total === 0);
       const left = `${knotPercent(p)}%`;
       if (knot.style.left !== left) knot.style.left = left;

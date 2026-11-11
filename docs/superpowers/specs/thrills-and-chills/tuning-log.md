@@ -12,6 +12,25 @@ TC_BALANCE_SEEDS=12345,777,2024,1,42,9001,7,99,31337,500 npx vitest run tests/in
 
 ---
 
+## 2026-11-11 — Phase 7 interface constants (Build 4, logged at the Build 4 gate)
+
+All values are **provisional** until a play-test. They live in `src/data/tuning/interface.ts` (8 constants) and in
+spec `phase-7-frost-and-spark-interface.md` §8. `MASCOT_MIN_WIDTH_PX` (1100) of the first draft is not in the code:
+the bottom mascots were not built (spec §4.8).
+
+| Constant | Value | Meaning | Status |
+|---|---|---|---|
+| `LEAN_BALANCE_POINTS` | 10 | Lean below this is "in balance" | provisional |
+| `MOOD_UPDATE_MS` | 500 | Mood bar update period (the value of Build 3) | provisional |
+| `HAND_REFRESH_MS` | 500 | Unlock check period of the hand | provisional |
+| `TIP_CHECK_MS` | 2000 | Tip rule check period | provisional |
+| `TIP_MIN_GUESTS` | 20 | Rule 3 (`underServed`) needs this many guests | provisional |
+| `TIP_GAP_POINTS` | 15 | Rule 3 gap, in percentage points | provisional |
+| `CARD_DRAG_PX` | 8 | Pointer move that starts a card drag (the drag threshold of Phase 6 §4.7) | provisional |
+| `CARD_LIFT_PX` | 12 | Rise of the held card (CSS px) | provisional |
+
+---
+
 ## 2026-11-09 — Provisional starting values (Build 2 and Build 3 cards, logged at the Build 3 gate)
 
 ### Why

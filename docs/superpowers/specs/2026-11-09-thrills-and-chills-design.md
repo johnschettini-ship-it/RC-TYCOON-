@@ -82,13 +82,14 @@ Classic Fair, Frost Peaks, Volcano Ridge, Spooky Hollow, Jungle Lagoon, Starport
 
 ## 3. Build plan
 
-The 7 phases group into 3 builds. A build is a public release to GitHub Pages.
+The phases group into builds (Phase 7 is Build 4). A build is a public release to GitHub Pages.
 
 | Build | Phases | Player gets | Status |
 |---|---|---|---|
 | **Build 1 — "The Big Build"** (recommended) | 0, 1, 2, 3 | The complete core tycoon game on one flat 64 × 64 map: paths, 14 flat rides, 7 track ride types, 11 stalls and facilities, temperament, coasters with physics and ratings, staff, litter, breakdowns, research, marketing, loans, weather, park value, saves. | Proposed |
 | Build 2 — "The Wide World" | 4, 5 | Terrain, water rides, land purchase, 6 scenery themes, Calm and Buzz, After Dark, 8 scenarios, sandbox, tutorial, awards. | Proposed |
 | Build 3 — "Lights and Sound" | 6 | Audio, night shows, extra content, performance work, accessibility, localization. | Proposed |
+| Build 4 — "Frost and Spark" | 7 | New interface: mood bar, card decks, hand of cards, mascot tips; a new pixel-art title screen. | Built (4.0.0); owner acceptance open |
 
 - Each phase still ends with its own "done when" checks and green CI. Phases inside a build merge to `main` behind no flags; the build is released when its last phase is done.
 - Work inside a build may overlap only where the phase specs say so.

@@ -1,7 +1,7 @@
 # Phase 7 — Interface ("Frost and Spark")
 
 - **Build:** 4. No save schema change. Settings document version 2.
-- **Status:** Draft for review.
+- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.4, 4.6, 4.7, 4.8, 4.12, and 8 describe what was built where it differs from the first draft.
 - **Master spec:** `../2026-11-09-thrills-and-chills-design.md`.
 - **Approved draft pictures:** `../../../screenshots/phase-7-draft-desktop.png` (1280 × 800) and `../../../screenshots/phase-7-draft-phone.png` (390 × 844).
 
@@ -59,13 +59,13 @@ The layout switch stays at 900 CSS px (`toolbarPlacement`, `src/ui/layout.ts`). 
 | **Controls** | Top right, row 1: the 4 speed buttons, Messages, Menu. | Top row, right: Messages, one Speed button, Menu. |
 | **Day pill** | Top right, row 2. | Third row. It scrolls sideways when it does not fit. |
 | **Hand** | Bottom centre, on the zone strip. | Bottom, full width. |
-| **Mascots** | Frost bottom left and Spark bottom right, when the screen is ≥ 1100 px wide. Decoration only. | Not shown at the bottom. |
-| **Tip bubble** | Above the hand, on the side of the speaker. | Below the day pill. |
+| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the day pill. |
 | **Card details** | The side panel on the right (the existing panel position). | The bottom sheet (the existing sheet). |
 
 Rules:
 - The UI root keeps the CSS variables `--hud-bottom` (bottom edge of the top region) and `--toolbar-space` (height of the bottom region). The UI measures both with a `ResizeObserver`, as it does today. Existing panels, bars, and toasts use these variables, so they stay clear of the new regions. On desktop, `--toolbar-space` is now the height of the hand, and the side panel ends above the hand.
-- Mascot art and the zone strip have `pointer-events: none`. A click on them goes to the map.
+- **Exception (desktop, card details):** when the card details panel does not fit above the hand (large text or a low window), it runs to the bottom of the screen and the hand gets narrower: it ends at the left edge of the panel (`data-details="tall"` on the UI root). The UI measures this when the panel opens or closes and when a region changes its size.
+- The zone strip has `pointer-events: none`. A click on it goes to the map. (No full-body mascots are drawn at the bottom corners; see section 4.8.)
 - With the hand open on a 390 × 844 screen at 100% text scale, the free map area is at least 45% of the screen height.
 
 ### 4.2 Status pill and day pill
@@ -100,7 +100,7 @@ The mood bar shows the guest mix, the same data as today (`temperamentShares` an
 - **Faces:** Frost has the sad face while Chill is the under-served group of rule 3 in section 4.8. Spark has the sad face while Thrill is that group. In all other cases the face is happy. The face follows the rule, not the bubble: a closed tip or the Mascot tips setting does not change it. The art is the existing `mascotCanvas` portrait.
 - **Press:** the bar is a button. It turns the Temperament overlay on and off (`aria-pressed`). This replaces the Temperament toolbar button.
 - **Accessible name:** the existing text, "Thrill/Chill balance: {chill}% Chill, {family}% Family, {thrill}% Thrill", then the lean text. Test id `hud-balance`; the button also has `data-tool="temperament"`.
-- **Colour is not the only signal:** each segment shows its percentage as text when the segment is at least 44 px wide. The lean text and the accessible name give the same data.
+- **Colour is not the only signal:** each segment shows its percentage as text when the segment is at least 44 px wide. When the knot would cover the percentage, the text moves to the larger part of its segment beside the knot; it is hidden when that part is under 44 px (`segmentLabel`, `src/ui/mood/model.ts`). The lean text and the accessible name give the same data.
 - **Reduced motion:** the knot moves with no transition.
 
 ### 4.4 Decks
@@ -115,6 +115,8 @@ The deck list is a toolbar named "Card decks" with 5 toggle buttons and the Demo
 | **Manage** | Tool cards: Staff, Research, Marketing, Finance, Park, Overlays. |
 
 - A press on a deck opens the hand with that deck. A press on the open deck closes the hand. The Rides deck is open when a park starts.
+- **Phone tuck:** on the phone layout the hand tucks away (hidden; `--toolbar-space` is then the height of the chip row) while any card is pressed, and comes back when no card is pressed. A press on a deck chip while the hand is tucked shows the hand. The desktop hand never tucks.
+- **Research messages:** the Show button of a research message that unlocked a ride or stall opens the Rides or Stalls deck and scrolls the new card into view (the focus does not move). It replaces the old ride and stall pickers as the message's target.
 - The open deck and the hand state are session data. Saves do not store them.
 - **Demolish** is the last item of the deck list, after a divider. It is not a deck. It selects the Demolish tool (`aria-pressed`).
 - A **tool card** does what its toolbar button does today. It has the icon and the label of that button. `ToolbarEntry` (`src/ui/extensions.ts`) gets one new required field, `deck`, so each extension names the deck of its tool.
@@ -167,6 +169,8 @@ The accessible name of a card is its visible text, as Phase 6 §4.7 requires.
 - A track ride card starts the station builder (`startStation`), as today.
 - The held card rises 12 px and has `aria-pressed="true"`. It shows a **Put back** button. A press on the held card also puts it back.
 - Put back, `Esc`, and Cancel in the tool status bar select Inspect.
+- **Put back as built** (`putBack`, `src/ui/decks/toolCards.ts`): a card that is pressed because its tool is active (a ride or stall card, every tool card, Staff while its `patrol` tool runs, Shows while `placeShowSite` runs) selects Inspect. A card that is pressed because its panel or its chips are open (Staff, Research, Marketing, Finance, and Park with their panel; Overlays with its chips; Shows with its picker) does what its second press does: it closes them.
+- On desktop the card details panel opens with the held card (section 4.7); when it does not fit above the hand, the exception of section 4.1 applies (`data-details="tall"`).
 - After a build, the tool stays active or returns to Inspect by the rules of today. Phase 7 does not change them.
 
 **Place.** The player places the building on the map with the existing input: move the ghost, then click, or press Confirm on touch. The tool status bar keeps Rotate, Confirm, and Cancel, and gets a **Details** button on a phone.
@@ -192,12 +196,13 @@ A panel of the panel host, kind `cardDetails`. It shows the data of the held con
 
 Rules:
 - Desktop: the panel opens when a content card becomes the held card.
-- Phone: the panel opens from the Details button in the tool status bar.
+- Phone: the panel opens from the Details button in the tool status bar. For a held track ride card the tool status bar does not show, so the Details button is in the station builder (`track-details`).
+- Track ride: the panel shows three track lines (drive, maximum height, seats per car); the "From" cost is in the cost chip next to the zone.
 - The panel closes when no content card is held. Closing the panel does not put the card back.
 - This panel replaces the stat bars of the old picker cards. No ride or stall data that the picker shows today is lost.
 
 ### 4.8 Mascot tips
-A tip is one short sentence from a mascot, with at most one button. Tips read the game state. They never change it.
+A tip is one short sentence from Frost, Spark, or both, with at most one button. Tips read the game state. They never change it.
 
 The UI checks the rules every 2 s and shows the first rule that matches:
 
@@ -213,11 +218,17 @@ The UI checks the rules every 2 s and shows the first rule that matches:
 - `gap[g] = guestShare[g] − rideShare[g]`.
 - The rule matches when the largest gap is at least `TIP_GAP_POINTS`. The group with the largest gap is the under-served group. A tie goes to Chill, then Family, then Thrill.
 
-**Display.**
-- One tip at a time, in a bubble with the portrait of the speaker. The bubble has `aria-live="polite"`.
-- A **Close** button hides the tip. A closed tip stays hidden until its rule stops matching and then matches again. This is session data.
-- Tips are hidden during the Tutorial scenario, on the title screen, and while a dialog is open.
-- A new setting **Mascot tips** (Settings, Gameplay, default On) turns all tips off.
+**Display (as built, `src/ui/tips/bubble.ts`).** No full-body mascots are drawn at the bottom corners: the owner dropped them (no mascots on the title screen; the small faces stay in the mood bar, the tip bubble, and the tutorial). The constant `MASCOT_MIN_WIDTH_PX` is removed.
+- One tip at a time, in a bubble with a small face of the speaker (the `mascotCanvas` portrait: Frost, Spark, or both). The bubble has `aria-live="polite"` and the name "Mascot tip".
+- **Place:** on desktop the bubble sits centred above the hand, in the place of the tool status bar. On the phone it sits below the day pill.
+- A **Close** button hides the tip. A closed tip stays hidden until its rule stops matching and then matches again. This is session data; a new park starts with no closed tip, and its first check runs one period (`TIP_CHECK_MS`) after the start.
+- **No tip** (the rules give none): in the Tutorial scenario, and while the **Mascot tips** setting is off. The setting (Settings, Gameplay, default On) turns all tips off; a settings change checks the rules at once.
+- **Hidden while** (the tip comes back when this ends and its rule still matches):
+  - a dialog is open, or the title screen is open;
+  - a tool other than Inspect is active (for example a held card);
+  - a map overlay is on, or the overlay chip row is open (on the phone the overlay legend takes the bubble's place);
+  - on the phone, a panel is open.
+- When the bubble hides while one of its buttons has the focus, the focus goes to the Rides deck button, not to the page body.
 - A tip makes no sound and is not a toast. The toast rules (`ToastArbiter`) do not change.
 
 ### 4.9 Look
@@ -263,6 +274,9 @@ Phase 6 §4.7 applies in full. For the new parts:
 - Hint texts keep their words where the names stay the same (Footpath, Rides, Stalls, Park, Staff, Finance). The hints for Footpath, Park, Staff, and Finance name the deck first, for example "{act} Paths, then Footpath, …".
 - The tutorial bubble keeps its place rules: it never covers its target.
 
+### 4.12 Title screen
+Phase 7 also replaced the title screen (added after the scope of section 3, at the owner's request): a pixel-art skyline park with the game name and a menu (Continue with the saved park, New game, Load, Import, Settings, Credits), drawn from picture data in the build with no image files. Its design, layout rules, and tests are in [`phase-7-title-screen.md`](phase-7-title-screen.md).
+
 ---
 
 ## 5. State and settings
@@ -288,7 +302,7 @@ None added. None changed. The UI sends the same commands as today.
 | Mood model | `src/ui/mood/model.ts` | Pure. Lean, knot position, lean text id. |
 | Mood bar | `src/ui/mood/moodBar.ts` | The bar, the faces, the overlay toggle. |
 | Tip model | `src/ui/tips/model.ts` | Pure. The 3 rules and the closed-tip rule. |
-| Tip bubble | `src/ui/tips/bubble.ts` | The bubble and its button. |
+| Tip bubble | `src/ui/tips/bubble.ts` | The bubble with a small face, its button, and its hide rules. |
 | Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, day pill. |
 | Tuning | `src/data/tuning/interface.ts` | The constants of section 8. |
 | Strings | `src/data/strings/interface.ts` | The texts of section 9. |
@@ -311,7 +325,6 @@ All values are provisional until a play-test.
 | `TIP_GAP_POINTS` | 15 | Rule 3 gap, in percentage points. |
 | `CARD_DRAG_PX` | 8 | Pointer move that starts a card drag (the drag threshold of Phase 6 §4.7). |
 | `CARD_LIFT_PX` | 12 | Rise of the held card. |
-| `MASCOT_MIN_WIDTH_PX` | 1100 | Bottom mascots show from this screen width. |
 
 ## 9. Text
 New texts go in the string table with ids. No text ends with a period (the rule of the string table). The English texts are:

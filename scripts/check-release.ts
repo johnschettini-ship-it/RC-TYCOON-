@@ -1,6 +1,7 @@
 /**
- * Build 3 release check (Phase 6 §4.11). Owner: W4-G. Runs every check of `docs/release/build-3-checklist.md` that a
- * script can do and lists the rest as manual or owner steps.
+ * Release check (Phase 6 §4.11), Build 4 (4.0.0). Owner: W4-G. Runs every check of `docs/release/build-3-checklist.md`
+ * that a script can do and lists the rest as manual or owner steps. Build 4 adds its acceptance audit and the two
+ * vendored Fredoka font files (Phase 7 §4.9), the only font files allowed.
  *
  *   node scripts/check-release.ts               # build into dist/, run the save and locale tests, check everything
  *   node scripts/check-release.ts --no-build    # use the dist/ that is there
@@ -26,7 +27,7 @@ export interface CheckResult {
 
 /** Master §10: initial load budget, gzipped JS + CSS. */
 export const INITIAL_LOAD_BUDGET_BYTES = 400 * 1024;
-export const RELEASE_VERSION = '3.0.0';
+export const RELEASE_VERSION = '4.0.0';
 
 /** Names of other games, studios, and parks that must not appear (master §1.3; checklist item 7). */
 const THIRD_PARTY = /roller ?coaster tycoon|openrct|\brct ?[123]\b|planet coaster|parkitect|theme park world|sim theme park|thrillville|chris sawyer|hasbro|\batari\b|frontier developments|bullfrog|disneyland|six flags|cedar fair|universal studios/i;
@@ -36,13 +37,26 @@ const FONT = /\.(woff2?|ttf|otf|eot)$/i;
 const RASTER = /\.(png|jpe?g|gif|webp|avif|bmp|ico)$/i;
 /** Raster files the project makes itself: app icons (`scripts/make-icons.ts`) and screenshots of the game. */
 const RASTER_ALLOWED = /^(public\/icons\/icon-\d+\.png|docs\/screenshots\/[\w-]+\.png)$/;
+/**
+ * The only font files allowed (Phase 7 §4.9): the two Fredoka WOFF2 files vendored with their SIL OFL 1.1 licence in
+ * `src/assets/fonts/fredoka/`, at their exact sizes, in the repository and as hashed assets in the build.
+ */
+export const FONTS_ALLOWED: ReadonlyArray<{ name: string; bytes: number }> = [
+  { name: 'fredoka-latin-wght-normal', bytes: 29_732 },
+  { name: 'fredoka-latin-ext-wght-normal', bytes: 4_576 },
+];
+
+/** True for one of the two vendored Fredoka files at its exact size, at its repository path or as a built asset. */
+export function allowedFont(path: string, bytes: number | undefined): boolean {
+  return FONTS_ALLOWED.some((f) => bytes === f.bytes && (path === `src/assets/fonts/fredoka/${f.name}.woff2` || new RegExp(`^assets/${f.name}-[A-Za-z0-9_-]{6,}\\.woff2$`).test(path)));
+}
 
 /** Problems in the tracked files: third-party names in text, and media the project did not make. */
-export function originalityProblems(files: ReadonlyArray<{ path: string; text: string | null }>): string[] {
+export function originalityProblems(files: ReadonlyArray<{ path: string; text: string | null; bytes?: number }>): string[] {
   const out: string[] = [];
   for (const f of files) {
     if (AUDIO.test(f.path)) out.push(`${f.path}: audio file (all audio is generated in code)`);
-    else if (FONT.test(f.path)) out.push(`${f.path}: font file`);
+    else if (FONT.test(f.path) && !allowedFont(f.path, f.bytes)) out.push(`${f.path}: font file`);
     else if (RASTER.test(f.path) && !RASTER_ALLOWED.test(f.path)) out.push(`${f.path}: image not made by the project`);
     if (f.text !== null && f.path !== 'scripts/check-release.ts') {
       const m = THIRD_PARTY.exec(f.text);
@@ -77,6 +91,7 @@ export function distProblems(dist: string): string[] {
   if (sw === '') out.push('sw.js is missing');
   else if (sw.includes('__TC_BUILD_ID__') || typeof manifest.buildId !== 'string' || !sw.includes(`'${manifest.buildId}'`)) out.push('sw.js does not carry the build id of sw-manifest.json');
   for (const f of files) if (AUDIO.test(f)) out.push(`${f}: audio file in the build`);
+  for (const f of files) if (FONT.test(f) && !allowedFont(f, statSync(join(dist, f)).size)) out.push(`${f}: font file in the build`);
   for (const f of ['manifest.webmanifest', 'icons/icon.svg', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png']) if (!files.includes(f)) out.push(`${f} is missing`);
   return out;
 }
@@ -145,9 +160,9 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
 
   // 1. Done-when items and CI.
   const read = (p: string): string | null => (existsSync(join(root, p)) ? readFileSync(join(root, p), 'utf8') : null);
-  const auditPaths = ['docs/superpowers/specs/thrills-and-chills/build-2-acceptance.md', 'docs/superpowers/specs/thrills-and-chills/build-3-acceptance.md'];
+  const auditPaths = ['build-2', 'build-3', 'build-4'].map((b) => `docs/superpowers/specs/thrills-and-chills/${b}-acceptance.md`);
   const dw = doneWhenProblems(read('docs/release/build-3-checklist.md') ?? '', Object.fromEntries(auditPaths.map((p) => [p, read(p)])));
-  add(1, 'Done-when rows decided (none PENDING); Build 2 and Build 3 acceptance audits written', dw.length === 0 ? 'pass' : 'fail', dw.length === 0 ? 'docs/release/build-3-checklist.md, build-2-acceptance.md, build-3-acceptance.md' : dw.join('; '));
+  add(1, 'Done-when rows decided (none PENDING); Build 2, 3, and 4 acceptance audits written', dw.length === 0 ? 'pass' : 'fail', dw.length === 0 ? 'docs/release/build-3-checklist.md, build-2-acceptance.md, build-3-acceptance.md, build-4-acceptance.md' : dw.join('; '));
   add(1, 'CI green on the release commit', 'manual', 'GitHub Actions (typecheck, unit, build, e2e desktop and phone) on the commit that is tagged');
 
   // 2. Performance.
@@ -196,7 +211,7 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
     const files = ls.out
       .split('\n')
       .filter((p) => p !== '' && p !== 'package-lock.json' && existsSync(join(root, p)))
-      .map((path) => ({ path, text: /\.(ts|js|json|md|html|css|svg|webmanifest|yml|yaml|txt)$/.test(path) ? readFileSync(join(root, path), 'utf8') : null }));
+      .map((path) => ({ path, text: /\.(ts|js|json|md|html|css|svg|webmanifest|yml|yaml|txt)$/.test(path) ? readFileSync(join(root, path), 'utf8') : null, bytes: statSync(join(root, path)).size }));
     const op = originalityProblems(files);
     add(7, 'Originality: no third-party names, art, audio, or data', op.length === 0 ? 'pass' : 'fail', op.length === 0 ? `${files.length} tracked files scanned; also review by hand` : op.join('; '));
   }
@@ -205,16 +220,16 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
   const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as { version?: string };
   add(8, `gameVersion is ${RELEASE_VERSION} (package.json)`, pkg.version === RELEASE_VERSION ? 'pass' : 'fail', `package.json version ${pkg.version ?? '(none)'}`);
   const changelog = existsSync(join(root, 'CHANGELOG.md')) ? readFileSync(join(root, 'CHANGELOG.md'), 'utf8') : '';
-  add(8, 'CHANGELOG has a Build 3 section', /^##\s.*Build 3/m.test(changelog) ? 'pass' : 'fail', changelog === '' ? 'CHANGELOG.md is missing' : 'CHANGELOG.md');
+  add(8, 'CHANGELOG has a Build 4 section', /^##\s.*Build 4/m.test(changelog) ? 'pass' : 'fail', changelog === '' ? 'CHANGELOG.md is missing' : 'CHANGELOG.md');
   const readme = existsSync(join(root, 'README.md')) ? readFileSync(join(root, 'README.md'), 'utf8') : '';
-  const readmeOk = /Build 3/.test(readme) && /no affiliation/i.test(readme);
-  add(8, 'README covers Build 3 and the originality statement', readmeOk ? 'pass' : 'fail', 'README.md');
+  const readmeOk = /Build 4/.test(readme) && /no affiliation/i.test(readme);
+  add(8, 'README covers Build 4 and the originality statement', readmeOk ? 'pass' : 'fail', 'README.md');
   const license = ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'COPYING'].find((f) => existsSync(join(root, f)));
   add(8, "The owner's license file exists", license ? 'pass' : 'owner', license ?? 'The owner has not chosen a license yet (master §12); no license file is added until then');
 
   // 9. Tag and release notes.
-  const tag = run('git', ['tag', '--list', 'build-3'], root);
-  add(9, 'Tag build-3 and publish release notes', tag.ok && tag.out.trim() === 'build-3' ? 'pass' : 'manual', "After the owner's go: git tag build-3; release notes from CHANGELOG.md");
+  const tag = run('git', ['tag', '--list', 'build-4'], root);
+  add(9, 'Tag build-4 and publish release notes', tag.ok && tag.out.trim() === 'build-4' ? 'pass' : 'manual', "After the owner's go: git tag build-4; release notes from CHANGELOG.md");
 
   return results.sort((a, b) => a.item - b.item);
 }

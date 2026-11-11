@@ -8,7 +8,7 @@ It runs in any modern browser on desktop and touch devices, with no install, no 
 
 ## Builds
 
-The game ships in three public builds. Each build keeps your saves: older saves upgrade when they load.
+The game ships in public builds. Each build keeps your saves: older saves upgrade when they load.
 
 ### Build 1 — "The Big Build"
 The complete core tycoon game on one flat 64 × 64 map.
@@ -37,33 +37,48 @@ The complete core tycoon game on one flat 64 × 64 map.
 - **Offline play:** a service worker keeps the current build on your device (see [Offline play](#offline-play)).
 - **Performance:** profiling overlay (`F3`) and render quality settings.
 
+### Build 4 — "Frost and Spark"
+- **New interface:** a light look with one bundled font (Fredoka). The top bar and the 21-button toolbar are gone: a status pill, a mood bar with Frost and Spark, five card decks, and a hand of cards replace them (see [Controls](#controls)).
+- **Mascot tips:** short tips from Frost and Spark when the park needs something; close each one, or turn them all off in the settings.
+- **Title screen:** a pixel-art skyline park with Continue for your last park.
+- Saves do not change (schema 3); the settings document moves to version 2 and upgrades by itself.
+
 ## How to play
 1. **Start.** On the title screen pick **New game**, then the **Tutorial**, a **Scenario** (with a difficulty: Relaxed, Standard, or Tough), the **Sandbox**, or a free park with your own name and map size. The tutorial walks you through your first ride.
 2. **Paths first.** Build a footpath from the park entrance. Guests only reach what the paths connect.
-3. **Rides.** Open the ride picker, place a ride, then connect its entrance with a **queue path** and its exit with a **footpath**. Open the ride to set its price.
+3. **Rides.** Open the **Rides** deck, press a ride card, then press the map to place it (or drag the card to the map with a mouse), then connect its entrance with a **queue path** and its exit with a **footpath**. Open the ride to set its price.
 4. **Stalls.** Food, drinks, and restrooms must face a footpath. Hungry, thirsty, or tired guests leave unhappy.
-5. **Balance the crowd.** Watch the Thrill/Chill bar. Chill guests like gentle rides, gardens, and benches; Thrill guests want intense rides and buzz.
+5. **Balance the crowd.** Watch the mood bar at the top. Chill guests like gentle rides, gardens, and benches; Thrill guests want intense rides and buzz.
 6. **Run the park.** Hire groundskeepers and mechanics, set the research budget, run marketing, and check the finance panel each month. Take a loan if cash runs low.
 7. **Coasters.** Start with a station, add pieces until the circuit closes, place the entrance and exit, then run a test. Good coasters are exciting without being too intense.
 8. **After dark.** Light your paths. Spooky rides shine at night, and from Build 3 you can schedule shows.
 9. **Win.** Scenarios list their goals in the objectives panel. In a free park, aim for a high park rating and a happy crowd.
 
 ## Controls
+
+**Title screen.** **Continue** opens your newest save or autosave (its park name and date show on the button). **New game**, **Load**, **Import**, **Settings**, and **Credits** are below it.
+
+**Top of the screen.** The **status pill** (park name, cash, guests, rating) opens the Park panel. The **mood bar** shows the guest mix: Chill, Family, and Thrill, with Frost (Chill) at the left and Spark (Thrill) at the right; the knot shows where the park leans, and a face turns sad when its guests lack rides. Press the mood bar to turn the Temperament overlay on and off. On the right: the speed buttons (one **Speed** button that opens them on a phone), **Messages**, and **Menu**; below them the day pill with the weather, the date, and the view buttons.
+
+**Decks and the hand.** The deck list (a column on the left on desktop, a row of chips on a phone) has five decks: **Rides**, **Stalls**, **Paths** (Footpath, Queue, Path items), **Scenery** (Scenery, Land, Water, Buy land), and **Manage** (Staff, Research, Marketing, Finance, Park, Overlays), and the **Demolish** button. A deck opens the **hand** at the bottom: ride and stall cards show the zone, a picture, the name, and the cost; a press on the open deck closes the hand. Press a card to hold it (it rises, with **Put back** on it), then press the map to place it; with a mouse you can also drag the card to the map. On desktop the card details panel shows the held card's data; on a phone press **Details**. Put back, `Esc`, or Cancel return to Inspect (no card held). On a phone the hand tucks away while a card is held; a deck chip brings it back.
+
+**Tips.** Frost and Spark show one short tip at a time (above the hand on desktop, below the day pill on a phone), for example "Build a ride and open it". Its button takes you to the place it names; **Close** hides it until its reason comes back. Tips hide while you build, while an overlay or a dialog is open, and on a phone while a panel is open. Turn them off with **Settings → Gameplay → Mascot tips**.
+
 | Action | Desktop | Touch |
 |---|---|---|
 | Pan | Drag, right or middle drag, arrow keys, `W` `A` `S` `D`, screen edge (setting) | One-finger drag |
 | Zoom | Mouse wheel, `+` / `−` | Pinch |
-| Select, build | Click | Tap |
+| Select, build | Click; hold a card and click the map, or drag a card | Tap; hold a card and tap the map |
 | Drag a path line or area | Drag with a tool | Drag with a tool |
 | Inspect anything | Click with Inspect | Tap, or long-press |
 | Rotate the item to place | `R` | Rotate button |
 | Rotate the view | `[` and `]` | View buttons |
-| Pause / speed 1× 2× 4× | `Space`, `1` `2` `3` | HUD buttons |
-| Footpath, queue path, demolish | `P`, `Q`, `Delete` | Toolbar |
+| Pause / speed 1× 2× 4× | `Space`, `1` `2` `3` | Speed button |
+| Footpath, queue path, demolish | `P`, `Q`, `Delete` | Paths deck, Demolish button |
 | Path height | `Page Up` / `Page Down` | Path height bar |
-| Bench, bin | `B`, `N` | Toolbar |
-| Staff, office (finance), messages | `H`, `O`, `M` | Toolbar |
-| Map overlays (Calm, Buzz, …) | `V` | Overlays button |
+| Bench, bin | `B`, `N` | Paths deck (Path items) |
+| Staff, office (finance), messages | `H`, `O`, `M` | Manage deck, Messages button |
+| Map overlays (Calm, Buzz, …) | `V` | Manage deck (Overlays), mood bar for Temperament |
 | Cancel, close | `Esc` | Close buttons |
 | Map cursor (keyboard play) | `C`, then arrows, `Enter` to act, `Shift` + arrows to drag a path | — |
 | Shortcut list | `?` | — |
@@ -106,7 +121,7 @@ npm run bench     # tick benchmarks
 ```
 
 ## Release
-The Build 3 release checklist is [docs/release/build-3-checklist.md](docs/release/build-3-checklist.md). Its automated part runs with:
+The release checklist is [docs/release/build-3-checklist.md](docs/release/build-3-checklist.md); the Build 4 audit is [build-4-acceptance.md](docs/superpowers/specs/thrills-and-chills/build-4-acceptance.md). The automated part runs with:
 ```bash
 node scripts/check-release.ts
 ```

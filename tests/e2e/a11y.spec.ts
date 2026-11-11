@@ -6,7 +6,7 @@
  * The layout test boots in W4-G's pseudo-locale `en-XA` (Phase 6 §4.8) at 175% text scale.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, openTool, scan, watchErrors } from './helpers';
+import { cardOf, isPhone, newPark, openTool, pickCard, scan, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Tc = {
@@ -38,6 +38,33 @@ async function furnish(page: Page): Promise<{ ride: number; stall: number }> {
     const s = g.world.state;
     return { ride: s.rides[s.rides.length - 1]?.id ?? -1, stall: s.stalls[s.stalls.length - 1]?.id ?? -1 };
   });
+}
+
+/**
+ * The Phase 7 states of the game screen (spec §10), each scanned: the hand open with a tip on the screen; a held
+ * Carousel card with the card details panel (the phone opens it with Details); the phone Speed menu open. Starts and
+ * ends with the Rides deck open and Inspect active.
+ */
+async function scanPhase7States(page: Page, where: string): Promise<void> {
+  await deck(page, 'rides');
+  // A new park shows the noRide tip about 2 s after the start.
+  await expect(page.getByTestId('tip')).toBeVisible({ timeout: 6000 });
+  await scan(page, `${where}hand open with a tip`);
+  await pickCard(page, 'flat', 'carousel');
+  // The phone layout (under 900 px) opens the panel with the Details button of the tool status bar.
+  if ((page.viewportSize()?.width ?? 0) < 900) await page.getByTestId('status-details').click();
+  await expect(page.locator('.panel .panel-title')).toHaveText('Carousel');
+  await scan(page, `${where}held Carousel card with the card details panel`);
+  await openTool(page, 'inspect');
+  await expect(page.locator('.panel')).toBeHidden();
+  const toggle = page.getByTestId('speed-toggle');
+  if (await toggle.isVisible()) {
+    await toggle.click();
+    await expect(page.getByRole('group', { name: 'Game speed' })).toBeVisible();
+    await scan(page, `${where}Speed menu open`);
+    await toggle.click();
+    await expect(page.getByRole('group', { name: 'Game speed' })).toBeHidden();
+  }
 }
 
 async function select(page: Page, kind: string, id: number): Promise<void> {
@@ -80,6 +107,7 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     await scan(page, 'HUD and toolbar');
+    await scanPhase7States(page, '');
     await openTool(page, 'footpath');
     await scan(page, 'footpath tool status');
     await page.keyboard.press('Escape');
@@ -146,8 +174,10 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
   });
 
   test('high contrast keeps the scan clean', async ({ page }) => {
+    test.setTimeout(60_000);
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.settings.set('highContrast', true));
+    await scanPhase7States(page, 'high contrast: ');
     await panel(page, 'park');
     await scan(page, 'high contrast park panel');
   });
@@ -186,6 +216,13 @@ test.describe('touch targets (Phase 6 §4.7: ≥ 44 × 44 CSS px)', () => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     expect(await smallTargets(page), 'HUD and toolbar').toEqual([]);
+    // The hand open with a held card: the phone tucks the hand while a card is held; the deck chip shows it again.
+    await pickCard(page, 'flat', 'carousel');
+    expect(await smallTargets(page), 'Carousel card held').toEqual([]);
+    await cardOf(page, 'flat', 'carousel');
+    await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'true');
+    expect(await smallTargets(page), 'hand open with the Carousel card held').toEqual([]);
+    await openTool(page, 'inspect');
     for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages']) {
       await openTool(page, id);
       await expect(page.locator('.panel')).toBeVisible();
@@ -290,6 +327,13 @@ test.describe('175% text scale with a pseudo-localized UI (Phase 6 §4.7, §9)',
     }
     await deck(page, 'rides');
     await check('ride cards');
+    // The hand open with a held card (desktop: with the card details panel; the phone tucks the hand, the chip shows it).
+    await pickCard(page, 'flat', 'carousel');
+    await check('Carousel card held');
+    await cardOf(page, 'flat', 'carousel');
+    await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'true');
+    await check('hand open with the Carousel card held');
+    await openTool(page, 'inspect');
     const { ride } = await furnish(page);
     await select(page, 'ride', ride);
     await check('ride panel');
