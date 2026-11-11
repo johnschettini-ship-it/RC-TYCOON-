@@ -301,7 +301,49 @@ async function layoutProblems(page: Page): Promise<string[]> {
 }
 
 /**
- * The 175% `en-XA` layout run: no element leaves the viewport and no text is clipped, on the title, the new game view,
+ * Controls and text that must stay in view, which `layoutProblems` does not see (it counts a scrolling area as fine):
+ * the last action row of a tool status bar (Confirm, Cancel), the date and clock of the day pill, and Demolish at the
+ * end of the desktop deck list each lie inside the visible box of their area; on the phone the tip does not cover the
+ * deck chip row.
+ */
+async function hiddenControls(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const out: string[] = [];
+    const shown = (el: Element): boolean => {
+      const r = el.getBoundingClientRect();
+      return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[hidden]');
+    };
+    const inside = (el: Element, area: Element, what: string): void => {
+      if (!shown(el) || !shown(area)) return;
+      const r = el.getBoundingClientRect();
+      const a = area.getBoundingClientRect();
+      if (r.left < a.left - 1 || r.top < a.top - 1 || r.right > a.right + 1 || r.bottom > a.bottom + 1) {
+        out.push(`${what}: ${Math.round(r.left)},${Math.round(r.top)}..${Math.round(r.right)},${Math.round(r.bottom)} outside ${Math.round(a.left)},${Math.round(a.top)}..${Math.round(a.right)},${Math.round(a.bottom)}`);
+      }
+    };
+    for (const bar of document.querySelectorAll('#ui .tool-status')) {
+      for (const b of bar.querySelectorAll(':scope > .status-actions:last-child > button')) inside(b, bar, `tool status "${(b.textContent ?? '').trim()}"`);
+    }
+    const pill = document.querySelector('#ui .day-pill');
+    const clock = pill?.querySelector('.hud-clock');
+    if (pill && clock) inside(clock, pill, 'day pill date');
+    const list = document.querySelector("#ui[data-layout='side'] .deck-list");
+    const demolish = list?.querySelector('.deck-demolish');
+    if (list && demolish) inside(demolish, list, 'Demolish');
+    const tip = document.querySelector("#ui[data-layout='bottom'] .tip-bubble");
+    const chips = document.querySelector("#ui[data-layout='bottom'] .deck-list");
+    if (tip && chips && shown(tip) && shown(chips)) {
+      const t = tip.getBoundingClientRect();
+      const c = chips.getBoundingClientRect();
+      if (t.bottom > c.top + 1 && t.top < c.bottom - 1) out.push(`tip ${Math.round(t.top)}..${Math.round(t.bottom)} covers the chip row ${Math.round(c.top)}..${Math.round(c.bottom)}`);
+    }
+    return out;
+  });
+}
+
+/**
+ * The 175% `en-XA` layout run: no element leaves the viewport, no text is clipped, and no control is hidden by a
+ * scrolling area or covered by the phone tip (`hiddenControls`), on the title, the new game view,
  * the HUD, three panels, the hand with a held card, the ride panel, the map cursor line, the menu, the settings, and
  * the shortcut list. `blockFonts` (Ruling K, spec §4.9) aborts every `.woff2` request first, so the run uses the
  * fallback font, and checks that no Fredoka face loaded.
@@ -323,6 +365,7 @@ async function largePseudoLayout(page: Page, phone: boolean, blockFonts: boolean
   const check = async (where: string): Promise<void> => {
     await page.waitForTimeout(150);
     expect(await layoutProblems(page), where).toEqual([]);
+    expect(await hiddenControls(page), `${where}: kept in view`).toEqual([]);
   };
   await check('title');
   await page.getByTestId('title-new').click();
@@ -339,6 +382,8 @@ async function largePseudoLayout(page: Page, phone: boolean, blockFonts: boolean
     await openTool(page, id);
   }
   await deck(page, 'rides');
+  // The noRide tip shows about 2 s after the start (no ride yet); it is on the screen for this check.
+  await expect(page.getByTestId('tip')).toBeVisible({ timeout: 6000 });
   await check('ride cards');
   // The hand open with a held card (desktop: with the card details panel; the phone tucks the hand, the chip shows it).
   await pickCard(page, 'flat', 'carousel');

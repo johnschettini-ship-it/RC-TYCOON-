@@ -54,12 +54,12 @@ The layout switch stays at 900 CSS px (`toolbarPlacement`, `src/ui/layout.ts`). 
 | Region | Desktop (≥ 900 px) | Phone (< 900 px) |
 |---|---|---|
 | **Status pill** | Top left. | Top row, left. |
-| **Deck list** | Top left, below the status pill. A column. | A row of chips directly above the hand. The row scrolls sideways. |
+| **Deck list** | Top left, below the status pill. A column. When the column does not fit, it scrolls and Demolish stays in view at its bottom. | A row of chips directly above the hand. The row scrolls sideways. |
 | **Mood bar** | Top centre. Width `clamp(280px, 40vw, 520px)`. | Second row. Full width. |
 | **Controls** | Top right, row 1: the 4 speed buttons, Messages, Menu. | Top row, right: Messages, one Speed button, Menu. |
-| **Day pill** | Top right, row 2. | Third row. It scrolls sideways when it does not fit. |
+| **Day pill** | Top right, row 2. | Third row. The date and clock wrap to more lines first; the row scrolls sideways when it still does not fit. |
 | **Hand** | Bottom centre, on the zone strip. | Bottom, full width. |
-| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the day pill. |
+| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the day pill. A tip too tall for the space above the chip row moves up over the top region. |
 | **Card details** | The side panel on the right (the existing panel position). | The bottom sheet (the existing sheet). |
 
 Rules:
@@ -173,7 +173,7 @@ The accessible name of a card is its visible text, as Phase 6 §4.7 requires.
 - On desktop the card details panel opens with the held card (section 4.7); when it does not fit above the hand, the exception of section 4.1 applies (`data-details="tall"`).
 - After a build, the tool stays active or returns to Inspect by the rules of today. Phase 7 does not change them.
 
-**Place.** The player places the building on the map with the existing input: move the ghost, then click, or press Confirm on touch. The tool status bar keeps Rotate, Confirm, and Cancel, and gets a **Details** button on a phone.
+**Place.** The player places the building on the map with the existing input: move the ghost, then click, or press Confirm on touch. The tool status bar keeps Rotate, Confirm, and Cancel, and gets a **Details** button on a phone. On the phone a bar too tall for the space between the top region and the hand (large text, the hand shown again over a held card) moves up over the top region and stays in the viewport; it scrolls inside, and its row of Rotate, Confirm, and Cancel stays in view at its bottom.
 
 **Drag (mouse and pen only).** For a flat ride or stall card:
 1. A pointer move of 8 px or more with the button down starts a drag. The card becomes the held card.
@@ -220,7 +220,7 @@ The UI checks the rules every 2 s and shows the first rule that matches:
 
 **Display (as built, `src/ui/tips/bubble.ts`).** No full-body mascots are drawn at the bottom corners: the owner dropped them (no mascots on the title screen; the small faces stay in the mood bar, the tip bubble, and the tutorial). The constant `MASCOT_MIN_WIDTH_PX` is removed.
 - One tip at a time, in a bubble with a small face of the speaker (the `mascotCanvas` portrait: Frost, Spark, or both). The bubble has the name "Mascot tip". Screen readers hear the tip from a visually hidden `role="status"` region that stays in the page: it gets the tip's sentence when the bubble shows or its tip changes, and is emptied when the bubble hides (the bubble itself has no `aria-live`).
-- **Place:** on desktop the bubble sits centred above the hand, in the place of the tool status bar. On the phone it sits below the day pill.
+- **Place:** on desktop the bubble sits centred above the hand, in the place of the tool status bar. On the phone it sits below the day pill; when it is too tall for the space above the chip row (large text), it moves up over the top region, so it never covers the chips.
 - A **Close** button hides the tip. A closed tip stays hidden until its rule stops matching and then matches again. This is session data; a new park starts with no closed tip, and its first check runs one period (`TIP_CHECK_MS`) after the start.
 - **No tip** (the rules give none): in the Tutorial scenario, and while the **Mascot tips** setting is off. The setting (Settings, Gameplay, default On) turns all tips off; a settings change checks the rules at once.
 - **Hidden while** (the tip comes back when this ends and its rule still matches):

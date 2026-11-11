@@ -191,6 +191,8 @@ button { font: inherit; color: inherit; }
 }
 #ui[data-layout='bottom'] .day-pill::-webkit-scrollbar { display: none; }
 #ui[data-layout='bottom'] .day-pill > * { flex: none; }
+/* The date and clock wrap to more lines before the row scrolls (large text, long languages). */
+#ui[data-layout='bottom'] .day-pill > .hud-clock { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
 
 /* Decks (Phase 7 §4.4, §4.5): the deck list, the hand, and tool cards. */
 .decks { display: contents; }
@@ -227,6 +229,8 @@ button { font: inherit; color: inherit; }
 }
 #ui[data-layout='side'] .deck-btn { width: 100%; padding: 6px 8px; overflow-wrap: break-word; }
 #ui[data-layout='side'] .deck-divider { height: 3px; margin: 2px 4px; }
+/* When the list scrolls (large text, a low window), Demolish stays in view at its bottom and the decks scroll under it. */
+#ui[data-layout='side'] .deck-demolish { position: sticky; bottom: 0; }
 /* Phone: a row of chips directly above the hand; the row scrolls sideways. */
 #ui[data-layout='bottom'] .decks {
   display: flex;
@@ -435,8 +439,10 @@ button { font: inherit; color: inherit; }
 .status-details { flex: none; }
 #ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .tool-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
-/* A tall bar (large text, the hand shown again over a held card) stays below the top region and scrolls inside. */
-#ui[data-layout='bottom'] .tool-status { max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 16px); overflow-y: auto; }
+/* A tall bar (large text, the hand shown again over a held card) stays in the viewport, over the top region when it
+   must, and scrolls inside: its last action row stays in view at the bar's bottom while the text above it scrolls. */
+#ui[data-layout='bottom'] .tool-status { max-height: calc(100% - var(--safe-top) - var(--toolbar-space) - 16px); overflow-y: auto; }
+#ui[data-layout='bottom'] .tool-status > .status-actions:last-child { position: sticky; bottom: 0; background: var(--surface); }
 /* The path height bar sits 8 px above the tool status bar, whose height the UI measures (`--tool-status-h`). */
 #ui[data-layout='side'] .path-height-bar { bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px + var(--tool-status-h, 60px) + 8px); }
 #ui[data-layout='bottom'] .path-height-bar { bottom: calc(var(--toolbar-space) + 8px + var(--tool-status-h, 60px) + 8px); }
@@ -475,8 +481,10 @@ button { font: inherit; color: inherit; }
   margin: 0 auto;
   transform: none;
 }
+/* Phone: below the day pill; a tip too tall for the space above the chip row (large text) moves up over the top
+   region, so it never covers the chips. The UI measures its height (`--tip-h`). */
 #ui[data-layout='bottom'] .tip-bubble {
-  top: calc(var(--hud-bottom) + 8px);
+  top: max(calc(8px + var(--safe-top)), min(calc(var(--hud-bottom) + 8px), calc(100% - var(--toolbar-space) - 8px - var(--tip-h, 0px))));
   left: calc(8px + var(--safe-left));
   right: calc(8px + var(--safe-right));
 }

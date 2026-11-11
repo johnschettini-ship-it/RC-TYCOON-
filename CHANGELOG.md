@@ -20,7 +20,7 @@ Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document vers
 - **Focus ring:** the keyboard focus ring is visible on every control that draws a hard shadow (status pill, mood bar, controls, cards, the title menu), over that shadow; a held card draws it inside its own edge.
 
 ### Size
-- First load: **354.0 KB** gzipped (JavaScript 343.8 KB + CSS 10.1 KB) of the 400 KB budget (Build 3: JavaScript 306.4 KB + CSS 7.5 KB). The title pictures are part of the JavaScript.
+- First load: **354.1 KB** gzipped (JavaScript 343.8 KB + CSS 10.2 KB) of the 400 KB budget (Build 3: JavaScript 306.4 KB + CSS 7.5 KB). The title pictures are part of the JavaScript.
 - Font files (not part of the first-load budget, cached for offline play): `fredoka-latin-wght-normal.woff2` **29,732 bytes** and `fredoka-latin-ext-wght-normal.woff2` **4,576 bytes**, with their licence in `src/assets/fonts/fredoka/LICENSE`. The release check allows exactly these two font files at these sizes.
 
 ### Not yet checked by a person

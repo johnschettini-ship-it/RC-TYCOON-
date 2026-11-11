@@ -264,6 +264,10 @@ export function mountUI(root: HTMLElement, game: Game): void {
     new ResizeObserver(() => {
       if (!status.el.hidden) root.style.setProperty('--tool-status-h', `${Math.ceil(status.el.getBoundingClientRect().height)}px`);
     }).observe(status.el);
+    // The phone tip slides up over the top region when it does not fit above the chip row (large text).
+    new ResizeObserver(() => {
+      if (!tip.el.hidden) root.style.setProperty('--tip-h', `${Math.ceil(tip.el.getBoundingClientRect().height)}px`);
+    }).observe(tip.el);
   }
   window.addEventListener('resize', measure);
   measure();
