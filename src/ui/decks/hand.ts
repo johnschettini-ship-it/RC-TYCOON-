@@ -1,7 +1,8 @@
 /**
  * The hand (Phase 7 §4.5): the cards of the open deck in a strip that scrolls sideways (wheel, a mouse or pen drag on
- * the strip, touch). On desktop two arrow buttons show when the cards do not fit. `ArrowLeft`, `ArrowRight`, `Home`,
- * and `End` move the focus between the cards.
+ * the strip, touch). A mouse or pen drag that starts on a flat ride or stall card drags that card to the map
+ * (`drag.ts`). On desktop two arrow buttons show when the cards do not fit. `ArrowLeft`, `ArrowRight`, `Home`, and `End`
+ * move the focus between the cards.
  *
  * The Rides and Stalls decks hold the ride and stall cards in zone groups, each on its part of the zone strip, then
  * their tool cards. Every `HAND_REFRESH_MS` the hand compares `handSignature` with the last value and builds the
@@ -132,13 +133,15 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
     { passive: false },
   );
 
-  // Mouse and pen: a drag of `CARD_DRAG_PX` or more scrolls the strip, and the click that ends it is dropped.
-  // Touch scrolls the strip natively (`touch-action: pan-x`).
+  // Mouse and pen: a drag of `CARD_DRAG_PX` or more scrolls the strip, and the click that ends it is dropped. A drag
+  // that starts on a flat ride or stall card drags that card. Touch scrolls the strip natively (`touch-action: pan-x`).
   let drag: { id: number; x: number; left: number; moved: boolean } | null = null;
   let dropClick = false;
   scroller.addEventListener('pointerdown', (e) => {
     dropClick = false;
     if (e.pointerType === 'touch' || e.button !== 0) return;
+    // A press on a flat ride or stall card can become a drag of that card to the map (`drag.ts`), not a strip scroll.
+    if (e.target instanceof Element && e.target.closest('.drag-card')) return;
     drag = { id: e.pointerId, x: e.clientX, left: scroller.scrollLeft, moved: false };
   });
   scroller.addEventListener('pointermove', (e) => {

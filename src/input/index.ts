@@ -3,6 +3,8 @@
  * Pointer Events (mouse, touch, pen), wheel, and keyboard feed the pure InputController.
  */
 import type { Game } from '../game';
+import { screenToWorld } from '../render/camera';
+import { pickTile } from '../render/iso';
 import { clampToMap } from './camera';
 import { InputController, type UiIntent } from './controller';
 import type { PointerKind } from './gestures';
@@ -31,6 +33,16 @@ function keyBelongsToControl(e: KeyboardEvent): boolean {
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
   if ((tag === 'BUTTON' || t.getAttribute('role') === 'button') && (e.key === ' ' || e.key === 'Enter')) return true;
   return false;
+}
+
+/**
+ * The map tile under a point in client coordinates (CSS px), or null when the point is off the map. The same math as
+ * `InputController.tileAt`, with the canvas rectangle taken off: the viewport is the canvas rectangle.
+ */
+export function tileAtClient(game: Game, canvas: HTMLCanvasElement, clientX: number, clientY: number): number | null {
+  const r = canvas.getBoundingClientRect();
+  const p = screenToWorld(game.camera, clientX - r.left, clientY - r.top, r.width || 1, r.height || 1);
+  return pickTile(game.world.state.map, p.x, p.y, game.camera.rotation);
 }
 
 export function attachInput(canvas: HTMLCanvasElement, game: Game): void {

@@ -4,10 +4,12 @@ import { makeTestWorld } from '../../helpers/world';
 import { toolbarEntries } from '../../../src/ui/extensions';
 import { defaultToolState } from '../../../src/render/types';
 import { trackToolOf } from '../../../src/render/track/toolState';
+import type { PanelKind, UiContext } from '../../../src/ui/context';
 import {
   DECK_ORDER, OLD_TOOL_IDS, RIDE_ZONES, STALL_ZONES, TOOL_PLACE, handSignature, heldCardId, orderToolCards, rideCards, sortCards,
   stallCards, zonesPresent, type CardSpec, type OldToolId,
 } from '../../../src/ui/decks/model';
+import { holdCard } from '../../../src/ui/decks/toolCards';
 
 const card = (id: string, zone: string, cost: number, name = id): CardSpec => ({ id, kind: 'flat', zone, cost, name });
 
@@ -77,5 +79,44 @@ describe('deck model (Phase 7 §4.4, §4.5)', () => {
     expect(heldCardId(t)).toBe('steel_coaster');
     st.phase = 'pieces';
     expect(heldCardId(t)).toBeNull();
+  });
+});
+
+describe('holdCard (Phase 7 §4.6)', () => {
+  /** A context with one open panel (or none) and the tool state of a new game. */
+  const setup = (open: PanelKind | null) => {
+    const state = { panel: open };
+    const tool = defaultToolState();
+    const ctx = {
+      game: { tool },
+      activePanel: () => (state.panel ? { kind: state.panel, id: null } : null),
+      closePanel: () => {
+        state.panel = null;
+      },
+    } as unknown as UiContext;
+    return { ctx, state, tool };
+  };
+  const coaster: CardSpec = { id: 'junior_coaster', kind: 'track', zone: 'family', cost: 158_400, name: 'Junior Coaster' };
+
+  it('a flat ride card and a stall card set the place tool as the pickers did', () => {
+    const { ctx, tool } = setup(null);
+    tool.rotation = 3;
+    holdCard(ctx, card('carousel', 'family', 120_000));
+    expect(tool).toMatchObject({ tool: 'placeRide', defId: 'carousel', rotation: 0, ghost: null, drag: null });
+    holdCard(ctx, { id: 'snack_shack', kind: 'stall', zone: 'food', cost: 40_000, name: 'Snack Shack' });
+    expect(tool).toMatchObject({ tool: 'placeStall', defId: 'snack_shack', rotation: 2, ghost: null, drag: null });
+  });
+  it('a track ride card closes an open panel of another kind: the track builder leaves the track tool while one is open', () => {
+    const { ctx, state, tool } = setup('finance');
+    holdCard(ctx, coaster);
+    expect(state.panel).toBeNull();
+    expect(tool.tool).toBe('track');
+    expect(heldCardId(tool)).toBe('junior_coaster');
+  });
+  it('a track ride card keeps an open card details panel: the panel goes to the new held card', () => {
+    const { ctx, state, tool } = setup('cardDetails');
+    holdCard(ctx, coaster);
+    expect(state.panel).toBe('cardDetails');
+    expect(tool.tool).toBe('track');
   });
 });

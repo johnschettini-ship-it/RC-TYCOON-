@@ -16,13 +16,13 @@ import { GestureRecognizer, type DragMode, type GestureAction, type GesturePoint
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
 import { PatrolStroke, brushTiles, strokeLine } from './patrol';
 import { pathItemCommand, pathItemGhost } from './pathItemTool';
-import { computeGhost, pathKindOf, pathLineEnd, pathLinePreview, pathLineTiles, pickEntity } from './tools';
+import { heldGhostAt, pathKindOf, pathLineEnd, pathLinePreview, pathLineTiles, pickEntity } from './tools';
 import { pathItemAction, toolOptions } from '../render/management/toolOptions';
 import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
 import { routerOf } from './toolRouters';
 import { changePathHeight, pathCommandHeight } from './pathHeight';
 import { cycleOverlay } from './overlays';
-import { mapRotationFromView, viewSize, viewToMap } from '../render/view';
+import { viewSize, viewToMap } from '../render/view';
 import { pickElevatedPath } from '../render/elevated/pick';
 import type { ElevatedPath } from '../sim/paths/types';
 import type { Command } from '../sim/commands/types';
@@ -533,9 +533,7 @@ export class InputController {
     }
     const v = this.opts.viewport();
     const anchor = t.hoverTile ?? this.tileAtClamped(v.width / 2, v.height / 2);
-    // The tool rotation is what the player sees; the ghost and the command take the map rotation.
-    const rotation = mapRotationFromView(t.rotation, this.game.camera.rotation);
-    t.ghost = computeGhost(this.game.world, t.tool === 'placeRide' ? 'ride' : 'stall', t.defId, anchor, rotation);
+    t.ghost = heldGhostAt(this.game.world, t, this.game.camera.rotation, anchor);
   }
 
   /** Track tool helpers, bound once (no per-frame closures). */

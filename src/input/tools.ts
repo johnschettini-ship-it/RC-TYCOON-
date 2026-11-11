@@ -12,6 +12,7 @@ import { previewPathCommand } from '../sim/commands/build/paths';
 import type { World } from '../sim/types';
 import type { Cents } from '../sim/units';
 import type { GhostState, ToolState } from '../render/types';
+import { mapRotationFromView } from '../render/view';
 import { PATH_COST, QUEUE_COST } from '../data/tuning/world';
 
 /**
@@ -97,6 +98,16 @@ export function computeGhost(world: World, kind: 'ride' | 'stall', defId: string
   else if (tiles.some((i) => map.content[i] !== Content.Empty)) reason = text('ui.ghost.blocked');
   else if (world.state.park.cash < cost) reason = text('ui.ghost.noCash');
   return { kind, defId, tile: oy * map.width + ox, rotation, valid: reason === null, reason, cost };
+}
+
+/**
+ * Ghost of the held ride or stall (the `placeRide` or `placeStall` tool with a `defId`) centred on `tile`, or null for
+ * any other tool state. The tool rotation is what the player sees; the ghost and the place command take the map
+ * rotation.
+ */
+export function heldGhostAt(world: World, tool: ToolState, viewRotation: Dir, tile: number): GhostState | null {
+  if ((tool.tool !== 'placeRide' && tool.tool !== 'placeStall') || !tool.defId) return null;
+  return computeGhost(world, tool.tool === 'placeRide' ? 'ride' : 'stall', tool.defId, tile, mapRotationFromView(tool.rotation, viewRotation));
 }
 
 export type PickedEntity = NonNullable<ToolState['selectedEntity']>;

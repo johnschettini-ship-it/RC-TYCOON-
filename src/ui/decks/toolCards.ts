@@ -95,6 +95,10 @@ export function cardsOfDeck(deck: DeckId, cards: readonly ToolCardDef[]): ToolCa
  */
 export function holdCard(ctx: UiContext, spec: CardSpec): void {
   if (spec.kind === 'track') {
+    // The track builder leaves the track tool while a panel other than card details is open (`track/panel.ts`), so
+    // that panel closes first. An open card details panel goes to the new held card.
+    const open = ctx.activePanel();
+    if (open && open.kind !== 'cardDetails') ctx.closePanel();
     startStation(ctx.game, spec.id);
     return;
   }

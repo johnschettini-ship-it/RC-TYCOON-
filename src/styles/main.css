@@ -336,6 +336,9 @@ button { font: inherit; color: inherit; }
 }
 .card.content-card:hover { background: var(--surface-2); }
 .card.content-card[aria-pressed='true'] { box-shadow: 0 0 0 4px var(--gold), var(--shadow); }
+/* A mouse or a pen drags a flat ride or stall card to the map (§4.6). */
+.card.drag-card { cursor: grab; }
+.card.drag-card.dragging { cursor: grabbing; }
 .card-band {
   flex: none;
   padding: 2px 8px;

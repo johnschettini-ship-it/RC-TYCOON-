@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, placeRideDirect, placeStallDirect } from '../../helpers/world';
 import { tileIndex } from '../../../src/sim/map';
 import { executeCommand } from '../../../src/sim/commands';
+import { defaultToolState } from '../../../src/render/types';
+import { mapRotationFromView } from '../../../src/render/view';
 import {
   PATH_TILE_COST,
   computeGhost,
+  heldGhostAt,
   pathLineEnd,
   pathLinePreview,
   pathLineTiles,
@@ -134,6 +137,35 @@ describe('ghost validity (computed locally; the command result is the final word
   it('an unknown definition gives no ghost', () => {
     expect(computeGhost(makeTestWorld(), 'ride', 'nope', 100, 0)).toBeNull();
     expect(computeGhost(makeTestWorld(), 'stall', 'carousel', 100, 0)).toBeNull();
+  });
+
+  it('heldGhostAt gives the ghost of the held ride, and null for other tools', () => {
+    const w = makeTestWorld();
+    const tool = defaultToolState();
+    const tile = 20 * w.state.map.width + 20;
+    expect(heldGhostAt(w, tool, 0, tile)).toBeNull();
+    tool.tool = 'placeRide';
+    tool.defId = 'carousel';
+    tool.rotation = 0;
+    expect(heldGhostAt(w, tool, 0, tile)).toEqual(computeGhost(w, 'ride', 'carousel', tile, mapRotationFromView(0, 0)));
+  });
+
+  it('heldGhostAt takes the view rotation off the tool rotation, and gives a stall ghost for a held stall', () => {
+    const w = makeTestWorld();
+    const tool = defaultToolState();
+    const tile = 20 * w.state.map.width + 20;
+    // A 3 × 5 ride that the player sees with rotation 1 in a view turned one quarter is rotation 0 on the map.
+    tool.tool = 'placeRide';
+    tool.defId = 'pendulum_ship';
+    tool.rotation = 1;
+    expect(heldGhostAt(w, tool, 1, tile)).toEqual(computeGhost(w, 'ride', 'pendulum_ship', tile, 0));
+    tool.tool = 'placeStall';
+    tool.defId = 'snack_shack';
+    tool.rotation = 2;
+    expect(heldGhostAt(w, tool, 3, tile)).toEqual(computeGhost(w, 'stall', 'snack_shack', tile, 3));
+    // A place tool with no def holds no card.
+    tool.defId = null;
+    expect(heldGhostAt(w, tool, 0, tile)).toBeNull();
   });
 });
 

@@ -1,7 +1,8 @@
 /**
  * Cards (Phase 7 §4.5, §4.6). A tool card is a button with the icon and label of the toolbar button it replaces. A
  * content card (ride or stall) is a button with a zone band, the preview picture, the name, and the build cost. While
- * a card is held, it rises and a Put back button shows on it. A press on the held card also puts it back.
+ * a card is held, it rises and a Put back button shows on it. A press on the held card also puts it back. A mouse or a
+ * pen drags a flat ride or stall card to the map (`drag.ts`).
  */
 import { text } from '../../data/strings/en';
 import { drawPreview } from '../../render/renderer';
@@ -9,6 +10,7 @@ import { drawTrackPreview } from '../../render/track';
 import type { UiContext } from '../context';
 import { h, setAttr, toggleClass } from '../dom';
 import { formatMoney } from '../format';
+import { attachCardDrag } from './drag';
 import { heldCardId, type CardSpec } from './model';
 import { holdCard, putBack, selectTool, type ToolCardDef } from './toolCards';
 
@@ -139,22 +141,25 @@ export function contentCard(ctx: UiContext, spec: CardSpec): HTMLElement {
       'data-zone': spec.zone,
       'data-testid': `card-${spec.id}`,
       'aria-pressed': 'false',
-      onclick: (e: Event) => {
-        if (heldCardId(ctx.game.tool) === spec.id) {
-          selectTool(ctx, 'inspect');
-          return;
-        }
-        holdCard(ctx, spec);
-        // Phase 7 §4.10: after `Enter` or `Space` holds the card, the map cursor's `Enter` places it, so the focus
-        // leaves the card (as it left the closed picker before).
-        if ((e as MouseEvent).detail === 0) (e.currentTarget as HTMLElement).blur();
-      },
     },
     h('span', { class: 'card-band' }, zoneName(spec.kind, spec.zone), sep()),
     previewCanvas(spec),
     h('span', { class: 'card-name' }, spec.name, sep()),
     h('span', { class: 'card-price-row' }, ...price),
   );
+  // A mouse or a pen drags a flat ride or stall card to the map (§4.6). The drag comes before the press: it drops the
+  // click that follows a drag.
+  attachCardDrag(ctx, card, spec);
+  card.addEventListener('click', (e) => {
+    if (heldCardId(ctx.game.tool) === spec.id) {
+      selectTool(ctx, 'inspect');
+      return;
+    }
+    holdCard(ctx, spec);
+    // Phase 7 §4.10: after `Enter` or `Space` holds the card, the map cursor's `Enter` places it, so the focus
+    // leaves the card (as it left the closed picker before).
+    if (e.detail === 0) card.blur();
+  });
   const wrap = h('div', { class: 'card-wrap' }, card);
   // Put back on a held ride or stall card selects Inspect.
   putBackButton(wrap, () => selectTool(ctx, 'inspect'));
