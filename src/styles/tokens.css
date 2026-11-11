@@ -76,19 +76,15 @@
   --costume-boo-b: #9b6bff;
   --cat-weather: #9b6bff;
 
-  /* Logo lettering (large text, ≥ 3:1 on white at its lightest stop). */
-  --logo-thrills-a: #e07a00;
-  --logo-thrills-b: #b34700;
-  --logo-chills-a: #2a8bd0;
-  --logo-chills-b: #1d5fa8;
-
-  /* Overlays: dialog backdrop, title screen tints, tutorial ring glow. */
+  /* Overlays: dialog backdrop, tutorial ring glow. */
   --backdrop: rgba(31, 35, 64, 0.45);
-  --title-veil: rgba(238, 240, 247, 0.82);
-  --title-glow-chill: rgba(86, 180, 233, 0.45);
-  --title-glow-thrill: rgba(230, 159, 0, 0.4);
   --ring-glow: rgba(255, 193, 46, 0.55);
   --ring-glow-faint: rgba(255, 193, 46, 0.2);
+
+  /* Title screen (design E): the sky above the pixel scenes (row 0 of both pictures), and the veil of the sky over the
+     scene while a view shows. */
+  --title-sky: #ffe9bf;
+  --title-scrim: color-mix(in srgb, var(--title-sky) 55%, transparent);
 
   font-family: 'Fredoka', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }

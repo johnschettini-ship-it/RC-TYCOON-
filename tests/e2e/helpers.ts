@@ -3,6 +3,7 @@
  * Tile positions on screen follow `src/render/iso.ts` (64 × 32 px tiles, 8 px per height step) and
  * `src/render/camera.ts` (`worldToScreen`).
  */
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type CDPSession, type Locator, type Page, type TestInfo } from '@playwright/test';
 
 /** Collect console errors and page errors; call `expectNoErrors` at the end of the test. */
@@ -227,4 +228,20 @@ export async function touch(cdp: CDPSession, type: 'touchStart' | 'touchMove' | 
 export interface TcGame {
   world: { state: { map: { width: number; heights: ArrayLike<number>; content: ArrayLike<number> } } };
   camera: { centerX: number; centerY: number; zoom: number };
+}
+
+/** Serious and critical axe violations on the page as it is now. */
+async function seriousIssues(page: Page): Promise<string[]> {
+  // A toast fades in for 160 ms. The scan waits for the end of such an animation, or it reads the text at part opacity.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished.catch(() => undefined))).then(() => undefined),
+  );
+  const r = await new AxeBuilder({ page }).exclude('#loading').analyze();
+  return r.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id} (${v.impact}): ${v.help} → ${v.nodes.slice(0, 4).map((n) => n.target.join(' ')).join(' | ')}`);
+}
+
+export async function scan(page: Page, where: string): Promise<void> {
+  expect(await seriousIssues(page), where).toEqual([]);
 }

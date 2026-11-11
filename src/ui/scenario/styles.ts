@@ -4,7 +4,6 @@
  * Touch targets are at least 44 × 44 CSS px (plan Global Constraints).
  */
 const CSS = `
-.title-card.wide { width: min(980px, 100%); }
 .tc-view { display: flex; flex-direction: column; gap: 10px; }
 .tc-view-head { display: flex; align-items: center; gap: 8px; }
 .tc-view-head h2 { margin: 0; font-size: calc(20px * var(--ts, 1)); flex: 1; }

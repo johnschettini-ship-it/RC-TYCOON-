@@ -5,9 +5,8 @@
  *
  * The layout test boots in W4-G's pseudo-locale `en-XA` (Phase 6 §4.8) at 175% text scale.
  */
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, openTool, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, scan, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Tc = {
@@ -17,22 +16,6 @@ type Tc = {
   tool: { selectedEntity: { kind: string; id: number } | null; tool: string };
   world: { state: { rides: Array<{ id: number }>; stalls: Array<{ id: number }>; guests: Array<{ id: number }>; park: { cash: number } } };
 };
-
-/** Serious and critical axe violations on the page as it is now. */
-async function seriousIssues(page: Page): Promise<string[]> {
-  // A toast fades in for 160 ms. The scan waits for the end of such an animation, or it reads the text at part opacity.
-  await page.evaluate(() =>
-    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished.catch(() => undefined))).then(() => undefined),
-  );
-  const r = await new AxeBuilder({ page }).exclude('#loading').analyze();
-  return r.violations
-    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
-    .map((v) => `${v.id} (${v.impact}): ${v.help} → ${v.nodes.slice(0, 4).map((n) => n.target.join(' ')).join(' | ')}`);
-}
-
-async function scan(page: Page, where: string): Promise<void> {
-  expect(await seriousIssues(page), where).toEqual([]);
-}
 
 /** Open a toolbar panel (the button toggles it). */
 async function panel(page: Page, id: string): Promise<void> {

@@ -160,15 +160,16 @@ export const uiStrings: Record<string, string> = {
 
   // Title screen (Phase 1 §4.7)
   'ui.title.name': 'Thrills & Chills',
-  'ui.title.tagline': 'Build a park for thrill seekers and chill seekers',
+  'ui.title.scene': 'A theme park skyline with a coaster, a drop tower, a carousel and a big wheel',
   'ui.title.newPark': 'New Park',
   'ui.title.continue': 'Continue',
+  'ui.title.continueDetail': '{park} · {date}',
+  'ui.title.firstPark': 'Start your first park',
   'ui.title.load': 'Load',
   'ui.title.import': 'Import',
   'ui.title.start': 'Start',
   'ui.title.back': 'Back',
   'ui.title.defaultName': 'Sunny Hills Park',
-  'ui.title.mascots': 'Frost the yeti and Spark the fire fox',
 
   // In-game menu
   'ui.menu.title': 'Menu',

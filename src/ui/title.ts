@@ -1,6 +1,10 @@
 /**
- * Title screen (Phase 1 §4.7, Phase 5 §4.13, Phase 4 §4.9): logo with Frost and Spark; Continue (the newest save or
- * autosave; hidden when none), New game, Load, Import, Settings, Credits. New game offers Tutorial, Scenarios, and
+ * Title screen (Phase 1 §4.7, Phase 5 §4.13, Phase 4 §4.9; Phase 7 design E, `docs/superpowers/specs/thrills-and-chills/
+ * phase-7-title-screen.md`): a pixel skyline of the park with the name as pixel lettering in the sky, and the menu on the
+ * lawn: Continue (the newest save or autosave, with its park line; hidden when none), New game (the main button when
+ * there is no save), Load, Import, Settings, Credits. The sub-views lie on a plate (desktop) or a bottom sheet (phone)
+ * over a veil of the sky; the scene and the name never move when a view opens. `titleScreen/layout.ts` places every
+ * picture (whole CSS px, whole-number scales); this file writes its numbers as custom properties and data attributes. New game offers Tutorial, Scenarios, and
  * Sandbox (the scenario flow, `./scenario/flow.ts`) and the free-play New Park form (name 1–32 characters, map size
  * 64–256). Owner: W3-I (Build 2; W1-B built the Build 1 screen).
  *
@@ -16,8 +20,7 @@ import type { SlotInfo } from '../save';
 import { MAP_SIZES } from '../data/tuning/land';
 import { createWorld } from '../sim/world';
 import type { UiContext } from './context';
-import { h, newId, popModal, pushModal, setText } from './dom';
-import { MASCOT_H, MASCOT_W, drawMascots } from './mascots';
+import { h, newId, popModal, pushModal, setAttr, setText, toggleClass } from './dom';
 import { PARK_NAME_MAX, validateParkName } from './names';
 import { chipGroup } from './scenario/controls';
 import { createScenarioFlow, type FlowHost } from './scenario/flow';
@@ -25,12 +28,25 @@ import { newestSlot } from './scenario/model';
 import { progressStore, randomSeed, registerTitle, type TitleView } from './scenario/shared';
 import { openSettingsScreen } from './settings';
 import { injectScenarioStyles } from './scenario/styles';
+import { titleLayout, type TitleLayout } from './titleScreen/layout';
+import { lastRowColour, pictureCanvas, type PictureData } from './titleScreen/picture';
+import sceneWide from './titleScreen/art/scene-wide.json';
+import sceneTall from './titleScreen/art/scene-tall.json';
+import logoLine from './titleScreen/art/logo-line.json';
+import logoStack from './titleScreen/art/logo-stack.json';
 
 /** Free-play map size the form starts on (see the file comment). */
 export const NEW_PARK_DEFAULT_SIZE = 96;
 /** The size that keeps the Build 1 layout. */
 const CLASSIC_SIZE = 64;
 const LARGE_MAP = 192;
+/** The pictures (decoded only when their kind first shows). */
+const PICTURES: Record<'wide' | 'tall' | 'line' | 'stack', PictureData> = {
+  wide: sceneWide as PictureData,
+  tall: sceneTall as PictureData,
+  line: logoLine as PictureData,
+  stack: logoStack as PictureData,
+};
 
 type View = 'main' | 'new' | 'load' | 'credits' | 'flow';
 
@@ -39,54 +55,64 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const { game, saves } = ctx;
   let open = false;
 
-  const art = h('canvas', { class: 'title-art', role: 'img', 'aria-label': text('ui.title.mascots') });
-  const paintArt = (): void => {
-    const dpr = Math.min(3, window.devicePixelRatio || 1);
-    art.width = Math.round(MASCOT_W * dpr);
-    art.height = Math.round(MASCOT_H * dpr);
-    const c = art.getContext('2d');
-    if (!c) return;
-    c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawMascots(c, MASCOT_W, MASCOT_H);
-  };
-
+  // The scene (a canvas swapped in by `layout`), the lawn below it, the veil, and the name.
+  const sceneLabel = text('ui.title.scene');
+  let scene: HTMLCanvasElement | null = null;
+  const lawn = h('div', { class: 'title-lawn', 'aria-hidden': 'true', hidden: true });
+  const veil = h('div', { class: 'title-veil', 'aria-hidden': 'true', hidden: true });
   const titleId = newId('title');
-  const logo = h(
-    'h1',
-    { id: titleId, class: 'logo', 'aria-label': text('ui.title.name') },
-    h('span', { class: 'logo-thrills', text: 'Thrills', 'aria-hidden': 'true' }),
-    h('span', { class: 'logo-amp', text: '&', 'aria-hidden': 'true' }),
-    h('span', { class: 'logo-chills', text: 'Chills', 'aria-hidden': 'true' }),
-  );
-  const tagline = h('p', { class: 'tagline', text: text('ui.title.tagline') });
+  const logo = h('h1', { id: titleId, class: 'title-logo', 'aria-label': text('ui.title.name') });
 
-  // Main buttons.
+  // The menu: Continue and New game, then Load, Import, Settings, Credits.
   const newestSave = (): SlotInfo | null => {
     const auto = saves.autosaveInfo();
     return newestSlot([...saves.slots().flatMap((s) => (s.info ? [s.info] : [])), ...(auto ? [auto] : [])]);
   };
-  const continueBtn = h('button', {
-    type: 'button',
-    class: 'btn big',
-    'data-testid': 'title-continue',
-    text: text('ui.title.continue'),
-    onclick: () => {
-      const s = newestSave();
-      if (s && saves.load(s.slot)) hide();
+  const continueDetail = h('span', { class: 'btn-detail' });
+  const continueBtn = h(
+    'button',
+    {
+      type: 'button',
+      class: 'btn primary main go',
+      'data-testid': 'title-continue',
+      onclick: () => {
+        const s = newestSave();
+        if (s && saves.load(s.slot)) hide();
+      },
     },
-  });
+    h('span', { class: 'btn-label', text: text('ui.title.continue') }),
+    continueDetail,
+  );
+  const newDetail = h('span', { class: 'btn-detail', text: text('ui.title.firstPark') });
+  const newBtn = h(
+    'button',
+    { type: 'button', class: 'btn main', 'data-testid': 'title-new', onclick: () => showView('new') },
+    h('span', { class: 'btn-label', text: text('prog.title.newGame') }),
+    newDetail,
+  );
+  const small = (id: string, label: string, onClick: () => void, popup = false): HTMLButtonElement =>
+    h('button', { type: 'button', class: 'btn', 'data-testid': `title-${id}`, 'aria-haspopup': popup ? 'dialog' : null, onclick: onClick }, h('span', { class: 'btn-label', text: label }));
   const main = h(
     'div',
-    { class: 'title-buttons' },
-    h('button', { type: 'button', class: 'btn big primary', 'data-testid': 'title-new', text: text('prog.title.newGame'), onclick: () => showView('new') }),
-    continueBtn,
-    h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-load', text: text('ui.title.load'), onclick: () => showView('load') }),
-    h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-import', text: text('ui.title.import'), onclick: () => ctx.importSave(() => hide()) }),
-    h('div', { class: 'title-buttons row-buttons' },
-      h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-settings', 'aria-haspopup': 'dialog', text: text('prog.title.settings'), onclick: () => openSettingsScreen(ctx) }),
-      h('button', { type: 'button', class: 'btn big', 'data-testid': 'title-credits', text: text('prog.title.credits'), onclick: () => showView('credits') }),
+    { class: 'title-menu' },
+    h('div', { class: 'title-menu-main' }, continueBtn, newBtn),
+    h(
+      'div',
+      { class: 'title-menu-small' },
+      h('div', { class: 'title-pair' }, small('load', text('ui.title.load'), () => showView('load')), small('import', text('ui.title.import'), () => ctx.importSave(() => hide()))),
+      h('div', { class: 'title-pair' }, small('settings', text('prog.title.settings'), () => openSettingsScreen(ctx), true), small('credits', text('prog.title.credits'), () => showView('credits'))),
     ),
   );
+
+  /** The two states (PORTING §5): with a save, Continue is the main button; with none, New game is. */
+  const showSaveState = (): void => {
+    const save = newestSave();
+    continueBtn.hidden = save === null;
+    if (save) setText(continueDetail, text('ui.title.continueDetail', { park: save.parkName, date: save.gameDate }));
+    newDetail.hidden = save !== null;
+    toggleClass(newBtn, 'primary', save === null);
+    toggleClass(newBtn, 'go', save === null);
+  };
 
   // New game: Tutorial, Scenarios, Sandbox, and the free-play form.
   const mode = (id: string, label: string, detail: string, onClick: () => void): { el: HTMLButtonElement; detail: HTMLElement } => {
@@ -191,8 +217,73 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
 
   // Views lent by the scenario flow (scenario select, sandbox setup).
   const flowSlot = h('div', { class: 'tc-flow' });
-  const card = h('div', { class: 'title-card' }, art, logo, tagline, main, newView, loadView, creditsView, flowSlot);
-  const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, card);
+  const plate = h('div', { class: 'title-plate', hidden: true }, h('div', { class: 'title-grab', 'aria-hidden': 'true' }), newView, loadView, creditsView, flowSlot);
+  const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, lawn, veil, logo, main, plate);
+
+  // Layout (G1): the numbers of `titleLayout` as custom properties and data attributes; again on every size change.
+  let menuH = 0;
+  const vars = new Map<string, string>();
+  const setVar = (name: string, value: string): void => {
+    if (vars.get(name) === value) return;
+    vars.set(name, value);
+    el.style.setProperty(name, value);
+  };
+  const apply = (l: TitleLayout): void => {
+    setAttr(el, 'data-kind', l.kind);
+    setAttr(el, 'data-menu', l.menu);
+    setAttr(el, 'data-compact', l.compact ? 'true' : null);
+    setAttr(el, 'data-scene', l.scene);
+    setAttr(el, 'data-name', l.name);
+    setVar('--tl-ms', String(l.ms));
+    setVar('--tl-mb', `${l.mb}px`);
+  };
+  const place = (l: TitleLayout, height: number): void => {
+    const sceneData = PICTURES[l.scene];
+    const canvas = pictureCanvas(sceneData);
+    if (scene !== canvas) {
+      canvas.className = 'title-scene';
+      canvas.setAttribute('role', 'img');
+      canvas.setAttribute('aria-label', sceneLabel);
+      if (scene) scene.replaceWith(canvas);
+      else el.prepend(canvas);
+      scene = canvas;
+      lawn.style.backgroundColor = lastRowColour(sceneData);
+    }
+    const nameData = PICTURES[l.name];
+    const name = pictureCanvas(nameData);
+    if (logo.firstChild !== name) {
+      name.setAttribute('aria-hidden', 'true');
+      logo.replaceChildren(name);
+    }
+    const sceneBottom = l.sceneY + sceneData.h * l.s;
+    setVar('--tl-scene-x', `${l.sceneX}px`);
+    setVar('--tl-scene-y', `${l.sceneY}px`);
+    setVar('--tl-scene-w', `${sceneData.w * l.s}px`);
+    setVar('--tl-scene-h', `${sceneData.h * l.s}px`);
+    setVar('--tl-name-x', `${l.nameX}px`);
+    setVar('--tl-name-y', `${l.nameY}px`);
+    setVar('--tl-name-w', `${nameData.w * l.nameS}px`);
+    setVar('--tl-name-h', `${nameData.h * l.nameS}px`);
+    setVar('--tl-name-bottom', `${l.nameY + nameData.h * l.nameS}px`);
+    setVar('--tl-lawn-top', `${sceneBottom}px`);
+    lawn.hidden = sceneBottom >= height;
+  };
+  const layout = (): void => {
+    if (!open) return;
+    const w = el.clientWidth;
+    const height = el.clientHeight;
+    if (w === 0 || height === 0) return;
+    // The menu form depends only on the window (G2): set it first, then measure the menu block. While a view
+    // shows, the menu is hidden and the last measured height holds, so the scene and the name stay where they are.
+    apply(titleLayout({ w, h: height, menuH }));
+    if (!main.hidden) menuH = Math.round(main.getBoundingClientRect().height);
+    const l = titleLayout({ w, h: height, menuH });
+    apply(l);
+    place(l, height);
+  };
+  const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => layout());
+  resize?.observe(el);
+  resize?.observe(main);
 
   const host: FlowHost = {
     showView(view, wide, focus) {
@@ -212,15 +303,17 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     loadView.hidden = view !== 'load';
     creditsView.hidden = view !== 'credits';
     flowSlot.hidden = view !== 'flow';
-    // The card grid uses the full width; the art and tagline make room for it.
-    card.classList.toggle('wide', wide);
-    art.hidden = view !== 'main';
-    tagline.hidden = view !== 'main';
+    // The views lie on the plate over a veil of the sky; the card grid takes the wide plate.
+    plate.hidden = view === 'main';
+    veil.hidden = view === 'main';
+    toggleClass(plate, 'wide', wide);
+    plate.scrollTop = 0;
     // The progress notice lives in one view at a time (scenario select draws its own).
     if (view !== 'new') newNotice.replaceChildren();
     if (view === 'main') {
-      continueBtn.hidden = newestSave() === null;
-      (main.querySelector('button') as HTMLButtonElement | null)?.focus();
+      showSaveState();
+      layout();
+      main.querySelector<HTMLButtonElement>('button:not([hidden])')?.focus();
     } else if (view === 'new') {
       const r = progressStore().read();
       setText(tutorialMode.detail, text(r.ok && r.progress.tutorialDone ? 'prog.newGame.tutorialDone' : 'prog.newGame.tutorialDetail'));
@@ -243,7 +336,6 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     }
     game.setSpeed(0);
     el.hidden = false;
-    paintArt();
     showView('main');
   }
 
