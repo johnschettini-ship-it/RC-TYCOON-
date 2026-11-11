@@ -21,6 +21,7 @@ import { createRidePanel } from './panels/ride';
 import { createStallPanel } from './panels/stall';
 import { SaveActions } from './saves';
 import { createTitleScreen } from './title';
+import { createTipBubble } from './tips/bubble';
 import { toastForResult } from './toasts';
 import { createToastView } from './toastView';
 import { createToolStatus } from './toolStatus';
@@ -213,9 +214,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
     plainHiddenUntil = 0;
   });
   const title = createTitleScreen(ctx);
+  // Phase 7 §4.8: one mascot tip at a time.
+  const tip = createTipBubble(ctx);
   // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).
   const extraBars = UI_EXTENSIONS.flatMap((x) => (x.bars ? [x.bars(ctx)] : []));
-  root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), panels.el, toastView.el, messageToast.el, fileInput, title.el);
+  root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), tip.el, panels.el, toastView.el, messageToast.el, fileInput, title.el);
   mountTrackUi(ctx);
 
   const applyLayout = (): void => {
@@ -384,6 +387,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     patrolBar.update();
     pathItemBar.update(now);
     for (const b of extraBars) b.update(now);
+    tip.update(now);
     panels.tick(now);
     messageToast.update(now);
     const msgVisible = messageToast.visible(now);

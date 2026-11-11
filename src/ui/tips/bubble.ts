@@ -1,0 +1,105 @@
+/**
+ * Mascot tip bubble (Phase 7 §4.8): one short sentence with the small face of the speaker and at most one button.
+ * The rules (`./model`) run every `TIP_CHECK_MS`. Desktop: centred above the hand, where the tool status bar shows
+ * while a tool is active. Phone: below the day pill. Hidden while a dialog or the title is open, while a tool other
+ * than Inspect is active, and on the phone while a panel is open; it comes back when that ends and a tip still matches.
+ * Browser only.
+ */
+import { text } from '../../data/strings/en';
+import { TIP_CHECK_MS } from '../../data/tuning/interface';
+import type { UiContext } from '../context';
+import { h, setAttr, setText } from '../dom';
+import type { UiPart } from '../extensions';
+import { icon } from '../icons';
+import { mascotCanvas } from '../scenario/mascotArt';
+import { modalOpen, titleOpen } from '../scenario/shared';
+import { dropStale, matchingTips, shownTip, tipInput, type Tip, type TipId } from './model';
+
+/** Face height (CSS px) per layout. */
+const FACE_PX = { side: 48, bottom: 40 } as const;
+
+export function createTipBubble(ctx: UiContext): UiPart {
+  const { game, root } = ctx;
+  const art = h('div', { class: 'tip-art', 'aria-hidden': 'true' });
+  const say = h('p', { class: 'tip-text', 'data-testid': 'tip-text' });
+  const action = h('button', { type: 'button', class: 'btn primary tip-action', 'data-testid': 'tip-action', onclick: () => act() });
+  const close = h(
+    'button',
+    { type: 'button', class: 'icon-btn tip-close', 'data-testid': 'tip-close', 'aria-label': text('ui.tip.close'), onclick: () => closeTip() },
+    icon('cross'),
+  );
+  const el = h(
+    'aside',
+    { class: 'tip-bubble', 'data-testid': 'tip', 'aria-live': 'polite', 'aria-label': text('ui.tip.label'), hidden: true },
+    art,
+    h('div', { class: 'tip-body' }, say, action),
+    close,
+  );
+
+  let closed = new Set<TipId>();
+  let tip: Tip | null = null;
+  let shownId: TipId | null = null;
+  let face = '';
+  let lastCheck = -Infinity;
+
+  function act(): void {
+    if (!tip) return;
+    if (tip.id === 'cashLow') ctx.openPanel('finance');
+    else if (tip.group) ctx.openDeck('rides', tip.group);
+    else ctx.openDeck('rides');
+  }
+
+  function closeTip(): void {
+    if (!tip) return;
+    closed.add(tip.id);
+    tip = null;
+  }
+
+  function check(): void {
+    const matching = matchingTips(tipInput(game.world, game.settings.get('mascotTips')));
+    closed = dropStale(closed, matching);
+    tip = shownTip(matching, closed);
+  }
+
+  // A new world starts with no closed tip; its first check runs one period later. A settings change checks at once.
+  game.onWorldChanged(() => {
+    closed = new Set();
+    tip = null;
+    lastCheck = performance.now();
+  });
+  game.settings.onChange(() => {
+    lastCheck = -Infinity;
+  });
+
+  function show(t: Tip): void {
+    const layout = root.dataset.layout === 'bottom' ? 'bottom' : 'side';
+    const key = `${t.speaker}:${t.mood}@${FACE_PX[layout]}`;
+    if (key !== face) {
+      face = key;
+      const c = mascotCanvas(t.speaker, t.mood, FACE_PX[layout], '');
+      c.removeAttribute('role');
+      c.removeAttribute('aria-label');
+      art.replaceChildren(c);
+    }
+    if (t.id === shownId) return;
+    shownId = t.id;
+    setAttr(el, 'data-tip', t.id);
+    setAttr(el, 'data-speaker', t.speaker);
+    setText(say, text(`ui.tip.${t.id}`));
+    setText(action, t.group ? text('ui.tip.showZone', { zone: text(`ui.tag.${t.group}`) }) : text(`ui.tip.${t.id}.button`));
+  }
+
+  return {
+    el,
+    update(now) {
+      if (now - lastCheck >= TIP_CHECK_MS) {
+        lastCheck = now;
+        check();
+      }
+      const blocked = modalOpen() || titleOpen() || game.tool.tool !== 'inspect' || (root.dataset.layout === 'bottom' && ctx.activePanel() !== null);
+      const visible = tip !== null && !blocked;
+      if (visible && tip) show(tip);
+      if (el.hidden === visible) el.hidden = !visible;
+    },
+  };
+}
