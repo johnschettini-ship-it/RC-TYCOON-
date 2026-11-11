@@ -471,8 +471,8 @@ def ground_shadow(x0, x1, y, key='g3'):
 
 
 # ================================================================ rides (side view)
-def wheel(cx, gy, R, booth=True):
-    hy = gy - R - 12
+def wheel(cx, gy, R, booth=True, lift=12):
+    hy = gy - R - lift
     ground_shadow(cx - int(R * 0.5), cx + int(R * 1.0), gy)
     L = Layer(); d = L.d                                           # back legs, darker
     for sgn in (-1, 1): d.line([(cx + sgn * int(R * 0.42) + 3, gy - 3), (cx + 2, hy)], fill=K('c3'), width=2)
@@ -505,7 +505,8 @@ def wheel(cx, gy, R, booth=True):
         fx = cx + sgn * int(R * 0.5)
         d.line([(fx, gy - 3), (cx, hy)], fill=K('c0'), width=3); d.line([(fx + 1, gy - 3), (cx + 1, hy)], fill=K('c2'))
     by = gy - int(R * 0.42); d.line([(cx - int(R * 0.33), by), (cx + int(R * 0.33), by)], fill=K('c1'), width=2)
-    d.ellipse([cx - 4, hy - 4, cx + 4, hy + 4], fill=K('o1')); d.ellipse([cx - 4, hy - 4, cx + 2, hy + 2], fill=K('o0')); d.point([(cx - 2, hy - 2), (cx - 1, hy - 2)], fill=K('c0'))
+    hr = max(4, R // 5)
+    d.ellipse([cx - hr, hy - hr, cx + hr, hy + hr], fill=K('o1')); d.ellipse([cx - hr, hy - hr, cx + hr - 2, hy + hr - 2], fill=K('o0')); d.point([(cx - 2, hy - 2), (cx - 1, hy - 2)], fill=K('c0'))
     hw = int(R * 0.72)
     d.rectangle([cx - hw, gy - 3, cx + hw, gy], fill=K('c0')); d.line([(cx - hw, gy), (cx + hw, gy)], fill=K('c2')); d.rectangle([cx + hw - 6, gy - 3, cx + hw, gy], fill=K('c2'))
     L.flush()
@@ -547,6 +548,40 @@ def carousel(cx, gy, w=72, h=60):
     for i in range(n): P((xs[i] + xs[i + 1]) // 2, base + 8, 'o0')    # lights under the valance
 
 
+HORSE_S = ['.....oo..', '....oWWo.', '.ooooWWWo', 'oWSSWWWo.', 'oWWWWWWo.', '.oWooWo..', '.oo..oo..']
+
+
+def carousel_small(cx, gy, w=28, h=36):
+    """The small carousel of the phone: a calm base, a dark teal room in the shade of the roof, ONE white centre
+    pole and two white horses on gold poles with clear gaps between them (no clutter of many horses)."""
+    hw = w // 2; top = gy - h; base = top + int(h * 0.27)
+    ground_shadow(cx - hw + 4, cx + hw + 10, gy)
+    L = Layer(); d = L.d
+    d.rectangle([cx - hw + 1, base + 6, cx + hw - 1, gy - 6], fill=K('t3'))                  # the room under the roof
+    d.rectangle([cx - hw, gy - 3, cx + hw, gy], fill=K('c0')); d.rectangle([cx + hw - 7, gy - 3, cx + hw, gy], fill=K('c2'))
+    d.line([(cx - hw, gy), (cx + hw, gy)], fill=K('c2'))
+    d.rectangle([cx - hw + 2, gy - 5, cx + hw - 2, gy - 4], fill=K('t1')); d.rectangle([cx + 4, gy - 5, cx + hw - 2, gy - 4], fill=K('t2'))
+    L.flush()
+    L = Layer(); d = L.d                                           # the centre pole
+    d.rectangle([cx - 1, base + 6, cx + 1, gy - 6], fill=K('c0')); d.line([(cx + 1, base + 6), (cx + 1, gy - 6)], fill=K('c2'))
+    L.flush()
+    for i, (dx, lift, sad) in enumerate(((-9, 0, 'p1'), (9, 3, 'b1'))):
+        x = cx + dx
+        S.d.line([(x, base + 7), (x, gy - 6)], fill=K('o1'))
+        stamp(HORSE_S if dx > 0 else HORSE_S, x, gy - 8 - lift, {'o': 'i2', 'W': 'c0', 'S': sad})
+    L = Layer(); d = L.d                                           # the tent: striped cone and valance
+    n = 8; xs = [cx - hw - 3 + int(round((w + 6) * i / n)) for i in range(n + 1)]
+    for i in range(n):
+        lit = i < n * 0.6
+        d.polygon([(cx, top), (xs[i], base), (xs[i + 1], base)], fill=K((('t1' if lit else 't3') if i % 2 == 0 else ('c0' if lit else 'c2'))))
+    for i in range(n):
+        lit = i < n * 0.6; key = K((('c0' if lit else 'c2') if i % 2 == 0 else ('t2' if lit else 't3')))
+        d.rectangle([xs[i], base + 1, xs[i + 1] - 1, base + 4], fill=key); d.line([(xs[i] + 1, base + 5), (xs[i + 1] - 2, base + 5)], fill=key)
+    d.rectangle([cx - 1, top - 3, cx + 1, top - 1], fill=K('o0')); d.line([(cx, top - 9), (cx, top - 4)], fill=K('w2'))
+    d.polygon([(cx + 1, top - 9), (cx + 6, top - 7), (cx + 1, top - 6)], fill=K('o3'))
+    L.flush()
+
+
 def tower(cx, gy, h, rw=17):
     top = gy - h
     bw = min(12, rw)                                               # half width of the base
@@ -585,7 +620,7 @@ def profile(keys):
     return ys
 
 
-def coaster(keys, gy, post=8, level=11, wood=('w0', 'w1', 'w2'), train_at=None, cars=3, body='t2', heading=1, clean=False):
+def coaster(keys, gy, post=8, level=11, wood=('w0', 'w1', 'w2'), train_at=None, cars=3, body='t2', heading=1, clean=False, before=None, bold=False):
     """A wooden coaster in side view: a lattice of posts, beams and braces under an orange track with ink outline."""
     ys = profile(keys); xs = sorted(ys); x0, x1 = int(xs[0]), int(xs[-1])
     yi = lambda x: int(round(ys[float(x)]))
@@ -603,6 +638,7 @@ def coaster(keys, gy, post=8, level=11, wood=('w0', 'w1', 'w2'), train_at=None, 
     for x in cols_:
         if yi(x) + 2 < gy: d.line([(x, yi(x) + 2), (x, gy)], fill=K(wood[0])); d.line([(x + 1, yi(x) + 3), (x + 1, gy)], fill=K(wood[1]))
     L.flush()
+    if before: before()                                            # e.g. a station between the lattice and the track
     if clean:                                                      # the track: 2 pixels, a light line and a dark one
         pts = []                                                   # under it, the same thickness on every slope
         for x in xs:
@@ -615,7 +651,8 @@ def coaster(keys, gy, post=8, level=11, wood=('w0', 'w1', 'w2'), train_at=None, 
             sl = (ys[max(lo, min(hi, round((xm + 0.75) * 4) / 4.0))] - ys[max(lo, min(hi, round((xm - 0.75) * 4) / 4.0))]) / 1.5
             off = ((1 if sl < 0 else -1), 0) if abs(sl) > 1.0 else (0, 1)
             d.line([(xa + off[0], ya + off[1]), (xb + off[0], yb + off[1])], fill=K('o3'))
-        for (xa, ya), (xb, yb) in zip(pts, pts[1:]): d.line([(xa, ya), (xb, yb)], fill=K('o1'))
+            if bold: d.line([(xa - off[0], ya - off[1]), (xb - off[0], yb - off[1])], fill=K('o1'))
+        for (xa, ya), (xb, yb) in zip(pts, pts[1:]): d.line([(xa, ya), (xb, yb)], fill=K('o2' if bold else 'o1'))
         L.flush()
         if train_at is not None:                                   # cars follow the track column by column
             rows = CAR if heading > 0 else [row[::-1] for row in CAR]
@@ -623,7 +660,7 @@ def coaster(keys, gy, post=8, level=11, wood=('w0', 'w1', 'w2'), train_at=None, 
             for c in range(cars):
                 x0 = train_at - heading * c * 9 - w // 2
                 for i in range(w):
-                    yb = yi(x0 + i) - 2
+                    yb = yi(x0 + i) - (3 if bold else 2)
                     for j in range(h):
                         ch = rows[j][i]
                         if ch in '. ': continue
@@ -661,6 +698,23 @@ def station(x0, x1, gy, ty):
     mx = (x0 + x1) // 2
     d.rectangle([mx - 9, ty - 29, mx + 9, ty - 23], fill=K('o3')); d.line([(mx - 9, ty - 29), (mx + 9, ty - 29)], fill=K('o2'))
     for i in range(-7, 8, 3): d.rectangle([mx + i, ty - 27, mx + i + 1, ty - 25], fill=K('c0'))
+    L.flush()
+
+
+def station_small(x0, x1, ty, gy):
+    """A small station at the coaster's start: a platform block whose deck carries the track (row ty), a dark
+    doorway, two posts and a striped roof that never reaches left of x0."""
+    L = Layer(); d = L.d
+    d.rectangle([x0, ty + 1, x1, gy], fill=K('c0')); d.rectangle([x1 - 3, ty + 1, x1, gy], fill=K('c2'))
+    d.line([(x0, ty + 1), (x1, ty + 1)], fill=K('c1')); d.rectangle([x0 + 3, ty + 5, x0 + 6, gy - 1], fill=K('i1'))
+    for x in (x0 + 1, x1 - 2): d.rectangle([x, ty - 12, x + 1, ty], fill=K('c0'))
+    L.flush()
+    L = Layer(); d = L.d
+    n = (x1 + 3 - x0 + 1) // 3
+    for i in range(n):
+        xa = x0 + i * 3; key = K(('o1' if i % 2 == 0 else 'c0') if i < n * 0.65 else ('o3' if i % 2 == 0 else 'c2'))
+        d.rectangle([xa, ty - 17, xa + 2, ty - 13], fill=key)
+    d.line([(x0, ty - 18), (x0 + n * 3 - 1, ty - 18)], fill=K('c0'))
     L.flush()
 
 
@@ -717,7 +771,7 @@ def lake(shore, x0, x1, seed=3):
 
 
 # ================================================================ more ground
-def knoll(top, x1):
+def knoll(top, x1, patches=(), flowers=()):
     """A grassy knoll in the front at the left (the desktop menu stands on it): a dome from the left edge whose right
     slope runs down to the bottom row at column x1. top(x) = its contour. A 1-pixel ink outline round it; light from
     the upper left: a band of the lightest grass under the contour where the slope faces up or left, the body in the
@@ -726,6 +780,14 @@ def knoll(top, x1):
     cols = [(x, int(round(top(x)))) for x in range(0, x1)]
     for x, y in cols:
         if y < S.H: d.line([(x, y), (x, S.H - 1)], fill=K('g1'))
+    edge = lambda y: max([x for x, yy in cols if yy <= y] or [0])     # the right slope on row y
+    for cx, cy, rx, ry, key in patches:                            # calm patches of a lighter and a darker grass
+        for y in range(cy - ry, cy + ry + 1):
+            v = (y - cy) / (ry + 0.5); half = int(rx * math.sqrt(max(0.0, 1 - v * v)) + 0.5)
+            for x in range(cx - half, cx + half + 1):
+                if 0 <= x < x1 and y >= top(x) + 5 and x <= edge(y) - 15: L.P(x, y, key)
+    for x, y, key in flowers:                                      # small flowers: a petal on a stem, 2 pixels high
+        L.P(x, y - 1, key); L.P(x, y, 'l2')
     prev = None
     for x, y in cols:                                              # lit band: 3 rows, where the contour is flat or rising
         if y >= S.H: break
@@ -755,13 +817,15 @@ def domes(specs, bottom, body='s2', lit='s1', shade='s3', x0=0, x1=None):
             if best is None or y < best[0]: best = (y, u, cx, tp, hw)
         if best is None: continue
         y, u, cx, tp, hw = best
-        # the shade is a crescent on the right: outside a lit core dome that is a little narrower and further left
-        kc, kw = cx - 0.22 * hw, 0.84 * hw
+        # one flat body; a short soft shade only on the right slope: a wedge under the contour that deepens towards
+        # the dome's right foot (never a crescent, so two domes never form an arch); a lit rim on the upper left
+        deep = 0 if u < 0.45 else min(7, int(round(2 + (u - 0.45) * 14)))
         for yy in range(y, bottom + 1):
-            v = (x - kc) / kw
-            core = abs(v) < 1 and yy >= tp + (bottom - tp) * (1 - math.sqrt(1 - v * v))
-            S.px[x, yy] = K(body if core else shade)
-        if u < -0.05: P(x, y, lit)
+            S.px[x, yy] = K(shade if yy < y + deep else body)
+        if u < -0.05:
+            P(x, y, lit)
+            if u < -0.35: P(x, y + 1, lit)
+        elif u < 0.42: pass
 
 
 def lake_side(xl, yfar, ynear, x1, seed=7):
@@ -821,10 +885,10 @@ def flat_path(x0, x1, y0, y1):
 
 
 # ================================================================ the two scenes
-WARM_D = [(20, 'o1'), (46, 'o0'), (84, 's1')]
+WARM_D = [(30, 'o0'), (62, 's1')]                      # two calm warm bands round the sun
 COOL_D = [(52, 't1'), (100, 'a0'), (150, 't0')]
-WARM_P = [(14, 'o1'), (28, 'o0'), (46, 's1')]
-COOL_P = [(38, 't1'), (74, 'a0'), (112, 't0')]
+WARM_P = [(20, 'o0'), (40, 's1')]
+COOL_P = [(38, 't1'), (74, 'a0'), (104, 't0')]        # the outer band ends below row 0 (row 0 stays #ffe9bf)
 
 
 def dome_top(specs, bottom):
@@ -847,9 +911,9 @@ def scene_wide():
     no object is cut there."""
     global S
     S = Scene(960, 400); GY = 284; M = 959
-    sun = (246, 176)
-    sky(sun, (1.5, 1.15), WARM_D, (590, 292), (2.0, 1.9), COOL_D, 's0', GY - 6, ring=12)
-    sun_disc(*sun, 13)
+    sun = (250, 133)
+    sky(sun, (1.0, 1.1), WARM_D, (606, 292), (2.0, 1.85), COOL_D, 's0', GY - 6, ring=12)
+    sun_disc(*sun, 11)
     cloud(70, 196, 52, 'c0', 's1'); cloud(330, 140, 60, 'c0', 's1'); cloud(560, 150, 56, 'c0', 's1'); cloud(800, 168, 70, 'c0', 't0')
     birds([(300, 196), (310, 202), (321, 194)])
     balloon(84, 150, 13, 'o1', 'c0', 'o3', 'c2'); balloon(616, 168, 12, 't1', 'c0', 't3', 'c2')
@@ -857,7 +921,7 @@ def scene_wide():
     teal = [(470, 238, 70), (575, 226, 78), (690, 240, 64), (800, 228, 84), (922, 240, 70)]
     cool = dome_top(teal, GY - 4)
     green = lambda x: 268 - 8 * math.sin(x / 44.0 + 2.2) - 3 * math.sin(x / 17.0) + max(0, 362 - x) ** 2 * 0.012
-    domes(teal, GY - 4, body='t2', lit='t1', shade='t3', x0=380)
+    domes(teal, GY - 4, body='t2', lit='a1', shade='t3', x0=380)
     domes([(150, 240, 66), (246, 248, 58), (330, 256, 50)], GY - 4)
     hill(330, 960, green, 'l2', GY - 4, 'l1')
     r = random.Random(11)
@@ -874,8 +938,9 @@ def scene_wide():
     S.d.rectangle([0, GY - 4, M, 399], fill=K('g1')); S.d.rectangle([0, GY - 4, M, GY + 1], fill=K('g2'))
     promenade(GY + 4, GY + 16)
     # the skyline, from the back to the front
-    coaster([(168, GY - 8, 0.12), (212, GY - 108, 0.3), (238, GY - 8, 0.3), (256, GY - 44, 0.4), (270, GY - 10, 0.4), (278, GY - 10, 0.3)], GY,
-            wood=('w1', 'w2', 'w1'), train_at=217, heading=1, cars=2)
+    TY = GY - 18                                                    # the deck of the station, where the track starts
+    coaster([(169, TY - 1, 0.1), (179, TY - 1, 0.1), (206, 149, 0.3), (220, 149, 0.3), (243, GY - 7, 0.4), (260, GY - 50, 0.42), (273, GY - 10, 0.42), (278, GY - 10, 0.3)], GY,
+            wood=('w1', 'w2', 'w1'), train_at=217, heading=1, cars=2, clean=True, bold=True, before=lambda: station_small(168, 181, TY, GY))
     tower(296, GY, 128, rw=14)
     carousel(350, GY, 60, 54)
     wheel(441, GY, 48)
@@ -913,7 +978,12 @@ def scene_wide():
     for n, x in enumerate((262, 268, 380)): guest(x, 357, 60 + n)
     # the knoll at the left, in front of everything behind it: a dome, its right slope reaches the bottom at column 250
     kt = lambda x: 230 + 0.8 * math.sin(x / 15.0) if x < 70 else 230 + ((x - 70) / 180.0) ** 2 * 172
-    knoll(kt, 251)
+    PATCH = [(34, 258, 26, 5, 'g0'), (128, 249, 22, 4, 'g2'), (96, 276, 30, 6, 'g0'), (20, 296, 20, 6, 'g2'),
+             (138, 300, 16, 5, 'g2'), (66, 318, 24, 5, 'g0'), (26, 350, 18, 6, 'g0'), (150, 336, 14, 5, 'g0'),
+             (60, 378, 26, 6, 'g2')]
+    FLOWERS = [(58, 246, 'p0'), (61, 247, 'c0'), (64, 245, 'p0'), (124, 262, 'o0'), (127, 263, 'c0'),
+               (12, 276, 'c0'), (15, 278, 'p0'), (44, 330, 'p0'), (47, 332, 'c0'), (110, 300, 'o0'), (113, 301, 'c0')]
+    knoll(kt, 251, PATCH, FLOWERS)
     tufts(0, 240, 236, 400, 9, gap=12, taken=lambda x, y: y < kt(x) + 5 or x > 70 + 180 * math.sqrt(max(0, y - 230) / 172.0) - 14)
     for x, s_, R, t in ((24, 7, 10, 10), (118, 8, 9, 9)): tree_round(x, int(kt(x)) + 2, s_, ('o0', 'o1', 'o2', 'o4'), R=R, trunk=t)
     tree_pine(46, int(kt(46)) + 2, 9)
@@ -924,8 +994,8 @@ def scene_wide():
 
 def scene_tall():
     """450 x 470, the phone scene. GY = 300; promenade rows 304..314; ride tops (the tower's flag) at row 194; lawn
-    315..469. Columns 139..305 hold the whole skyline, inside the 187 art px (131..318) that a 375 px phone sees at 2x;
-    the rides stand apart: tower 139..153, coaster 155..221, carousel 225..259, wheel 269..307 (on the far bank of the
+    315..469. Columns 138..317 hold the whole skyline, inside the 187 art px (131..318) that a 375 px phone sees at 2x;
+    the rides stand apart: tower 138..154, coaster 155..214, carousel 220..254, wheel 259..317 (on the far bank of the
     lake). Window edges: 131 / 127 / 122 (375 / 390 / 412 px at 2x) and 97 (768 px at 3x) at the left, 318 / 322 /
     328 / 353 at the right: no object crosses them."""
     global S
@@ -937,7 +1007,7 @@ def scene_tall():
     birds([(160, 176), (169, 181)])
     # far hills: sand domes on the Thrill side, round teal domes with small pines on the Chill side
     teal = [(292, 248, 46), (362, 238, 58), (436, 250, 52)]
-    domes(teal, HB, body='t2', lit='t1', shade='t3', x0=238)
+    domes(teal, HB, body='t2', lit='a1', shade='t3', x0=238)
     tt = dome_top(teal, HB); r = random.Random(11); x = 252
     while x < 450:
         y = tt(x)
@@ -948,24 +1018,37 @@ def scene_tall():
     S.d.rectangle([0, HB, M, 469], fill=K('g1')); S.d.rectangle([0, HB, M, GY - 11], fill=K('g2'))
     # the far bank of the lake (the wheel stands on it) and the lake from there down to the promenade
     FB = GY - 30
-    S.d.rectangle([256, FB - 3, M, FB], fill=K('g2')); S.d.line([(256, FB - 3), (M, FB - 3)], fill=K('g1'))
-    xl = lambda y: 276 - (y - FB) * 0.22                      # the left shore: one even slant down to the left
+    # the far bank: a lawn that runs from the wheel down to the left as a round headland (no cut edge): its contour
+    # is lit (g1), its body the back-lawn tone (g2); it meets the back lawn at row HB
+    bank = lambda x: FB - 3 if x >= 268 else FB - 3 + (268 - x) ** 2 * 0.045
+    for x in range(200, 450):
+        yb = int(round(bank(x)))
+        if yb < HB: S.d.line([(x, yb), (x, HB)], fill=K('g2')); P(x, yb, 'g1')
+        if yb < HB and int(round(bank(x - 1))) > yb + 1:            # a steep step of the contour: lit on its left side
+            for yy in range(yb, min(HB, int(round(bank(x - 1))))): P(x, yy, 'g1')
+    # the left shore of the lake: a curved bank, sand lit from the upper left, the water's pale edge along it
+    xl = lambda y: 262 + 14 * math.cos((y - FB) / (GY + 1 - FB) * math.pi / 2) ** 0.7
     lake_side(xl, FB + 1, GY + 1, M)
-    for x, h in ((272, 4), (274, 6), (276, 5), (316, 5), (318, 3), (362, 6), (365, 4)):
+    for y in range(FB + 1, GY + 2):
+        xa = int(round(xl(y))); xb = int(round(xl(y - 1))) if y > FB + 1 else xa
+        for x in range(min(xa, xb) - 2, xa): P(x, y, 's1')          # a beach two pixels wide, the full step on bends
+        P(xa - 3, y, 's2') if y > FB + 3 else None
+        P(xa, y, 'a0')
+    for x, h in ((268, 4), (270, 6), (272, 5), (318, 3), (362, 6), (365, 4)):
         S.d.line([(x, GY - 1 - h), (x, GY - 1)], fill=K('l3')); P(x, GY - 2 - h, 'w1')
     stamp(BOAT, 296, FB + 15, {'o': 'i2', 'W': 'c0', 'R': 'p1'})
     pier(330, GY - 8, w=10, n=5)
     promenade(GY + 4, GY + 14)
-    coaster([(155, GY - 6, 0.12), (182, GY - 58, 0.45), (199, GY - 8, 0.45), (210, GY - 28, 0.5), (221, GY - 8, 0.5)], GY,
-            post=6, level=9, wood=("w1", "w2", "w1"), train_at=181, heading=1, cars=1, clean=True)
+    coaster([(155, GY - 6, 0.12), (181, GY - 58, 0.45), (196, GY - 8, 0.45), (206, GY - 26, 0.5), (214, GY - 8, 0.5)], GY,
+            post=6, level=9, wood=("w1", "w2", "w1"), train_at=180, heading=1, cars=1, clean=True)
     tower(146, GY, 84, rw=8)
-    carousel(242, GY, 28, 36)
-    wheel(288, FB, 19, booth=False)
+    carousel_small(237, GY, 28, 36)
+    wheel(288, FB, 27, booth=False, lift=16)
     tree_pine(110, GY - 10, 1)
     for x, s_ in ((384, 2), (414, 5)): tree_pine(x, FB - 1, s_)
     tree_round(60, GY - 10, 3, ('o0', 'o1', 'o2', 'o4'), R=8)
-    fence(0, 450, GY + 3, gaps=[(226, 258)])
-    for x in (226, 310): lamp(x, GY + 4)
+    fence(0, 450, GY + 3, gaps=[(221, 253)])
+    for x in (256, 310): lamp(x, GY + 4)
     crowd(142, 304, GY + 10, GY + 13, 7, 33)
     tufts(0, 318, 450, 470, 5)
     for x, s_ in ((109, 5), (340, 6)): tree_round(x, 352, s_, ('o0', 'o1', 'o2', 'o4'), R=8, trunk=9)

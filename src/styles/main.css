@@ -700,9 +700,17 @@ button { font: inherit; color: inherit; }
   overflow: hidden;
   background: var(--title-sky);
 }
-.title-scene, .title-logo canvas { display: block; max-width: none; image-rendering: pixelated; }
 .title-scene { position: absolute; left: var(--tl-scene-x); top: var(--tl-scene-y); width: var(--tl-scene-w); height: var(--tl-scene-h); }
-.title-lawn { position: absolute; left: 0; right: 0; top: var(--tl-lawn-top); bottom: 0; }
+.title-scene, .title-lawn, .title-logo canvas { display: block; max-width: none; image-rendering: pixelated; }
+/* G7: the scene's last row (a w x 1 canvas) repeated down to the window bottom, at the scene's x and width. */
+.title-lawn { position: absolute; left: var(--tl-scene-x); top: var(--tl-lawn-top); width: var(--tl-scene-w); height: var(--tl-lawn-h); }
+.title-lawn[hidden] { display: none; }
+/* Reads the safe-area insets for the layout (title.ts); the scene and the fill cover the whole window, the name, the
+ * menu, the plate and the sheet stay inside the safe area (--tl-safe-*, whole px). */
+.title-safe-probe {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
 .title-veil { position: absolute; inset: 0; z-index: 1; background: var(--title-scrim); }
 .title-logo { position: absolute; z-index: 2; margin: 0; left: var(--tl-name-x); top: var(--tl-name-y); line-height: 0; }
 .title-logo canvas { width: var(--tl-name-w); height: var(--tl-name-h); }
@@ -733,6 +741,10 @@ button { font: inherit; color: inherit; }
 .title-menu .btn-detail { font-size: var(--f3); font-weight: 500; color: inherit; }
 /* The park line wraps inside its button: it does not widen the button (only the label decides when buttons wrap). */
 .title-menu .btn-detail { width: 0; min-width: 100%; }
+/* The park line under Continue: one line, with an ellipsis when it does not fit. */
+.title-menu .title-park-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* While a view shows, the menu stays in the layout (it is measured) but cannot be seen or reached. */
+.title-menu[inert] { visibility: hidden; }
 .title-menu .btn:hover { background: var(--surface-3); }
 .title-menu .main.go:hover { background: color-mix(in srgb, var(--accent-chill) 85%, var(--ink)); }
 
@@ -745,28 +757,27 @@ button { font: inherit; color: inherit; }
 .title-screen[data-menu='row'] .title-menu-main .go { flex: 7 1 0; }
 
 .title-screen[data-kind='desktop'] .title-menu {
-  left: calc(32px * var(--ms)); bottom: var(--tl-mb); width: calc(288px * var(--ms));
-  --h1: calc(68px * var(--ms)); --h2: calc(56px * var(--ms)); --h3: calc(52px * var(--ms)); --gap: calc(12px * var(--ms));
+  left: var(--tl-menu-left); bottom: var(--tl-mb); width: var(--tl-menu-w);
+  --h1: var(--tl-h1); --h2: var(--tl-h2); --h3: var(--tl-h3); --gap: var(--tl-gap);
   --f1: calc(21px * var(--tl-ms, 1) * var(--ts, 1)); --f2: calc(18px * var(--tl-ms, 1) * var(--ts, 1)); --f3: calc(13px * var(--tl-ms, 1) * var(--ts, 1));
 }
-.title-screen[data-kind='desktop'][data-compact] .title-menu {
-  --h1: calc(60px * var(--ms)); --h2: calc(56px * var(--ms)); --h3: calc(46px * var(--ms)); --gap: calc(10px * var(--ms));
-}
 .title-screen[data-kind='phone'] .title-menu {
-  left: 0; right: 0; bottom: var(--tl-mb); margin: 0 auto; width: min(100% - 32px, 560px);
+  left: var(--tl-safe-left); right: var(--tl-safe-right); bottom: var(--tl-mb); margin: 0 auto;
+  width: min(100% - 32px - var(--tl-safe-left) - var(--tl-safe-right), 560px);
   --h1: 60px; --h2: 60px; --h3: 46px; --gap: 10px;
   --f1: calc(19px * var(--ts, 1)); --f2: calc(16px * var(--ts, 1)); --f3: calc(13px * var(--ts, 1));
 }
 /* As the design: the row form's narrow buttons keep 4 px at the sides. */
 .title-screen[data-kind='phone'][data-menu='row'] .title-menu .btn { padding: 4px; }
 .title-screen[data-kind='phone'][data-menu='column'] .title-menu {
-  width: calc(100% - 32px);
+  width: calc(100% - 32px - var(--tl-safe-left) - var(--tl-safe-right));
   --h1: 64px; --h2: 56px; --h3: 48px; --gap: 12px;
   --f1: calc(21px * var(--ts, 1)); --f2: calc(18px * var(--ts, 1));
 }
 /* Low windows (landscape phones, G6): one row of six buttons, centred; it may wrap. */
 .title-screen[data-kind='low'] .title-menu {
-  left: 0; right: 0; bottom: var(--tl-mb); margin: 0 auto; width: min(100% - 24px, 820px);
+  left: var(--tl-safe-left); right: var(--tl-safe-right); bottom: var(--tl-mb); margin: 0 auto;
+  width: min(100% - 24px - var(--tl-safe-left) - var(--tl-safe-right), 820px);
   flex-direction: row; flex-wrap: wrap; justify-content: center;
   --h1: 52px; --h2: 52px; --h3: 52px; --gap: 10px;
   --f1: calc(17px * var(--ts, 1)); --f2: calc(16px * var(--ts, 1)); --f3: calc(12px * var(--ts, 1));
@@ -787,20 +798,26 @@ button { font: inherit; color: inherit; }
 }
 .title-grab { display: none; }
 .title-screen[data-kind='desktop'] .title-plate {
-  left: calc(32px * var(--tl-ms, 1)); bottom: var(--tl-mb);
-  width: min(calc(440px * var(--tl-ms, 1)), 100% - 64px * var(--tl-ms, 1));
+  /* The menu's left (with the left inset); as far from the right inset as the menu is from the left one. */
+  --plate-room: calc(100% - 2 * var(--tl-menu-left) + var(--tl-safe-left) - var(--tl-safe-right));
+  left: var(--tl-menu-left); bottom: var(--tl-mb);
+  width: min(calc(440px * var(--tl-ms, 1)), var(--plate-room));
   max-height: calc(100% - var(--tl-mb) - var(--tl-name-bottom) - 12px);
 }
-.title-screen[data-kind='desktop'] .title-plate.wide { width: min(calc(760px * var(--tl-ms, 1)), 100% - 64px * var(--tl-ms, 1)); }
+.title-screen[data-kind='desktop'] .title-plate.wide { width: min(calc(760px * var(--tl-ms, 1)), var(--plate-room)); }
 .title-screen[data-kind='phone'] .title-plate {
   left: 0; right: 0; bottom: 0; margin: 0 auto; width: min(100%, 560px);
   max-height: max(60%, 100% - var(--tl-name-bottom) - 12px);
   border-bottom: 0; border-radius: 24px 24px 0 0; box-shadow: none;
-  padding: 10px 20px calc(40px + var(--safe-bottom));
+  padding: 10px calc(20px + var(--tl-safe-right)) calc(40px + var(--tl-safe-bottom)) calc(20px + var(--tl-safe-left));
 }
 .title-screen[data-kind='phone'] .title-grab { display: block; flex: none; width: 48px; height: 6px; margin: 0 auto 2px; border-radius: 3px; background: var(--rule); }
-.title-screen[data-kind='low'] .title-plate { top: 8px; bottom: 8px; left: 0; right: 0; margin: 0 auto; width: min(560px, 100% - 16px); }
-.title-screen[data-kind='low'] .title-plate.wide { width: calc(100% - 16px); }
+.title-screen[data-kind='low'] .title-plate {
+  top: calc(8px + var(--tl-safe-top)); bottom: calc(8px + var(--tl-safe-bottom));
+  left: var(--tl-safe-left); right: var(--tl-safe-right); margin: 0 auto;
+  width: min(560px, 100% - 16px - var(--tl-safe-left) - var(--tl-safe-right));
+}
+.title-screen[data-kind='low'] .title-plate.wide { width: calc(100% - 16px - var(--tl-safe-left) - var(--tl-safe-right)); }
 /* The scenario detail sheet that the flow opens over the title lies above the veil, the name and the plate. */
 .title-screen > .tc-sheet-backdrop { z-index: 3; }
 .title-buttons { display: flex; flex-direction: column; gap: 8px; }

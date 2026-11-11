@@ -28,8 +28,8 @@ import { newestSlot } from './scenario/model';
 import { progressStore, randomSeed, registerTitle, type TitleView } from './scenario/shared';
 import { openSettingsScreen } from './settings';
 import { injectScenarioStyles } from './scenario/styles';
-import { titleLayout, type TitleLayout } from './titleScreen/layout';
-import { lastRowColour, pictureCanvas, type PictureData } from './titleScreen/picture';
+import { titleLayout, type SafeInsets, type TitleLayout } from './titleScreen/layout';
+import { lastRowPicture, pictureCanvas, type PictureData } from './titleScreen/picture';
 import sceneWide from './titleScreen/art/scene-wide.json';
 import sceneTall from './titleScreen/art/scene-tall.json';
 import logoLine from './titleScreen/art/logo-line.json';
@@ -55,10 +55,12 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const { game, saves } = ctx;
   let open = false;
 
-  // The scene (a canvas swapped in by `layout`), the lawn below it, the veil, and the name.
+  // The scene and the fill below it (canvases swapped in by `layout`), the veil, and the name.
   const sceneLabel = text('ui.title.scene');
   let scene: HTMLCanvasElement | null = null;
-  const lawn = h('div', { class: 'title-lawn', 'aria-hidden': 'true', hidden: true });
+  let lawn: HTMLCanvasElement | null = null;
+  // Reads the safe-area insets (its paddings are var(--safe-top) and so on); its size changes with them.
+  const safeProbe = h('div', { class: 'title-safe-probe', 'aria-hidden': 'true' });
   const veil = h('div', { class: 'title-veil', 'aria-hidden': 'true', hidden: true });
   const titleId = newId('title');
   const logo = h('h1', { id: titleId, class: 'title-logo', 'aria-label': text('ui.title.name') });
@@ -68,7 +70,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     const auto = saves.autosaveInfo();
     return newestSlot([...saves.slots().flatMap((s) => (s.info ? [s.info] : [])), ...(auto ? [auto] : [])]);
   };
-  const continueDetail = h('span', { class: 'btn-detail' });
+  const continueDetail = h('span', { class: 'btn-detail title-park-line' });
   const continueBtn = h(
     'button',
     {
@@ -108,7 +110,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const showSaveState = (): void => {
     const save = newestSave();
     continueBtn.hidden = save === null;
-    if (save) setText(continueDetail, text('ui.title.continueDetail', { park: save.parkName, date: save.gameDate }));
+    if (save) setText(continueDetail, text('ui.title.continueDetail', { park: save.parkName, date: save.gameDateShort }));
     newDetail.hidden = save !== null;
     toggleClass(newBtn, 'primary', save === null);
     toggleClass(newBtn, 'go', save === null);
@@ -218,7 +220,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   // Views lent by the scenario flow (scenario select, sandbox setup).
   const flowSlot = h('div', { class: 'tc-flow' });
   const plate = h('div', { class: 'title-plate', hidden: true }, h('div', { class: 'title-grab', 'aria-hidden': 'true' }), newView, loadView, creditsView, flowSlot);
-  const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, lawn, veil, logo, main, plate);
+  const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, safeProbe, veil, logo, main, plate);
 
   // Layout (G1): the numbers of `titleLayout` as custom properties and data attributes; again on every size change.
   let menuH = 0;
@@ -236,6 +238,22 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     setAttr(el, 'data-name', l.name);
     setVar('--tl-ms', String(l.ms));
     setVar('--tl-mb', `${l.mb}px`);
+    // The desktop menu block in whole px (G10, G13); the phone and low menus have fixed sizes in CSS.
+    const b = l.menuBox;
+    if (b) {
+      setVar('--tl-menu-left', `${b.left}px`);
+      setVar('--tl-menu-w', `${b.width}px`);
+      setVar('--tl-h1', `${b.h1}px`);
+      setVar('--tl-h2', `${b.h2}px`);
+      setVar('--tl-h3', `${b.h3}px`);
+      setVar('--tl-gap', `${b.gap}px`);
+    }
+  };
+  /** The safe-area insets in whole CSS px. */
+  const readSafe = (): SafeInsets => {
+    const st = getComputedStyle(safeProbe);
+    const px = (v: string): number => Math.round(parseFloat(v) || 0);
+    return { top: px(st.paddingTop), right: px(st.paddingRight), bottom: px(st.paddingBottom), left: px(st.paddingLeft) };
   };
   const place = (l: TitleLayout, height: number): void => {
     const sceneData = PICTURES[l.scene];
@@ -247,7 +265,13 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
       if (scene) scene.replaceWith(canvas);
       else el.prepend(canvas);
       scene = canvas;
-      lawn.style.backgroundColor = lastRowColour(sceneData);
+      // G7: the scene's last row, repeated downward (each column keeps its own colour).
+      const fill = pictureCanvas(lastRowPicture(sceneData));
+      fill.className = 'title-lawn';
+      fill.setAttribute('aria-hidden', 'true');
+      if (lawn) lawn.replaceWith(fill);
+      else canvas.after(fill);
+      lawn = fill;
     }
     const nameData = PICTURES[l.name];
     const name = pictureCanvas(nameData);
@@ -266,24 +290,31 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     setVar('--tl-name-h', `${nameData.h * l.nameS}px`);
     setVar('--tl-name-bottom', `${l.nameY + nameData.h * l.nameS}px`);
     setVar('--tl-lawn-top', `${sceneBottom}px`);
-    lawn.hidden = sceneBottom >= height;
+    setVar('--tl-lawn-h', `${Math.max(0, height - sceneBottom)}px`);
+    if (lawn) lawn.hidden = sceneBottom >= height;
   };
   const layout = (): void => {
     if (!open) return;
     const w = el.clientWidth;
     const height = el.clientHeight;
     if (w === 0 || height === 0) return;
+    const safe = readSafe();
+    setVar('--tl-safe-top', `${safe.top}px`);
+    setVar('--tl-safe-right', `${safe.right}px`);
+    setVar('--tl-safe-bottom', `${safe.bottom}px`);
+    setVar('--tl-safe-left', `${safe.left}px`);
     // The menu form depends only on the window (G2): set it first, then measure the menu block. While a view
-    // shows, the menu is hidden and the last measured height holds, so the scene and the name stay where they are.
-    apply(titleLayout({ w, h: height, menuH }));
-    if (!main.hidden) menuH = Math.round(main.getBoundingClientRect().height);
-    const l = titleLayout({ w, h: height, menuH });
+    // shows, the menu stays in the layout (invisible and inert), so it is measured in its current form too.
+    apply(titleLayout({ w, h: height, menuH, safe }));
+    menuH = Math.round(main.getBoundingClientRect().height);
+    const l = titleLayout({ w, h: height, menuH, safe });
     apply(l);
     place(l, height);
   };
   const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => layout());
   resize?.observe(el);
   resize?.observe(main);
+  resize?.observe(safeProbe, { box: 'border-box' });
 
   const host: FlowHost = {
     showView(view, wide, focus) {
@@ -298,7 +329,9 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const flow = createScenarioFlow(ctx, host);
 
   function showView(view: View, wide = false): void {
-    main.hidden = view !== 'main';
+    // While a view shows, the menu keeps its place in the layout (so it can be measured) but is invisible and
+    // inert: no pointer, no focus, nothing for a screen reader.
+    setAttr(main, 'inert', view === 'main' ? null : '');
     newView.hidden = view !== 'new';
     loadView.hidden = view !== 'load';
     creditsView.hidden = view !== 'credits';

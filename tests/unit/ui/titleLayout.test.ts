@@ -114,6 +114,62 @@ describe('titleLayout (Phase 7 title screen §3, G1 to G10)', () => {
     expect(titleLayout({ w: 960, h: 450, menuH: 52 }).sceneX).toBe(0);
   });
 
+  it('safe areas at 0 change nothing: every vector gives the same layout as without them', () => {
+    for (const v of [...PORTING_TABLE, ...GAME_RULES]) {
+      const safe = { top: 0, right: 0, bottom: 0, left: 0 };
+      expect(titleLayout({ w: v.w, h: v.h, menuH: v.menuH, safe }), `${v.w} x ${v.h}`).toEqual(titleLayout({ w: v.w, h: v.h, menuH: v.menuH }));
+    }
+  });
+
+  it('safe areas: 844 x 390 with left 47, right 47, bottom 21 keeps the name between x 47 and 797', () => {
+    const l = titleLayout({ w: 844, h: 390, menuH: 52, safe: { top: 0, right: 47, bottom: 21, left: 47 } });
+    expect(l).toMatchObject({ kind: 'low', mb: 33 });
+    const n = nameBox(l);
+    expect(n.x).toBeGreaterThanOrEqual(47);
+    expect(n.x + n.w).toBeLessThanOrEqual(797);
+    // Centred in the safe width.
+    expect(n.x).toBe(Math.round(47 + 750 / 2 - n.w / 2));
+    // The scene still covers the whole window.
+    expect(l.sceneX).toBeLessThanOrEqual(0);
+    expect(l.sceneX + 960 * l.s).toBeGreaterThanOrEqual(844);
+  });
+
+  it('safe areas: 390 x 844 with top 47, bottom 34 keeps the name under the top inset and the menu over the bottom one', () => {
+    const l = titleLayout({ w: 390, h: 844, menuH: 252, safe: { top: 47, right: 0, bottom: 34, left: 0 } });
+    expect(l.nameY).toBeGreaterThanOrEqual(59);
+    expect(l.mb).toBe(66);
+  });
+
+  it('safe areas: the desktop menu moves right by the left inset; G4 uses the safe width', () => {
+    const l = titleLayout({ w: 1280, h: 800, menuH: 264, safe: { top: 0, right: 30, bottom: 0, left: 30 } });
+    expect(l.menuBox?.left).toBe(32 + 30);
+    expect(nameBox(l).x).toBe(Math.round(30 + 1220 / 2 - nameBox(l).w / 2));
+    // 1050 px: the line at 2x (992 px) is wider than 1050 - 60 - 32, so the name takes scale 1 or the stack.
+    const narrow = titleLayout({ w: 1050, h: 800, menuH: 264, safe: { top: 0, right: 30, bottom: 0, left: 30 } });
+    expect(nameBox(narrow).w).toBeLessThanOrEqual(1050 - 60 - 8);
+  });
+
+  it('the desktop menu block is whole px at ms 1.25 and 1.5 (PORTING values times ms, rounded)', () => {
+    // ms 1: PORTING's values.
+    expect(titleLayout({ w: 1280, h: 800, menuH: 264 }).menuBox).toEqual({ left: 32, width: 288, h1: 68, h2: 56, h3: 52, gap: 12 });
+    expect(titleLayout({ w: 1280, h: 720, menuH: 238 }).menuBox).toEqual({ left: 32, width: 288, h1: 60, h2: 56, h3: 46, gap: 10 });
+    // ms 1.25, compact (2560 x 700: G9 gives s 3): 46 * 1.25 = 57.5 -> 58, 10 * 1.25 = 12.5 -> 13.
+    const compact = titleLayout({ w: 2560, h: 700, menuH: 300 });
+    expect(compact).toMatchObject({ s: 3, ms: 1.25, compact: true });
+    expect(compact.menuBox).toMatchObject({ left: 40, h1: 75, h2: 70, h3: 58, gap: 13 });
+    for (const [w, h] of [[1920, 1080], [2560, 700], [3440, 1300], [2560, 1440]] as const) {
+      const l = titleLayout({ w, h, menuH: 330 });
+      const b = l.menuBox;
+      expect(b, `${w} x ${h}`).not.toBeNull();
+      if (!b) continue;
+      for (const v of Object.values(b)) expect(Number.isInteger(v), `${w} x ${h}`).toBe(true);
+      // Two small buttons side by side are whole px wide as well.
+      expect((b.width - b.gap) % 2, `${w} x ${h}`).toBe(0);
+      expect(Number.isInteger(l.mb)).toBe(true);
+    }
+    expect(titleLayout({ w: 390, h: 844, menuH: 252 }).menuBox).toBeNull();
+  });
+
   it('the name never touches the rides when it can fit (G5)', () => {
     for (const [w, h, menuH] of [[1280, 800, 264], [1280, 720, 238], [1366, 625, 238], [1280, 580, 238], [390, 844, 252], [375, 667, 116], [360, 640, 116], [844, 390, 52]] as const) {
       const l = titleLayout({ w, h, menuH });

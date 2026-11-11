@@ -13,7 +13,7 @@ const CSS = `
 .tc-mode { flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; min-height: 64px; min-width: 0; }
 .tc-mode > * { max-width: 100%; overflow-wrap: anywhere; }
 .tc-mode .btn-label { font-weight: 800; font-size: calc(16px * var(--ts, 1)); }
-.tc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.tc-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .tc-chip {
   pointer-events: auto; cursor: pointer;
   min-height: var(--touch); min-width: var(--touch);
@@ -44,7 +44,9 @@ const CSS = `
   border-radius: var(--radius); border: var(--control-outline); background: var(--surface-2); color: var(--ink); font: inherit;
 }
 .tc-card:hover { background: var(--surface-3); }
-.tc-card.locked { opacity: 0.6; cursor: default; }
+/* Locked: a dashed outline on the muted fill; the text keeps its full contrast (Task 15b). */
+.tc-card.locked { cursor: default; border-style: dashed; }
+.tc-card.locked:hover { background: var(--surface-2); }
 .tc-card-name { font-weight: 800; font-size: calc(16px * var(--ts, 1)); }
 .tc-stars { color: var(--warn-text); letter-spacing: 1px; }
 .tc-tags { display: flex; flex-wrap: wrap; gap: 4px; }

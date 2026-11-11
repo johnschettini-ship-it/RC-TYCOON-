@@ -1,14 +1,35 @@
 /**
  * Layout of the title screen (design E, the skyline): every position and scale of the scene, the name and the menu
  * block, from the window size and the measured height of the menu block. Pure, no DOM. The rules are in
- * `docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md` (PORTING §3 and the game rules G1 to G10).
+ * `docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md` (PORTING §3 and the game rules G1 to G13).
  */
 
 export type TitleKind = 'desktop' | 'phone' | 'low';
+/** The safe-area insets of the window, CSS px (`--safe-top` and so on). */
+export interface SafeInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
 export interface TitleLayoutInput {
   w: number;
   h: number;
   menuH: number;
+  /** Safe-area insets; all 0 when left out. The scene covers the whole window; the name and the menu stay inside. */
+  safe?: SafeInsets;
+}
+/** The desktop menu block in whole CSS px: PORTING's values times `ms`, rounded (G10). */
+export interface MenuBox {
+  /** Left edge, with the left inset. */
+  left: number;
+  /** Width: two small buttons side by side are whole px wide. */
+  width: number;
+  /** Minimum heights: the first main button, the second, the small ones. */
+  h1: number;
+  h2: number;
+  h3: number;
+  gap: number;
 }
 export interface TitleLayout {
   kind: TitleKind;
@@ -18,8 +39,10 @@ export interface TitleLayout {
   compact: boolean;
   /** Scale of the menu block: 1, 1.25 (s = 3) or 1.5 (s >= 4). */
   ms: number;
-  /** Free space under the menu, CSS px. */
+  /** Free space under the menu, CSS px (with the bottom inset). */
   mb: number;
+  /** The desktop menu block; null for the phone and the low kind (their menu sizes are fixed in CSS). */
+  menuBox: MenuBox | null;
   scene: 'wide' | 'tall';
   /** Whole-number scale of the scene. */
   s: number;
@@ -74,6 +97,12 @@ const COASTER_X = 336;
 const MB = 32;
 const MB_COMPACT = 24;
 const MB_LOW = 12;
+/** PORTING §3, desktop menu block at ms 1 (left, width, heights, gap); the compact form when h <= 768. */
+const MENU_LEFT = 32;
+const MENU_W = 288;
+const MENU = { h1: 68, h2: 56, h3: 52, gap: 12 } as const;
+const MENU_COMPACT = { h1: 60, h2: 56, h3: 46, gap: 10 } as const;
+const NO_INSETS: SafeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 /** The name's free sky: at least 12 px from the top, 8 px above the ride tops. */
 const NAME_TOP = 12;
 const NAME_GAP = 8;
@@ -93,6 +122,10 @@ const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.m
 
 export function titleLayout(input: TitleLayoutInput): TitleLayout {
   const { w, h, menuH } = input;
+  const safe = input.safe ?? NO_INSETS;
+  /** G4 and the name's place use the safe width. */
+  const sw = w - safe.left - safe.right;
+  const nameTop = NAME_TOP + safe.top;
   const kind: TitleKind = h < LOW_MAX_H && w > h && w <= LOW_MAX_W ? 'low' : w >= DESKTOP_MIN_W ? 'desktop' : 'phone';
 
   let s: number;
@@ -102,6 +135,7 @@ export function titleLayout(input: TitleLayoutInput): TitleLayout {
   let sceneY: number;
   let compact = false;
   let menu: TitleLayout['menu'] = 'row';
+  let menuBox: MenuBox | null = null;
   let names: Array<{ name: TitleLayout['name']; nameS: number }>;
 
   if (kind === 'desktop') {
@@ -113,27 +147,38 @@ export function titleLayout(input: TitleLayoutInput): TitleLayout {
     while (xAt(s) + ART.wide.w * s < w) s += 1;
     ms = menuScale(s);
     sceneX = xAt(s);
-    mb = Math.round((compact ? MB_COMPACT : MB) * ms);
+    mb = Math.round((compact ? MB_COMPACT : MB) * ms) + safe.bottom;
+    const m = compact ? MENU_COMPACT : MENU;
+    const gap = Math.round(m.gap * ms);
+    const small = Math.round((MENU_W * ms - gap) / 2);
+    menuBox = {
+      left: Math.round(MENU_LEFT * ms) + safe.left,
+      width: 2 * small + gap,
+      h1: Math.round(m.h1 * ms),
+      h2: Math.round(m.h2 * ms),
+      h3: Math.round(m.h3 * ms),
+      gap,
+    };
     sceneY = h - ART.wide.h * s;
     names = [];
     for (let n = s; n >= 1; n--) {
-      const name = ART.line.w * n <= w - 32 ? 'line' : 'stack';
-      if (ART[name].w * n <= w - 8) names.push({ name, nameS: n });
+      const name = ART.line.w * n <= sw - 32 ? 'line' : 'stack';
+      if (ART[name].w * n <= sw - 8) names.push({ name, nameS: n });
     }
   } else if (kind === 'phone') {
     menu = w <= 599 && h >= 740 ? 'column' : 'row';
     s = w >= 600 && h >= 900 ? 3 : 2;
-    mb = MB;
+    mb = MB + safe.bottom;
     sceneX = Math.round(w / 2 - (ART.tall.w / 2) * s);
     sceneY = h - mb - menuH - MENU_GAP - ART.tall.promenadeBottom * s;
     names = [];
-    for (let n = s; n >= 1; n--) if (ART.stack.w * n <= w - 8) names.push({ name: 'stack', nameS: n });
+    for (let n = s; n >= 1; n--) if (ART.stack.w * n <= sw - 8) names.push({ name: 'stack', nameS: n });
   } else {
     s = 1;
-    mb = MB_LOW;
+    mb = MB_LOW + safe.bottom;
     sceneX = clamp(Math.round(w / 2 - ART.wide.skylineMid), w - ART.wide.w, 0);
     sceneY = h - ART.wide.h - Math.max(0, mb + menuH + MENU_GAP - ART.wide.lawnRows);
-    names = [{ name: w >= 512 ? 'line' : 'stack', nameS: 1 }];
+    names = [{ name: sw >= 512 ? 'line' : 'stack', nameS: 1 }];
   }
   if (names.length === 0) names = [{ name: 'stack', nameS: 1 }];
 
@@ -144,7 +189,7 @@ export function titleLayout(input: TitleLayoutInput): TitleLayout {
   let move = 0;
   for (const c of names) {
     const nameH = ART[c.name].h * c.nameS;
-    const missing = Math.max(0, NAME_TOP + nameH + NAME_GAP - (sceneY + rideTop));
+    const missing = Math.max(0, nameTop + nameH + NAME_GAP - (sceneY + rideTop));
     const last = c.nameS === 1 || c === names[names.length - 1];
     if (missing <= cap || last) {
       pick = c;
@@ -155,8 +200,8 @@ export function titleLayout(input: TitleLayoutInput): TitleLayout {
   sceneY += move;
   const nameW = ART[pick.name].w * pick.nameS;
   const nameH = ART[pick.name].h * pick.nameS;
-  const nameY = Math.max(NAME_TOP, Math.round((sceneY + rideTop - nameH) / 2));
-  const nameX = Math.round(w / 2 - nameW / 2);
+  const nameY = Math.max(nameTop, Math.round((sceneY + rideTop - nameH) / 2));
+  const nameX = Math.round(safe.left + sw / 2 - nameW / 2);
 
   return {
     kind,
@@ -164,6 +209,7 @@ export function titleLayout(input: TitleLayoutInput): TitleLayout {
     compact,
     ms,
     mb,
+    menuBox,
     scene: kind === 'phone' ? 'tall' : 'wide',
     s,
     sceneX,

@@ -250,3 +250,192 @@ test.describe('title screen: the skyline (design E)', () => {
     watch.expectNoErrors();
   });
 });
+
+/** The relative luminance contrast of two sRGB colours (WCAG 2). */
+const contrast = (a: number[], b: number[]): number => {
+  const lum = (c: number[]): number => {
+    const [r, g, bl] = c.map((v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    }) as [number, number, number];
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+const whole = (v: number): boolean => Math.abs(v - Math.round(v)) <= 0.01;
+
+test.describe('title screen: repairs of Task 15b', () => {
+  test('below the picture: the last row of the scene fills the space down to the window bottom (667 x 375 at 175%)', async ({ page }, info) => {
+    test.skip(isPhone(info), 'window sizes are set on the desktop project');
+    const watch = watchErrors(page);
+    const doc = serializeSettings({ ...defaultSettings(), textScale: 175 });
+    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await page.setViewportSize({ width: 667, height: 375 });
+    await page.goto('/');
+    await expect(page.getByTestId('title-new')).toBeVisible();
+    const g = await screen(page);
+    expect(g.kind).toBe('low');
+    expect(g.lawn, 'the fill below the scene is visible').not.toBeNull();
+    const fill = g.lawn as Box;
+    expect(fill.x, 'fill left').toBe(g.scene.x);
+    expect(fill.w, 'fill width').toBe(g.scene.w);
+    expect(fill.y, 'fill top').toBe(g.scene.y + g.scene.h);
+    expect(fill.y + fill.h, 'fill bottom').toBeGreaterThanOrEqual(g.vh - 0.5);
+    // One row of the scene's own pixels, drawn with hard pixels.
+    const row = await page.evaluate(() => {
+      const c = document.querySelector('.title-lawn') as HTMLCanvasElement;
+      return { tag: c.tagName, w: c.width, h: c.height, rendering: getComputedStyle(c).imageRendering };
+    });
+    expect(row).toEqual({ tag: 'CANVAS', w: g.scene.pw, h: 1, rendering: 'pixelated' });
+    watch.expectNoErrors();
+  });
+
+  test('safe areas: the menu stays over the bottom inset and the name under the top inset', async ({ page }, info) => {
+    test.skip(!isPhone(info), 'the phone project');
+    const watch = watchErrors(page);
+    await page.goto('/');
+    await expect(page.getByTestId('title-new')).toBeVisible();
+    await page.evaluate(() => {
+      const s = document.documentElement.style;
+      s.setProperty('--safe-top', '47px');
+      s.setProperty('--safe-right', '0px');
+      s.setProperty('--safe-bottom', '34px');
+      s.setProperty('--safe-left', '0px');
+    });
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(undefined))));
+    const g = await screen(page);
+    const last = Math.max(...g.buttons.map((b) => b.y + b.h));
+    expect(g.vh - last, 'free under the last button').toBeGreaterThanOrEqual(34 + 24);
+    expect(g.name.y, 'the name under the top inset').toBeGreaterThanOrEqual(59);
+    // The scene still covers the whole window.
+    expect(g.scene.x).toBeLessThanOrEqual(0);
+    expect(g.scene.x + g.scene.w).toBeGreaterThanOrEqual(g.vw);
+    watch.expectNoErrors();
+  });
+
+  test('a resize while a view shows: the scene and the name take the places of the new menu form', async ({ page }, info) => {
+    test.skip(isPhone(info), 'window sizes are set on the desktop project');
+    const watch = watchErrors(page);
+    const places = (g: Screen): number[] => [g.scene.x, g.scene.y, g.scene.w, g.name.x, g.name.y, g.name.w];
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await page.getByTestId('title-new').click();
+    await expect(page.getByTestId('title-newgame')).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const resized = await screen(page);
+    // The menu is hidden for the player, a screen reader and the keyboard.
+    await expect(page.getByTestId('title-new')).toBeHidden();
+    const focusable = await page.evaluate(() => {
+      const b = document.querySelector('[data-testid="title-new"]') as HTMLButtonElement;
+      b.focus();
+      return document.activeElement === b;
+    });
+    expect(focusable, 'title-new takes the focus while a view shows').toBe(false);
+    await page.getByTestId('title-back').scrollIntoViewIfNeeded();
+    await page.getByTestId('title-back').click();
+    await expect(page.locator('.title-menu')).toBeVisible();
+    const back = await screen(page);
+    // A fresh title at 390 x 844: the menu, then the same view.
+    await page.goto('/');
+    await expect(page.getByTestId('title-new')).toBeVisible();
+    const freshMenu = await screen(page);
+    await page.getByTestId('title-new').click();
+    await expect(page.getByTestId('title-newgame')).toBeVisible();
+    const freshView = await screen(page);
+    expect(places(resized), 'with the view open').toEqual(places(freshView));
+    expect(places(back), 'after Back').toEqual(places(freshMenu));
+    watch.expectNoErrors();
+  });
+
+  test('1920 x 1080: every menu button lies on whole px (menu values times 1.25, rounded)', async ({ page }, info) => {
+    test.skip(isPhone(info), 'window sizes are set on the desktop project');
+    const watch = watchErrors(page);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto('/');
+    await expect(page.getByTestId('title-new')).toBeVisible();
+    const g = await screen(page);
+    expect(g.buttons.length).toBe(5);
+    for (const b of g.buttons) {
+      for (const k of ['x', 'y', 'w', 'h'] as const) expect(whole(b[k]), `${b.id} ${k} ${b[k]}`).toBe(true);
+    }
+    watch.expectNoErrors();
+  });
+
+  test('the park line under Continue is one line with no clock (375 x 667): a long park name does not make the button higher', async ({ page }, info) => {
+    test.skip(isPhone(info), 'window sizes are set on the desktop project');
+    test.setTimeout(120_000);
+    const watch = watchErrors(page);
+    const measure = async (): Promise<{ continueH: number; menuH: number; line: string }> => {
+      await page.setViewportSize({ width: 375, height: 667 });
+      const g = await screen(page);
+      const c = g.buttons.find((b) => b.id === 'title-continue');
+      expect(c, 'Continue shows').toBeDefined();
+      const menuH = await page.evaluate(() => (document.querySelector('.title-menu') as HTMLElement).getBoundingClientRect().height);
+      const line = (await page.getByTestId('title-continue').locator('.btn-detail').textContent()) ?? '';
+      return { continueH: (c as Box).h, menuH, line };
+    };
+    await withSave(page, 'Maple Hollow Adventure Park');
+    const long = await measure();
+    expect(long.line).toContain('Maple Hollow');
+    expect(long.line, 'no clock').not.toMatch(/\d\d:\d\d/);
+    expect(long.line).toMatch(/Year \d+$/);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await withSave(page, 'Mo');
+    const short = await measure();
+    expect(short.line.startsWith('Mo · ')).toBe(true);
+    expect(long.continueH, 'Continue is one detail line high').toBeCloseTo(short.continueH, 1);
+    expect(Math.abs(long.menuH - 116), `menu block ${long.menuH}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(short.menuH - 116), `menu block ${short.menuH}`).toBeLessThanOrEqual(1);
+    watch.expectNoErrors();
+  });
+
+  test('New game: the map-size chips that wrap are 8 px apart', async ({ page }, info) => {
+    test.skip(!isPhone(info), 'the phone project');
+    const watch = watchErrors(page);
+    await page.goto('/');
+    await page.getByTestId('title-new').click();
+    await expect(page.getByTestId('title-newgame')).toBeVisible();
+    const chips = await page.locator('.tc-chip[data-testid^="title-size-"]').evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      }),
+    );
+    const gaps: number[] = [];
+    for (const a of chips) for (const b of chips) if (b.y >= a.y + a.h - 0.5) gaps.push(b.y - (a.y + a.h));
+    expect(gaps.length, 'the chips wrap into two rows').toBeGreaterThan(0);
+    expect(Math.min(...gaps), 'rows apart').toBeGreaterThanOrEqual(8 - 0.01);
+    watch.expectNoErrors();
+  });
+
+  test('locked scenario cards: the title and the unlock line are at least 4.5 : 1 on the card', async ({ page }) => {
+    const watch = watchErrors(page);
+    await page.goto('/');
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-scenarios').click();
+    await expect(page.getByTestId('scenario-select')).toBeVisible();
+    const card = page.locator('.tc-card[aria-disabled="true"]').first();
+    await expect(card).toBeVisible();
+    const colours = await card.evaluate((el) => {
+      const rgb = (s: string): number[] => (s.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      // The card's opacity blends its text and its fill with what lies behind it (the plate or sheet).
+      let behind: Element | null = el.parentElement;
+      while (behind && getComputedStyle(behind).backgroundColor.replace(/\s/g, '').match(/rgba\(.*,0\)|transparent/)) behind = behind.parentElement;
+      const back = rgb(behind ? getComputedStyle(behind).backgroundColor : 'rgb(255, 255, 255)');
+      const seen = (node: Element, c: number[]): number[] => {
+        let o = 1;
+        for (let e: Element | null = node; e && e !== behind; e = e.parentElement) o *= Number(getComputedStyle(e).opacity);
+        return c.map((v, i) => v * o + (back[i] ?? 255) * (1 - o));
+      };
+      const fill = seen(el, rgb(getComputedStyle(el).backgroundColor));
+      const name = el.querySelector('.tc-card-name') as Element;
+      const lock = el.querySelector('.tc-lock') as Element;
+      return { fill, name: seen(name, rgb(getComputedStyle(name).color)), lock: seen(lock, rgb(getComputedStyle(lock).color)) };
+    });
+    expect(contrast(colours.name, colours.fill), 'title').toBeGreaterThanOrEqual(4.5);
+    expect(contrast(colours.lock, colours.fill), 'unlock line').toBeGreaterThanOrEqual(4.5);
+    watch.expectNoErrors();
+  });
+});

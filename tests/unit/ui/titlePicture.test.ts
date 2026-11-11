@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodePicture, lastRowColour, type PictureData } from '../../../src/ui/titleScreen/picture';
+import { decodePicture, lastRowPicture, type PictureData } from '../../../src/ui/titleScreen/picture';
 import sceneWide from '../../../src/ui/titleScreen/art/scene-wide.json';
 import sceneTall from '../../../src/ui/titleScreen/art/scene-tall.json';
 import logoLine from '../../../src/ui/titleScreen/art/logo-line.json';
@@ -65,17 +65,34 @@ describe('title pictures (data)', () => {
   it('row 0 of scene-wide is all the sky colour', () => {
     expect(new Set(row0(sceneWide as PictureData))).toEqual(new Set([SKY]));
   });
-  // KNOWN FAULT of this export: row 0 of scene-tall has 61 haze pixels (#b4f0e0, columns 288 to 348). The newer
-  // export must make it all sky; this test then starts to fail, and `it.fails` becomes `it`.
-  it.fails('row 0 of scene-tall is all the sky colour', () => {
+  // The polished export (Task 15b) repaired row 0 of scene-tall (the old one had 61 haze pixels).
+  it('row 0 of scene-tall is all the sky colour', () => {
     expect(new Set(row0(sceneTall as PictureData))).toEqual(new Set([SKY]));
   });
 
-  it('the lawn colour under a scene is the most frequent colour of its last row (G7)', () => {
-    // The lake covers most of the wide scene's last row.
-    expect(lastRowColour(sceneWide as PictureData)).toBe('#52c4bd');
-    expect(lastRowColour(sceneTall as PictureData)).toBe('#d6c85a');
-    expect(lastRowColour({ w: 5, h: 1, palette: ['#000000', '#ffffff'], rows: [[[1, 1], [0, 2], [1, 2]]] })).toBe('#ffffff');
+  it('the fill below a scene is its last row, each column with its own colour (G7)', () => {
+    for (const data of [sceneWide, sceneTall] as PictureData[]) {
+      const row = lastRowPicture(data);
+      expect({ w: row.w, h: row.h }).toEqual({ w: data.w, h: 1 });
+      const all = decodePicture(data);
+      expect(Array.from(decodePicture(row))).toEqual(Array.from(all.subarray((data.h - 1) * data.w * 4)));
+    }
+    // The same object for the same picture (the canvas is made once).
+    expect(lastRowPicture(sceneWide as PictureData)).toBe(lastRowPicture(sceneWide as PictureData));
+  });
+
+  it('bad picture data fails loudly, naming the row', () => {
+    const palette = ['#ff0000', '#00ff00'];
+    expect(() => decodePicture({ w: 2, h: 2, palette, rows: [[[0, 2]], [[0, 1], [2, 1]]] })).toThrow(/row 1.*palette index 2/);
+    expect(() => decodePicture({ w: 2, h: 2, palette, rows: [[[0, 2]], [[0, 1], [-2, 1]]] })).toThrow(/row 1.*palette index -2/);
+  });
+  it('bad picture data fails loudly: the runs of a row must add up to the width', () => {
+    const palette = ['#ff0000'];
+    expect(() => decodePicture({ w: 3, h: 2, palette, rows: [[[0, 3]], [[0, 2]]] })).toThrow(/row 1.*2 px.*3/);
+    expect(() => decodePicture({ w: 3, h: 2, palette, rows: [[[0, 4]], [[0, 3]]] })).toThrow(/row 0.*4 px.*3/);
+  });
+  it('bad picture data fails loudly: the number of rows must be the height', () => {
+    expect(() => decodePicture({ w: 1, h: 3, palette: ['#ff0000'], rows: [[[0, 1]], [[0, 1]]] })).toThrow(/2 rows.*3/);
   });
 
   it('decodes runs in order, left to right, top to bottom', () => {
