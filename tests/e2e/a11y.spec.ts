@@ -58,7 +58,9 @@ async function scanPhase7States(page: Page, where: string): Promise<void> {
   await openTool(page, 'inspect');
   await expect(page.locator('.panel')).toBeHidden();
   const toggle = page.getByTestId('speed-toggle');
-  if (await toggle.isVisible()) {
+  // The phone layout (under 900 px) always has the Speed button: a missing one fails here, never skips the scan.
+  if ((page.viewportSize()?.width ?? 0) < 900) {
+    await expect(toggle).toBeVisible();
     await toggle.click();
     await expect(page.getByRole('group', { name: 'Game speed' })).toBeVisible();
     await scan(page, `${where}Speed menu open`);
@@ -298,61 +300,90 @@ async function layoutProblems(page: Page): Promise<string[]> {
   });
 }
 
+/**
+ * The 175% `en-XA` layout run: no element leaves the viewport and no text is clipped, on the title, the new game view,
+ * the HUD, three panels, the hand with a held card, the ride panel, the map cursor line, the menu, the settings, and
+ * the shortcut list. `blockFonts` (Ruling K, spec §4.9) aborts every `.woff2` request first, so the run uses the
+ * fallback font, and checks that no Fredoka face loaded.
+ */
+async function largePseudoLayout(page: Page, phone: boolean, blockFonts: boolean): Promise<void> {
+  const watch = watchErrors(page);
+  const blocked: string[] = [];
+  if (blockFonts) {
+    await page.route(/\.woff2(\?.*)?$/, (route) => {
+      blocked.push(route.request().url());
+      return route.abort();
+    });
+  }
+  await page.setViewportSize(phone ? { width: 375, height: 667 } : { width: 1280, height: 720 });
+  await bootLargePseudo(page);
+  await expect(page.locator('#ui')).toHaveAttribute('data-text-scale', '175');
+  // The pseudo text is in place (accents and longer).
+  await expect(page.getByTestId('title-new')).toContainText('Ñéŵ');
+  const check = async (where: string): Promise<void> => {
+    await page.waitForTimeout(150);
+    expect(await layoutProblems(page), where).toEqual([]);
+  };
+  await check('title');
+  await page.getByTestId('title-new').click();
+  await check('new game');
+  await page.getByTestId('title-size-64').click();
+  await page.getByTestId('title-start').click();
+  await expect(page.locator('.title-screen')).toBeHidden();
+  await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
+  await check('HUD and toolbar');
+  for (const id of ['park', 'finance', 'research']) {
+    await openTool(page, id);
+    await expect(page.locator('.panel')).toBeVisible();
+    await check(id);
+    await openTool(page, id);
+  }
+  await deck(page, 'rides');
+  await check('ride cards');
+  // The hand open with a held card (desktop: with the card details panel; the phone tucks the hand, the chip shows it).
+  await pickCard(page, 'flat', 'carousel');
+  await check('Carousel card held');
+  await cardOf(page, 'flat', 'carousel');
+  await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'true');
+  await check('hand open with the Carousel card held');
+  await openTool(page, 'inspect');
+  const { ride } = await furnish(page);
+  await select(page, 'ride', ride);
+  await check('ride panel');
+  await page.evaluate(() => {
+    (window as unknown as { __tc: Tc }).__tc.tool.selectedEntity = null;
+  });
+  await page.keyboard.press('c');
+  await expect(page.getByTestId('cursor-line')).toBeVisible();
+  await check('map cursor line');
+  await page.keyboard.press('c');
+  await openTool(page, 'menu');
+  await check('menu');
+  await page.getByTestId('menu-settings').click();
+  await check('settings');
+  await page.keyboard.press('Escape');
+  await page.getByTestId('menu-resume').click();
+  await page.keyboard.press('?');
+  await expect(page.getByTestId('shortcut-list')).toBeVisible();
+  await check('shortcut list');
+  if (blockFonts) {
+    expect(blocked.length, 'the game asked for its font files').toBeGreaterThan(0);
+    const fredoka = await page.evaluate(() => [...document.fonts].filter((f) => f.family.replace(/["']/g, '') === 'Fredoka').map((f) => f.status));
+    expect(fredoka.includes('loaded'), 'no Fredoka face loaded').toBe(false);
+    // The aborted font requests are the only console errors allowed.
+    watch.errors.splice(0, watch.errors.length, ...watch.errors.filter((e) => !/ERR_FAILED|Failed to load resource/.test(e)));
+  }
+  watch.expectNoErrors();
+}
+
 test.describe('175% text scale with a pseudo-localized UI (Phase 6 §4.7, §9)', () => {
   test('no element leaves the viewport at 1280 × 720 (desktop) and 375 × 667 (phone)', async ({ page }, info) => {
     test.setTimeout(120_000);
-    const watch = watchErrors(page);
-    await page.setViewportSize(isPhone(info) ? { width: 375, height: 667 } : { width: 1280, height: 720 });
-    await bootLargePseudo(page);
-    await expect(page.locator('#ui')).toHaveAttribute('data-text-scale', '175');
-    // The pseudo text is in place (accents and longer).
-    await expect(page.getByTestId('title-new')).toContainText('Ñéŵ');
-    const check = async (where: string): Promise<void> => {
-      await page.waitForTimeout(150);
-      expect(await layoutProblems(page), where).toEqual([]);
-    };
-    await check('title');
-    await page.getByTestId('title-new').click();
-    await check('new game');
-    await page.getByTestId('title-size-64').click();
-    await page.getByTestId('title-start').click();
-    await expect(page.locator('.title-screen')).toBeHidden();
-    await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
-    await check('HUD and toolbar');
-    for (const id of ['park', 'finance', 'research']) {
-      await openTool(page, id);
-      await expect(page.locator('.panel')).toBeVisible();
-      await check(id);
-      await openTool(page, id);
-    }
-    await deck(page, 'rides');
-    await check('ride cards');
-    // The hand open with a held card (desktop: with the card details panel; the phone tucks the hand, the chip shows it).
-    await pickCard(page, 'flat', 'carousel');
-    await check('Carousel card held');
-    await cardOf(page, 'flat', 'carousel');
-    await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'true');
-    await check('hand open with the Carousel card held');
-    await openTool(page, 'inspect');
-    const { ride } = await furnish(page);
-    await select(page, 'ride', ride);
-    await check('ride panel');
-    await page.evaluate(() => {
-      (window as unknown as { __tc: Tc }).__tc.tool.selectedEntity = null;
-    });
-    await page.keyboard.press('c');
-    await expect(page.getByTestId('cursor-line')).toBeVisible();
-    await check('map cursor line');
-    await page.keyboard.press('c');
-    await openTool(page, 'menu');
-    await check('menu');
-    await page.getByTestId('menu-settings').click();
-    await check('settings');
-    await page.keyboard.press('Escape');
-    await page.getByTestId('menu-resume').click();
-    await page.keyboard.press('?');
-    await expect(page.getByTestId('shortcut-list')).toBeVisible();
-    await check('shortcut list');
-    watch.expectNoErrors();
+    await largePseudoLayout(page, isPhone(info), false);
+  });
+
+  test('with the font files blocked, no element leaves the viewport in the fallback font (Ruling K, spec §4.9)', async ({ page }, info) => {
+    test.setTimeout(120_000);
+    await largePseudoLayout(page, isPhone(info), true);
   });
 });

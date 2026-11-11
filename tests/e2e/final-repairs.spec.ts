@@ -2,7 +2,10 @@
  * Final review repairs (Task 16a): the title holds the keyboard focus and stops the hidden world's autosave, Put back on
  * Staff during patrol, the phone Speed menu keeps the focus, tips stay off pickers and reach screen readers, toasts over
  * the title, the localized Continue date, visible focus rings, readable track piece icons, focus kept by the hand, the
- * card details hints, whole px on the title, reduced motion in the hand, and the 175% phone bars.
+ * card details hints, whole px on the title, reduced motion in the hand, and the 175% phone bars. Task 16b: the Import
+ * file input stays out of the title's inert set, the autosave test passes a month end of the hidden world, the title
+ * lays out again after a text scale change in Settings, the desktop track builder keeps its hint line whole, and the
+ * held card's focus ring stays clear of its zone label.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { TICKS_PER_MONTH } from '../../src/data/tuning/core';
@@ -115,8 +118,17 @@ test.describe('the title screen holds the keyboard and the clock (F5)', () => {
     await page.evaluate(() => localStorage.removeItem('tc.save.auto'));
     await page.reload();
     await expect(page.getByTestId('title-new')).toBeFocused();
-    await tabTo(page, page.getByTestId('title-import'));
+    // The hidden file input is not inert while the title is open (a script click on an inert input is not allowed by
+    // every browser); it takes no focus.
+    const input = page.locator('#ui > input[type="file"]');
+    await expect(input).toHaveCount(1);
+    expect(await input.evaluate((el) => (el as HTMLInputElement).inert || el.closest('[inert]') !== null)).toBe(false);
+    await expect(input).toHaveAttribute('tabindex', '-1');
+    // The wait starts before the Tab walk: Playwright turns on its file chooser interception asynchronously, and a
+    // chooser that opens before that never reaches the test (it failed about 4 runs in 10 when the wait started just
+    // before Enter).
     const chooser = page.waitForEvent('filechooser');
+    await tabTo(page, page.getByTestId('title-import'));
     await page.keyboard.press('Enter');
     await (await chooser).setFiles({ name: 'park.tcsave.json', mimeType: 'application/json', buffer: Buffer.from(file) });
     await expect(page.locator('.title-screen')).toBeHidden();
@@ -138,16 +150,54 @@ test.describe('the title screen holds the keyboard and the clock (F5)', () => {
     await newPark(page, 'Maple Hollow');
     await toMonthEnd(page);
     await expect.poll(() => autosaveName(page)).toBe('Maple Hollow');
+    const saved = await page.evaluate(() => localStorage.getItem('tc.save.auto'));
     await page.reload();
     await expect(page.getByTestId('title-continue')).toBeVisible();
     expect(await tc<number>(page, 'g.speed')).toBe(0);
+    // The hidden world runs at 4× and passes a month end while the title is open.
+    const month = (): Promise<number> => tc<number>(page, `Math.floor(g.world.state.tick / ${TICKS_PER_MONTH})`);
+    const before = await month();
     await tc(page, 'g.setSpeed(4)');
     await toMonthEnd(page);
+    expect(await month(), 'the hidden world passed a month end').toBe(before + 1);
     await frames(page, 6);
     await page.waitForTimeout(500);
-    expect(await tc<number>(page, `g.world.state.tick % ${TICKS_PER_MONTH}`)).toBeLessThan(TICKS_PER_MONTH / 2);
+    await expect(page.locator('.title-screen')).toBeVisible();
+    // The autosave slot still holds the saved park, unchanged.
     expect(await autosaveName(page)).toBe('Maple Hollow');
+    expect(await page.evaluate(() => localStorage.getItem('tc.save.auto'))).toBe(saved);
   });
+
+  for (const [w, h] of [[1280, 800], [390, 844], [845, 390]] as const) {
+    test(`${w} x ${h}: text scale 175% set in Settings from the title: no menu button clips its text, the whole-px widths are fresh (13c)`, async ({ page }, info) => {
+      test.skip(isPhone(info), 'window sizes are set on the desktop project');
+      await page.setViewportSize({ width: w, height: h });
+      await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Scale Park'));
+      await page.goto('/');
+      await expect(page.getByTestId('title-continue')).toBeVisible();
+      await frames(page, 3);
+      await page.getByTestId('title-settings').click();
+      await expect(page.getByTestId('settings-screen')).toBeVisible();
+      await page.getByTestId('setting-textScale-175').check();
+      await expect(page.locator('#ui')).toHaveAttribute('data-text-scale', '175');
+      await page.getByTestId('settings-back').click();
+      await expect(page.getByTestId('settings-screen')).toHaveCount(0);
+      await frames(page, 3);
+      const menu = await page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('.title-menu .btn')]
+          .filter((b) => b.getClientRects().length > 0)
+          .map((b) => ({ id: b.dataset.testid ?? '', scroll: b.scrollWidth, client: b.clientWidth, fixed: b.style.width, width: b.getBoundingClientRect().width, top: Math.round(b.getBoundingClientRect().top) })),
+      );
+      expect(menu.length).toBe(6);
+      for (const b of menu) {
+        expect(b.scroll, `${b.id} clips its text`).toBeLessThanOrEqual(b.client);
+        // A whole-px width set by the title is measured for this text scale: the browser keeps it.
+        if (b.fixed !== '') expect(Math.abs(parseFloat(b.fixed) - b.width), `${b.id}: width ${b.fixed}, box ${b.width}`).toBeLessThanOrEqual(0.01);
+      }
+      // The low menu keeps its six buttons on one row (G6).
+      if (h === 390) expect(new Set(menu.map((b) => b.top)).size, 'one row').toBe(1);
+    });
+  }
 
   test('a failed Continue shows its toast over the title', async ({ page }) => {
     await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Broken'));
@@ -284,6 +334,45 @@ test.describe('in the park', () => {
     await expect(page.locator('.card-wrap:has([data-testid="card-carousel"]) [data-testid="card-put-back"]')).toBeFocused();
   });
 
+  test('desktop: the focus ring of the held Carousel card stays clear of its zone label (13e)', async ({ page }, info) => {
+    test.skip(isPhone(info), 'keyboard check');
+    const card = page.getByTestId('card-carousel');
+    await card.click();
+    await expect(card).toHaveAttribute('aria-pressed', 'true');
+    await tabTo(page, card);
+    await frames(page, 2);
+    // The card's rise has ended (no transition is under way).
+    await page.waitForTimeout(300);
+    const m = await card.evaluate((el) => {
+      const shadow = getComputedStyle(el).boxShadow;
+      // Spread of each outer shadow: "<colour> <x> <y> <blur> <spread>"; inset shadows stay inside the card.
+      const r = el.getBoundingClientRect();
+      // The card's box grown by each outer shadow ("<colour> <x> <y> <blur> <spread>"); inset shadows stay inside.
+      const ring = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      for (const part of shadow.split(/,(?![^(]*\))/).filter((p) => !p.includes('inset'))) {
+        const [x = 0, y = 0, blur = 0, spread = 0] = (part.replace(/rgba?\([^)]*\)/, '').match(/-?[\d.]+px/g) ?? []).map(parseFloat);
+        ring.left = Math.min(ring.left, r.left + x - spread - blur);
+        ring.top = Math.min(ring.top, r.top + y - spread - blur);
+        ring.right = Math.max(ring.right, r.right + x + spread + blur);
+        ring.bottom = Math.max(ring.bottom, r.bottom + y + spread + blur);
+      }
+      const zone = (el.closest('.hand-group') as HTMLElement).querySelector('.hand-zone') as HTMLElement;
+      const z = zone.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return {
+        shadow,
+        outline: `${cs.outlineStyle} ${cs.outlineWidth} ${cs.outlineColor} ${cs.outlineOffset}`,
+        ring: { x: ring.left, y: ring.top, width: ring.right - ring.left, height: ring.bottom - ring.top },
+        zone: { x: z.left, y: z.top, width: z.width, height: z.height },
+      };
+    });
+    const overlap = m.ring.x < m.zone.x + m.zone.width && m.zone.x < m.ring.x + m.ring.width && m.ring.y < m.zone.y + m.zone.height && m.zone.y < m.ring.y + m.ring.height;
+    expect(overlap, `ring ${JSON.stringify(m.ring)} (${m.shadow}) and zone label ${JSON.stringify(m.zone)}`).toBe(false);
+    // The ring shows: an ink line inside the card's edge, with white between it and the outline.
+    expect(m.outline).toBe('solid 3px rgb(31, 35, 64) -8px');
+    expect(m.shadow).toContain('rgb(255, 255, 255) 0px 0px 0px 5px inset');
+  });
+
   test('phone: Enter on the Overlays card gives the focus to its deck chip when the hand tucks (M2)', async ({ page }, info) => {
     test.skip(!isPhone(info), 'the phone tuck');
     const card = await toolControl(page, 'overlays');
@@ -374,6 +463,27 @@ test.describe('the track builder', () => {
     await tabTo(page, page.getByTestId('track-builder-group-turns'));
     const shadow = await page.evaluate(() => getComputedStyle(document.activeElement as Element).boxShadow);
     expect(shadow).toMatch(/rgb\(31, 35, 64\) 0px 0px 0px 5px|rgb\(31, 35, 64\) 0px 0px 0px 3px inset/);
+  });
+
+  test('desktop: the whole keyboard hint line shows inside the builder, also with a piece and its two-line status (13d)', async ({ page }, info) => {
+    test.skip(isPhone(info), 'the desktop builder');
+    await trackPieces(page, false);
+    await page.getByTestId('track-builder-group-slopes').click();
+    await page.getByTestId('track-piece-flat_to_gentle_up').click();
+    await expect(page.getByTestId('track-reason')).not.toHaveText('');
+    await page.mouse.move(600, 300);
+    await frames(page, 2);
+    const m = await page.getByTestId('track-builder').evaluate((tb) => {
+      const r = tb.getBoundingClientRect();
+      const cs = getComputedStyle(tb);
+      // The builder's visible box: inside its border (a scrolling box clips its content there).
+      const inner = { top: r.top + parseFloat(cs.borderTopWidth), bottom: r.bottom - parseFloat(cs.borderBottomWidth) };
+      const k = (tb.querySelector('.tb-keys') as HTMLElement).getBoundingClientRect();
+      return { inner, keys: { top: k.top, bottom: k.bottom }, text: tb.querySelector('.tb-keys')?.textContent ?? '' };
+    });
+    expect(m.text).toContain('Enter build');
+    expect(m.keys.top, 'hint line top').toBeGreaterThanOrEqual(m.inner.top);
+    expect(m.keys.bottom, 'hint line bottom').toBeLessThanOrEqual(m.inner.bottom);
   });
 
   test('the piece icons have 3:1 against their button, normal and pressed (F9)', async ({ page }, info) => {

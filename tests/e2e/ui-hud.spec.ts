@@ -118,12 +118,15 @@ test.describe('HUD and deck list', () => {
     await expect(group).toBeHidden();
   });
 
-  test('a long park name and a ten-digit cash value keep the controls on the screen', async ({ page }) => {
+  test('a long park name and a ten-digit cash value keep the controls on the screen', async ({ page }, info) => {
     await page.evaluate(() => {
       const park = (window as unknown as { __tc: { world: { state: { park: { name: string; cash: number } } } } }).__tc.world.state.park;
       park.name = 'W'.repeat(32);
       park.cash = 999_999_999_900;
     });
+    // The HUD writes the values on its next frame (the clock runs, so the cash moves a little): the boxes are measured with the long values in place.
+    await expect(page.getByTestId('hud-cash')).toHaveText(/^\$9,999,99\d,\d{3}/);
+    if (info.project.name === 'desktop') await expect(page.getByTestId('hud-name')).toHaveText('W'.repeat(32));
     const vp = page.viewportSize();
     if (!vp) throw new Error('no viewport');
     for (const id of ['status-pill', 'tool-messages', 'tool-menu']) {

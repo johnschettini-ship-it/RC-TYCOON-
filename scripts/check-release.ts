@@ -104,9 +104,50 @@ export function initialLoadBytes(dist: string): number {
   return total;
 }
 
+/** One row of an acceptance audit's "| # | Done when" table: its number, its line, and its result (PASS, OPEN, ...). */
+export interface AuditRow {
+  id: string;
+  line: string;
+  result: string;
+}
+
+/** The rows of every "| # | Done when" table of an acceptance audit (the header and the separator row are skipped). */
+export function auditRows(text: string): AuditRow[] {
+  const out: AuditRow[] = [];
+  let inTable = false;
+  for (const raw of text.split('\n')) {
+    const l = raw.trim();
+    if (/^\|\s*#\s*\|\s*Done when/.test(l)) {
+      inTable = true;
+      continue;
+    }
+    if (!inTable) continue;
+    if (!l.startsWith('|')) {
+      inTable = false;
+      continue;
+    }
+    if (/^\|[\s|:-]+\|$/.test(l)) continue;
+    const cells = l.slice(1).split(/(?<!\\)\|/).map((c) => c.trim());
+    out.push({ id: cells[0] ?? '', line: cells[1] ?? '', result: cells[2] ?? '' });
+  }
+  return out;
+}
+
+/** Owner items of the audits: each "Done when" row whose result is OPEN or GAP (a person must close it). */
+export function auditOwnerItems(audits: Readonly<Record<string, string | null>>): Array<{ name: string; path: string }> {
+  const out: Array<{ name: string; path: string }> = [];
+  for (const [path, text] of Object.entries(audits)) {
+    if (text === null) continue;
+    const file = path.split('/').pop() ?? path;
+    for (const r of auditRows(text)) if (/^(OPEN|GAP)\b/.test(r.result)) out.push({ name: `Owner: ${r.line} (${file} ${r.id}, ${r.result})`, path });
+  }
+  return out;
+}
+
 /**
- * Item 1: rows of the checklist's "Phase 6 done when" table still marked PENDING, and acceptance audits that are
- * missing or have no result line (`docs/superpowers/specs/thrills-and-chills/build-{2,3}-acceptance.md`).
+ * Item 1: rows of the checklist's "Phase 6 done when" table still marked PENDING, acceptance audits that are missing
+ * or have no result line (`docs/superpowers/specs/thrills-and-chills/build-{2,3,4}-acceptance.md`), and audit "Done
+ * when" rows whose result is FAIL or PENDING.
  */
 export function doneWhenProblems(checklist: string, audits: Readonly<Record<string, string | null>>): string[] {
   const out: string[] = [];
@@ -126,6 +167,7 @@ export function doneWhenProblems(checklist: string, audits: Readonly<Record<stri
   for (const [path, text] of Object.entries(audits)) {
     if (text === null) out.push(`${path} is missing`);
     else if (!/^\*\*Result:/m.test(text)) out.push(`${path} has no result line`);
+    if (text !== null) for (const r of auditRows(text)) if (/^(FAIL|PENDING)\b/.test(r.result)) out.push(`${path} ${r.id} is ${r.result}: ${r.line.slice(0, 60)}`);
   }
   return out;
 }
@@ -162,7 +204,9 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
   const read = (p: string): string | null => (existsSync(join(root, p)) ? readFileSync(join(root, p), 'utf8') : null);
   const auditPaths = ['build-2', 'build-3', 'build-4'].map((b) => `docs/superpowers/specs/thrills-and-chills/${b}-acceptance.md`);
   const dw = doneWhenProblems(read('docs/release/build-3-checklist.md') ?? '', Object.fromEntries(auditPaths.map((p) => [p, read(p)])));
-  add(1, 'Done-when rows decided (none PENDING); Build 2, 3, and 4 acceptance audits written', dw.length === 0 ? 'pass' : 'fail', dw.length === 0 ? 'docs/release/build-3-checklist.md, build-2-acceptance.md, build-3-acceptance.md, build-4-acceptance.md' : dw.join('; '));
+  add(1, 'Done-when rows decided (none PENDING, no audit line FAIL); Build 2, 3, and 4 acceptance audits written', dw.length === 0 ? 'pass' : 'fail', dw.length === 0 ? 'docs/release/build-3-checklist.md, build-2-acceptance.md, build-3-acceptance.md, build-4-acceptance.md' : dw.join('; '));
+  // Audit lines that a person must close (OPEN or GAP) are owner items; they never fail the check.
+  for (const o of auditOwnerItems(Object.fromEntries(auditPaths.map((p) => [p, read(p)])))) add(1, o.name, 'owner', o.path);
   add(1, 'CI green on the release commit', 'manual', 'GitHub Actions (typecheck, unit, build, e2e desktop and phone) on the commit that is tagged');
 
   // 2. Performance.

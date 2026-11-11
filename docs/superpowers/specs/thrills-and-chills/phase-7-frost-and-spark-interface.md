@@ -1,7 +1,7 @@
 # Phase 7 — Interface ("Frost and Spark")
 
 - **Build:** 4. No save schema change. Settings document version 2.
-- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.4, 4.6, 4.7, 4.8, 4.12, and 8 describe what was built where it differs from the first draft.
+- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft.
 - **Master spec:** `../2026-11-09-thrills-and-chills-design.md`.
 - **Approved draft pictures:** `../../../screenshots/phase-7-draft-desktop.png` (1280 × 800) and `../../../screenshots/phase-7-draft-phone.png` (390 × 844).
 
@@ -79,7 +79,7 @@ Rules:
 **Day pill.** In this order: weather badge, date and clock (`hud-date`), then every `UiExtension.hud` part (the view rotate buttons and the objectives flag). The extension contract does not change.
 
 **Controls.**
-- Speed: the same 4 buttons in the same group named "Game speed". On a phone, one Speed button shows the current speed (pause icon, `1×`, `2×`, or `4×`). It opens the group as a small menu. A choice closes the menu.
+- Speed: the same 4 buttons in the same group named "Game speed". On a phone, one Speed button shows the current speed (pause icon, `1×`, `2×`, or `4×`); its name is the name of that speed ("Pause", "Speed 2×"). It opens the group as a small menu. A choice or `Esc` closes the menu; when the focus was in the menu, it goes back to the Speed button.
 - Messages: a button with the unread badge (`messages-badge`). It opens the Messages panel.
 - Menu: opens the existing menu dialog.
 
@@ -116,7 +116,7 @@ The deck list is a toolbar named "Card decks" with 5 toggle buttons and the Demo
 
 - A press on a deck opens the hand with that deck. A press on the open deck closes the hand. The Rides deck is open when a park starts.
 - **Phone tuck:** on the phone layout the hand tucks away (hidden; `--toolbar-space` is then the height of the chip row) while any card is pressed, and comes back when no card is pressed. A press on a deck chip while the hand is tucked shows the hand. The desktop hand never tucks.
-- **Research messages:** the Show button of a research message that unlocked a ride or stall opens the Rides or Stalls deck and scrolls the new card into view. When Show was pressed with the keyboard in the Messages panel (which closes), the focus moves to the new card; with a pointer the focus does not move. It replaces the old ride and stall pickers as the message's target.
+- **Research messages:** a research message that unlocked a ride or stall (its row in the Messages panel, or the Show button of its toast) opens the Rides or Stalls deck and scrolls the new card into view; the Messages panel closes first (`goToTarget`, `src/ui/management/widgets.ts`). A press on the row with the keyboard moves the focus to the new card. Otherwise the card does not take the focus: after a pointer press on the row, a focus inside the closing Messages panel goes to the map, as for any closing panel. It replaces the old ride and stall pickers as the message's target.
 - The open deck and the hand state are session data. Saves do not store them.
 - **Demolish** is the last item of the deck list, after a divider. It is not a deck. It selects the Demolish tool (`aria-pressed`).
 - A **tool card** does what its toolbar button does today. It has the icon and the label of that button. `ToolbarEntry` (`src/ui/extensions.ts`) gets one new required field, `deck`, so each extension names the deck of its tool.
@@ -138,7 +138,7 @@ The deck list is a toolbar named "Card decks" with 5 toggle buttons and the Demo
 | Messages | Controls. |
 | Menu | Controls. |
 
-Each new control keeps the `data-tool` value and the `data-testid="tool-<id>"` of the button that it replaces.
+Each new control keeps the `data-tool` value of the button that it replaces (Inspect has no control). Tool cards, Demolish, Messages, and Menu also keep `data-testid="tool-<id>"`. The deck buttons have `data-testid="deck-<id>"` (the Rides and Stalls deck buttons keep `data-tool`). The mood bar keeps `data-testid="hud-balance"` and has `data-tool="temperament"`.
 
 ### 4.5 Hand and cards
 The hand is a group named "{deck} cards". It shows only unlocked content, as the pickers do today.
@@ -169,7 +169,7 @@ The accessible name of a card is its visible text, as Phase 6 §4.7 requires.
 - A track ride card starts the station builder (`startStation`), as today.
 - The held card rises 12 px and has `aria-pressed="true"`. It shows a **Put back** button. A press on the held card also puts it back.
 - Put back, `Esc`, and Cancel in the tool status bar select Inspect.
-- **Put back as built** (`putBack`, `src/ui/decks/toolCards.ts`): a card that is pressed because its tool is active (a ride or stall card, every tool card, Staff while its `patrol` tool runs, Shows while `placeShowSite` runs) selects Inspect. A card that is pressed because its panel or its chips are open (Staff, Research, Marketing, Finance, and Park with their panel; Overlays with its chips; Shows with its picker) does what its second press does: it closes them.
+- **Put back as built** (`putBack`, `src/ui/decks/toolCards.ts`): a card that is pressed because its tool is active (a ride or stall card, every tool card, Shows while `placeShowSite` runs) selects Inspect. Staff while its `patrol` tool runs drops the patrol member, selects Inspect, and closes the staff panel, so one press puts the card back (the panel does not open again when the patrol tool ends). A card that is pressed because its panel or its chips are open (Staff, Research, Marketing, Finance, and Park with their panel; Overlays with its chips; Shows with its picker) does what its second press does: it closes them.
 - On desktop the card details panel opens with the held card (section 4.7); when it does not fit above the hand, the exception of section 4.1 applies (`data-details="tall"`).
 - After a build, the tool stays active or returns to Inspect by the rules of today. Phase 7 does not change them.
 
@@ -192,7 +192,7 @@ A panel of the panel host, kind `cardDetails`. It shows the data of the held con
 - flat ride: seats, excitement, intensity, nausea, ticket price, running cost per month, footprint (`w × d` tiles),
 - track ride: drive, maximum height, seats per car, "From" cost (the values of the track card today),
 - stall: kind, default price, running cost per month,
-- the hint: "Drag the card to the map. Or press the card, then press the map" on desktop; "Tap the map to place it" on phone.
+- the hint, one of four (`detailsHintId`): on desktop, a flat ride or stall "Drag the card to the map. Or press the card, then press the map" and a track ride "Click the map to place the station, then build the track piece by piece"; on phone, a flat ride or stall "Tap the map, then press Confirm" and a track ride "Tap the map to move the station, then press Confirm".
 
 Rules:
 - Desktop: the panel opens when a content card becomes the held card.
@@ -253,9 +253,9 @@ Measured contrast: ink on white 15.3:1; muted ink on white 7.7:1; ink on Chill, 
 
 Rules:
 - Every colour in `src/styles/main.css` and in the styles that the UI modules add at run time moves to these tokens. No rule keeps a hard-coded colour of the old dark look.
-- **Font:** Fredoka (SIL Open Font License 1.1), weights 400 to 700, as one WOFF2 file in the build with its licence text. The game makes no request to another host for it. The offline cache list includes it. The system font stack is the fallback, and the layout tests also pass with the fallback.
+- **Font:** Fredoka (SIL Open Font License 1.1), weights 400 to 700, as two WOFF2 files (Latin and Latin Extended) in the build with its licence text. The game makes no request to another host for it. The offline cache list includes it. The system font stack is the fallback, and the layout tests also pass with the fallback: the 100% test of the top region and the hand (`tests/e2e/interface.spec.ts`) and the 175% `en-XA` layout test (`tests/e2e/a11y.spec.ts`) each run once with the font files blocked.
 - **High contrast setting:** outlines are 4 px, `--surface-2` is white, and `--muted-ink` is ink. The setting detail text changes to "Thicker outlines and stronger text".
-- **Focus ring:** 2 px white, then 3 px ink. It is visible on every surface and on the map.
+- **Focus ring:** 2 px white, then 3 px ink. It is visible on every surface and on the map. A held card draws it inside its own edge (a 3 px ink line over the card's content, `outline-offset: -8px`) with a 3 px gold edge outside, so the ring stays clear of the zone name above the raised card.
 - **Motion:** a held card rises in 120 ms. Reduced motion removes this and the knot transition.
 - The canvas, the park art, and the night lighting do not change.
 
@@ -307,7 +307,7 @@ None added. None changed. The UI sends the same commands as today.
 | Tuning | `src/data/tuning/interface.ts` | The constants of section 8. |
 | Strings | `src/data/strings/interface.ts` | The texts of section 9. |
 
-- `src/ui/toolbar.ts` and `src/ui/panels/picker.ts` are removed. `src/ui/track/picker.ts` keeps `trackRideCards` data for the hand and loses its tab view.
+- `src/ui/toolbar.ts`, `src/ui/panels/picker.ts`, and `src/ui/track/picker.ts` are removed. The hand lists the track rides with `pickableTrackTypes` and `stationCost` (`src/ui/track/builder.ts`) in `rideCards` (`src/ui/decks/model.ts`).
 - `PanelKind` loses `ridePicker` and `stallPicker` and gets `cardDetails`.
 - `src/ui/index.ts` mounts the new parts and keeps the frame loop, the toast rules, and the panel rules.
 - The pure models have no DOM access. Their tests run in Node.
@@ -332,8 +332,8 @@ New texts go in the string table with ids. No text ends with a period (the rule 
 - Decks: "Card decks", "Rides", "Stalls", "Paths", "Scenery", "Manage", "{deck} cards".
 - Cards: "From {cost}", "Track", "Put back", "Details", "Earlier cards", "More cards" (the two scroll arrows).
 - Mood: "No guests yet", "The park leans to Thrill", "The park leans to Chill", "The park is in balance".
-- Controls: "Speed", "Messages", "Messages, {count} unread", "Menu".
-- Details: "Seats", "Ticket", "Running cost per month", "Size", "{w} × {d} tiles", and the two hints of section 4.7.
+- Controls: "Messages", "Messages, {count} unread", "Menu". The phone Speed button is named with the existing speed names ("Pause", "Speed 1×", "Speed 2×", "Speed 4×").
+- Details: "Seats", "Ticket", "Running cost per month", "Size", "{w} × {d} tiles", and the four hints of section 4.7.
 - Tips: the texts and button labels of section 4.8, "Close", "Mascot tip" (the name of the bubble), "Mascot tips" and "Frost and Spark give short tips" (the setting and its detail).
 
 `en-XA` gets every new id. The completeness test of Phase 6 covers them.
@@ -379,7 +379,7 @@ New texts go in the string table with ids. No text ends with a period (the rule 
 | A light interface with a new font changes every screen. Old hard-coded dark colours can give text that is hard to read. | All colours move to tokens. The axe scan runs on the game screen, each panel, the settings screen, and the title screen. |
 | The top and bottom regions use more of a phone screen than the old bars. | The hand closes with one press. The 45% map area test. |
 | A card drag can conflict with a map drag or with hand scrolling. | Drag is for mouse and pen only, starts on a card only, and needs 8 px of movement. |
-| About 40 selectors in the e2e tests use the toolbar. | The new controls keep `data-tool` and `tool-<id>`. One test helper opens the correct deck first. |
+| About 40 selectors in the e2e tests use the toolbar. | The new controls keep `data-tool`; the deck buttons use `deck-<id>`. The test helpers (`toolControl`, `openTool`, `cardOf` in `tests/e2e/helpers.ts`) open the correct deck first. |
 | Rule 3 counts rides, not seats, so a large coaster and a small ride count the same. | The values are provisional. The rule is one pure function that a play-test can tune. |
 | The tips can annoy an expert player. | Close per tip, and one setting for all tips. |
 

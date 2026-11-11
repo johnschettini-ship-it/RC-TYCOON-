@@ -27,6 +27,10 @@ async function scenery(page: Page): Promise<SceneryGame['world']['state']['scene
   return page.evaluate(() => (window as unknown as { __tc: SceneryGame }).__tc.world.state.scenery.map((s) => ({ ...s })));
 }
 
+async function sceneryTool(page: Page): Promise<string> {
+  return page.evaluate(() => (window as unknown as { __tc: SceneryGame }).__tc.tool.tool);
+}
+
 async function cash(page: Page): Promise<number> {
   return page.evaluate(() => (window as unknown as { __tc: SceneryGame }).__tc.world.state.park.cash);
 }
@@ -121,10 +125,13 @@ test.describe('scenery tool', () => {
     await page.getByTestId('scenery-repeat').tap();
     await page.getByTestId('scenery-confirm').tap();
     await expect.poll(() => scenery(page)).toEqual([expect.objectContaining({ defId: 'balloon_cluster', x: 28, y: 44 })]);
-    await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'true');
+    // The Scenery tool stays active (repeat); the phone hand is tucked meanwhile, so a tap on the deck chip shows it.
+    expect(await sceneryTool(page)).toBe('scenery');
+    await expect(await toolControl(page, 'scenery', { tap: true })).toHaveAttribute('aria-pressed', 'true');
     await page.getByTestId('scenery-rotate').tap();
     await page.getByTestId('scenery-done').tap();
-    await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => sceneryTool(page)).toBe('inspect');
+    await expect(await toolControl(page, 'scenery', { tap: true })).toHaveAttribute('aria-pressed', 'false');
     errors.expectNoErrors();
   });
 });

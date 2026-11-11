@@ -70,7 +70,8 @@ export function centreOnTile(ctx: UiContext, tile: number): void {
  * Go to a message target: move the camera, then open the target's panel (Phase 3 §4.14), or open the deck of a
  * researched ride or stall and scroll its card into view. The Messages panel closes first: the hand shows the card.
  * `keyboard`: the press came from the keyboard (a click with `detail` 0); the focus then moves to the new card, so the
- * keyboard keeps a place on the screen. With a pointer the focus does not move.
+ * keyboard keeps a place on the screen. With a pointer the card does not take the focus: a focus inside the closing
+ * Messages panel goes to the map (the page body), as for any closing panel (`PanelHost.close`).
  */
 export function goToTarget(ctx: UiContext, target: LocateTarget, keyboard = false): void {
   if (target.tile !== null) centreOnTile(ctx, target.tile);

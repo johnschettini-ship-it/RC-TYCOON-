@@ -44,7 +44,6 @@ export const uiStrings: Record<string, string> = {
 
   // Ride and stall cards and their details
   'ui.picker.empty': 'Nothing is available yet',
-  'ui.picker.price': 'Price {price}',
   'ui.stat.excitement': 'Excitement',
   'ui.stat.intensity': 'Intensity',
   'ui.stat.nausea': 'Nausea',

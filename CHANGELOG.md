@@ -15,8 +15,12 @@ Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document vers
 - **Title screen:** a pixel-art skyline park with the game name and a menu with Continue for the newest save (`docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md`). The four pictures are data in the JavaScript bundle; there are no image files.
 - **Settings version 2:** adds `mascotTips` (default on). A version 1 document is checked as version 1 and gets `mascotTips: true`; the store writes version 2 at the next change.
 
+### Fixed (final review)
+- **Title screen:** while it is open, the game behind it is inert (Tab and Shift+Tab stay on the title's controls), and the park behind it never overwrites the autosave.
+- **Focus ring:** the keyboard focus ring is visible on every control that draws a hard shadow (status pill, mood bar, controls, cards, the title menu), over that shadow; a held card draws it inside its own edge.
+
 ### Size
-- First load: **352.7 KB** gzipped (JavaScript 342.7 KB + CSS 10.1 KB) of the 400 KB budget (Build 3: JavaScript 306.4 KB + CSS 7.5 KB). The title pictures are part of the JavaScript.
+- First load: **354.0 KB** gzipped (JavaScript 343.8 KB + CSS 10.1 KB) of the 400 KB budget (Build 3: JavaScript 306.4 KB + CSS 7.5 KB). The title pictures are part of the JavaScript.
 - Font files (not part of the first-load budget, cached for offline play): `fredoka-latin-wght-normal.woff2` **29,732 bytes** and `fredoka-latin-ext-wght-normal.woff2` **4,576 bytes**, with their licence in `src/assets/fonts/fredoka/LICENSE`. The release check allows exactly these two font files at these sizes.
 
 ### Not yet checked by a person

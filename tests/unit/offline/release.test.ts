@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems, RELEASE_VERSION } from '../../../scripts/check-release';
+import { auditOwnerItems, auditRows, distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems, RELEASE_VERSION } from '../../../scripts/check-release';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -147,9 +147,37 @@ describe('done-when rows and acceptance audits (checklist item 1)', () => {
     expect(doneWhenProblems('# nothing', {})).toEqual(['the checklist has no "Phase 6 done when" table']);
   });
 
+  const auditWith = (result: string): string =>
+    ['# Audit', '', '**Result: 2 lines.**', '', '| # | Done when (§11) | Result | Evidence |', '|---|---|---|---|', '| 7.1 | Tests pass | PASS | `npm test` |', `| 7.2 | The owner has accepted the screenshots | ${result} | not yet \\| later |`, '', 'After the table.'].join('\n');
+
+  it('reads the rows of an audit\'s Done when table', () => {
+    expect(auditRows(auditWith('OPEN'))).toEqual([
+      { id: '7.1', line: 'Tests pass', result: 'PASS' },
+      { id: '7.2', line: 'The owner has accepted the screenshots', result: 'OPEN' },
+    ]);
+  });
+
+  it('an OPEN or GAP audit line is an owner item, not a problem', () => {
+    for (const result of ['OPEN', 'GAP']) {
+      expect(doneWhenProblems(table('PASS'), { 'docs/b-acceptance.md': auditWith(result) })).toEqual([]);
+      expect(auditOwnerItems({ 'docs/b-acceptance.md': auditWith(result) })).toEqual([
+        { name: `Owner: The owner has accepted the screenshots (b-acceptance.md 7.2, ${result})`, path: 'docs/b-acceptance.md' },
+      ]);
+    }
+    expect(auditOwnerItems({ 'a.md': auditWith('PASS'), 'b.md': null })).toEqual([]);
+  });
+
+  it('a FAIL or PENDING audit line is a problem', () => {
+    expect(doneWhenProblems(table('PASS'), { 'b.md': auditWith('FAIL') })).toEqual(['b.md 7.2 is FAIL: The owner has accepted the screenshots']);
+    expect(doneWhenProblems(table('PASS'), { 'b.md': auditWith('PENDING') })).toEqual(['b.md 7.2 is PENDING: The owner has accepted the screenshots']);
+    expect(auditOwnerItems({ 'b.md': auditWith('FAIL') })).toEqual([]);
+  });
+
   it('the repository checklist and audits pass', () => {
     const read = (p: string): string => readFileSync(join(__dirname, '../../..', p), 'utf8');
     const audits = ['build-2', 'build-3', 'build-4'].map((b) => `docs/superpowers/specs/thrills-and-chills/${b}-acceptance.md`);
     expect(doneWhenProblems(read('docs/release/build-3-checklist.md'), Object.fromEntries(audits.map((p) => [p, read(p)])))).toEqual([]);
+    // The open owner acceptance of Build 4 (7.10) is listed as an owner item.
+    expect(auditOwnerItems(Object.fromEntries(audits.map((p) => [p, read(p)]))).map((o) => o.name)).toContainEqual(expect.stringMatching(/^Owner: The owner has looked at screenshots .* \(build-4-acceptance\.md 7\.10, OPEN\)$/));
   });
 });

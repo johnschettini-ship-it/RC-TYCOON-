@@ -353,6 +353,11 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   resize?.observe(el);
   resize?.observe(main);
   resize?.observe(safeProbe, { box: 'border-box' });
+  // A new text scale or language changes the widths of the button texts: the layout runs again, so the whole-px button
+  // widths are measured afresh. After the other listeners (the text scale reaches the page in its own listener).
+  game.settings.onChange((_values, changed) => {
+    if (changed.includes('textScale') || changed.includes('locale')) queueMicrotask(layout);
+  });
 
   const host: FlowHost = {
     showView(view, wide, focus) {
@@ -402,14 +407,20 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
 
   // While the title is open, the rest of the UI behind it is inert: no focus, no pointer, nothing for a screen reader.
   // The toast hosts and live regions stay out of it (a toast is still seen and announced); dialogs opened later (the
-  // settings screen, a confirm dialog) are appended after it and stay usable.
+  // settings screen, a confirm dialog) are appended after it and stay usable. The hidden file input of Import stays out
+  // too: it takes no focus (`tabindex` -1, `aria-hidden`), and Import opens it with a script click, which every browser
+  // must allow.
   let madeInert: HTMLElement[] = [];
-  const keepsLive = (c: HTMLElement): boolean =>
-    c.classList.contains('toast-host') || c.hasAttribute('aria-live') || c.getAttribute('role') === 'status' || c.getAttribute('role') === 'alert';
+  const staysActive = (c: HTMLElement): boolean =>
+    c.classList.contains('toast-host') ||
+    c.hasAttribute('aria-live') ||
+    c.getAttribute('role') === 'status' ||
+    c.getAttribute('role') === 'alert' ||
+    (c instanceof HTMLInputElement && c.type === 'file');
   const holdUi = (): void => {
     const parent = el.parentElement;
     if (!parent) return;
-    madeInert = [...parent.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c !== el && !c.inert && !keepsLive(c));
+    madeInert = [...parent.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c !== el && !c.inert && !staysActive(c));
     for (const c of madeInert) c.inert = true;
   };
   const releaseUi = (): void => {

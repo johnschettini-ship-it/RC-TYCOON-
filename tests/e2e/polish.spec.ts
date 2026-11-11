@@ -77,20 +77,69 @@ for (const scale of [100, 175] as const) {
   });
 }
 
-test('a research message opens its deck and closes the Messages panel', async ({ page }) => {
-  await page.evaluate(() => {
+/** Unlocks a ride (debug hook) and waits for its card in the hand; the strip then scrolls back to its first card. */
+async function unlockFar(page: Page, id: string): Promise<Locator> {
+  await page.evaluate((r) => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push(r), id);
+  const card = page.getByTestId(`card-${id}`);
+  await expect(card).toHaveCount(1, { timeout: 4000 });
+  await page.locator('[data-testid="hand"] .hand-scroll').evaluate((el) => {
+    el.scrollLeft = 0;
+  });
+  return card;
+}
+
+/** The card lies inside the visible box of the hand's strip. */
+const inHandView = (card: Locator): Promise<boolean> =>
+  card.evaluate((el) => {
+    const s = (el.closest('.hand-scroll') as HTMLElement).getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    return r.left >= s.left - 0.5 && r.right <= s.right + 0.5;
+  });
+
+/** Posts the research message of a new ride and opens the Messages panel from another deck. */
+async function researchMessage(page: Page, id: string, name: string): Promise<void> {
+  await page.evaluate(([itemId, n]) => {
     const g = (window as unknown as { __tc: { world: { state: { tick: number; management: { nextMessageId: number; messages: unknown[] } } } } }).__tc;
     const m = g.world.state.management;
-    m.messages.push({ id: m.nextMessageId, tick: g.world.state.tick, category: 'research', textId: 'msg.research.newRide', params: { itemId: 'carousel', name: 'Carousel' }, tile: -1, entityId: -1 });
+    m.messages.push({ id: m.nextMessageId, tick: g.world.state.tick, category: 'research', textId: 'msg.research.newRide', params: { itemId, name: n }, tile: -1, entityId: -1 });
     m.nextMessageId += 1;
-  });
+  }, [id, name] as const);
   await page.getByTestId('deck-paths').click();
   await openTool(page, 'messages');
   await expect(page.locator('.panel-title')).toHaveText(/Messages/);
+}
+
+/** The focused element, as a test id or tag and classes. */
+const focusedName = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const a = document.activeElement as HTMLElement | null;
+    return a ? a.dataset.testid ?? `${a.tagName}.${a.className}` : 'none';
+  });
+
+test('a research message opens its deck, closes the Messages panel, and shows the new card (Ruling P)', async ({ page }) => {
+  // The Gyro Globe card lies at the far end of the strip, out of view while the strip shows its first card.
+  const card = await unlockFar(page, 'gyro_globe');
+  expect(await inHandView(card), 'the card starts out of view').toBe(false);
+  await researchMessage(page, 'gyro_globe', 'Gyro Globe');
+  const before = await focusedName(page);
   await page.getByTestId('message-row').first().click();
   await expect(page.locator('.panel')).toBeHidden();
   await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', 'rides');
   await expect(page.getByTestId('hand')).toBeVisible();
+  await expect.poll(() => inHandView(card), 'the card is in the hand\'s visible box').toBe(true);
+  // With a pointer the focus does not move (and never goes to the card).
+  await expect(card).not.toBeFocused();
+  expect(await focusedName(page)).toBe(before);
+  if (isPhone(test.info())) return;
+  // With the keyboard (desktop) the focus moves to the new card.
+  const next = await unlockFar(page, 'drop_tower');
+  expect(await inHandView(next), 'the second card starts out of view').toBe(false);
+  await researchMessage(page, 'drop_tower', 'Drop Tower');
+  await tabTo(page, page.getByTestId('message-row').first());
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.panel')).toBeHidden();
+  await expect(next).toBeFocused();
+  expect(await inHandView(next), 'the second card is in the hand\'s visible box').toBe(true);
 });
 
 test('desktop, keyboard only: a tool card held with Enter gives up focus, so the map cursor builds with Enter', async ({ page }) => {

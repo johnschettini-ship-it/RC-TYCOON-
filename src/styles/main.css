@@ -127,7 +127,6 @@ button { font: inherit; color: inherit; }
 .hud-field-rating .icon { color: var(--ink); }
 .hud-name { font-weight: 700; font-size: calc(15px * var(--ts, 1)); max-width: calc(220px * var(--ts, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-mood { grid-area: mood; justify-self: stretch; min-width: 0; }
-.hud-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 /* Mood bar (Phase 7 §4.3): Frost, three segments with a knot, Spark; the lean text sits below the bar (desktop). */
 .mood-bar { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 4px 10px; color: var(--ink); background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); font: inherit; font-size: calc(12px * var(--ts, 1)); font-variant-numeric: tabular-nums; cursor: pointer; }
 .mood-bar:hover { background: var(--surface-3); }
@@ -436,6 +435,8 @@ button { font: inherit; color: inherit; }
 .status-details { flex: none; }
 #ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .tool-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
+/* A tall bar (large text, the hand shown again over a held card) stays below the top region and scrolls inside. */
+#ui[data-layout='bottom'] .tool-status { max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 16px); overflow-y: auto; }
 /* The path height bar sits 8 px above the tool status bar, whose height the UI measures (`--tool-status-h`). */
 #ui[data-layout='side'] .path-height-bar { bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px + var(--tool-status-h, 60px) + 8px); }
 #ui[data-layout='bottom'] .path-height-bar { bottom: calc(var(--toolbar-space) + 8px + var(--tool-status-h, 60px) + 8px); }
@@ -1031,6 +1032,9 @@ button { font: inherit; color: inherit; }
 .tb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .tb-hint { margin: 0; font-size: calc(13px * var(--ts, 1)); }
 .tb-keys { margin: 0; font-size: calc(11px * var(--ts, 1)); }
+/* Desktop: a builder taller than the space above the hand scrolls its body, so the header, the actions, and the keyboard
+   hint line stay whole. The body's padding holds the 5 px focus rings, which the scrolling body would clip. */
+.track-builder[data-layout='side'] .tb-body { min-height: 0; overflow-y: auto; padding: 5px; margin: -5px; }
 .tb-status { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius); border: var(--control-outline); min-height: var(--touch); }
 .tb-status.valid { border-color: var(--ok); }
 .tb-status.invalid { border-color: var(--danger); }
@@ -1211,7 +1215,6 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 .panel[data-layout='bottom'] .panel-handle { height: var(--touch); }
 .panel[data-layout='bottom'] .panel-handle::after { top: 12px; }
 #ui[data-text-scale='150'] .panel-title, #ui[data-text-scale='175'] .panel-title { white-space: normal; overflow-wrap: break-word; }
-#ui[data-text-scale='150'] .hud-item, #ui[data-text-scale='175'] .hud-item { white-space: normal; }
 #ui:not([data-text-scale='100']) .hud-name { white-space: normal; overflow-wrap: anywhere; }
 #ui[data-text-scale='175'] .meter-row { grid-template-columns: minmax(0, 1fr) 1fr minmax(44px, auto); }
 #ui[data-text-scale='175'] .dialog { width: min(480px, 100%); }
@@ -1222,11 +1225,12 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
  * buttons, labels in full ink); the focus ring outline grows too. */
 .tc-hc :focus-visible { outline-width: 4px; }
 
-/* Focus ring over the hard shadow (§4.9): the controls that draw their own shadow keep the ring on top of it, and a
- * pressed card shows the ring inside its gold edge. One rule for all of them, after their own rules; high contrast
- * keeps it. */
+/* Focus ring over the hard shadow (§4.9): the controls that draw their own shadow keep the ring on top of it. A pressed
+ * card draws the ring inside its own edge (an ink line over its content; the inset ring shows where no content covers
+ * it), and its gold edge is 3 px: the raised card has no room above it, so the ring stays clear of the zone name.
+ * One rule for all of them, after their own rules; high contrast keeps it. */
 :is(.pill, .mood-bar, .hud-btn, .card, .title-menu .btn):focus-visible { box-shadow: var(--focus-ring), var(--shadow); }
-.card[aria-pressed='true']:focus-visible { box-shadow: var(--focus-ring), 0 0 0 9px var(--gold), var(--shadow); }
+.card[aria-pressed='true']:focus-visible { box-shadow: var(--focus-ring-inset), 0 0 0 3px var(--gold), var(--shadow); outline: 3px solid var(--ink); outline-offset: -8px; }
 
 /* Reduced motion (Phase 6 §4.7): no UI transitions or animations. */
 .tc-rm *, .tc-rm *::before, .tc-rm *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

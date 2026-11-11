@@ -90,6 +90,23 @@ describe('settings version 2 (Phase 7 §5)', () => {
     const r = parseSettings(doc(1, v1Values()));
     expect(r).toMatchObject({ ok: true, values: { mascotTips: true, musicVolume: 30 } });
   });
+  it('a version 1 document keeps every one of its 19 values unchanged and gets mascotTips at its default', () => {
+    // Each value differs from its default, so a value that falls back to the default shows.
+    const v = {
+      masterVolume: 11, musicVolume: 12, sfxVolume: 13, ambienceVolume: 14, uiVolume: 15, muteAll: true, textScale: 175,
+      highContrast: true, reducedMotion: 'on', renderQuality: 'low', perfOverlay: true, panSpeed: 150, edgeScrolling: true,
+      longPressMs: 700, locale: 'en-XA', autosave: false, confirmDemolish: true, unlockAllScenarios: true, offlinePlay: false,
+    };
+    const defaults = defaultSettings() as unknown as Record<string, unknown>;
+    expect(Object.keys(v)).toHaveLength(19);
+    for (const [k, value] of Object.entries(v)) expect(value, k).not.toEqual(defaults[k]);
+    expect(parseSettings(doc(1, v))).toEqual({ ok: true, values: { ...v, mascotTips: defaults.mascotTips } });
+  });
+  it('a version 1 document with one invalid value fails loudly, never falls back to the defaults', () => {
+    const r = parseSettings(doc(1, { ...v1Values(), panSpeed: 999 }));
+    expect(r.ok).toBe(false);
+    expect(r).toEqual({ ok: false, error: 'bad value at panSpeed' });
+  });
   it('a version 1 document with mascotTips is unreadable', () => {
     expect(parseSettings(doc(1, { ...v1Values(), mascotTips: false }))).toEqual({ ok: false, error: 'unknown setting mascotTips' });
   });
