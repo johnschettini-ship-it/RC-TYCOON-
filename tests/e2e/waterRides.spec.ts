@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, pickCard } from './helpers';
+import { cardOf, pickCard, showTile } from './helpers';
 
 /**
  * Water rides smoke (Phase 4 §4.4, §9.1; W3-C "Done"): build a Log Flume and a Rapids Raft through the builder on
@@ -49,22 +49,6 @@ async function setUp(page: Page): Promise<void> {
     run({ type: 'buildPathLine', x0: 11, y0: 7, x1: 11, y1: 8, kind: 'footpath' });
     run({ type: 'buildPathLine', x0: 10, y0: 6, x1: 10, y1: 8, kind: 'queue' });
   });
-}
-
-/** Move the camera so tile (x, y) shows at a clear spot of the screen; returns that point (CSS px). */
-async function showTile(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
-  return page.evaluate(([tx, ty]) => {
-    const g = (window as unknown as { __tc: WaterTc }).__tc;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const fx = vw < 900 ? 0.5 : 0.42;
-    const fy = vw < 900 ? 0.36 : 0.45;
-    const map = g.world.state.map;
-    const z = map.heights[ty * map.width + tx] ?? 8;
-    g.camera.centerX = (tx - ty) * 32 - (fx * vw - vw / 2) / g.camera.zoom;
-    g.camera.centerY = (tx + ty + 1) * 16 - z * 8 - (fy * vh - vh / 2) / g.camera.zoom;
-    return { x: fx * vw, y: fy * vh };
-  }, [x, y] as const);
 }
 
 async function hitTile(page: Page, phone: boolean, x: number, y: number): Promise<void> {

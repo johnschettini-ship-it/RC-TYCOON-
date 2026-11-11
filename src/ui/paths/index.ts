@@ -1,7 +1,8 @@
 /**
  * Path height mini-bar (Phase 4 §7): + / − height and the ramp toggle (flat, up, down) while the footpath or queue
  * tool is active. Owner: W3-B. Registered in `../extensions.ts`. Desktop: `Page Up` / `Page Down` do the same as
- * + / −. Touch: the buttons are 44 × 44 px. It floats above the tool status bar (cost and ghost state).
+ * + / −. Touch: the buttons are 44 × 44 px. It floats 8 px above the tool status bar (cost and ghost state), at the
+ * measured height of that bar (`.path-height-bar` in main.css).
  */
 import { text } from '../../data/strings/en';
 import { changePathHeight, pathHeightRange } from '../../input/pathHeight';
@@ -10,9 +11,6 @@ import type { UiContext } from '../context';
 import type { UiExtension, UiPart } from '../extensions';
 import { h, setAttr, setText } from '../dom';
 import { segmented } from '../management/widgets';
-
-/** Distance of the bar above the tool status bar's bottom edge. */
-const ABOVE_STATUS = '76px';
 
 function heightLabel(z: number | null, ground: number): string {
   if (z === null) return text('paths.ground');
@@ -66,7 +64,6 @@ export function createPathHeightBar(ctx: UiContext): UiPart {
       'aria-label': text('paths.bar'),
       'data-testid': 'path-height-bar',
       hidden: true,
-      style: `bottom: calc(${ABOVE_STATUS} + var(--toolbar-space, 0px) + var(--safe-bottom, 0px))`,
     },
     h('div', { class: 'status-line' }, h('span', { class: 'status-texts' }, h('span', { class: 'status-text', text: text('paths.height') }), value)),
     h('div', { class: 'status-actions wrap' }, lower, raise, ramp.el),

@@ -257,6 +257,10 @@ export function mountUI(root: HTMLElement, game: Game): void {
     ro.observe(hud.el);
     ro.observe(decks.list);
     ro.observe(decks.hand);
+    // The path height bar sits above the tool status bar at its real height (it grows with the text scale).
+    new ResizeObserver(() => {
+      if (!status.el.hidden) root.style.setProperty('--tool-status-h', `${Math.ceil(status.el.getBoundingClientRect().height)}px`);
+    }).observe(status.el);
   }
   window.addEventListener('resize', measure);
   measure();
@@ -342,6 +346,31 @@ export function mountUI(root: HTMLElement, game: Game): void {
     followSet = { x: p.sx, y: p.sy };
   };
 
+  // A toast that would cover the tool status bar (large text on desktop) sits 8 px above the bar and the path height
+  // bar, in their column; the bars stay where they are. Measured only while a toast and the bar show; written on a change.
+  const toastButton = toastView.el.querySelector<HTMLElement>('.toast');
+  let toastPlace = '';
+  const placeToast = (): void => {
+    let place = '';
+    if (toastButton && !toastView.el.hidden && !toastButton.hidden && !status.el.hidden) {
+      const bars = [status.el, ...root.querySelectorAll<HTMLElement>('.path-height-bar')].filter((b) => !b.hidden).map((b) => b.getBoundingClientRect());
+      const top = Math.min(...bars.map((r) => r.top));
+      const height = toastButton.getBoundingClientRect().height;
+      // The toast's own place: 10 px below the top region (`.toast-host`).
+      if (Math.ceil(hud.el.getBoundingClientRect().bottom) + 10 + height + 8 > top) {
+        const left = Math.min(...bars.map((r) => r.left));
+        const right = Math.max(...bars.map((r) => r.right));
+        place = `${Math.floor(top - 8 - height)}px|${Math.floor(left)}px|${Math.floor(window.innerWidth - right)}px`;
+      }
+    }
+    if (place === toastPlace) return;
+    toastPlace = place;
+    const [top = '', left = '', right = ''] = place === '' ? [] : place.split('|');
+    toastView.el.style.top = top;
+    toastView.el.style.left = left;
+    toastView.el.style.right = right;
+  };
+
   let lastTool = game.tool.tool;
   let lastHeld: string | null = null;
   game.onFrame(() => {
@@ -395,6 +424,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     const hidePlain = msgVisible || now < plainHiddenUntil;
     if (toastView.el.hidden !== hidePlain) toastView.el.hidden = hidePlain;
     toastView.update(now);
+    placeToast();
   });
 
   title.show();

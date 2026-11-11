@@ -2,7 +2,9 @@
  * Mascot tip bubble (Phase 7 §4.8): one short sentence with the small face of the speaker and at most one button.
  * The rules (`./model`) run every `TIP_CHECK_MS`. Desktop: centred above the hand, where the tool status bar shows
  * while a tool is active. Phone: below the day pill. Hidden while a dialog or the title is open, while a tool other
- * than Inspect is active, and on the phone while a panel is open; it comes back when that ends and a tip still matches.
+ * than Inspect is active, while an overlay is on or the overlay chip row is open (the overlay legend takes its place on
+ * the phone), and on the phone while a panel is open; it comes back when that ends and a tip still matches. When the
+ * bubble hides while one of its buttons has the focus, the focus goes to the Rides deck button, not to the page body.
  * Browser only.
  */
 import { text } from '../../data/strings/en';
@@ -12,6 +14,7 @@ import { h, setAttr, setText } from '../dom';
 import type { UiPart } from '../extensions';
 import { icon } from '../icons';
 import { mascotCanvas } from '../scenario/mascotArt';
+import { overlayChipsOpen } from '../overlays';
 import { modalOpen, titleOpen } from '../scenario/shared';
 import { dropStale, matchingTips, shownTip, tipInput, type Tip, type TipId } from './model';
 
@@ -96,10 +99,21 @@ export function createTipBubble(ctx: UiContext): UiPart {
         lastCheck = now;
         check();
       }
-      const blocked = modalOpen() || titleOpen() || game.tool.tool !== 'inspect' || (root.dataset.layout === 'bottom' && ctx.activePanel() !== null);
+      const blocked =
+        modalOpen() ||
+        titleOpen() ||
+        game.tool.tool !== 'inspect' ||
+        game.tool.overlay !== 'none' ||
+        overlayChipsOpen(ctx) ||
+        (root.dataset.layout === 'bottom' && ctx.activePanel() !== null);
       const visible = tip !== null && !blocked;
       if (visible && tip) show(tip);
-      if (el.hidden === visible) el.hidden = !visible;
+      if (el.hidden === visible) {
+        // A button of the bubble that hides with it would drop the focus to the page body.
+        const hadFocus = !visible && el.contains(document.activeElement);
+        el.hidden = !visible;
+        if (hadFocus) ctx.controlFor('rides')?.focus();
+      }
     },
   };
 }

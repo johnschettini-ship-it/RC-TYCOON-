@@ -369,26 +369,37 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .card-track { font-size: calc(11px * var(--ts, 1)); padding: 0 5px; }
 /* A cost that wraps (large text) keeps round corners that suit two lines. */
 #ui:not([data-text-scale='100']) .card-cost { border-radius: var(--radius); }
-/* Zone strip (§4.5): one coloured part behind the cards of each zone, with the zone name; clicks go through it. */
-.hand-group { position: relative; isolation: isolate; display: flex; align-items: flex-end; gap: 8px; padding: calc(17px * var(--ts, 1)) 6px 6px; }
+/* Zone strip (§4.5): one coloured part behind the cards of each zone, with the zone name in its own lane at the top.
+   The lane lies above the rise of a held card, so the name stays readable while a card of the zone is held. A hand with
+   zone groups needs no rise room above them (the groups hold it), so the bars above the hand stay where they were. */
+.hand-cards:has(> .hand-group) { padding-top: 6px; }
+.hand-group {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: calc(15px * var(--ts, 1) + 6px + var(--card-lift, 12px)) 6px 6px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.hand-group[data-zone='chill'] { background: color-mix(in srgb, var(--accent-chill) 35%, var(--surface)); }
+.hand-group[data-zone='family'] { background: color-mix(in srgb, var(--accent-family) 35%, var(--surface)); }
+.hand-group[data-zone='thrill'] { background: color-mix(in srgb, var(--accent-thrill) 35%, var(--surface)); }
 .hand-group > .card-wrap { z-index: 1; }
 .hand-zone {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
   z-index: 0;
   pointer-events: none;
   padding: 1px 10px;
-  border-radius: var(--radius);
-  background: var(--surface-2);
   color: var(--ink);
   font-size: calc(12px * var(--ts, 1));
   font-weight: 700;
-  line-height: 1.3;
+  line-height: calc(15px * var(--ts, 1));
   white-space: nowrap;
 }
-.hand-zone[data-zone='chill'] { background: color-mix(in srgb, var(--accent-chill) 35%, var(--surface)); }
-.hand-zone[data-zone='family'] { background: color-mix(in srgb, var(--accent-family) 35%, var(--surface)); }
-.hand-zone[data-zone='thrill'] { background: color-mix(in srgb, var(--accent-thrill) 35%, var(--surface)); }
 .hand-cards > .muted { margin: 0; padding: 12px 8px; }
 /* Put back sits on the picture of the held card (above its middle), so the label stays readable and a press on the
    middle of the card still reaches the card. */
@@ -422,8 +433,11 @@ button { font: inherit; color: inherit; }
 /* The buttons go to a new line when they do not fit (phone, large text). */
 .tool-status .status-actions { flex-wrap: wrap; }
 .status-details { flex: none; }
-#ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .tool-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
+/* The path height bar sits 8 px above the tool status bar, whose height the UI measures (`--tool-status-h`). */
+#ui[data-layout='side'] .path-height-bar { bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px + var(--tool-status-h, 60px) + 8px); }
+#ui[data-layout='bottom'] .path-height-bar { bottom: calc(var(--toolbar-space) + 8px + var(--tool-status-h, 60px) + 8px); }
 
 /* Mascot tip (Phase 7 §4.8): the small face, one sentence with its button, and Close. Desktop: centred above the hand,
    where the tool status bar shows while a tool is active (the bubble hides then). Phone: below the day pill. */
@@ -447,7 +461,7 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='side'] .tip-bubble {
   left: 50%;
   transform: translateX(-50%);
-  bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom));
+  bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px);
   width: max-content;
   max-width: min(420px, calc(100% - 20px));
 }
@@ -855,7 +869,7 @@ button { font: inherit; color: inherit; }
 /* Tool bars (patrol painting, path items) */
 .mgmt-bar { max-width: min(760px, calc(100% - 20px)); }
 .status-actions.wrap { flex-wrap: wrap; align-items: center; }
-#ui[data-layout='side'] .mgmt-bar { left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .mgmt-bar { left: 50%; transform: translateX(-50%); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .mgmt-bar { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 .mgmt-bar .segmented { gap: 4px; }
 .mgmt-bar .seg-btn { min-width: 52px; padding: 4px 8px; }
@@ -907,9 +921,7 @@ button { font: inherit; color: inherit; }
 .tb-title { margin: 0; font-size: calc(16px * var(--ts, 1)); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tb-count { font-size: calc(12px * var(--ts, 1)); }
 .tb-body { display: flex; flex-direction: column; gap: 6px; }
-.tb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-/* The station controls hold the phone's Details button (Phase 7 §4.6): its controls are 8 px apart. */
-.tb-station .tb-row { gap: 8px; }
+.tb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .tb-hint { margin: 0; font-size: calc(13px * var(--ts, 1)); }
 .tb-keys { margin: 0; font-size: calc(11px * var(--ts, 1)); }
 .tb-status { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius); border: var(--control-outline); min-height: var(--touch); }
@@ -949,7 +961,7 @@ button { font: inherit; color: inherit; }
 .btn.step { min-width: var(--touch); padding: 4px; font-size: calc(18px * var(--ts, 1)); }
 .stepper { display: inline-flex; align-items: center; gap: 6px; }
 .stepper-value { min-width: 56px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
-.tb-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tb-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tb-actions .big-action { min-height: 56px; flex: 1 1 140px; font-size: calc(16px * var(--ts, 1)); }
 .track-builder[data-layout='side'] .tb-actions .big-action { min-height: 48px; }
 

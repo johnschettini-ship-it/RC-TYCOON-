@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, openTool, pickCard, setSpeed } from './helpers';
+import { cardOf, openTool, pickCard, setSpeed, showTile } from './helpers';
 
 /**
  * Track builder smoke (phase-2 §7, §9.4): build the reference circuit R1 (§9.2) through the builder UI on desktop
@@ -43,25 +43,6 @@ async function layPaths(page: Page): Promise<void> {
     run({ type: 'buildPathLine', x0: 6, y0: 4, x1: 6, y1: 5, kind: 'footpath' });
     run({ type: 'buildPathLine', x0: 4, y0: 4, x1: 4, y1: 6, kind: 'queue' });
   });
-}
-
-/** Move the camera so tile (x, y) shows at a clear spot of the screen; returns that point (CSS px). */
-async function showTile(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
-  return page.evaluate(([tx, ty]) => {
-    const g = window.__tc;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    // Clear of the toolbar, HUD (and the toast under it), and the builder (right side panel, or a bottom sheet on narrow screens).
-    const fx = vw < 900 ? 0.5 : 0.42;
-    const fy = vw < 900 ? 0.36 : 0.45;
-    const map = g.world.state.map;
-    const z = map.heights[ty * map.width + tx] ?? 8;
-    const sx = (tx - ty) * 32;
-    const sy = (tx + ty + 1) * 16 - z * 8;
-    g.camera.centerX = sx - (fx * vw - vw / 2) / g.camera.zoom;
-    g.camera.centerY = sy - (fy * vh - vh / 2) / g.camera.zoom;
-    return { x: fx * vw, y: fy * vh };
-  }, [x, y] as const);
 }
 
 /** Tap (phone) or click (desktop) a map tile. A touch tap only moves a ghost; a click places. */

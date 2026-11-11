@@ -174,6 +174,28 @@ export async function tilePoint(page: Page, x: number, y: number): Promise<{ x: 
   );
 }
 
+/**
+ * Move the camera so tile (x, y) shows at a clear spot of the screen, and return that point (CSS px): clear of the
+ * hand, the top region (and the toast under it), and the builder (right side panel, or a bottom sheet on the phone).
+ */
+export async function showTile(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  return page.evaluate(
+    ([tx, ty]) => {
+      const g = (window as unknown as { __tc: TcGame }).__tc;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const fx = vw < 900 ? 0.5 : 0.42;
+      const fy = vw < 900 ? 0.36 : 0.45;
+      const map = g.world.state.map;
+      const z = map.heights[ty * map.width + tx] ?? 8;
+      g.camera.centerX = (tx - ty) * 32 - (fx * vw - vw / 2) / g.camera.zoom;
+      g.camera.centerY = (tx + ty + 1) * 16 - z * 8 - (fy * vh - vh / 2) / g.camera.zoom;
+      return { x: fx * vw, y: fy * vh };
+    },
+    [x, y] as const,
+  );
+}
+
 /** Map content code at (x, y): 0 empty, 1 footpath, 2 queue, 3 building. */
 export async function contentAt(page: Page, x: number, y: number): Promise<number> {
   return page.evaluate(([tx, ty]) => {

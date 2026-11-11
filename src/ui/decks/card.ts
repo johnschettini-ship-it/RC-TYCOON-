@@ -45,6 +45,12 @@ export function setHeld(wrap: HTMLElement, on: boolean): void {
   }
 }
 
+/**
+ * Tool cards that select a map tool. After `Enter` or `Space` holds one, the focus leaves the card, so the map cursor's
+ * `Enter` uses the tool (as with a content card). Panel cards keep the focus: their panel takes it.
+ */
+const MAP_TOOL_CARDS: ReadonlySet<string> = new Set(['footpath', 'queue', 'pathItems', 'scenery', 'land', 'water', 'buyLand']);
+
 export function createToolCard(ctx: UiContext, def: ToolCardDef): ToolCardView {
   let held = false;
   const card = h(
@@ -55,7 +61,14 @@ export function createToolCard(ctx: UiContext, def: ToolCardDef): ToolCardView {
       'data-tool': def.id,
       'data-testid': `tool-${def.id}`,
       'aria-pressed': 'false',
-      onclick: () => (held ? putBack(ctx, def) : def.onClick(ctx)),
+      onclick: (e: Event) => {
+        if (held) {
+          putBack(ctx, def);
+          return;
+        }
+        def.onClick(ctx);
+        if ((e as MouseEvent).detail === 0 && MAP_TOOL_CARDS.has(def.id) && def.pressed(ctx) && document.activeElement === card) card.blur();
+      },
     },
     h('span', { class: 'tool-card-art', 'aria-hidden': 'true' }, def.icon()),
     h('span', { class: 'tool-card-label', text: def.label }),

@@ -155,7 +155,7 @@ const CSS = `
 .tc-bubble[data-guide='spark'] { box-shadow: inset 6px 0 0 var(--accent-thrill), var(--shadow); }
 .tc-bubble[data-guide='both'] { box-shadow: inset 6px 0 0 var(--gold), var(--shadow); }
 .tc-bubble[data-pos='top'] { top: calc(var(--hud-bottom) + 8px); }
-#ui[data-layout='side'] .tc-bubble[data-pos='bottom'] { bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .tc-bubble[data-pos='bottom'] { bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .tc-bubble[data-pos='bottom'] { bottom: calc(var(--toolbar-space) + 8px); }
 .tc-bubble-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tc-bubble-who { font-size: calc(12px * var(--ts, 1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-ink); }

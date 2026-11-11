@@ -68,13 +68,15 @@ export function centreOnTile(ctx: UiContext, tile: number): void {
 
 /**
  * Go to a message target: move the camera, then open the target's panel (Phase 3 §4.14), or open the deck of a
- * researched ride or stall and scroll its card into view (the focus stays where it is).
+ * researched ride or stall and scroll its card into view (the focus stays where it is). The Messages panel closes first:
+ * the hand shows the card.
  */
 export function goToTarget(ctx: UiContext, target: LocateTarget): void {
   if (target.tile !== null) centreOnTile(ctx, target.tile);
   const p = target.panel;
   if (!p) return;
   if ('deck' in p) {
+    if (ctx.activePanel()?.kind === 'messages') ctx.closePanel();
     ctx.openDeck(p.deck);
     ctx.root.querySelector<HTMLElement>(`.hand [data-def="${CSS.escape(p.defId)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     return;

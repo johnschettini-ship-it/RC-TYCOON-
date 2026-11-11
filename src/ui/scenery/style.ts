@@ -49,7 +49,7 @@ const CSS = `
 .scn-card .scn-cost { align-self: flex-start; color: var(--ink); background: var(--gold); border-radius: 999px; padding: 0 6px; font-weight: 700; }
 .scn-card .scn-fields { color: var(--muted-ink); }
 .scn-status .btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
-#ui[data-layout='side'] .scn-status { left: 50%; transform: translateX(-50%); bottom: calc(var(--toolbar-space) + 16px + var(--safe-bottom)); }
+#ui[data-layout='side'] .scn-status { left: 50%; transform: translateX(-50%); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .scn-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 .scn-status .status-actions { flex-wrap: wrap; }
 `;
