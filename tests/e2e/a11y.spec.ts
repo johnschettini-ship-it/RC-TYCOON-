@@ -20,6 +20,10 @@ type Tc = {
 
 /** Serious and critical axe violations on the page as it is now. */
 async function seriousIssues(page: Page): Promise<string[]> {
+  // A toast fades in for 160 ms. The scan waits for the end of such an animation, or it reads the text at part opacity.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().endTime !== Infinity).map((a) => a.finished.catch(() => undefined))).then(() => undefined),
+  );
   const r = await new AxeBuilder({ page }).exclude('#loading').analyze();
   return r.violations
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
