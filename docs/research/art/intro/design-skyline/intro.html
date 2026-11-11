@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrills &amp; Chills: intro, design E, the skyline at orange dusk</title>
+<link rel="stylesheet" href="../kit3/base.css">
+<style>
+  .screen { position: relative; width: 100%; height: 100%; overflow: hidden; background: #ffe9bf; }
+
+  /* The pixel pictures: every one at 2x with hard pixels. */
+  .scene { position: absolute; left: 0; top: 0; }
+  .scene.desktop { width: 1280px; height: 800px; }              /* 640 x 400 art pixels at 2x */
+  .scene.phone { display: none; width: 390px; height: 844px; }  /* 195 x 422 art pixels at 2x */
+
+  /* The logo: pixel lettering in the sky, a picture inside the <h1>. */
+  .title { position: absolute; margin: 0; left: 120px; top: 40px; }
+  .title img.desktop { width: 1040px; height: 144px; }          /* 520 x 72 at 2x */
+  .title img.phone { display: none; width: 374px; height: 284px; }   /* 187 x 142 at 2x */
+
+  /* The tagline: a small plate under the logo. */
+  .tagline { position: absolute; left: 50%; top: 204px; transform: translateX(-50%); margin: 0; padding: 7px 20px 8px;
+             border-radius: 999px; font-size: 19px; font-weight: 500; white-space: nowrap; }
+  .tagline b { font-weight: 600; }
+  .tagline .t { color: var(--logo-thrill); }
+  .tagline .c { color: var(--logo-chill); }
+
+  /* The menu: a plain column on a white plate at the left. */
+  .menu { position: absolute; left: 40px; bottom: 44px; width: 288px; padding: 18px 18px 22px;
+          display: flex; flex-direction: column; gap: 12px; }
+  .menu .btn { width: 100%; }
+  .menu .btn.big { min-height: 56px; font-size: 21px; }
+  .menu .btn.go { min-height: 64px; flex-direction: column; gap: 0; line-height: 1.1; }
+  .menu .btn.go small { font-size: 13px; font-weight: 500; }
+  .menu .btn.new { background: var(--gold); }
+
+  @media (max-width: 600px) {
+    .scene.desktop, .title img.desktop { display: none; }
+    .scene.phone, .title img.phone { display: block; }
+    .title { left: 8px; top: 18px; }
+    .tagline { display: none; }
+    .menu { left: 12px; right: 12px; bottom: 14px; width: auto; padding: 12px 12px 16px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .menu .btn.big { grid-column: 1 / 3; }
+    .menu .btn.go { min-height: 60px; }
+  }
+</style>
+</head>
+<body>
+<main class="screen">
+  <img class="px scene desktop" src="scene-desktop.png" alt="">
+  <img class="px scene phone" src="scene-phone.png" alt="">
+  <h1 class="title">
+    <img class="px desktop" src="logo-desktop.png" alt="Thrills &amp; Chills">
+    <img class="px phone" src="logo-phone.png" alt="Thrills &amp; Chills">
+  </h1>
+  <p class="plate tagline">Build a park for <b class="t">thrill seekers</b> and <b class="c">chill seekers</b></p>
+  <nav class="plate menu" aria-label="Main menu">
+    <button class="btn primary big go" data-menu>Continue<small>Maple Hollow · Year 2</small></button>
+    <button class="btn big new" data-menu>New game</button>
+    <button class="btn" data-menu>Load</button>
+    <button class="btn" data-menu>Import</button>
+    <button class="btn" data-menu>Settings</button>
+    <button class="btn" data-menu>Credits</button>
+  </nav>
+</main>
+</body>
+</html>

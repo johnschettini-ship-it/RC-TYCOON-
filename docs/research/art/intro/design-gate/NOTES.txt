@@ -1,0 +1,37 @@
+DESIGN C: THE PARK ENTRANCE
+
+Idea, in three sentences:
+The whole screen is a front view of the park gate: two towers (teal roof on the Chill side, orange roof on the Thrill
+side) carry a striped fan arch with bulbs and flags and a big marquee sign board with the name of the game in pixel
+lettering. Behind the gate the two sides of the park peek over under a split sky: on the left the big wheel, pines and a
+garden pond under a cool sky, on the right the wooden coaster, the drop tower and autumn trees under a warm sky, and a
+sandy path with tiny guests leads from the bottom of the screen through the gate to a fountain. The menu is part of the
+entrance: each tower stands on a ticket booth with a striped awning, and the booth carries three hanging sign boards:
+Continue, Load and Import on the Chill booth (come back to a saved park), New game, Settings and Credits on the Thrill
+booth (start something new).
+
+Where the New game / Load / Credits panel opens:
+Desktop (1280 x 800): in the gateway, between the two booths and under the sign board: a plate up to 480 px wide,
+  centred at x = 640, from y = 276 (it takes the place of the tagline plate) down to about y = 770. It covers only the
+  view through the gate (path, fountain, balloons); the sign with the logo and both booths with the menu stay visible.
+Phone (390 x 844): a sheet that rises from the bottom edge to y = 348, just under the sign board (it covers the tagline
+  plate, the view through the gate and the two booths). The sign with the logo and the rides above it stay visible.
+
+Pictures (written by make.py; pixel art, kit palette, 47 and 45 colours, shown at 2x with hard pixels):
+scene-desktop.png, 640 x 400 art pixels, shown at 1280 x 800: sky, rides, park view, the gate with towers, fan arch,
+  sign board and the logo "Thrills & Chills" in pixel lettering (1-bit glyphs of Fredoka 700, bevelled, ink outline and
+  a hard ink shadow), the two ticket booths with their awnings and the straps of the boards, path, pond, flower bed, guests.
+scene-phone.png, 195 x 422 art pixels, shown at 390 x 844: its own composition, not a crop: the logo stands in two
+  lines on a tall sign board, the wheel, the coaster and the drop tower peek over the arch, the gate opening in the
+  middle shows the path to the fountain, and the two booths meet at the bottom with a narrow lane between them.
+
+HTML and CSS (base.css of the kit plus the <style> of intro.html):
+The six menu items: .btn sign boards on the booth walls (Continue .btn.primary in Chill blue and New game in gold, both
+  60 px high on desktop and 56 px on the phone; Load, Import, Settings, Credits 48 px, white). On the phone they form
+  two columns of three in the lower third of the screen (y = 628 to 808), in reach of a thumb.
+The tagline: a small cream plate (3 px ink outline, hard shadow) that hangs on two chains under the sign board.
+A hidden <h1> with the name of the game for screen readers (the visible logo is part of the picture).
+
+Notes for a build: the interface parts sit on the picture's 2 px grid inside a stage of the picture's size
+(1280 x 800 centred, or 390 x 844). For other window sizes the stage stays centred and the sky and the lawn of the
+picture are extended to the sides; the logo, the arch bulbs and the flags can be cut out as their own sprites to animate.

@@ -1,0 +1,38 @@
+DESIGN A: THE WHOLE SCREEN IS THE PARK
+
+Idea, in three sentences:
+There is no card: the isometric pixel park of the approved drafts fills the screen from edge to edge at 2x, and the
+interface is only a light frame around it (the logo on a ribbon plate at the top, the menu at the bottom).
+The picture itself tells the game: the warm Thrill side (drop tower, wooden coaster, swinging ship, kart track, orange
+stalls, autumn trees) lies under the word "Thrills", and the cool Chill side (big wheel, carousel, pond with swan
+boats, bandstand on a lawn, teal and blue stalls, green trees) lies under the word "Chills"; a plaza with a fountain
+and a round flower bed in two halves (orange and blue) joins them. On the phone the same park is drawn again in
+portrait, not shrunk: Thrill at the top, Chill below, and the calm pond lies behind the menu.
+
+Where the New game / Load / Credits panel opens:
+Desktop (1280 x 800): a plate about 440 px wide in the centre, between the logo plate and the menu row
+(x 420 to 860, y 172 to 692). It covers the plaza, the flower bed and the four stalls; the tower, the coaster hills
+and the ship stay in view on its left, the wheel, the carousel and the pond on its right. The logo stays above it and
+the menu row stays below it.
+Phone (390 x 844): a sheet that rises from the bottom edge and takes the place of the menu (y 300 to 844, full width
+with a 12 px margin). It covers the wheel, the carousel and the pond; the logo, the tower and the coaster stay in
+view above it.
+
+Pictures (written by make.py, palette of the drafts, 46 colours each, shown at 2x with hard pixels):
+park-desktop.png  640 x 400 art pixels -> 1280 x 800.
+park-phone.png    195 x 422 art pixels -> 390 x 844. A second composition made by the same code.
+Nothing else is a picture. No mascots; guests are 4 to 6 art pixels high, carousel horses and swan boats 6.
+
+HTML and CSS (base.css of the kit plus the <style> of intro.html):
+- The logo: Fredoka 700 text on a white .plate; "Thrills" in --accent-thrill, "&" in ink, "Chills" in --accent-chill,
+  each word with an ink outline (-webkit-text-stroke with paint-order: stroke fill) and a hard ink shadow.
+- The ribbon tails left and right of the plate (orange for Thrill, blue for Chill): two divs with clip-path.
+- The tagline, with "thrill seekers" and "chill seekers" in the two logo colours.
+- The six menu items, all .btn: Continue (.btn.primary, blue, with the name of the saved park as a second line; that
+  line is optional), New game (gold), then Load, Import, Settings, Credits (pale, smaller).
+  Desktop: one row along the bottom, 68 px and 48 px high, 12 px apart.
+  Phone: Continue and New game across the full width (64 and 56 px), then one row of four (48 px), all in the lower
+  quarter of the screen.
+
+Least happy with: the guests are so small (the brief allows 6 pixels) that the avenues look less alive than in the
+drafts, and the lower strip of the desktop picture is kept plain on purpose so that the menu row sits on calm grass.

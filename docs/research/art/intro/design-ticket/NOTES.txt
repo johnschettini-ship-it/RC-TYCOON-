@@ -1,0 +1,53 @@
+DESIGN D: THE TICKET
+
+Idea, in three sentences:
+The intro is one big paper admission ticket in an orange evening sky: the name of the game is printed large on its main
+part, and the six menu items are coupons on its tear-off stub under the words "Admit one".
+The ticket itself tells the idea of the game: its striped border, its two round badges (a bolt and a snowflake) and the
+lettering are warm orange on the Thrill half and cool blue on the Chill half.
+Low on the screen, behind the ticket, one calm strip shows the park at sunset: the drop tower and the wooden coaster on
+the left, the carousel, the big wheel and a pond on the right, and the sun going down between the two sides.
+
+Where the New game / Load / Credits panel opens:
+Desktop: in the place of the stub. A plate up to 400 px wide from x = 840 to x = 1240, with its top at the top edge of
+  the ticket (y = 52), growing downwards as far as y = 760. It covers the menu, the balloon and part of the wheel; the
+  name on the main part of the ticket stays in full view on its left. (A 440 px plate would touch the last letter.)
+Phone: a sheet that rises from the bottom edge up to the tear line of the ticket (y = 384). It covers the stub with the
+  menu and the skyline (the lower 55 % of the screen); the upper part of the ticket with the name stays in view.
+
+Layout:
+Desktop 1280 x 800: the ticket lies in the upper middle (1056 x 424 px at 112, 52). Main part 744 px wide: small print,
+  the name in one line (652 x 84 px), the tagline, a footer row "Thrill side / Good for all rides / Chill side" between
+  the two badges. Stub 312 px wide behind the tear line: "Admit one", Continue (64 px high, with the name of the saved
+  park), New game (56 px), then Load, Import, Settings and Credits in a 2 x 2 grid (48 px), a barcode. The skyline
+  takes the lowest 320 px, under the ticket; the sky above it stays flat.
+Phone 390 x 844: the ticket stands upright (350 x 648 px at 20, 12). Upper part: the name in three lines ("Thrills" in
+  an orange frame, "&" between the two badges, "Chills" in a blue frame), the tagline in two lines. Lower part, below
+  the tear line and in the lower half of the screen: the same six coupons, all in reach of a thumb. The skyline is a
+  different, smaller picture (tower, first hill of the coaster, carousel, wheel) in the 180 px under the ticket.
+Other window sizes (not shown): the sky is flat bands, so the top band and the lowest band can grow; the skyline stays
+  at the bottom edge and the ticket stays centred in the sky above it.
+
+Pictures (written by make.py; every picture is shown at 2x with hard pixels, on even pixel positions):
+scene-desktop.png   640 x 400 art pixels: four flat sky bands, first stars, clouds, a balloon, the low sun, the skyline
+                    and the lawn in front of it (48 colours).
+scene-phone.png     195 x 422 art pixels: the same sky and a smaller skyline.
+ticket-desktop.png  528 x 212 art pixels: the paper (notched corners, scalloped ends, tear line, hard ink shadow),
+                    the striped border, the faint sunburst print, the two badges, the stars, the barcode.
+ticket-phone.png    175 x 324 art pixels: the same ticket standing upright.
+logo-desktop.png    326 x 42 art pixels: "Thrills & Chills" as pixel lettering (Fredoka Bold drawn without
+                    anti-aliasing at 48 art pixels; flat face, lit rim, block shadow, ink outline).
+logo-phone.png      135 x 113 art pixels: the same lettering in three lines (44 and 30 art pixels).
+
+HTML and CSS (base.css of the kit plus the <style> of intro.html):
+The tagline and all small print on the ticket ("Park pass", "No. 000128", "Thrill side", "Good for all rides",
+"Chill side", "Admit one", the serial number) are HTML text in Fredoka, so they can be translated.
+The six menu items are .btn buttons of the game's interface (3 px ink outline, hard shadow, round corners): Continue is
+.btn.primary, New game is gold, the four small ones are white. Each has a coupon notch on its left and right side:
+a ::before and ::after circle with the paper colour and an ink border, cut in half with clip-path.
+The <h1> holds the lettering picture with the alt text "Thrills & Chills".
+
+Motion ideas for later (not in the mock-up): the balloon drifts, the wheel and the coaster trains move slowly, a pressed
+coupon dips by its 4 px shadow like every button of the game.
+
+No characters: no mascots; the only people are guests of 4 to 5 art pixels and riders of 3 art pixels.

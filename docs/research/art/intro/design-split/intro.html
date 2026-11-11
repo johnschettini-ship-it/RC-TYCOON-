@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrills &amp; Chills: intro, design B "Two halves, one park"</title>
+<link rel="stylesheet" href="../kit3/base.css">
+<style>
+  .screen { position: relative; width: 100%; height: 100%; overflow: hidden; background: #ffe9bf; }
+
+  /* The scene: one pixel picture for each screen, 2x, hard pixels. */
+  .scene { position: absolute; left: 0; top: 0; }
+  .scene.desktop { width: 1280px; height: 800px; }              /* 640 x 400 art pixels at 2x */
+  .scene.phone { display: none; width: 390px; height: 844px; }  /* 195 x 422 art pixels at 2x */
+
+  /* The logo: three pixel pictures (2x), placed on the art grid so that the "&" sits on the seam. */
+  .logo-px { position: absolute; margin: 0; left: 0; top: 0; }
+  .logo-px img { position: absolute; }
+  .logo-px .p { display: none; }
+  .logo-px .d.thrills { left: 216px; top: 32px; width: 378px; height: 126px; }
+  .logo-px .d.and     { left: 586px; top: 32px; width: 108px; height: 126px; }
+  .logo-px .d.chills  { left: 686px; top: 32px; width: 326px; height: 126px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  .tagline { position: absolute; left: 640px; top: 170px; transform: translateX(-50%); margin: 0; padding: 5px 18px 6px; border-radius: 999px;
+             font-size: 17px; font-weight: 500; white-space: nowrap; }
+  .tagline .t { color: var(--logo-thrill); font-weight: 600; }
+  .tagline .c { color: var(--logo-chill); font-weight: 600; }
+
+  /* The menu: a plate in the middle, on the seam. */
+  .menu { position: absolute; left: 460px; top: 306px; width: 360px; padding: 28px 20px 24px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+  .menu::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 12px; border-bottom: 3px solid var(--ink);
+                  background: linear-gradient(104deg, var(--gold) 0 36%, var(--accent-chill) 36% 100%); }   /* the seam runs on through the stripe */
+  .menu .btn { width: 100%; }
+  .menu .btn.big { min-height: 56px; font-size: 21px; }
+  .menu .btn.go { min-height: 64px; font-size: 23px; flex-direction: column; gap: 0; line-height: 1.1; }
+  .menu .btn.go small { font-size: 13px; font-weight: 500; }
+  .menu .btn.new { background: var(--gold); }               /* Continue is the Chill blue (.btn.primary), New game the warm gold */
+  .menu .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  @media (max-width: 600px) {
+    .scene.desktop { display: none; }
+    .scene.phone { display: block; }
+    .logo-px .d { display: none; }
+    .logo-px .p { display: block; }
+    .logo-px .p.thrills { left: 40px;  top: 136px; width: 308px; height: 106px; }
+    .logo-px .p.and     { left: 156px; top: 226px; width: 76px;  height: 86px; }
+    .logo-px .p.chills  { left: 62px;  top: 296px; width: 266px; height: 106px; }
+    .tagline { display: none; }
+    .menu { left: 16px; top: auto; bottom: 20px; width: 358px; padding: 0; border: 0; background: none; box-shadow: none; overflow: visible; border-radius: 0; }
+    .menu::before { display: none; }
+    .menu .grid { grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .menu .grid .btn { padding: 0 2px; font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<main class="screen">
+  <img class="px scene desktop" src="scene-desktop.png" alt="">
+  <img class="px scene phone" src="scene-phone.png" alt="">
+
+  <h1 class="logo-px" aria-label="Thrills &amp; Chills">
+    <span class="sr">Thrills &amp; Chills</span>
+    <img class="px d thrills" src="logo-d-thrills.png" alt=""><img class="px d chills" src="logo-d-chills.png" alt=""><img class="px d and" src="logo-d-and.png" alt="">
+    <img class="px p thrills" src="logo-p-thrills.png" alt=""><img class="px p chills" src="logo-p-chills.png" alt=""><img class="px p and" src="logo-p-and.png" alt="">
+  </h1>
+  <p class="plate tagline">Build a park for <span class="t">thrill seekers</span> and <span class="c">chill seekers</span></p>
+
+  <nav class="plate menu" aria-label="Main menu">
+    <button class="btn primary go" data-menu>Continue<small>Maple Hollow &middot; Year 2</small></button>
+    <button class="btn big new" data-menu>New game</button>
+    <div class="grid">
+      <button class="btn" data-menu>Load</button>
+      <button class="btn" data-menu>Import</button>
+      <button class="btn" data-menu>Settings</button>
+      <button class="btn" data-menu>Credits</button>
+    </div>
+  </nav>
+</main>
+</body>
+</html>

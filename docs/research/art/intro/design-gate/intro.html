@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrills &amp; Chills: intro, design C (the park entrance)</title>
+<link rel="stylesheet" href="../kit3/base.css">
+<style>
+  .screen { position: relative; width: 100%; height: 100%; overflow: hidden; background: #fff8e6; }
+  /* The stage has the size of the pixel picture; every interface part is placed on the picture's 2 px grid. */
+  .stage { position: absolute; left: 50%; top: 0; width: 1280px; height: 800px; margin-left: -640px; }
+  .scene { position: absolute; left: 0; top: 0; }
+  .scene.desktop { width: 1280px; height: 800px; }              /* 640 x 400 art pixels at 2x */
+  .scene.phone { display: none; width: 390px; height: 844px; }  /* 195 x 422 art pixels at 2x */
+
+  /* The name of the game is pixel lettering on the sign board of the picture; this heading is for screen readers. */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  /* The tagline hangs under the sign board on its own small plate. */
+  .tagline { position: absolute; left: 50%; top: 278px; transform: translateX(-50%); margin: 0; padding: 5px 18px 6px; white-space: nowrap;
+             font-size: 18px; font-weight: 500; color: var(--ink); background: #fff8e6; border: 3px solid var(--ink); border-radius: 10px; box-shadow: 0 4px 0 var(--ink); }
+
+  /* The menu: three sign boards on each ticket booth. */
+  .menu .btn { position: absolute; width: 228px; background: var(--surface); }
+  .menu .btn.big { height: 60px; font-size: 23px; }
+  .menu .btn.small { height: 48px; }
+  .menu .btn.primary { background: var(--accent-chill); }
+  .menu .btn.warm { background: var(--gold); }
+  .m1, .m3, .m4 { left: 140px; }
+  .m2, .m5, .m6 { left: 912px; }
+  .m1, .m2 { top: 444px; }
+  .m3, .m5 { top: 516px; }
+  .m4, .m6 { top: 576px; }
+
+  @media (max-width: 600px) {
+    .stage { left: 0; margin-left: 0; width: 390px; height: 844px; }
+    .scene.desktop { display: none; }
+    .scene.phone { display: block; }
+    .tagline { top: 350px; font-size: 14px; padding: 3px 10px 4px; border-radius: 9px; }
+    .menu .btn { width: 154px; padding: 0 8px; }
+    .menu .btn.big { height: 56px; font-size: 21px; }
+    .m1, .m3, .m4 { left: 14px; }
+    .m2, .m5, .m6 { left: 222px; }
+    .m1, .m2 { top: 628px; }
+    .m3, .m5 { top: 696px; }
+    .m4, .m6 { top: 756px; }
+  }
+</style>
+</head>
+<body>
+<main class="screen">
+  <div class="stage">
+    <img class="px scene desktop" src="scene-desktop.png" alt="">
+    <img class="px scene phone" src="scene-phone.png" alt="">
+    <h1 class="sr">Thrills &amp; Chills</h1>
+    <p class="tagline">Build a park for thrill seekers and chill seekers</p>
+    <nav class="menu" aria-label="Main menu">
+      <button class="btn primary big m1" data-menu>Continue</button>
+      <button class="btn warm big m2" data-menu>New game</button>
+      <button class="btn small m3" data-menu>Load</button>
+      <button class="btn small m4" data-menu>Import</button>
+      <button class="btn small m5" data-menu>Settings</button>
+      <button class="btn small m6" data-menu>Credits</button>
+    </nav>
+  </div>
+</main>
+</body>
+</html>

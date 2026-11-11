@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thrills &amp; Chills: intro, design A (the whole screen is the park)</title>
+<link rel="stylesheet" href="../kit3/base.css">
+<style>
+  .screen { position: relative; width: 100%; height: 100%; overflow: hidden; background: #d6c85a; }
+
+  /* The park: one pixel picture from edge to edge, 2x, hard pixels. */
+  .scene { position: absolute; top: 0; left: 50%; }
+  .scene.desktop { width: 1280px; height: 800px; margin-left: -640px; }            /* 640 x 400 art pixels at 2x */
+  .scene.phone { display: none; width: 390px; height: 844px; margin-left: -195px; } /* 195 x 422 art pixels at 2x */
+
+  /* The logo: a white plate on a two-colour ribbon (Thrill tail left, Chill tail right). */
+  .top { position: absolute; left: 0; right: 0; top: 18px; display: flex; justify-content: center; }
+  .sign { position: relative; width: 620px; }
+  .sign .head { position: relative; z-index: 1; padding: 12px 20px 12px; text-align: center; }
+  .logo { font-size: 78px; letter-spacing: 2px; white-space: nowrap; -webkit-text-stroke: 6px var(--ink); paint-order: stroke fill; text-shadow: 0 5px 0 var(--ink); }
+  .logo .t { color: var(--accent-thrill); }
+  .logo .c { color: var(--accent-chill); }
+  .logo .amp { color: var(--ink); -webkit-text-stroke-width: 0; text-shadow: none; margin: 0 0.04em; }
+  .tagline { margin: 6px 0 0; font-size: 19px; font-weight: 500; color: var(--muted-ink); }
+  .tagline .t { color: var(--logo-thrill); font-weight: 600; }
+  .tagline .c { color: var(--logo-chill); font-weight: 600; }
+  .tail { position: absolute; z-index: 0; top: 30px; width: 84px; height: 70px; background: var(--ink); }
+  .tail::before { content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0; }
+  .tail.t { left: -58px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 22px 50%); }
+  .tail.t::before { background: var(--accent-thrill); clip-path: polygon(6px 3px, 100% 3px, 100% calc(100% - 7px), 6px calc(100% - 7px), 26px calc(50% - 2px)); }
+  .tail.c { right: -58px; clip-path: polygon(0 0, 100% 0, calc(100% - 22px) 50%, 100% 100%, 0 100%); }
+  .tail.c::before { background: var(--accent-chill); clip-path: polygon(0 3px, calc(100% - 6px) 3px, calc(100% - 26px) calc(50% - 2px), calc(100% - 6px) calc(100% - 7px), 0 calc(100% - 7px)); }
+
+  /* The menu: one row along the bottom; Continue and New game are larger. */
+  .menu { position: absolute; left: 0; right: 0; bottom: 24px; display: flex; justify-content: center; align-items: flex-end; gap: 12px; padding: 0 16px; }
+  .menu .btn { width: 128px; padding: 0 8px; }
+  .menu .btn.big { min-height: 68px; font-size: 25px; width: 216px; }
+  .menu .btn.primary { width: 250px; flex-direction: column; gap: 0; line-height: 1.05; }
+  .menu .sub { font-size: 14px; font-weight: 500; }
+  .menu .btn.warm { background: var(--gold); }
+  .menu .rest { display: contents; }
+
+  @media (max-width: 600px) {
+    .scene.desktop { display: none; }
+    .scene.phone { display: block; }
+    .top { top: 14px; }
+    .sign { width: 358px; }
+    .sign .head { padding: 10px 6px 9px; }
+    .logo { font-size: 46px; letter-spacing: 1px; -webkit-text-stroke-width: 5px; text-shadow: 0 3px 0 var(--ink); }
+    .tagline { font-size: 13.5px; margin-top: 4px; }
+    .tail { top: 22px; width: 26px; height: 52px; }
+    .tail.t { left: -13px; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 10px 50%); }
+    .tail.t::before { clip-path: polygon(5px 3px, 100% 3px, 100% calc(100% - 7px), 5px calc(100% - 7px), 13px calc(50% - 2px)); }
+    .tail.c { right: -13px; clip-path: polygon(0 0, 100% 0, calc(100% - 10px) 50%, 100% 100%, 0 100%); }
+    .tail.c::before { clip-path: polygon(0 3px, calc(100% - 5px) 3px, calc(100% - 13px) calc(50% - 2px), calc(100% - 5px) calc(100% - 7px), 0 calc(100% - 7px)); }
+
+    .menu { bottom: 20px; flex-direction: column; align-items: stretch; gap: 12px; padding: 0 16px; }
+    .menu .btn, .menu .btn.big, .menu .btn.primary { width: 100%; }
+    .menu .btn.big { min-height: 56px; font-size: 22px; }
+    .menu .btn.primary { min-height: 64px; }
+    .menu .rest { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .menu .rest .btn { padding: 0 2px; font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+<main class="screen">
+  <img class="px scene desktop" src="park-desktop.png" alt="">
+  <img class="px scene phone" src="park-phone.png" alt="">
+  <div class="top">
+    <header class="sign">
+      <div class="tail t"></div><div class="tail c"></div>
+      <div class="plate head">
+        <h1 class="logo"><span class="t">Thrills</span> <span class="amp">&amp;</span> <span class="c">Chills</span></h1>
+        <p class="tagline">Build a park for <span class="t">thrill seekers</span> and <span class="c">chill seekers</span></p>
+      </div>
+    </header>
+  </div>
+  <nav class="menu" aria-label="Main menu">
+    <button class="btn primary big" data-menu><span>Continue</span><span class="sub">Maple Hollow · Year 2</span></button>
+    <button class="btn big warm" data-menu>New game</button>
+    <div class="rest">
+      <button class="btn" data-menu>Load</button>
+      <button class="btn" data-menu>Import</button>
+      <button class="btn" data-menu>Settings</button>
+      <button class="btn" data-menu>Credits</button>
+    </div>
+  </nav>
+</main>
+</body>
+</html>

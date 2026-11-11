@@ -1,0 +1,37 @@
+DESIGN B: TWO HALVES, ONE PARK
+
+Idea, in three sentences:
+The whole screen is one pixel picture of one park, cut by a slanted cream seam into a warm Thrill half (gold sky, a wooden
+coaster at the top of its drop, a drop tower) and a cool Chill half (blue sky, a big wheel, a carousel, pines, a lake).
+The name is large pixel lettering that lies across the seam: "Thrills" in orange on the warm half, "Chills" in blue on
+the cool half, and the "&" sits on the seam itself. One paved path with lamps and tiny guests runs through both halves,
+so it reads as one park with two moods; the menu stands where the two halves meet.
+
+Where the New game / Load / Credits panel opens:
+Desktop: in the middle column, in the place of the menu plate (it may grow to 440 px wide, from y = 240 to y = 760).
+  The logo stays above it; the coaster and the tower stay visible on its left, the wheel on its right.
+Phone: a sheet that rises from the bottom edge over the menu and the lake, up to just under the word "Chills"
+  (about the lower 55 % of the screen). The logo and the Thrill scene stay visible above it.
+
+Layout:
+Desktop 1280 x 800: seam from the top (x = 664) to the bottom (x = 464), one art pixel to the left every four rows; the logo in one line at the top, tagline pill
+  under it, menu plate 360 px wide in the centre (Continue, New game, then Load / Import / Settings / Credits in a 2 x 2 grid).
+Phone 390 x 844: the halves stack, Thrill on top and Chill below, with the same seam rising gently to the right; the logo
+  stacks as "Thrills" / "&" / "Chills" across it; the menu stands on the calm lake in the lower quarter (Continue, New game,
+  then the four small items in one row). The tagline is left out on the phone.
+
+Pictures (written by make.py, all shown at 2x with hard pixels):
+scene-desktop.png  640 x 400 art pixels: both halves, the seam, the signpost on the seam.
+scene-phone.png    195 x 422 art pixels: the tops of the Thrill rides above, the Chill scene and the lake below.
+logo-d-thrills.png, logo-d-and.png, logo-d-chills.png: the lettering for the desktop (Fredoka Bold drawn without
+  anti-aliasing at 60 art pixels, banded fill, ink and cream outline, hard shadow).
+logo-p-thrills.png, logo-p-and.png, logo-p-chills.png: the same lettering for the phone (48 and 36 art pixels).
+
+HTML and CSS (base.css of the kit plus the <style> of intro.html):
+The tagline pill (.plate), the menu plate (.plate) with its two-colour top stripe, the six buttons (.btn): Continue in
+the Chill blue with the name of the saved park, New game in warm gold, the four others pale. The stripe on the
+plate is split at the same slant and place as the seam, so the seam seems to run on through the plate. The logo pictures are placed by
+CSS on the 2 px art grid; the <h1> carries the name as text for screen readers.
+
+In the game: the scene would be anchored to the centre of the screen and cropped at the edges; the logo and the menu
+are anchored to the seam.
