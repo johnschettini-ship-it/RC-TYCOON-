@@ -224,7 +224,6 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
 
   // Layout (G1): the numbers of `titleLayout` as custom properties and data attributes; again on every size change.
   let menuH = 0;
-  let buttonEdge: number | undefined;
   const vars = new Map<string, string>();
   const setVar = (name: string, value: string): void => {
     if (vars.get(name) === value) return;
@@ -302,6 +301,34 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     setVar('--tl-lawn-h', `${Math.max(0, height - sceneBottom)}px`);
     if (lawn) lawn.hidden = sceneBottom >= height;
   };
+  // G1, the phone and low menus: their buttons share the menu's width by flex parts (main.css), which puts the inner
+  // edges on fractions of a px. After the browser's own layout, each pair and button is fixed at its measured edges,
+  // rounded to whole px from the menu's whole-px left edge; the gaps stay whole, and the widths follow the CSS (its
+  // flex parts, gaps, padding, and text size). Only on a layout, never in a frame. The menu keeps its G6 width.
+  const snapped = (): HTMLElement[] => [...main.querySelectorAll<HTMLElement>('.title-pair, .btn')];
+  const unsnapButtons = (): void => {
+    for (const x of snapped()) {
+      x.style.removeProperty('flex');
+      x.style.removeProperty('width');
+    }
+  };
+  const snapButtons = (): void => {
+    const left = main.getBoundingClientRect().left;
+    // Every edge is read before any width is written (one layout pass).
+    const edges = snapped()
+      .filter((x) => x.getClientRects().length > 0)
+      .map((x) => {
+        const r = x.getBoundingClientRect();
+        return { x, width: Math.round(r.right - left) - Math.round(r.left - left) };
+      });
+    for (const { x, width } of edges) {
+      x.style.flex = 'none';
+      x.style.width = `${width}px`;
+    }
+    // A button already at its narrowest (its text, at large text sizes) cannot lose the fraction: the browser keeps it
+    // wider and the row would wrap. Then the browser's own layout stays, with fractional inner edges.
+    if (edges.some(({ x, width }) => Math.abs(x.getBoundingClientRect().width - width) > 0.01)) unsnapButtons();
+  };
   const layout = (): void => {
     if (!open) return;
     const w = el.clientWidth;
@@ -314,15 +341,13 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     setVar('--tl-safe-left', `${safe.left}px`);
     // The menu form depends only on the window (G2): set it first, then measure the menu block. While a view
     // shows, the menu stays in the layout (invisible and inert), so it is measured in its current form too.
-    const continueShown = !continueBtn.hidden;
-    apply(titleLayout({ w, h: height, menuH, safe, continueShown, buttonEdge }));
+    unsnapButtons();
+    apply(titleLayout({ w, h: height, menuH, safe }));
     menuH = Math.round(main.getBoundingClientRect().height);
-    // A menu button's padding and border side by side (the phone and low menus share their width in whole px with it).
-    const bs = getComputedStyle(newBtn);
-    buttonEdge = Math.round(parseFloat(bs.paddingLeft) + parseFloat(bs.paddingRight) + parseFloat(bs.borderLeftWidth) + parseFloat(bs.borderRightWidth)) || buttonEdge;
-    const l = titleLayout({ w, h: height, menuH, safe, continueShown, buttonEdge });
+    const l = titleLayout({ w, h: height, menuH, safe });
     apply(l);
     place(l, height);
+    if (l.menuPlace) snapButtons();
   };
   const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => layout());
   resize?.observe(el);

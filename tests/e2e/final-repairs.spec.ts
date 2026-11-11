@@ -105,6 +105,24 @@ test.describe('the title screen holds the keyboard and the clock (F5)', () => {
     await expect(page.getByTestId('title-settings')).toBeFocused();
   });
 
+  test('Import from the title works with the keyboard: the file chooser opens and the park loads', async ({ page }, info) => {
+    test.skip(isPhone(info), 'keyboard check');
+    // A valid save file: the autosave of a new park.
+    await newPark(page, 'Import Hollow');
+    await toMonthEnd(page);
+    await expect.poll(() => autosaveName(page)).toBe('Import Hollow');
+    const file = await page.evaluate(() => localStorage.getItem('tc.save.auto') ?? '');
+    await page.evaluate(() => localStorage.removeItem('tc.save.auto'));
+    await page.reload();
+    await expect(page.getByTestId('title-new')).toBeFocused();
+    await tabTo(page, page.getByTestId('title-import'));
+    const chooser = page.waitForEvent('filechooser');
+    await page.keyboard.press('Enter');
+    await (await chooser).setFiles({ name: 'park.tcsave.json', mimeType: 'application/json', buffer: Buffer.from(file) });
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await expect(page.getByTestId('hud-name')).toHaveText('Import Hollow');
+  });
+
   test('desktop: the title menu shows the keyboard focus ring over its hard shadow (F8)', async ({ page }, info) => {
     test.skip(isPhone(info), 'keyboard check');
     await page.goto('/');
@@ -441,16 +459,23 @@ test.describe('phone at text scale 175% (D4)', () => {
 });
 
 test.describe('the title on whole px (M8)', () => {
-  for (const [w, h] of [[601, 900], [845, 390]] as const) {
-    test(`${w} x ${h}: every menu button, the sheet and the plate start on a whole px`, async ({ page }, info) => {
+  for (const [w, h, scale] of [[601, 900, 100], [845, 390, 100], [601, 900, 175]] as const) {
+    test(`${w} x ${h}, text ${scale}%: every menu button, the sheet and the plate start on a whole px`, async ({ page }, info) => {
       test.skip(isPhone(info), 'window sizes are set on the desktop project');
       const watch = watchErrors(page);
+      if (scale !== 100) {
+        const doc = serializeSettings({ ...defaultSettings(), textScale: scale });
+        await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+      }
       await page.setViewportSize({ width: w, height: h });
       for (const save of [false, true]) {
         if (save) await page.evaluate((s) => localStorage.setItem('tc.save.1', s), damagedSave('Whole Park'));
         await page.goto('/');
         await expect(page.getByTestId('title-new')).toBeVisible();
         await frames(page, 3);
+        // The menu keeps the width of G6 and the phone menu rule (row form at most 560 px, column form 16 px margins).
+        const menu = await page.evaluate(() => ({ w: document.querySelector('.title-menu')?.getBoundingClientRect().width ?? 0, form: document.querySelector('.title-screen')?.getAttribute('data-menu') }));
+        expect(menu.w, `menu (${menu.form})`).toBe(w === 845 ? Math.min(w - 24, 820) : menu.form === 'row' ? Math.min(w - 32, 560) : w - 32);
         const lefts = await page.evaluate(() =>
           [...document.querySelectorAll<HTMLElement>('.title-menu .btn')].filter((b) => b.getClientRects().length > 0).map((b) => [b.dataset.testid ?? '', b.getBoundingClientRect().left] as const),
         );
@@ -464,4 +489,20 @@ test.describe('the title on whole px (M8)', () => {
       watch.expectNoErrors();
     });
   }
+
+  test('845 x 390, text 175%: whole px never makes the six buttons wrap (a button at its text width keeps it)', async ({ page }, info) => {
+    test.skip(isPhone(info), 'window sizes are set on the desktop project');
+    await page.setViewportSize({ width: 845, height: 390 });
+    const doc = serializeSettings({ ...defaultSettings(), textScale: 175 });
+    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Whole Park'));
+    await page.goto('/');
+    await expect(page.getByTestId('title-continue')).toBeVisible();
+    await frames(page, 3);
+    const boxes = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>('.title-menu .btn')].map((b) => b.getBoundingClientRect()).map((r) => ({ top: r.top })));
+    expect(boxes).toHaveLength(6);
+    expect(new Set(boxes.map((b) => Math.round(b.top))).size, 'one row').toBe(1);
+    // The menu keeps the width of G6.
+    expect(await page.locator('.title-menu').evaluate((m) => m.getBoundingClientRect().width)).toBe(820);
+  });
 });

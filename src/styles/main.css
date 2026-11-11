@@ -764,7 +764,7 @@ button { font: inherit; color: inherit; }
   --f1: calc(21px * var(--tl-ms, 1) * var(--ts, 1)); --f2: calc(18px * var(--tl-ms, 1) * var(--ts, 1)); --f3: calc(13px * var(--tl-ms, 1) * var(--ts, 1));
 }
 .title-screen[data-kind='phone'] .title-menu {
-  /* Centred on whole px (G1): at most 560 px, 16 px from the safe edges, a width its buttons share in whole px. */
+  /* Centred on whole px (G1): at most 560 px, 16 px from the safe edges; title.ts puts the button edges on whole px. */
   left: var(--tl-menu-left); bottom: var(--tl-mb); width: var(--tl-menu-w);
   --h1: 60px; --h2: 60px; --h3: 46px; --gap: 10px;
   --f1: calc(19px * var(--ts, 1)); --f2: calc(16px * var(--ts, 1)); --f3: calc(13px * var(--ts, 1));
@@ -777,7 +777,7 @@ button { font: inherit; color: inherit; }
 }
 /* Low windows (landscape phones, G6): one row of six buttons, centred; it may wrap. */
 .title-screen[data-kind='low'] .title-menu {
-  /* Centred on whole px (G1): at most 820 px, 12 px from the safe edges, a width its buttons share in whole px. */
+  /* Centred on whole px (G1): at most 820 px, 12 px from the safe edges; title.ts puts the button edges on whole px. */
   left: var(--tl-menu-left); bottom: var(--tl-mb); width: var(--tl-menu-w);
   flex-direction: row; flex-wrap: wrap; justify-content: center;
   --h1: 52px; --h2: 52px; --h3: 52px; --gap: 10px;

@@ -183,33 +183,25 @@ describe('titleLayout (Phase 7 title screen §3, G1 to G10)', () => {
     expect(b.nameY + 118 * 2).toBeLessThanOrEqual(b.sceneY + 190 * 2 - 4);
   });
 
-  it('G1, the phone and low menus, the sheet and the low plate lie on whole px; their buttons share the menu in whole px', () => {
-    const whole = (v: number): boolean => Math.abs(v - Math.round(v)) < 1e-6;
-    // Flex items with basis 0: each button starts at its padding and border (edge), the rest is shared by its parts.
-    const share = (width: number, parts: number[], gap: number, edge: number): number[] => {
-      const unit = (width - gap * (parts.length - 1) - edge * parts.length) / parts.reduce((a, b) => a + b, 0);
-      return parts.map((k) => edge + k * unit);
-    };
-    const cases = [[601, 900, 116, false, 14], [601, 900, 116, true, 14], [899, 700, 116, true, 14], [375, 667, 116, true, 14], [390, 844, 252, false, 26], [391, 844, 252, true, 26], [845, 390, 52, false, 26], [845, 390, 52, true, 26], [667, 375, 52, true, 28]] as const;
-    for (const [w, h, menuH, cont, edge] of cases) {
-      const l = titleLayout({ w, h, menuH, continueShown: cont, buttonEdge: edge });
+  it('G1, the phone and low menus, the sheet and the low plate lie on whole px at the widths of G6 and the phone menu rule', () => {
+    const cases = [[601, 900, 116], [899, 700, 116], [375, 667, 116], [390, 844, 252], [391, 844, 252], [845, 390, 52], [667, 375, 52]] as const;
+    for (const [w, h, menuH] of cases) {
+      const l = titleLayout({ w, h, menuH });
       const m = l.menuPlace;
       const p = l.platePlace;
       expect(m && p, `${w} x ${h}`).toBeTruthy();
       if (!m || !p) continue;
       for (const v of [m.left, m.width, p.left, p.width]) expect(Number.isInteger(v), `${w} x ${h}`).toBe(true);
-      // Centred on whole px; at most the width of G6 and the phone menu rule, and at most 14 px less.
-      expect(Math.abs(m.left - (w - m.width) / 2)).toBeLessThanOrEqual(0.5);
+      // Centred on whole px (the left edge rounded down), at exactly the width of G6 and the phone menu rule.
+      expect(m.left, `${w} x ${h}`).toBe(Math.floor((w - m.width) / 2));
       const max = l.kind === 'low' ? Math.min(w - 24, 820) : l.menu === 'row' ? Math.min(w - 32, 560) : w - 32;
-      expect(m.width, `${w} x ${h}`).toBeLessThanOrEqual(max);
-      expect(m.width, `${w} x ${h}`).toBeGreaterThan(max - 15);
-      let widths: number[];
-      if (l.kind === 'low') widths = share(m.width, cont ? [2, 1.5, 1, 1, 1, 1] : [2, 1, 1, 1, 1], 10, edge);
-      else if (l.menu === 'row') widths = [...(cont ? share(m.width, [7, 5], 10, edge) : []), (m.width - 10) / 2, ...share((m.width - 10) / 2, [1, 1], 10, edge)];
-      else widths = share(m.width, [1, 1], 12, edge);
-      for (const x of widths) expect(whole(x), `${w} x ${h} (save ${cont}): ${widths.join(', ')}`).toBe(true);
+      expect(m.width, `${w} x ${h}`).toBe(max);
       expect(p.width).toBe(l.kind === 'low' ? Math.min(560, w - 16) : Math.min(w, 560));
+      expect(p.left).toBe(Math.floor((w - p.width) / 2));
     }
+    // With a left inset, the menu is centred in the safe width.
+    const inset = titleLayout({ w: 845, h: 390, menuH: 52, safe: { top: 0, right: 47, bottom: 21, left: 47 } }).menuPlace;
+    expect(inset).toEqual({ left: 47 + Math.floor((751 - 727) / 2), width: 727 });
     expect(titleLayout({ w: 1280, h: 800, menuH: 264 }).menuPlace).toBeNull();
   });
 
