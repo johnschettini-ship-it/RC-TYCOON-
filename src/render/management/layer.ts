@@ -31,6 +31,8 @@ import { COSTUME_CODE, STAFF_TYPE_CODE, staffFrame } from '../sprites/staff';
 import type { ViewRect } from '../terrain';
 import type { ToolState } from '../types';
 import { displayPrefs } from '../../a11y/prefs';
+import { snapArt } from '../pixel/grid';
+import { artStyle } from '../pixel/style';
 import { viewAffine, viewCornerHeights, viewDir, viewPointSX, viewPointSY, viewSpriteRotation, viewTileSX, viewTileSY, viewTileU, viewTileV, type ViewAffine } from '../view';
 import { litterSlot, messSlot, type DecalSlot } from './litter';
 import { pathItemPlacement, type ItemPlacement } from './pathItemPos';
@@ -152,6 +154,7 @@ export class ManagementLayer {
     const n = w * map.height;
     const slot = this.slot;
     const bucket = this.bucket;
+    const pixel = artStyle() === 'pixel';
     for (let i = 0; i < n; i++) {
       const nl = litter[i] as number;
       const nm = mess[i] as number;
@@ -168,14 +171,21 @@ export class ManagementLayer {
         const fy = y + slot.v;
         const frame = DECAL_MESS + slot.variant;
         const sp = this.bank.decal(decalSpriteKey(frame, slot.flip, bucket), frame, slot.flip, bucket);
-        this.blit(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
+        const sx = viewPointSX(this.va, fx, fy);
+        const sy = viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v));
+        // Phase 8 stage 0 prototype (§5.5 stage 1b): Pixel anchors on the art grid.
+        if (pixel) this.blit(sp, snapArt(sx), snapArt(sy));
+        else this.blit(sp, sx, sy);
       }
       for (let k = 0; k < nl; k++) {
         litterSlot(i, k, slot);
         const fx = x + slot.u;
         const fy = y + slot.v;
         const sp = this.bank.decal(decalSpriteKey(slot.variant, slot.flip, bucket), slot.variant, slot.flip, bucket);
-        this.blit(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
+        const sx = viewPointSX(this.va, fx, fy);
+        const sy = viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v));
+        if (pixel) this.blit(sp, snapArt(sx), snapArt(sy));
+        else this.blit(sp, sx, sy);
       }
     }
   }
@@ -207,6 +217,7 @@ export class ManagementLayer {
     const w = map.width;
     const n = w * map.height;
     const p = this.place;
+    const pixel = artStyle() === 'pixel';
     for (let i = 0; i < n; i++) {
       const code = items[i] as number;
       if (code === PathItem.None) continue;
@@ -224,7 +235,10 @@ export class ManagementLayer {
       const fill = code === PathItem.Bin ? binFillLevel(map.binFill[i] as number, BIN_CAPACITY) : 0;
       const frame = pathItemFrame(code, viewDir(p.side, this.va.r), fill, broken);
       const va = this.va;
-      sink.push(KIND_PATH_ITEM, i, frame, viewPointSX(va, fx, fy), viewPointSY(va, fx, fy, z), pathItemSpriteKey(frame, this.bucket), viewPointDepth(fx, fy, va), z, Layer.Object);
+      // Phase 8 stage 0 prototype (§5.5 stage 1b): Pixel anchors on the art grid.
+      const sx = pixel ? snapArt(viewPointSX(va, fx, fy)) : viewPointSX(va, fx, fy);
+      const sy = pixel ? snapArt(viewPointSY(va, fx, fy, z)) : viewPointSY(va, fx, fy, z);
+      sink.push(KIND_PATH_ITEM, i, frame, sx, sy, pathItemSpriteKey(frame, this.bucket), viewPointDepth(fx, fy, va), z, Layer.Object);
     }
   }
 

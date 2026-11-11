@@ -252,10 +252,16 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
       test.setTimeout(((seconds + warmup) * 1000 + 30_000) * runs * 2 + 120_000);
       const scene = PERF_SCENES.find((s) => s.id === id) as PerfSceneInfo;
       const cdp = await page.context().newCDPSession(page);
-      const at = (rot: number): Aim => ({ x: scene.focus.x, y: scene.focus.y, zoom: 1, rot });
+      // Phase 8 stage 0 prototype (§13.2 stage 1b row): in Pixel the runs use the home level (`data-home-zoom`).
+      let zoom = 1;
+      const at = (rot: number): Aim => ({ x: scene.focus.x, y: scene.focus.y, zoom, rot });
+      const nextFrame = (): Promise<void> => page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
       for (let k = 0; k < runs; k++) {
         await loadScene(page, scene);
         if (quality) await page.evaluate((q) => (window as unknown as { __tc: TcPerfGame }).__tc.settings?.set('renderQuality', q), quality);
+        await nextFrame();
+        await nextFrame();
+        if ((await page.locator('#game').getAttribute('data-art')) === 'pixel') zoom = Number(await page.locator('#game').getAttribute('data-home-zoom'));
         if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
         await runFor(page, warmup * 1000, at(0));
         const main = await runFor(page, seconds * 1000);
@@ -267,10 +273,13 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
         const pan = await runFor(page, 3_000, null, 6);
         if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
         const ratio = await page.locator('#game').getAttribute('data-pixel-ratio');
+        const zoomText = await page.locator('#game').getAttribute('data-zoom');
+        const artScale = await page.locator('#game').getAttribute('data-art-scale');
         const turnText = turns.map((t) => `${t.max.toFixed(0)} ms (work ${n1(t.workMax)} ms)`).join(', ');
         console.log(
           `[perf] ${info.project.name}${phone ? ' (CPU 4×)' : ''} scene ${id} run ${k + 1}/${runs}${quality ? ` (${quality})` : ''}, canvas ratio ${ratio}: ${fmt(main)}; ` +
-            `heap ${heap.toFixed(0)} MB; turns: longest frame ${turnText}; pan: frame p95 ${pan.p95.toFixed(1)} ms, work p95 ${n1(pan.workP95)} ms`,
+            `heap ${heap.toFixed(0)} MB; turns: longest frame ${turnText}; pan: frame p95 ${pan.p95.toFixed(1)} ms, work p95 ${n1(pan.workP95)} ms; ` +
+            `zoom ${zoomText}, n ${artScale ?? 'n/a'}`,
         );
       }
     });

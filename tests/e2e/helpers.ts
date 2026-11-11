@@ -32,6 +32,20 @@ export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
 
+/**
+ * Phase 8 stage 0 prototype (never merged): `newPark` at `'/' + query` (for example `?art=classic`), so the address
+ * flag stays (spec §11.2 item 1). The title steps are those of `newPark`.
+ */
+export async function newParkAt(page: Page, query: string, name: string): Promise<void> {
+  await page.goto('/' + query);
+  await page.getByTestId('title-new').click();
+  await page.getByTestId('title-name').fill(name);
+  await page.getByTestId('title-size-64').click();
+  await page.getByTestId('title-start').click();
+  await expect(page.locator('.title-screen')).toBeHidden();
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+}
+
 export async function setSpeed(page: Page, label: 'Pause' | 'Speed 1×' | 'Speed 2×' | 'Speed 4×', opts: PressOptions = {}): Promise<void> {
   const group = page.getByRole('group', { name: 'Game speed' });
   const button = group.getByRole('button', { name: label });

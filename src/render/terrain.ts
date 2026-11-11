@@ -13,13 +13,16 @@ import type { Ride } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
 import { bucketIndex, SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { ZoomBucket } from './camera';
-import { isPhoneScreen, makeCanvas } from './canvas';
+import { artBuildStats, isPhoneScreen, makeCanvas } from './canvas';
 import { STEP_PX } from './iso';
 import { JOIN_E, JOIN_N, JOIN_S, JOIN_W, pathJoinMask } from './paths';
 import { mapToView, rotateSlopeMask, viewCornerHeights, viewSize, viewToMap, type ViewRotation } from './view';
 import { mix32, shade } from './palette';
 import { CHUNK_SIZE, TerrainTracker } from './terrainTracker';
 import type { Ctx } from './sprites/shapes';
+import { paintGroundChunk } from './pixel/ground';
+import { artStyle } from './pixel/style';
+import { ART_SCALE, PixelSurface } from './pixel/surface';
 
 const HW = 32;
 const HH = 16;
@@ -542,6 +545,7 @@ export class TerrainLayer {
   private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation, geom?: ChunkGeom): Sprite {
     this.builds++;
     const g = geom ?? (this.bounds[chunk] as ChunkGeom);
+    if (artStyle() === 'pixel') return this.buildPixel(map, chunk, env, r, g);
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
     const { canvas, ctx } = makeCanvas(w, h);
@@ -558,6 +562,23 @@ export class TerrainLayer {
     }
     // Anchor is world (0, 0).
     return { image: canvas, w, h, ox, oy, scale };
+  }
+
+  /**
+   * Phase 8 stage 0 prototype: the Pixel chunk image, painted on a surface at `ART_SCALE` whatever the bucket (§5.5
+   * stage 1c `build` row). Timing only measures: `artBuildStats.chunkBuildMsMax` keeps the slowest build.
+   */
+  private buildPixel(map: MapState, chunk: number, env: TerrainEnv, r: ViewRotation, g: ChunkGeom): Sprite {
+    const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
+    const s = new PixelSurface(g, { ink: false });
+    paintGroundChunk(s, map, chunkViewRect(map, chunk % this.tracker.chunksX, Math.floor(chunk / this.tracker.chunksX), r), r, env, false);
+    const { canvas, ctx } = makeCanvas(s.w, s.h);
+    s.blitTo(ctx);
+    if (typeof performance !== 'undefined') {
+      const ms = performance.now() - t0;
+      if (ms > artBuildStats.chunkBuildMsMax) artBuildStats.chunkBuildMsMax = ms;
+    }
+    return { image: canvas, w: s.w, h: s.h, ox: s.ox, oy: s.oy, scale: ART_SCALE };
   }
 
   /**

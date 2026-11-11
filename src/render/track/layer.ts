@@ -37,6 +37,8 @@ import {
   SHIRT_COLOURS,
   TAG_COLOURS,
 } from '../palette';
+import { artStyle } from '../pixel/style';
+import { isPixelSurface, type PixelSurface } from '../pixel/surface';
 import { bucketIndex, SpriteCache, type Sprite } from '../spriteCache';
 import { drawGhostIcon } from '../sprites/props';
 import type { ArtBounds } from '../sprites/rides';
@@ -224,6 +226,8 @@ function coloursOf(data: TrackRideData): TrackColours {
 
 /** Bounds (world px around the anchor) of a slice: rails, deck, tunnel box, and the support down to the ground. */
 function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], ground: number, special: PieceSpecial, lift = 0): ArtBounds {
+  // Pixel (stage 4a track rule 2): each run grows by one sample on each cut side before the bounds are measured.
+  if (artStyle() === 'pixel') runs = widenRuns(s, runs);
   let l = Infinity;
   let r = -Infinity;
   let t = Infinity;
@@ -246,6 +250,17 @@ function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], gro
     }
   }
   return { left: Math.floor(l) - 2, right: Math.ceil(r) + 2, top: Math.floor(t) - 2, bottom: Math.ceil(b) + 2 };
+}
+
+/** Pixel: each run [k0, k1] widened to [k0 − 1, k1 + 1] on its cut sides (a side where the piece goes on). */
+function widenRuns(s: WorldSamples, runs: readonly number[]): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < runs.length; i += 2) {
+    const k0 = runs[i] as number;
+    const k1 = runs[i + 1] as number;
+    out.push(k0 > 0 ? k0 - 1 : k0, k1 < s.n - 1 ? k1 + 1 : k1);
+  }
+  return out;
 }
 
 const SUPPORT_FRAME = new Float64Array(9);
@@ -317,12 +332,39 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
   return out;
 }
 
-/** Paint one slice around its anchor (world px). */
-export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame): void {
+/**
+ * Paint one slice around its anchor (world px). On a surface with `extras` on, each run also paints the one extra
+ * sample on each cut side as cut pixels (stage 4a track rules 1 and 3); `extras` false paints the bare runs only.
+ */
+export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame, extras = true): void {
+  if (isPixelSurface(ctx)) {
+    paintSlicePixel(ctx, sl, f, extras);
+    return;
+  }
   const P = new Projector(f, sl.ax, sl.ay);
   if (sl.support) paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, sl.support.wx, sl.support.wy, sl.support.yaw, sl.ground, sl.support.top);
   for (let i = 0; i < sl.runs.length; i += 2) {
     paintRun(ctx, P, sl.look, sl.colours, sl.samples, sl.runs[i] as number, sl.runs[i + 1] as number, { special: sl.special, chain: false, conveyor: sl.conveyor });
+  }
+}
+
+/** Pixel slice: the runs as today, then the extra samples [k0 − 1, k0] and [k1, k1 + 1] with `cut(true)`. */
+function paintSlicePixel(ctx: PixelSurface, sl: SliceRec, f: ViewFrame, extras: boolean): void {
+  const c = ctx as unknown as CanvasRenderingContext2D;
+  const P = new Projector(f, sl.ax, sl.ay);
+  if (sl.support) paintSupport(c, P, sl.supportStyle, sl.colours.supports, sl.support.wx, sl.support.wy, sl.support.yaw, sl.ground, sl.support.top);
+  const opt = { special: sl.special, chain: false, conveyor: sl.conveyor };
+  const n = sl.samples.n;
+  for (let i = 0; i < sl.runs.length; i += 2) {
+    const k0 = sl.runs[i] as number;
+    const k1 = sl.runs[i + 1] as number;
+    paintRun(c, P, sl.look, sl.colours, sl.samples, k0, k1, opt);
+    if (!extras) continue;
+    // The extra samples share their points with the next slice (rule 3), so two slices give the same pixels there.
+    ctx.cut(true);
+    if (k0 > 0) paintRun(c, P, sl.look, sl.colours, sl.samples, k0 - 1, k0, opt);
+    if (k1 < n - 1) paintRun(c, P, sl.look, sl.colours, sl.samples, k1, k1 + 1, opt);
+    ctx.cut(false);
   }
 }
 

@@ -9,6 +9,8 @@ import type { RideTag } from '../../data/catalog/types';
 import { extent, footprintTile, frontDir } from '../../sim/footprint';
 import type { Dir } from '../../sim/map';
 import { TAG_COLOURS, mix32, shade } from '../palette';
+import { PIXEL_RIDE_ART } from '../pixel/art/rides';
+import { isPixelSurface } from '../pixel/surface';
 import { box, circlePt, cone, cylinder, disc, head, line3, nearness, poly3, rrect, sx, sy, HAIR_COLOURS, SKIN_TONES, type Ctx } from './shapes';
 import { CONTENT_RIDE_ART } from './content';
 
@@ -472,6 +474,13 @@ export function drawRideArt(ctx: Ctx, defId: string, w: number, d: number, st: R
   const { ex, ey } = extent(w, d, st.rotation);
   const tag = tagOf(defId);
   withGates(ctx, w, d, st, ex, ey, tag, () => {
+    if (isPixelSurface(ctx)) {
+      const twin = PIXEL_RIDE_ART[defId];
+      if (twin) {
+        twin(ctx, ex, ey, st);
+        return;
+      }
+    }
     switch (defId) {
       case 'carousel':
         drawCarousel(ctx, ex, ey, st);

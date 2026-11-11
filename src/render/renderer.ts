@@ -17,7 +17,7 @@ import type { Guest } from '../sim/guests/types';
 import type { World } from '../sim/types';
 import { coarseRideFrame, GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
 import { clampCameraToMap, ZOOM_BUCKETS, zoomBucket, type ZoomBucket } from './camera';
-import { makeCanvas, type AnyCanvas } from './canvas';
+import { artBuildStats, makeCanvas, type AnyCanvas } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
@@ -39,6 +39,22 @@ import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
 import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
+import {
+  artScale,
+  blitArt,
+  blitArtColumn,
+  HOME_ZOOM_TARGET,
+  makeGrid,
+  nearestLevel,
+  planStretch,
+  snapWalker,
+  walkerSlope,
+  zoomLevels,
+  type ArtFrame,
+  type PixelGrid,
+} from './pixel/grid';
+import { SLOT_RGBA, slotOf } from './pixel/palette';
+import { artStyle } from './pixel/style';
 import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM } from '../data/tuning/perf';
 import {
   rotateCameraView,
@@ -75,6 +91,14 @@ export const GUEST_LOD_W = 2;
 export const GUEST_LOD_H = 3;
 /** LOD colour slots: shirt colours, then temperament tint steps. */
 const LOD_COLOURS: readonly string[] = [...SHIRT_COLOURS, ...Array.from({ length: TINT_STEPS }, (_, k) => rgbCss(tintStepRgb(k)))];
+
+/** Phase 8 stage 0 prototype: a slot colour (`SLOT_RGBA`, `0xAABBGGRR`) as `#rrggbb`, lower case. */
+function slotCss(slot: number): string {
+  const v = SLOT_RGBA[slot] as number;
+  return '#' + [v & 255, (v >>> 8) & 255, (v >>> 16) & 255].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+/** Phase 8 stage 0 prototype (§5.5 dots row): the slot colour of each LOD colour; built once on the first Pixel frame. */
+let LOD_SLOT_COLOURS: readonly string[] | null = null;
 
 /** Struct-of-arrays draw list; grows by doubling, never shrinks, so frames do not allocate. */
 class DrawList {
@@ -151,8 +175,8 @@ class GuestDots {
     this.colour[i] = colour;
   }
 
-  /** One fill per colour. `w`, `h`: rectangle size in device px. */
-  draw(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  /** One fill per colour. `w`, `h`: rectangle size in device px. `colours`: the fill of each colour slot. */
+  draw(ctx: CanvasRenderingContext2D, w: number, h: number, colours: readonly string[] = LOD_COLOURS): void {
     const n = this.n;
     if (n === 0) return;
     const counts = this.counts;
@@ -174,7 +198,7 @@ class GuestDots {
       const a = start[c] as number;
       const b = counts[c] as number;
       if (b <= a) continue;
-      ctx.fillStyle = LOD_COLOURS[c] as string;
+      ctx.fillStyle = colours[c] as string;
       ctx.beginPath();
       for (let k = a; k < b; k++) {
         const i = this.order[k] as number;
@@ -291,6 +315,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   /** Phase 6 §4.6: 64 MB devices animate rides with fewer frames (`render/anim.ts` `coarseRideFrame`). */
   let coarseRides = false;
   let rideEy = new Int32Array(64);
+  /** Phase 8 stage 0 prototype: the column count of each ride, for the `ends` bits of its first and last column. */
+  let rideCols = new Int32Array(64);
   const corners: [number, number, number, number] = [0, 0, 0, 0];
 
   let fence: FenceSegment[] = [];
@@ -310,6 +336,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let offX = 0;
   let offY = 0;
   let bucket: ZoomBucket = 1;
+  // Phase 8 stage 0 prototype (§5.5 stage 1b): the art frame of a Pixel frame (null in Classic), the grid of the last
+  // plan (null in Classic), its soft level (-1 when none) and this frame's smoothing.
+  let art: ArtFrame | null = null;
+  const artFrame: ArtFrame = { n: 0, scale: 1, offX: 0, offY: 0 };
+  let pixelGrid: PixelGrid | null = null;
+  let softZoom = -1;
+  let smooth = true;
+  let artSet = false;
+  let lastArtScale = '';
   let rot: ViewRotation = 0;
   const va: ViewAffine = viewAffine(0, 1, 1);
   const view: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -321,6 +356,32 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let lastZoom = '';
   let lastCamX = '';
   let lastRot = -1;
+  // Phase 8 stage 0 prototype (§11.3 probe): the start time and view rotation of the previous Pixel draw (-1: none)
+  // and the number of draws after a view turn whose frame interval still counts for `turnFrameMsMax`.
+  let probeLastStart = -1;
+  let probeLastRot = -1;
+  let probeTurnLeft = 0;
+
+  /**
+   * Phase 8 stage 0 prototype (§11.3 renderer row): the `window.__pixelStats` probe, at the start of each Pixel draw.
+   * `turnFrameMsMax` is the largest interval between two draw starts that ends at one of the 30 draws after a draw
+   * whose view rotation changed (the frame measure of `perf-build3.spec.ts`). Timing only measures.
+   */
+  function probeFrameStart(cam: Camera): void {
+    const t = performance.now();
+    const r = cam.rotation & 3;
+    if (probeLastRot >= 0 && r !== probeLastRot) probeTurnLeft = 30;
+    else if (probeTurnLeft > 0 && probeLastStart >= 0) {
+      const dt = t - probeLastStart;
+      if (dt > artBuildStats.turnFrameMsMax) artBuildStats.turnFrameMsMax = dt;
+      probeTurnLeft--;
+    }
+    probeLastStart = t;
+    probeLastRot = r;
+    artBuildStats.spriteMb = (bank.cache.pixels * 4) / 1048576;
+    artBuildStats.chunkMb = (terrain.pixels * 4) / 1048576;
+    if (typeof window !== 'undefined') (window as unknown as { __pixelStats?: typeof artBuildStats }).__pixelStats = artBuildStats;
+  }
 
   const devX = (wx: number): number => wx * scale + offX;
   const devY = (wy: number): number => wy * scale + offY;
@@ -336,6 +397,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   }
 
   function blit(sp: Sprite, wx: number, wy: number): void {
+    if (art) {
+      blitArt(ctx as CanvasRenderingContext2D, sp, wx, wy, art);
+      return;
+    }
     const f = scale / sp.scale;
     const x0 = Math.round(devX(wx) - sp.ox * f);
     const y0 = Math.round(devY(wy) - sp.oy * f);
@@ -346,8 +411,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
   mgmt = new ManagementLayer(bank, blit);
 
-  /** Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
-  function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
+  /**
+   * Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). `ends` (Pixel only): bit 1 extends
+   * the strip to the left edge of the image, bit 2 to the right edge (§7.7).
+   */
+  function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number, ends = 0): void {
+    if (art) {
+      blitArtColumn(ctx as CanvasRenderingContext2D, sp, ax, ay, colL, colR, art, ends);
+      return;
+    }
     const f = scale / sp.scale;
     const dx0 = Math.round(devX(colL));
     const dx1 = Math.round(devX(colR));
@@ -427,6 +499,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (rideSprites.length < rides.length) {
       rideSprites = new Array<Sprite | null>(rides.length * 2).fill(null);
       rideEy = new Int32Array(rides.length * 2);
+      rideCols = new Int32Array(rides.length * 2);
     }
     for (let ri = 0; ri < rides.length; ri++) {
       rideSprites[ri] = null;
@@ -449,9 +522,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const ay = (u0 + v0) * HH - z * STEP_PX;
       const b = rideArtBounds(r.defId, w, d, vrot);
       rideEy[ri] = ev;
+      rideCols[ri] = columnsFor(eu, ev).length;
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
       const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
-      rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
+      if (art) {
+        // Phase 8 stage 0 prototype: time the ride build (a cache hit costs about 0). Timing only measures.
+        const rt = performance.now();
+        rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
+        const ms = performance.now() - rt;
+        if (ms > artBuildStats.rideBuildMsMax) artBuildStats.rideBuildMsMax = ms;
+      } else rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
       for (let k = 0; k < cols.length; k++) {
@@ -550,24 +630,73 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           facing = g.dir;
         }
       }
-      const ax = viewPointSX(va, fx, fy);
-      const ay = viewPointSY(va, fx, fy, z);
+      let ax = viewPointSX(va, fx, fy);
+      let ay = viewPointSY(va, fx, fy, z);
+      const vf = viewDir(facing, rot);
+      if (art) {
+        // Phase 8 stage 0 prototype (§5.5, §7.7): the anchor on the art grid; the slope comes from the motion.
+        const moving = qStamp[gi] === frameNo || (g.nextTile >= 0 && g.nextTile !== g.tile);
+        const p = snapWalker(ax, ay, walkerSlope(sitDir >= 0, moving, vf));
+        ax = p.x;
+        ay = p.y;
+      }
       if (lod) {
         if (ax < view.x0 - 4 || ax > view.x1 + 4 || ay < view.y0 - 2 || ay > view.y1 + 8) continue;
         const colour = tint ? SHIRT_COLOURS.length + tintStep(g.temperament) : mix32(g.id) % SHIRT_COLOURS.length;
-        dots.push(devX(ax), devY(ay), colour);
+        if (art && art.n > 0) {
+          // One art pixel above the snapped anchor (drawn n × n by `dots.draw`).
+          const p = snapWalker(ax, ay, 0);
+          const n = art.n;
+          dots.push(art.offX + (p.x * n) / 2 + n / 2, art.offY + (p.y * n) / 2, colour);
+        } else dots.push(devX(ax), devY(ay), colour);
         continue;
       }
       const items = (g.items.balloon ? GUEST_BALLOON : 0) | (wet && g.items.umbrella ? GUEST_UMBRELLA : 0);
       // Cull by the sprite bounds (GUEST_BOUNDS, or GUEST_ITEM_BOUNDS with a balloon or umbrella).
       const mx = items ? 14 : 10;
       if (ax < view.x0 - mx || ax > view.x1 + mx || ay < view.y0 - 6 || ay > view.y1 + (items ? 42 : 24)) continue;
+      if (art) {
+        // Phase 8 stage 0 prototype (§8.4 item 4): the snapped anchor for the shadow layer (dots have no shadow).
+        let wl = art.walkers ?? (art.walkers = new Float64Array(2 * 256));
+        const k = art.walkerCount ?? 0;
+        if (2 * k + 2 > wl.length) {
+          const grown = new Float64Array(wl.length * 2);
+          grown.set(wl);
+          wl = art.walkers = grown;
+        }
+        wl[2 * k] = ax;
+        wl[2 * k + 1] = ay;
+        art.walkerCount = k + 1;
+      }
       const m = mix32(g.id);
       const colour = tint ? tintStep(g.temperament) : m % SHIRT_COLOURS.length;
       const fr = guestFrame(colour, walk, (m >>> 8) & 3, tint, items);
-      const vf = viewDir(facing, rot);
       list.push(KIND_GUEST, gi, vf | (fr << 2), ax, ay, guestSpriteKey(vf, fr, bucket), viewPointDepth(fx, fy, va), z, Layer.Guest);
     }
+  }
+
+  /** The object block of a frame: fence refresh, then every collector up to `collectGuests`. */
+  function collectObjects(world: World, tool: ToolState, alpha: number, lod: boolean): void {
+    const s = world.state;
+    const map = s.map;
+    if (fenceVersion !== terrain.tracker.version) {
+      fence = fenceSegments(map, fence);
+      outerDir = entranceOuterDir(map);
+      fenceVersion = terrain.tracker.version;
+    }
+    bank.beginFrame();
+    ensureGuestScratch(s.guests.length);
+    list.n = 0;
+    dots.n = 0;
+    collectFence(map);
+    collectEntrance(map);
+    collectRides(world);
+    collectStalls(world);
+    track.collect(world, list, view, bucket, scale, offX, offY, alpha, rot);
+    placeQueues(world);
+    mgmt.collect(world, alpha, list);
+    for (const l of layers) l.collect?.(world, list, tool, frame);
+    collectGuests(world, tool, alpha, lod);
   }
 
   // ------------------------------------------------------------------ drawing
@@ -588,8 +717,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           const ri = list.ref[i] as number;
           const sp = rideSprites[ri];
           if (!sp) break;
-          const colL = ax - (rideEy[ri] as number) * HW + (list.sub[i] as number) * HW;
-          blitColumn(sp, ax, ay, colL, colL + HW);
+          const col = list.sub[i] as number;
+          const colL = ax - (rideEy[ri] as number) * HW + col * HW;
+          // Pixel: the first and last column reach the image edges, so the ink ring at the footprint corners is not cut.
+          const ends = (col === 0 ? 1 : 0) | (col === (rideCols[ri] as number) - 1 ? 2 : 0);
+          blitColumn(sp, ax, ay, colL, colL + HW, ends);
           break;
         }
         case KIND_STALL: {
@@ -900,17 +1032,35 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     planVersion = renderQualityVersion();
     const cls = deviceClass(device, cssW, cssH);
     autoScale.budgetMs = cls === 'phone' ? BUDGET_PHONE_FRAME_P95_MS : BUDGET_DESKTOP_FRAME_P95_MS;
-    const plan = renderPlan(renderQuality(), cls, rawDpr, autoScale.maxRatio);
+    const style = artStyle();
+    const plan = renderPlan(renderQuality(), cls, rawDpr, autoScale.maxRatio, style);
     dpr = plan.pixelRatio;
     lodZoom = plan.guestLodZoom;
-    terrain.allowExact = plan.zoomBuckets > ZOOM_BUCKETS.length;
+    if (style === 'pixel') terrain.allowExact = false;
+    else terrain.allowExact = plan.zoomBuckets > ZOOM_BUCKETS.length;
     prefetchTurns = plan.device === 'desktop' && renderQuality() !== 'low';
     coarseRides = plan.coarseRideFrames;
     spriteMemory.budgetBytes = plan.budgetBytes;
     // Phone-sized screens keep the smaller chunk cap as well (Phase 4 §4.10, §11).
     terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
-    canvas.width = Math.max(1, Math.round(cssW * dpr));
-    canvas.height = Math.max(1, Math.round(cssH * dpr));
+    if (style === 'pixel') {
+      // Phase 8 stage 0 prototype (§7.1 item 3): the backing at canvas ratio, the box stretched by k, anchored top left.
+      canvas.width = Math.max(1, Math.ceil((cssW * rawDpr) / plan.stretch));
+      canvas.height = Math.max(1, Math.ceil((cssH * rawDpr) / plan.stretch));
+      canvas.style.width = (canvas.width * plan.stretch) / rawDpr + 'px';
+      canvas.style.height = (canvas.height * plan.stretch) / rawDpr + 'px';
+      const capped = plan.stretch !== planStretch(rawDpr, plan.device, false);
+      pixelGrid = makeGrid(rawDpr, plan.device, capped);
+      softZoom = zoomLevels(pixelGrid).find((l) => l.soft)?.zoom ?? -1;
+      // Full precision: `data-zoom` keeps 3 decimals, and 1.143 is not a crisp level on the Pixel 7 profile (§7.6).
+      canvas.dataset.homeZoom = String(nearestLevel(HOME_ZOOM_TARGET, pixelGrid));
+    } else {
+      pixelGrid = null;
+      softZoom = -1;
+      canvas.width = Math.max(1, Math.round(cssW * dpr));
+      canvas.height = Math.max(1, Math.round(cssH * dpr));
+    }
+    canvas.dataset.stretch = String(plan.stretch);
     canvas.dataset.pixelRatio = String(dpr);
     canvas.dataset.device = plan.device;
     canvas.dataset.autoScale = autoScale.maxRatio === Infinity ? 'full' : String(autoScale.maxRatio);
@@ -1015,7 +1165,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const sc = staticImage.ctx as unknown as CanvasRenderingContext2D;
       sc.setTransform(1, 0, 0, 1, 0, 0);
       sc.globalAlpha = 1;
-      sc.imageSmoothingEnabled = true;
+      sc.imageSmoothingEnabled = smooth;
       sc.fillStyle = SKY;
       sc.fillRect(0, 0, w, h);
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
@@ -1044,6 +1194,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     },
 
     draw(world: World, cam: Camera, tool: ToolState, alpha: number) {
+      if (artStyle() === 'pixel') probeFrameStart(cam);
       perfProbe.renderStart();
       syncDrawCounter();
       spriteMemory.beginFrame();
@@ -1057,9 +1208,30 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       viewAffine(rot, map.width, map.height, va);
       clampCameraToMap(cam, map);
       scale = cam.zoom * dpr;
-      bucket = zoomBucket(scale);
-      offX = canvas.width / 2 - cam.centerX * scale;
-      offY = canvas.height / 2 - cam.centerY * scale;
+      if (!artSet) {
+        canvas.dataset.art = artStyle();
+        artSet = true;
+      }
+      if (pixelGrid) {
+        // Phase 8 stage 0 prototype (§5.5 stage 1b `draw` row): one sprite bucket, whole offsets from the viewport
+        // centre, the art scale `n`, smoothing only at the soft level.
+        if (!LOD_SLOT_COLOURS) LOD_SLOT_COLOURS = LOD_COLOURS.map((c) => slotCss(slotOf(c)));
+        bucket = 0.5;
+        offX = Math.round((cssW * dpr) / 2 - cam.centerX * scale);
+        offY = Math.round((cssH * dpr) / 2 - cam.centerY * scale);
+        artFrame.n = artScale(cam.zoom, pixelGrid);
+        artFrame.scale = scale;
+        artFrame.offX = offX;
+        artFrame.offY = offY;
+        art = artFrame;
+        smooth = softZoom > 0 && cam.zoom === softZoom;
+      } else {
+        bucket = zoomBucket(scale);
+        offX = canvas.width / 2 - cam.centerX * scale;
+        offY = canvas.height / 2 - cam.centerY * scale;
+        art = null;
+        smooth = true;
+      }
       view.x0 = cam.centerX - cssW / 2 / cam.zoom;
       view.x1 = cam.centerX + cssW / 2 / cam.zoom;
       view.y0 = cam.centerY - cssH / 2 / cam.zoom;
@@ -1068,13 +1240,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
-      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingEnabled = smooth;
 
       frame.scale = scale;
       frame.offX = offX;
       frame.offY = offY;
       frame.dpr = dpr;
       frame.bucket = bucket;
+      frame.art = art;
       frame.view = view;
       frame.rotation = rot;
       frame.alpha = alpha;
@@ -1085,31 +1258,24 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       terrain.sync(map);
       const chunks = drawStatic(world, cam, map);
       mgmt.begin(scale, offX, offY, dpr, bucket, view, va);
+      // Phase 8 stage 0 prototype (§8.4 item 4): in Pixel the objects are collected before the ground step, so the
+      // shadow layer finds this frame's queue places, bench seats and snapped walker anchors.
+      if (art) {
+        art.walkerCount = 0;
+        collectObjects(world, tool, alpha, lod);
+      }
       mgmt.drawGround(world);
       for (const l of layers) l.drawGround?.(ctx, world, tool, frame);
       if (tool.tool === 'buyLand') drawOwnershipTints(map);
 
       // Objects.
-      if (fenceVersion !== terrain.tracker.version) {
-        fence = fenceSegments(map, fence);
-        outerDir = entranceOuterDir(map);
-        fenceVersion = terrain.tracker.version;
-      }
-      bank.beginFrame();
-      ensureGuestScratch(s.guests.length);
-      list.n = 0;
-      dots.n = 0;
-      collectFence(map);
-      collectEntrance(map);
-      collectRides(world);
-      collectStalls(world);
-      track.collect(world, list, view, bucket, scale, offX, offY, alpha, rot);
-      placeQueues(world);
-      mgmt.collect(world, alpha, list);
-      for (const l of layers) l.collect?.(world, list, tool, frame);
-      collectGuests(world, tool, alpha, lod);
+      if (!art) collectObjects(world, tool, alpha, lod);
       // Far zoom: guests are dots under the objects (rides and fences in front still cover them).
-      if (lod) dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
+      if (lod) {
+        // Pixel at n > 0: one art pixel in the slot colour (§5.5 dots row); else as today.
+        if (art && art.n > 0) dots.draw(ctx, art.n, art.n, LOD_SLOT_COLOURS ?? LOD_COLOURS);
+        else dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
+      }
       list.sort();
       drawList(world);
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
@@ -1124,6 +1290,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         canvas.dataset.zoom = zoomStr;
         lastZoom = zoomStr;
       }
+      if (art) {
+        const nStr = String(art.n);
+        if (nStr !== lastArtScale) {
+          canvas.dataset.artScale = nStr;
+          lastArtScale = nStr;
+        }
+      }
+      // Phase 8 stage 0 prototype: '1' when no terrain chunk is pending (no build budget in stage 0), both styles.
+      canvas.dataset.complete = terrain.complete ? '1' : '0';
       if (camXStr !== lastCamX) {
         canvas.dataset.cameraX = camXStr;
         lastCamX = camXStr;

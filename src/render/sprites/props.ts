@@ -4,6 +4,8 @@
  */
 import type { Dir } from '../../sim/map';
 import { GHOST_INVALID, GHOST_VALID, TINT_STEPS, shade } from '../palette';
+import { drawGuestPixel } from '../pixel/sprites/people';
+import { isPixelSurface } from '../pixel/surface';
 import type { ArtBounds } from './rides';
 import { box, cylinder, line3, poly3, rrect, sx, sy, type Ctx } from './shapes';
 
@@ -138,6 +140,10 @@ export function ringNotched(step: number | undefined): boolean {
 export const RING_NOTCHES = 6;
 
 export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
+  if (import.meta.env.VITE_PROTO_DROP !== 'guest' && isPixelSurface(ctx)) {
+    drawGuestPixel(ctx, g);
+    return;
+  }
   if (g.ring) {
     ctx.strokeStyle = g.ring;
     ctx.lineWidth = 1.6;

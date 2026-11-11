@@ -10,6 +10,7 @@ import { shade } from '../palette';
 import type { ArtBounds } from './rides';
 import { box, line3, poly3, pyramid, sx, sy, type Ctx } from './shapes';
 import { CONTENT_STALL_ART } from './content';
+import { isPixelSurface } from '../pixel/surface';
 
 interface Scheme {
   roof: string;
@@ -159,8 +160,8 @@ export function drawStallArt(ctx: Ctx, defId: string, rotation: Dir): void {
   const def = getStallDef(defId);
   const kind: StallKind | 'unknown' = def?.kind ?? 'unknown';
   const s = SCHEMES[kind];
-  // Shadow.
-  poly3(ctx, [0.12, 0.12, 0, 0.92, 0.12, 0, 0.92, 0.92, 0, 0.12, 0.92, 0], 'rgba(20,30,20,0.18)');
+  // Shadow (Phase 8 stage 0 prototype, §8.4 item 6: on a surface the shadow layer draws it).
+  if (!isPixelSurface(ctx)) poly3(ctx, [0.12, 0.12, 0, 0.92, 0.12, 0, 0.92, 0.92, 0, 0.12, 0.92, 0], 'rgba(20,30,20,0.18)');
   const backService = rotation === 0 || rotation === 3;
   if (backService) awning(ctx, rotation, s);
   box(ctx, 0.18, 0.18, 0.82, 0.82, 0, 23, s.wall, shade(s.wall, 0.88), shade(s.wall, 0.74));

@@ -15,6 +15,8 @@
 import { GUEST_LOD_ZOOM, PHONE_DEVICE_MEMORY_GB, PHONE_MAX_RENDER_SCALE, PHONE_MAX_ZOOM_BUCKETS } from '../data/tuning/perf';
 import type { RenderQuality } from '../settings/types';
 import { spriteBudgetBytes, type DeviceClass } from '../render/spriteCache';
+import { planStretch } from '../render/pixel/grid';
+import type { ArtStyle } from '../render/pixel/style';
 
 /** Phone-sized screen (Phase 4 §11): either CSS side below this. */
 export const PHONE_SCREEN_MAX_CSS = 600;
@@ -58,21 +60,27 @@ export interface RenderPlan {
   budgetBytes: number;
   /** Rides animate with 16 angles and 3 occupancy levels (`render/anim.ts` `coarseRideFrame`): 64 MB devices. */
   coarseRideFrames: boolean;
+  /** Phase 8 stage 0 prototype: device pixels per canvas pixel (1 in Classic). */
+  stretch: number;
 }
 
 /** `autoMaxRatio`: the `auto` step down of `AutoScale` (ignored at `high` and `low`). */
-export function renderPlan(quality: RenderQuality, device: DeviceClass, dpr: number, autoMaxRatio = Infinity): RenderPlan {
+export function renderPlan(quality: RenderQuality, device: DeviceClass, dpr: number, autoMaxRatio = Infinity, style: ArtStyle = 'classic'): RenderPlan {
   const d = dpr > 0 && Number.isFinite(dpr) ? dpr : 1;
   const low = quality === 'low';
   const phone = device === 'phone';
   const best = phone ? Math.min(d, PHONE_MAX_RENDER_SCALE) : d;
+  // Phase 8 stage 0 prototype (§7.1): a whole stretch k, canvas ratio d / k, the 3 zoom buckets only.
+  const stretch = style === 'pixel' ? planStretch(d, device, low || (quality === 'auto' && autoMaxRatio <= 1)) : 1;
   return {
     device,
-    pixelRatio: low ? Math.min(d, 1) : quality === 'auto' ? Math.min(best, Math.max(1, autoMaxRatio)) : best,
-    zoomBuckets: phone || low ? PHONE_MAX_ZOOM_BUCKETS : PHONE_MAX_ZOOM_BUCKETS + 1,
+    pixelRatio:
+      style === 'pixel' ? d / stretch : low ? Math.min(d, 1) : quality === 'auto' ? Math.min(best, Math.max(1, autoMaxRatio)) : best,
+    zoomBuckets: style === 'pixel' || phone || low ? PHONE_MAX_ZOOM_BUCKETS : PHONE_MAX_ZOOM_BUCKETS + 1,
     guestLodZoom: low ? LOW_GUEST_LOD_ZOOM : GUEST_LOD_ZOOM,
     budgetBytes: spriteBudgetBytes(device),
     coarseRideFrames: phone || low,
+    stretch,
   };
 }
 

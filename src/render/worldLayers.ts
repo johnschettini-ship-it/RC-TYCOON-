@@ -12,9 +12,12 @@ import { createSceneryLayer } from './scenery/layer';
 import { createTerrainToolLayer } from './terrainTools/layer';
 import { createShowLayer } from './shows/layer';
 import { createA11yLayer } from './a11y/layer';
+import { createPixelShadowLayer } from './pixel/shadows';
 
 export function createWorldLayers(): WorldLayer[] {
   return [
+    // Phase 8 stage 0 prototype (§8.4 item 4): ground shadows first; it draws nothing in Classic.
+    createPixelShadowLayer(),
     createFieldOverlayLayer(),
     createLightingLayer(),
     createElevatedPathLayer(),

@@ -32,6 +32,8 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 #game { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; user-select: none; -webkit-user-select: none; }
+/* Phase 8 stage 0 prototype: the Pixel box is sized by the renderer, anchored top left (§7.1 item 3). */
+#game[data-art="pixel"] { right: auto; bottom: auto; image-rendering: pixelated; }
 #ui { position: fixed; inset: 0; pointer-events: none; font-size: calc(14px * var(--ts, 1)); }
 #loading { position: fixed; inset: 0; display: grid; place-items: center; font-size: calc(18px * var(--ts, 1)); }
 [hidden] { display: none !important; }

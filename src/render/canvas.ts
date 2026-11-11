@@ -1,4 +1,6 @@
 /** Offscreen canvas factory and sprite building. Owner: W1-A. */
+import { artStyle } from './pixel/style';
+import { ART_SCALE, PixelSurface, type SurfaceOptions } from './pixel/surface';
 import type { ArtBounds } from './sprites/rides';
 import type { Ctx } from './sprites/shapes';
 import type { Sprite } from './spriteCache';
@@ -50,10 +52,69 @@ export function canvasPixelRatio(cssW: number, cssH: number, dpr: number): numbe
 const PAD = 2;
 
 /**
+ * Phase 8 (§5.1): the log of Pixel builds. Only tests set a member to an array. `hashes` comes in stage 1a-ii and
+ * stays null here; `surfaces` is a stage 0 prototype seam for the Node sheet (each Pixel build pushes its surface
+ * and image while it is an array).
+ */
+export const artBuildLog: {
+  hashes: number[] | null;
+  surfaces: Array<{ surface: PixelSurface; image: AnyCanvas }> | null;
+} = { hashes: null, surfaces: null };
+
+/**
+ * Phase 8 stage 0 prototype seam: build times and sizes. This file writes `spriteBuildMsMax` (the slowest Pixel
+ * sprite build); the terrain writes `chunkBuildMsMax`; the renderer writes the rest. Timing only measures.
+ */
+export const artBuildStats = {
+  spriteBuildMsMax: 0,
+  chunkBuildMsMax: 0,
+  turnFrameMsMax: 0,
+  rideBuildMsMax: 0,
+  spriteMb: 0,
+  chunkMb: 0,
+};
+
+/** Bounds widened to even world pixels, so the anchor is a whole art pixel (§5.1). */
+function evenBounds(b: ArtBounds): ArtBounds {
+  return {
+    left: 2 * Math.floor(b.left / 2),
+    right: 2 * Math.ceil(b.right / 2),
+    top: 2 * Math.floor(b.top / 2),
+    bottom: 2 * Math.ceil(b.bottom / 2),
+  };
+}
+
+/**
+ * The Pixel branch (§5.1 steps 1, 2, 3, 5 and 6 without `artHash`). No tint remap in stage 0 (step 4): a tinted
+ * build paints with no tint.
+ */
+function buildPixelSprite(bounds: ArtBounds, paint: (ctx: Ctx) => void, opts?: SurfaceOptions): Sprite {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
+  const s = new PixelSurface(evenBounds(bounds), opts);
+  paint(s as unknown as Ctx);
+  s.finish();
+  const { canvas, ctx } = makeCanvas(s.w, s.h);
+  s.blitTo(ctx);
+  if (artBuildLog.surfaces) artBuildLog.surfaces.push({ surface: s, image: canvas });
+  if (typeof performance !== 'undefined') {
+    const ms = performance.now() - t0;
+    if (ms > artBuildStats.spriteBuildMsMax) artBuildStats.spriteBuildMsMax = ms;
+  }
+  return { image: canvas, w: s.w, h: s.h, ox: s.ox, oy: s.oy, scale: ART_SCALE };
+}
+
+/**
  * Draw `paint` (world-pixel coordinates around the anchor) into a new canvas at `scale` image pixels
  * per world pixel. An optional `tint` washes every drawn pixel (ghosts).
  */
-export function buildSprite(bounds: ArtBounds, scale: number, paint: (ctx: Ctx) => void, tint: string | null = null): Sprite {
+export function buildSprite(
+  bounds: ArtBounds,
+  scale: number,
+  paint: (ctx: Ctx) => void,
+  tint: string | null = null,
+  opts?: SurfaceOptions,
+): Sprite {
+  if (artStyle() === 'pixel') return buildPixelSprite(bounds, paint, opts);
   const w = Math.max(1, Math.ceil((bounds.right - bounds.left) * scale) + PAD * 2);
   const h = Math.max(1, Math.ceil((bounds.bottom - bounds.top) * scale) + PAD * 2);
   const { canvas, ctx } = makeCanvas(w, h);

@@ -217,7 +217,7 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
   }
   if (existsSync(join(dist, 'index.html'))) {
     const bytes = initialLoadBytes(dist);
-    add(2, 'Initial load < 400 KB gzip (master §10)', bytes < INITIAL_LOAD_BUDGET_BYTES ? 'pass' : 'fail', `${kb(bytes)} gzipped JS + CSS`);
+    add(2, 'Initial load < 400 KB gzip (master §10)', bytes < INITIAL_LOAD_BUDGET_BYTES ? 'pass' : 'fail', `${kb(bytes)} gzipped JS + CSS (${bytes} bytes)`);
   } else add(2, 'Initial load < 400 KB gzip (master §10)', 'fail', 'no dist/ build');
   add(2, 'Perf runs meet §4.6 budgets or the gap is in the release notes', 'manual', 'tests/e2e/perf-build3.spec.ts and docs/adr/ (W4-E)');
 

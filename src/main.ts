@@ -12,6 +12,8 @@ import { initI18n } from './i18n';
 import { mountA11y } from './a11y';
 import { mountAudio } from './audio';
 import { registerOffline } from './offline';
+import { artStyle, resolveArtStyle, setArtStyle } from './render/pixel/style';
+import { viewportCss } from './render/pixel/grid';
 
 function boot(): void {
   const canvas = document.getElementById('game') as HTMLCanvasElement | null;
@@ -21,6 +23,8 @@ function boot(): void {
   const renderer = createCanvasRenderer(canvas);
   // Phase 6 §4.9: settings from `tc.settings` (defaults in memory when storage is missing or the data unreadable).
   const game = new Game(world, renderer, new SettingsStore(browserStore()));
+  // Phase 8 stage 0 prototype: the art style, read once at boot, before the first resize (§9.2).
+  setArtStyle(resolveArtStyle('auto', location.search, import.meta.env.VITE_ART));
   // Phase 6 §4.8 (W4-G): the language is chosen before any UI text is built.
   initI18n(game);
   const map = world.state.map;
@@ -28,11 +32,13 @@ function boot(): void {
   game.camera.centerX = c.sx;
   game.camera.centerY = c.sy;
 
+  // Phase 8 stage 0 prototype (§5.5): in Pixel the canvas box depends on the plan, so the size comes from the viewport.
   const resize = (): void => {
-    const r = canvas.getBoundingClientRect();
+    const r = artStyle() === 'pixel' ? viewportCss() : canvas.getBoundingClientRect();
     renderer.resize(r.width, r.height, window.devicePixelRatio || 1);
   };
   new ResizeObserver(resize).observe(canvas);
+  new ResizeObserver(resize).observe(document.documentElement);
   resize();
 
   attachInput(canvas, game);

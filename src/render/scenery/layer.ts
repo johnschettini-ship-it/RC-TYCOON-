@@ -18,6 +18,7 @@ import type { World } from '../../sim/types';
 import { footprintColumns, Layer, type ColumnTile } from '../depth';
 import { LAYER_KIND, type LayerFrame, type LayerSink, type WorldLayer } from '../layers';
 import { ghostFill, ghostLineWidth, ghostStroke } from '../palette';
+import { blitArt, blitArtColumn } from '../pixel/grid';
 import type { Sprite } from '../spriteCache';
 import { drawGhostIcon } from '../sprites/props';
 import type { ToolState } from '../types';
@@ -58,6 +59,11 @@ export function createSceneryLayer(): WorldLayer {
   }
 
   function blit(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number): void {
+    // Phase 8 stage 0 prototype (§5.5 stage 1b): whole copies on the art grid in Pixel.
+    if (f.art) {
+      blitArt(ctx, sp, ax, ay, f.art);
+      return;
+    }
     const s = f.scale / sp.scale;
     const x0 = Math.round(devX(f, ax) - sp.ox * s);
     const y0 = Math.round(devY(f, ay) - sp.oy * s);
@@ -66,8 +72,15 @@ export function createSceneryLayer(): WorldLayer {
     ctx.drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
   }
 
-  /** The vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
-  function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
+  /**
+   * The vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). `ends` (Pixel only): bit 1 extends the
+   * strip to the left edge of the image, bit 2 to the right edge (§7.7).
+   */
+  function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number, ends = 0): void {
+    if (f.art) {
+      blitArtColumn(ctx, sp, ax, ay, colL, colR, f.art, ends);
+      return;
+    }
     const s = f.scale / sp.scale;
     const dx0 = Math.round(devX(f, colL));
     const dx1 = Math.round(devX(f, colR));
@@ -150,7 +163,9 @@ export function createSceneryLayer(): WorldLayer {
         return;
       }
       const colL = ax - iv.ey * HW + sub * HW;
-      blitColumn(ctx, f, sp, ax, ay, colL, colL + HW);
+      // Pixel: the first and last column reach the image edges, as for rides.
+      const ends = (sub === 0 ? 1 : 0) | (sub === columns(iv.ex, iv.ey).length - 1 ? 2 : 0);
+      blitColumn(ctx, f, sp, ax, ay, colL, colL + HW, ends);
     },
 
     drawOverlay(ctx, world, tool, f): void {

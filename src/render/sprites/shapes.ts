@@ -3,7 +3,53 @@
  * Local coordinates: (u, v) in tiles from the anchor tile's top corner, `h` in world pixels above
  * the base height (8 px = 1 m). Screen: x = (u − v) × 32, y = (u + v) × 16 − h.
  */
+import { pixelBox, pixelCone, pixelCylinder, pixelHead, pixelPyramid } from '../pixel/art/shapes';
+import { isPixelSurface } from '../pixel/surface';
+
 export type Ctx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/**
+ * Phase 8: the Canvas members that art uses (§5.2). A real 2D context and a `PixelSurface` both satisfy it.
+ * Twins take it and call `layer?.()` and `cut?.()`, so they also run on a real context and on a recorder.
+ */
+export interface ArtCtx {
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
+  lineWidth: number;
+  lineCap: string;
+  lineJoin: string;
+  beginPath(): void;
+  moveTo(x: number, y: number): void;
+  lineTo(x: number, y: number): void;
+  closePath(): void;
+  rect(x: number, y: number, w: number, h: number): void;
+  arc(x: number, y: number, radius: number, startAngle: number, endAngle: number, counterclockwise?: boolean): void;
+  ellipse(
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    rotation: number,
+    startAngle: number,
+    endAngle: number,
+    counterclockwise?: boolean,
+  ): void;
+  quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
+  bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
+  arcTo(x1: number, y1: number, x2: number, y2: number, radius: number): void;
+  fill(fillRule?: CanvasFillRule): void;
+  stroke(): void;
+  fillRect(x: number, y: number, w: number, h: number): void;
+  strokeRect(x: number, y: number, w: number, h: number): void;
+  save(): void;
+  restore(): void;
+  translate(x: number, y: number): void;
+  scale(x: number, y: number): void;
+  rotate(angle: number): void;
+  setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
+  layer?(ink?: boolean): void;
+  cut?(on: boolean): void;
+}
 
 const HW = 32;
 const HH = 16;
@@ -67,6 +113,7 @@ export function box(
   left: string,
   right: string,
 ): void {
+  if (isPixelSurface(ctx)) return pixelBox(ctx, u0, v0, u1, v1, h0, h1, top, left, right);
   poly3(ctx, [u0, v1, h0, u1, v1, h0, u1, v1, h1, u0, v1, h1], left);
   poly3(ctx, [u1, v0, h0, u1, v1, h0, u1, v1, h1, u1, v0, h1], right);
   poly3(ctx, [u0, v0, h1, u1, v0, h1, u1, v1, h1, u0, v1, h1], top);
@@ -95,6 +142,7 @@ export function disc(ctx: Ctx, cu: number, cv: number, r: number, h: number, fil
 
 /** Upright cylinder of radius r tiles from h0 to h1. */
 export function cylinder(ctx: Ctx, cu: number, cv: number, r: number, h0: number, h1: number, side: string, top: string): void {
+  if (isPixelSurface(ctx)) return pixelCylinder(ctx, cu, cv, r, h0, h1, side, top);
   const { rx, ry } = ellipseRadii(r);
   const x = sx(cu, cv);
   const yb = sy(cu, cv, h0);
@@ -125,6 +173,7 @@ export function nearness(u: number, v: number): number {
 
 /** Striped cone roof: base radius r tiles at h0, apex at h1. Segments drawn back to front. */
 export function cone(ctx: Ctx, cu: number, cv: number, r: number, h0: number, h1: number, colours: readonly string[], segments = 12): void {
+  if (isPixelSurface(ctx)) return pixelCone(ctx, cu, cv, r, h0, h1, colours, segments);
   const segs: Array<{ a0: number; a1: number; k: number; d: number }> = [];
   for (let k = 0; k < segments; k++) {
     const a0 = (k / segments) * Math.PI * 2;
@@ -157,6 +206,7 @@ export function cone(ctx: Ctx, cu: number, cv: number, r: number, h0: number, h1
 
 /** Four-sided pyramid roof over [u0, u1] × [v0, v1] from h0 to apex h1. */
 export function pyramid(ctx: Ctx, u0: number, v0: number, u1: number, v1: number, h0: number, h1: number, back: string, left: string, right: string): void {
+  if (isPixelSurface(ctx)) return pixelPyramid(ctx, u0, v0, u1, v1, h0, h1, back, left, right);
   const cu = (u0 + u1) / 2;
   const cv = (v0 + v1) / 2;
   // Back faces first (N and W), then front (S = left, E = right).
@@ -168,6 +218,7 @@ export function pyramid(ctx: Ctx, u0: number, v0: number, u1: number, v1: number
 
 /** Small round head (riders, guests). */
 export function head(ctx: Ctx, x: number, y: number, r: number, skin: string, hair: string): void {
+  if (isPixelSurface(ctx)) return pixelHead(ctx, x, y, r, skin, hair);
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fillStyle = skin;

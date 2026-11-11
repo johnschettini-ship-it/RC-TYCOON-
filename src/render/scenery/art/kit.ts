@@ -6,6 +6,8 @@
  */
 import type { Dir } from '../../../sim/map';
 import { mix32, shade } from '../../palette';
+import { noteMixed } from '../../pixel/derived';
+import { isPixelSurface } from '../../pixel/surface';
 import { box, poly3, sx, sy, type Ctx } from '../../sprites/shapes';
 import { TAU, dot, line2, oval, poly2, star } from '../../sprites/content/kit';
 
@@ -79,7 +81,10 @@ export function mixHex(a: string, b: string, t: number): string {
   const pa = parseInt(a.slice(1), 16);
   const pb = parseInt(b.slice(1), 16);
   const ch = (s: number): number => Math.round(((pa >> s) & 255) * (1 - t) + ((pb >> s) & 255) * t);
-  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
+  const out = `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
+  // Phase 8 stage 0: the derived-colour memo (§6.5); outside a memo it returns at once.
+  noteMixed(out, a, b, t);
+  return out;
 }
 
 /** Wilted colour: faded toward dry brown. */
@@ -89,6 +94,8 @@ export function wilt(colour: string, wilted: boolean): string {
 
 /** Soft ground shadow (ellipse) under a point. */
 export function shadow(ctx: Ctx, cu: number, cv: number, r: number, alpha = 0.2): void {
+  // Phase 8 stage 0 prototype (§8.4 item 6): the shadow layer draws ground shadows in Pixel.
+  if (isPixelSurface(ctx)) return;
   oval(ctx, sx(cu, cv), sy(cu, cv, 0), r * 45, r * 22.5, `rgba(20,30,20,${alpha})`);
 }
 
