@@ -14,6 +14,7 @@ Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document vers
   - A **light look**: white surfaces, ink outlines, colour tokens in `src/styles/tokens.css`, and one bundled font, Fredoka (SIL Open Font License 1.1).
 - **Day chip** (after the owner's test play): the wide day pill is now a small chip with the weather and the date; the two buttons that turn the view sit at the right of its row, and the map shows between them (the phone's top region is 18 px lower).
 - **Slim mood bar and smaller cards** (after the owner's test play): the mood bar is a 44 px plate with no line of text under it (the percentages show on the desktop only), and the cards of the hand are about 12% smaller (the phone's top region is 14 px lower and the hand 16 px lower).
+- **Phone held sideways** (after the owner's test play): a low window (under 500 px high, wider than high) has its own layout: one slim top row, the cards closed until a deck chip is pressed, and panels at the right side, so most of the screen shows the map.
 - **Title screen:** a pixel-art skyline park with the game name and a menu with Continue for the newest save (`docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md`). The four pictures are data in the JavaScript bundle; there are no image files.
 - **Settings version 2:** adds `mascotTips` (default on). A version 1 document is checked as version 1 and gets `mascotTips: true`; the store writes version 2 at the next change.
 

@@ -1,14 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { LAYOUT_BREAKPOINT_PX, SHEET_FRACTIONS, nextSheetHeight, pillFields, snapSheet, toolbarPlacement } from '../../../src/ui/layout';
+import { LAYOUT_BREAKPOINT_PX, LOW_HEIGHT_PX, SHEET_FRACTIONS, isLowScreen, nextSheetHeight, pillFields, snapSheet, toolbarPlacement } from '../../../src/ui/layout';
 
 describe('layout breakpoint (Phase 0 §4.11)', () => {
   it('toolbar sits at the bottom below 900 CSS px and on the left from 900 px', () => {
     expect(LAYOUT_BREAKPOINT_PX).toBe(900);
-    expect(toolbarPlacement(412)).toBe('bottom');
-    expect(toolbarPlacement(899)).toBe('bottom');
-    expect(toolbarPlacement(899.5)).toBe('bottom');
-    expect(toolbarPlacement(900)).toBe('side');
-    expect(toolbarPlacement(1280)).toBe('side');
+    expect(toolbarPlacement(412, 915)).toBe('bottom');
+    expect(toolbarPlacement(899, 800)).toBe('bottom');
+    expect(toolbarPlacement(899.5, 800)).toBe('bottom');
+    expect(toolbarPlacement(900, 800)).toBe('side');
+    expect(toolbarPlacement(1280, 800)).toBe('side');
+  });
+});
+
+describe('low layout (Task 19: a phone held sideways)', () => {
+  it('a window is low when it is lower than 500 px and wider than high', () => {
+    expect(LOW_HEIGHT_PX).toBe(500);
+    for (const [w, h] of [[844, 390], [667, 375], [932, 430], [1280, 480]] as const) expect(isLowScreen(w, h), `${w} × ${h}`).toBe(true);
+    for (const [w, h] of [[390, 844], [412, 915], [768, 1024], [1280, 800], [1280, 500], [500, 500]] as const) expect(isLowScreen(w, h), `${w} × ${h}`).toBe(false);
+  });
+
+  it('a low window has the bottom toolbar at every width, also from 900 px', () => {
+    expect(toolbarPlacement(932, 430)).toBe('bottom');
+    expect(toolbarPlacement(1280, 480)).toBe('bottom');
+    expect(toolbarPlacement(844, 390)).toBe('bottom');
+    expect(toolbarPlacement(1280, 800)).toBe('side');
   });
 });
 

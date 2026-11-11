@@ -16,6 +16,12 @@ const CSS = `
   left: 0; right: 0; bottom: var(--toolbar-space); max-height: min(56vh, calc(100% - var(--hud-bottom) - var(--toolbar-space)));
   border-radius: var(--radius-surface) var(--radius-surface) 0 0; padding-left: var(--safe-left); padding-right: var(--safe-right);
 }
+/* Task 19, the low layout (a phone held sideways): a right-side panel from below the first top row to above the chips row. */
+#ui[data-low='1'] .scn-picker {
+  left: auto; bottom: auto; top: calc(var(--hud-row1, var(--hud-bottom)) + 8px); right: calc(10px + var(--safe-right)); width: min(372px, 48%);
+  max-height: calc(100% - var(--hud-row1, var(--hud-bottom)) - var(--chips-space, var(--toolbar-space)) - 16px);
+  border-radius: var(--radius-surface); padding-left: 0; padding-right: 0;
+}
 .scn-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-bottom: var(--control-outline); flex: none; }
 .scn-head h2 { margin: 0; font-size: calc(17px * var(--ts, 1)); flex: 1; }
 .scn-tabs { display: flex; gap: 4px; padding: 6px 8px; overflow-x: auto; flex: none; scrollbar-width: thin; }

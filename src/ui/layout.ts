@@ -4,10 +4,22 @@ import type { TextScale } from '../settings/types';
 
 export const LAYOUT_BREAKPOINT_PX = 900;
 
+/** A window lower than this (and wider than high) is low: a phone held sideways (Task 19). */
+export const LOW_HEIGHT_PX = 500;
+
 export type ToolbarPlacement = 'bottom' | 'side';
 
-/** Bottom toolbar and bottom-sheet panels below 900 CSS px; left toolbar and side panels from 900 px. */
-export function toolbarPlacement(viewportWidthCss: number): ToolbarPlacement {
+/** The low layout (a phone held sideways): the phone layout with one slim top row and panels at the right side. */
+export function isLowScreen(widthCss: number, heightCss: number): boolean {
+  return heightCss < LOW_HEIGHT_PX && widthCss > heightCss;
+}
+
+/**
+ * Bottom toolbar and bottom-sheet panels below 900 CSS px; left toolbar and side panels from 900 px. A low window has
+ * the bottom toolbar at every width (its own rules, `data-low`, make the panels right-side panels).
+ */
+export function toolbarPlacement(viewportWidthCss: number, viewportHeightCss: number): ToolbarPlacement {
+  if (isLowScreen(viewportWidthCss, viewportHeightCss)) return 'bottom';
   return viewportWidthCss < LAYOUT_BREAKPOINT_PX ? 'bottom' : 'side';
 }
 

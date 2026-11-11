@@ -10,7 +10,7 @@ import { h, setAttr } from './dom';
 import { createDecks, type DecksUi } from './decks';
 import { heldCardId } from './decks/model';
 import { createHud } from './hud';
-import { toolbarPlacement } from './layout';
+import { isLowScreen, toolbarPlacement } from './layout';
 import { openMenu } from './menu';
 import { PanelHost } from './panelHost';
 import { createCardDetailsPanel, heldCard } from './panels/cardDetails';
@@ -206,9 +206,12 @@ export function mountUI(root: HTMLElement, game: Game): void {
   };
 
   const hud = createHud(ctx, () => openMenu(ctx));
-  // Phase 7 §4.4: the Rides deck is open when a park starts.
   const decks: DecksUi = createDecks(ctx);
-  decks.open('rides');
+  // Phase 7 §4.4: the Rides deck is open when a park starts. The low layout (Task 19) starts with the hand closed.
+  const startDeck = (): void => {
+    if (root.dataset.low === '1') decks.close();
+    else decks.open('rides');
+  };
   const status = createToolStatus(ctx);
   const patrolBar = createPatrolBar(ctx);
   const pathItemBar = createPathItemBar(ctx);
@@ -224,13 +227,23 @@ export function mountUI(root: HTMLElement, game: Game): void {
   root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), tip.el, tip.live, panels.el, toastView.el, messageToast.el, fileInput, title.el);
   mountTrackUi(ctx);
 
+  // Task 19: a low window (a phone held sideways) has the phone layout with its own rules (`data-low`): its panels are
+  // right-side panels, and the hand closes when the window becomes low.
+  let wasLow: boolean | null = null;
   const applyLayout = (): void => {
-    const layout = toolbarPlacement(window.innerWidth);
+    const w = window.innerWidth;
+    const hgt = window.innerHeight;
+    const layout = toolbarPlacement(w, hgt);
+    const low = isLowScreen(w, hgt);
     root.dataset.layout = layout;
-    panels.setLayout(layout);
+    setAttr(root, 'data-low', low ? '1' : null);
+    panels.setLayout(low ? 'side' : layout);
+    if (low && wasLow === false) decks.close();
+    wasLow = low;
   };
   window.addEventListener('resize', applyLayout);
   applyLayout();
+  startDeck();
   // Phase 7 §4.7, desktop: a card details panel that does not fit above the hand runs to the bottom of the screen, and
   // the hand ends at its left edge (`data-details="tall"`, main.css). The hand keeps its height, so the answer does not
   // change with the state. Measured when the panel opens or closes and when a region changes its size, not per frame.
@@ -246,6 +259,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   };
   // The top region wraps on narrow screens: panels, toasts, and the deck list sit below its real height. The bottom
   // region is the hand on desktop (0 when closed) and the chip row with the hand on the phone.
+  const firstRow = [...hud.el.querySelectorAll<HTMLElement>(':scope > .status-pill, :scope > .hud-mood, :scope > .hud-controls')];
   const measure = (): void => {
     root.style.setProperty('--hud-bottom', `${Math.ceil(hud.el.getBoundingClientRect().bottom)}px`);
     const tops: number[] = [];
@@ -253,6 +267,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
     if (root.dataset.layout === 'bottom') tops.push(decks.list.getBoundingClientRect().top);
     const space = tops.length > 0 ? Math.ceil(window.innerHeight - Math.min(...tops)) : 0;
     root.style.setProperty('--toolbar-space', `${Math.max(0, space)}px`);
+    // The low layout's right-side panels run from below the first top row to above the deck chips row.
+    if (root.dataset.low === '1') {
+      root.style.setProperty('--hud-row1', `${Math.ceil(Math.max(...firstRow.map((e) => e.getBoundingClientRect().bottom)))}px`);
+      root.style.setProperty('--chips-space', `${Math.max(0, Math.ceil(window.innerHeight - decks.list.getBoundingClientRect().top))}px`);
+    }
     fitDetails();
   };
   if (typeof ResizeObserver !== 'undefined') {
@@ -291,7 +310,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     }
   });
   game.onWorldChanged(() => {
-    decks.open('rides');
+    startDeck();
     panels.close();
     ctx.follow.guestId = null;
     lastSelection = null;

@@ -5,6 +5,7 @@
  * Phone tuck: when a card (a tool card, or a held ride or stall card) becomes pressed, the hand tucks away (hidden;
  * `--toolbar-space` shrinks to the chip row) and comes back with the same deck when no card is pressed any more. A deck
  * chip pressed while tucked shows the hand, which then stays until a card next becomes pressed. Desktop never tucks; a layout change ends a tuck.
+ * The low layout (Task 19) keeps the hand tucked while the track builder is open.
  */
 import { CARD_LIFT_PX } from '../../data/tuning/interface';
 import type { UiContext } from '../context';
@@ -14,6 +15,7 @@ import { createDeckList } from './deckList';
 import { createHand } from './hand';
 import { heldCardId, type DeckId } from './model';
 import { allToolCards } from './toolCards';
+import { trackToolOf } from '../../render/track/toolState';
 
 export { holdCard } from './toolCards';
 
@@ -70,6 +72,8 @@ export function createDecks(ctx: UiContext): DecksUi {
     wasHeld = held;
     any ||= held !== null;
     anyPressed = any;
+    // Task 19: in the low layout the track builder is a right-side panel; the hand stays tucked while it is open.
+    if (ctx.root.dataset.low === '1' && ctx.game.tool.tool === 'track' && trackToolOf(ctx.game.tool).phase !== 'idle') any = true;
     if (!phone || layoutChanged) hand.setTucked(false);
     else if (turnedOn) {
       // A focus inside the hand that tucks away would fall to the page body: it goes to the open deck's chip.

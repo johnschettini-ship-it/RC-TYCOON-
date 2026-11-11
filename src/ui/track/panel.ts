@@ -352,8 +352,9 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       }
       if (!show) return;
       el.dataset.phase = s.phase;
-      el.dataset.layout = layout;
-      const touch = s.touch || el.dataset.layout === 'bottom';
+      // Task 19: the low layout (a phone held sideways) shows the builder as a right-side panel.
+      setAttr(el, 'data-layout', ctx.root.dataset.low === '1' ? 'side' : layout);
+      const touch = s.touch || layout === 'bottom';
       setText(title, rideTitle(ctx, s));
       const data = s.rideId !== null ? trackData(game.world, s.rideId) : undefined;
       count.hidden = !data;

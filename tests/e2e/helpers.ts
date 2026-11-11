@@ -245,3 +245,20 @@ async function seriousIssues(page: Page): Promise<string[]> {
 export async function scan(page: Page, where: string): Promise<void> {
   expect(await seriousIssues(page), where).toEqual([]);
 }
+
+/**
+ * The share of the window where the map can be seen and pressed (Task 19): a grid of 24 × 12 points over the window,
+ * each tested with `document.elementFromPoint`; the share of points whose element is the game canvas.
+ */
+export async function freeMapShare(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const canvas = document.getElementById('game');
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    let free = 0;
+    for (let j = 0; j < 12; j++) {
+      for (let i = 0; i < 24; i++) if (document.elementFromPoint(((i + 0.5) * w) / 24, ((j + 0.5) * h) / 12) === canvas) free++;
+    }
+    return free / (24 * 12);
+  });
+}

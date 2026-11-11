@@ -108,6 +108,12 @@ const CSS = `
 }
 #ui[data-layout='side'] .tc-objectives { top: calc(var(--hud-bottom) + 10px); right: calc(10px + var(--safe-right)); width: 340px; max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px); border-radius: var(--radius-surface); }
 #ui[data-layout='bottom'] .tc-objectives { left: 0; right: 0; bottom: var(--toolbar-space); max-height: 60%; border-radius: var(--radius-surface) var(--radius-surface) 0 0; }
+/* Task 19, the low layout (a phone held sideways): a right-side panel from below the first top row to above the chips row. */
+#ui[data-low='1'] .tc-objectives {
+  left: auto; bottom: auto; top: calc(var(--hud-row1, var(--hud-bottom)) + 8px); right: calc(10px + var(--safe-right)); width: min(340px, 48%);
+  max-height: calc(100% - var(--hud-row1, var(--hud-bottom)) - var(--chips-space, var(--toolbar-space)) - 16px);
+  border-radius: var(--radius-surface); padding-left: 0; padding-right: 0;
+}
 .tc-objectives h2 { margin: 0; font-size: calc(17px * var(--ts, 1)); flex: 1; }
 .tc-goal { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-bottom: 1px solid var(--rule); }
 .tc-goal:last-child { border-bottom: 0; }

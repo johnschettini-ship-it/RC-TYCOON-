@@ -5,7 +5,9 @@ import { cardOf, newPark, openTool, pickCard, tilePoint, watchErrors } from './h
  * `TC_SCREENSHOT=1`: the owner screenshots of Build 4 (Phase 7 §11), at device scale 1:
  * - `docs/screenshots/phase-7-desktop.png` (1280 × 800) and `phase-7-phone.png` (390 × 844): a park with 4 open rides
  *   and guests, the Rides deck open, the Carousel card held (desktop: with the card details panel);
- * - `docs/screenshots/phase-7-title-desktop.png` and `phase-7-title-phone.png`: the title screen with that park saved.
+ * - `docs/screenshots/phase-7-title-desktop.png` and `phase-7-title-phone.png`: the title screen with that park saved;
+ * - `docs/screenshots/phase-7-phone-sideways.png` (844 × 390, phone project; Task 19): the same park in the low layout,
+ *   the hand closed.
  * The park is built with commands through the debug hook (a picture, not a playthrough).
  */
 
@@ -138,6 +140,33 @@ test.describe('Build 4 owner screenshots', () => {
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await page.waitForTimeout(300);
     await page.screenshot({ path: `docs/screenshots/phase-7-title-${phone ? 'phone' : 'desktop'}.png` });
+    errors.expectNoErrors();
+  });
+
+  test('a phone held sideways (844 × 390): the park with rides and guests in the low layout, the hand closed', async ({ page }, info) => {
+    test.skip(!process.env.TC_SCREENSHOT, 'set TC_SCREENSHOT=1 to refresh the screenshots');
+    test.skip(info.project.name !== 'phone', 'a phone held sideways');
+    test.setTimeout(180_000);
+    const errors = watchErrors(page);
+    await page.setViewportSize({ width: 844, height: 390 });
+    await newPark(page, 'Frost & Spark Park');
+    await expect(page.locator('#ui')).toHaveAttribute('data-low', '1');
+    const park = await buildPark(page, true);
+    expect(park.open).toBe(4);
+    expect(park.guests).toBeGreaterThan(20);
+    // The rides in the middle of the free map, between the top row and the chip row.
+    await page.evaluate(() => {
+      const c = (window as unknown as { __tc: OverviewTc }).__tc.camera;
+      c.centerX -= 40 / c.zoom;
+      c.centerY -= 20 / c.zoom;
+    });
+    await quiet(page);
+    // The low layout starts with the hand closed; the tip that a new park shows is closed for the picture.
+    await expect(page.getByTestId('hand')).toBeHidden();
+    const tipClose = page.locator('.tip-bubble:not([hidden]) .tip-close');
+    if ((await tipClose.count()) > 0) await tipClose.click();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: 'docs/screenshots/phase-7-phone-sideways.png' });
     errors.expectNoErrors();
   });
 });

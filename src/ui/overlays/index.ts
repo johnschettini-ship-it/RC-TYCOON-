@@ -50,6 +50,8 @@ const CSS = `
 .tc-legend-value { margin: 8px 0 0; font-weight: 600; font-size: calc(13px * var(--ts, 1)); }
 .tc-legend-help { margin: 4px 0 0; font-size: calc(12px * var(--ts, 1)); color: var(--muted-ink); }
 #ui[data-layout='bottom'] .tc-legend-help { display: none; }
+/* Task 19, the low layout: the legend stays between the top region and the bars at the bottom, and scrolls inside. */
+#ui[data-low='1'] .tc-overlay-card { max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 16px); overflow-y: auto; pointer-events: auto; }
 .tc-swatch { width: 28px; height: 16px; flex: none; border-radius: 3px; border: 1px solid var(--ink); }
 `;
 
