@@ -338,4 +338,101 @@ test.describe('low layout (Task 19)', () => {
       }
     }
   });
+
+  test('667 × 375: a right-side panel starts below the whole top region and leaves the view controls free', async ({ page }) => {
+    await lowPark(page, 667, 375);
+    const hudBottom = (): Promise<number> => page.evaluate(() => (document.querySelector('.hud') as HTMLElement).getBoundingClientRect().bottom);
+    const rotate = ['[data-testid="view-rotate-left"]', '[data-testid="view-rotate-right"]'];
+    const check = async (what: string): Promise<void> => {
+      await frames(page);
+      const p = await boxOf(page, '.panel');
+      expect(p.top, `${what}: below the top region`).toBeGreaterThanOrEqual(await hudBottom());
+      for (const r of rotate) expect(overlaps(await boxOf(page, r), p), `${what}: ${r} is free`).toBe(false);
+      // The view controls take a press while the panel is open.
+      for (const r of rotate) await expect(page.locator(r)).toBeVisible();
+      const hit = await page.evaluate((sel) => sel.map((s) => {
+        const b = (document.querySelector(s) as HTMLElement).getBoundingClientRect();
+        const at = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
+        return at !== null && (document.querySelector(s) as HTMLElement).contains(at);
+      }), rotate);
+      expect(hit, `${what}: the view controls are on top`).toEqual([true, true]);
+    };
+    await openTool(page, 'finance');
+    await expect(page.locator('.panel')).toBeVisible();
+    await check('Finance');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.panel')).toBeHidden();
+    await pickCard(page, 'flat', 'carousel');
+    await page.getByTestId('status-details').click();
+    await expect(page.locator('.panel .panel-title')).toHaveText('Carousel');
+    await check('card details');
+  });
+
+  test('667 × 375: the tip never covers the top region; it hides while the hand is open', async ({ page }) => {
+    await lowPark(page, 667, 375);
+    const tip = page.getByTestId('tip');
+    await expect(tip).toBeVisible({ timeout: 10_000 });
+    await frames(page);
+    const hud = await boxOf(page, '.hud');
+    expect((await boxOf(page, '[data-testid="tip"]')).top, 'the hand closed: under the top region').toBeGreaterThanOrEqual(hud.bottom);
+    await page.getByTestId('deck-rides').click();
+    await expect(page.getByTestId('hand')).toBeVisible();
+    await expect(tip).toBeHidden();
+    await page.getByTestId('deck-rides').click();
+    await expect(page.getByTestId('hand')).toBeHidden();
+    await expect(tip).toBeVisible();
+    expect((await boxOf(page, '[data-testid="tip"]')).top).toBeGreaterThanOrEqual(hud.bottom);
+  });
+
+  test('844 × 390 in a scenario: the objectives panel is at the right with its content inset; the bars keep clear of it', async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.goto('/');
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-scenarios').click();
+    await page.getByTestId('scenario-card-meadow_start').click();
+    await page.getByTestId('preset-standard').click();
+    await page.getByTestId('scenario-start').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.evaluate(() => (window as unknown as { __tc: { setSpeed(n: number): void } }).__tc.setSpeed(0));
+    await expect(page.locator('#ui')).toHaveAttribute('data-low', '1');
+    await page.getByTestId('hud-objectives').click();
+    const panel = page.getByTestId('objectives-panel');
+    await expect(panel).toBeVisible();
+    await frames(page);
+    const p = await boxOf(page, '[data-testid="objectives-panel"]');
+    expect(Math.abs(p.right - (844 - 10)), 'at the right edge less the margin').toBeLessThanOrEqual(1);
+    expect(p.width).toBeLessThanOrEqual(0.48 * 844 + 0.5);
+    // Its content keeps its own side padding: nothing touches the outline.
+    const inset = await panel.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return [...el.querySelectorAll<HTMLElement>('h2, [data-testid="objective"], [data-testid="objectives-close"]')]
+        .filter((e) => e.getClientRects().length > 0)
+        .map((e) => {
+          const b = e.getBoundingClientRect();
+          return Math.min(b.left - r.left, r.right - b.right);
+        });
+    });
+    expect(inset.length).toBeGreaterThanOrEqual(3);
+    for (const d of inset) expect(d, 'content inset from the panel edge').toBeGreaterThanOrEqual(12);
+    // A held card: the objectives stay open; the tool status bar ends left of them.
+    await pickCard(page, 'flat', 'carousel');
+    await expect(panel).toBeVisible();
+    await frames(page);
+    const status = await boxOf(page, '.tool-status:not(.path-height-bar)');
+    const o = await boxOf(page, '[data-testid="objectives-panel"]');
+    expect(overlaps(status, o), `status ${JSON.stringify(status)} objectives ${JSON.stringify(o)}`).toBe(false);
+    // Footpath held: the Height bar and the tool status bar keep clear of the objectives too.
+    await openTool(page, 'inspect');
+    await openTool(page, 'footpath');
+    await expect(panel).toBeVisible();
+    await frames(page);
+    const boxes = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.tool-status, .tc-objectives')].filter((e) => !e.hidden && e.getClientRects().length > 0).map((e) => {
+        const r = e.getBoundingClientRect();
+        return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+      }),
+    );
+    expect(boxes.length).toBeGreaterThanOrEqual(3);
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlaps(boxes[i]!, boxes[j]!), `${i} / ${j}`).toBe(false);
+  });
 });

@@ -1259,7 +1259,8 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 /*
  * Low layout (Task 19): a phone held sideways (`data-low="1"`, a window lower than 500 px and wider than high). The phone
  * layout with its own rules: one top row that may wrap, the hand above the deck chips row, and panels at the right side
- * (from below the first top row to above the chips row; the UI measures `--hud-row1` and `--chips-space`).
+ * (from below the top region to above the chips row, so a wrapped second row keeps its view controls free; the UI
+ * measures `--chips-space`).
  */
 /* Top region: the status pill, the mood bar (the free width, at least 140 px), the controls, then the day chip and the
    view controls; the last two go to a second row, with no plate between them, when the row is full. */
@@ -1277,17 +1278,21 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 #ui[data-low='1'] .hand-scroll { max-height: calc(100vh - var(--hud-bottom) - var(--chips-space, 0px) - 8px); overflow-y: auto; touch-action: pan-x pan-y; }
 /* Right-side panels: the panels, the track builder. */
 #ui[data-low='1'] :is(.panel, .track-builder)[data-layout='side'] {
-  top: calc(var(--hud-row1, var(--hud-bottom)) + 8px);
+  top: calc(var(--hud-bottom) + 8px);
   right: calc(10px + var(--safe-right));
   width: min(360px, 48%);
-  max-height: calc(100% - var(--hud-row1, var(--hud-bottom)) - var(--chips-space, var(--toolbar-space)) - 16px);
+  max-height: calc(100% - var(--hud-bottom) - var(--chips-space, var(--toolbar-space)) - 16px);
 }
 /* The bars at the bottom: one row when their content fits; beside an open right-side panel, never under it. */
 #ui[data-low='1'] .tool-status { width: fit-content; max-width: calc(100% - 20px - var(--safe-left) - var(--safe-right)); }
 #ui[data-low='1'] .tool-status .status-line { flex: 1 1 auto; }
-#ui[data-low='1']:has(.panel:not([hidden]), .track-builder:not([hidden])) .tool-status { right: calc(min(360px, 48%) + 20px + var(--safe-right)); }
-/* The tip: at most 420 px wide, at the left under the top region. */
-#ui[data-low='1'] .tip-bubble { right: auto; max-width: min(420px, calc(100% - 16px - var(--safe-left) - var(--safe-right))); }
+#ui[data-low='1']:has(.panel:not([hidden]), .track-builder:not([hidden]), .tc-objectives:not([hidden])) .tool-status { right: calc(min(360px, 48%) + 20px + var(--safe-right)); }
+/* The tip: at most 420 px wide, at the left under the top region; it never moves up over the top region (a tall tip
+   scrolls inside). It hides while the hand is open (`tips/bubble.ts`): there is no room between the two. */
+#ui[data-low='1'] .tip-bubble {
+  top: calc(var(--hud-bottom) + 8px); right: auto; max-width: min(420px, calc(100% - 16px - var(--safe-left) - var(--safe-right)));
+  max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 16px); overflow-y: auto;
+}
 
 /* High contrast (Phase 6 §4.7, Phase 7 §4.9): the token values of `.tc-hc` in tokens.css (thicker outlines, white
  * buttons, labels in full ink); the focus ring outline grows too. */

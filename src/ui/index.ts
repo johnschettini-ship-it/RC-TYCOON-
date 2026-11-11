@@ -259,7 +259,6 @@ export function mountUI(root: HTMLElement, game: Game): void {
   };
   // The top region wraps on narrow screens: panels, toasts, and the deck list sit below its real height. The bottom
   // region is the hand on desktop (0 when closed) and the chip row with the hand on the phone.
-  const firstRow = [...hud.el.querySelectorAll<HTMLElement>(':scope > .status-pill, :scope > .hud-mood, :scope > .hud-controls')];
   const measure = (): void => {
     root.style.setProperty('--hud-bottom', `${Math.ceil(hud.el.getBoundingClientRect().bottom)}px`);
     const tops: number[] = [];
@@ -267,9 +266,8 @@ export function mountUI(root: HTMLElement, game: Game): void {
     if (root.dataset.layout === 'bottom') tops.push(decks.list.getBoundingClientRect().top);
     const space = tops.length > 0 ? Math.ceil(window.innerHeight - Math.min(...tops)) : 0;
     root.style.setProperty('--toolbar-space', `${Math.max(0, space)}px`);
-    // The low layout's right-side panels run from below the first top row to above the deck chips row.
+    // The low layout's right-side panels run from below the top region to above the deck chips row.
     if (root.dataset.low === '1') {
-      root.style.setProperty('--hud-row1', `${Math.ceil(Math.max(...firstRow.map((e) => e.getBoundingClientRect().bottom)))}px`);
       root.style.setProperty('--chips-space', `${Math.max(0, Math.ceil(window.innerHeight - decks.list.getBoundingClientRect().top))}px`);
     }
     fitDetails();

@@ -3,8 +3,8 @@
  * The rules (`./model`) run every `TIP_CHECK_MS`. Desktop: centred above the hand, where the tool status bar shows
  * while a tool is active. Phone: below the day pill. Hidden while a dialog or the title is open, while a tool other
  * than Inspect is active, while an overlay is on or the overlay chip row is open (the overlay legend takes its place on
- * the phone), and on the phone while a panel is open or a card of the hand is pressed (a picker, a panel, a held card);
- * it comes back when that ends and a tip still matches. When the bubble hides while one of its buttons has the focus,
+ * the phone), on the phone while a panel is open or a card of the hand is pressed (a picker, a panel, a held card), and
+ * in the low layout (a phone held sideways) while the hand is open; it comes back when that ends and a tip still matches. When the bubble hides while one of its buttons has the focus,
  * the focus goes to the Rides deck button, not to the page body. Screen readers hear the tip from a lasting status
  * region (`live`): it gets the sentence when the bubble shows or its tip changes, and is emptied when the bubble hides.
  * Browser only.
@@ -49,6 +49,12 @@ export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } 
   let shownId: TipId | null = null;
   let face = '';
   let lastCheck = -Infinity;
+  // The low layout (Task 19) has no room for the tip between the top region and an open hand: it hides then.
+  let hand: HTMLElement | null = null;
+  const handOpen = (): boolean => {
+    hand ??= root.querySelector<HTMLElement>('[data-testid="hand"]');
+    return hand !== null && !hand.hidden;
+  };
 
   function act(): void {
     if (!tip) return;
@@ -111,7 +117,8 @@ export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } 
         game.tool.tool !== 'inspect' ||
         game.tool.overlay !== 'none' ||
         overlayChipsOpen(ctx) ||
-        (root.dataset.layout === 'bottom' && (ctx.activePanel() !== null || ctx.cardPressed()));
+        (root.dataset.layout === 'bottom' && (ctx.activePanel() !== null || ctx.cardPressed())) ||
+        (root.dataset.low === '1' && handOpen());
       const visible = tip !== null && !blocked;
       if (visible && tip) show(tip);
       setText(live, visible && tip ? text(`ui.tip.${tip.id}`) : '');
