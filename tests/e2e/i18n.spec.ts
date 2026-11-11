@@ -136,10 +136,15 @@ test.describe('hard-coded text', () => {
       await openTool(page, tool);
       await expect(await toolControl(page, tool)).toHaveAttribute('aria-pressed', 'true');
       expect(unexpectedEnglish(await plainEnglish(page)), tool).toEqual([]);
-      if (tool === 'rides') {
-        // Track ride types in the second tab of the picker.
-        await expect(await cardOf(page, 'track', 'steel_coaster')).toBeVisible();
-        expect(unexpectedEnglish(await plainEnglish(page)), 'track rides').toEqual([]);
+      if (tool === 'rides' || tool === 'stalls') {
+        // The ride and stall cards in the hand: zone, name, and cost come from the string table.
+        await expect(page.getByTestId('hand').locator('.content-card').first()).toBeVisible();
+        if (tool === 'rides') {
+          await expect(await cardOf(page, 'track', 'steel_coaster')).toBeVisible();
+          expect(unexpectedEnglish(await plainEnglish(page)), 'track ride card').toEqual([]);
+        }
+        // The Rides and Stalls decks stay open (a second press would close the hand, not a panel).
+        continue;
       }
       await openTool(page, tool);
     }

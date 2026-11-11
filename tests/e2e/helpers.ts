@@ -54,9 +54,7 @@ async function press(control: Locator, opts: PressOptions): Promise<void> {
 
 /** The deck of each old toolbar id that became a tool card (Phase 7 §4.4); the other ids keep a control on the screen. */
 const DECK_OF: Readonly<Record<string, string>> = {
-  rides: 'rides',
   shows: 'rides',
-  stalls: 'stalls',
   footpath: 'paths',
   queue: 'paths',
   pathItems: 'paths',
@@ -97,8 +95,22 @@ async function nextFrames(page: Page): Promise<void> {
   await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))));
 }
 
-/** Press the control of an old toolbar id. `inspect` has no control: Put back (or Esc) selects it. */
+/**
+ * Press the control of an old toolbar id. `inspect` has no control: Put back (or Esc) selects it. `rides` and `stalls`
+ * open their deck when the hand does not show it (they never close an open deck).
+ */
 export async function openTool(page: Page, id: string, opts: PressOptions = {}): Promise<void> {
+  if (id === 'rides' || id === 'stalls') {
+    await nextFrames(page);
+    const hand = page.getByTestId('hand');
+    if ((await hand.isVisible()) && (await hand.getAttribute('data-deck')) === id) return;
+    const button = page.getByTestId(`deck-${id}`);
+    await button.scrollIntoViewIfNeeded();
+    await press(button, opts);
+    await expect(hand).toBeVisible();
+    await expect(hand).toHaveAttribute('data-deck', id);
+    return;
+  }
   if (id === 'inspect') {
     const tool = await page.evaluate(() => (window as unknown as { __tc: { tool: { tool: string } } }).__tc.tool.tool);
     if (tool === 'inspect') return;
@@ -114,24 +126,19 @@ export async function openTool(page: Page, id: string, opts: PressOptions = {}):
 
 export type CardKind = 'flat' | 'track' | 'stall';
 
-/** A picker card, with the right picker (and tab) open first when the card is not visible. It does not press the card. */
+/**
+ * A ride or stall card in the hand, made visible first: its deck (Rides for `flat` and `track`, Stalls for `stall`) is
+ * opened with the same input kind when the hand does not show it, and the card is scrolled into view. It does not press
+ * the card.
+ */
 export async function cardOf(page: Page, kind: CardKind, defId: string, opts: PressOptions = {}): Promise<Locator> {
-  const card =
-    kind === 'track'
-      ? page.getByTestId(`track-card-${defId}`)
-      : page.locator(`.panel button.card[data-def="${defId}"]:not(.track-card)`);
-  if (await card.isVisible()) return card;
-  if (kind === 'stall') {
-    await openTool(page, 'stalls', opts);
-    return card;
-  }
-  const tab = page.getByTestId(kind === 'track' ? 'picker-tab-track' : 'picker-tab-flat');
-  if (!(await tab.isVisible())) await openTool(page, 'rides', opts);
-  await press(tab, opts);
+  await openTool(page, kind === 'stall' ? 'stalls' : 'rides', opts);
+  const card = page.getByTestId(`card-${defId}`);
+  await card.scrollIntoViewIfNeeded();
   return card;
 }
 
-/** Hold a picker card (the next tap on the map places it). */
+/** Hold a ride or stall card (the next click or tap on the map places it). */
 export async function pickCard(page: Page, kind: CardKind, defId: string, opts: PressOptions = {}): Promise<void> {
   await press(await cardOf(page, kind, defId, opts), opts);
 }

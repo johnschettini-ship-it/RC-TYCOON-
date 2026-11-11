@@ -1,6 +1,6 @@
 /**
- * UI layer (Phase 0 §4.11, Phase 1 §4.7 and §7, Phase 7 §4.1): top region, decks, tool status, panels, pickers,
- * toasts, title screen, in-game menu, autosave. Owner: W1-B.
+ * UI layer (Phase 0 §4.11, Phase 1 §4.7 and §7, Phase 7 §4.1): top region, decks, tool status, panels, toasts,
+ * title screen, in-game menu, autosave. Owner: W1-B.
  * Talks to input only through the shared ToolState and the `tc-ui-intent` window event.
  */
 import type { Game } from '../game';
@@ -15,7 +15,6 @@ import { PanelHost } from './panelHost';
 import { createFinancePanel } from './panels/finance';
 import { createGuestPanel } from './panels/guest';
 import { createParkPanel } from './panels/park';
-import { createPicker } from './panels/picker';
 import { createRidePanel } from './panels/ride';
 import { createStallPanel } from './panels/stall';
 import { SaveActions } from './saves';
@@ -146,15 +145,12 @@ export function mountUI(root: HTMLElement, game: Game): void {
         case 'messages':
           view = createMessagesPanel(ctx);
           break;
-        case 'showSite': {
+        default: {
           // Phase 6 (Wave 4.0): panels from UI extensions (the show site panel, W4-C); none yet = nothing opens.
           const make = extensionPanel(kind);
           if (!make) return;
           view = make(ctx, id ?? null);
-          break;
         }
-        default:
-          view = createPicker(ctx, kind);
       }
       const sel = game.tool.selectedEntity;
       if ((kind === 'ride' || kind === 'stall' || kind === 'guest' || kind === 'staff' || kind === 'showSite') && id !== undefined && id >= 0) {

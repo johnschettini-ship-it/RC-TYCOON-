@@ -66,18 +66,17 @@ export function centreOnTile(ctx: UiContext, tile: number): void {
   ctx.game.camera.centerY = p.sy;
 }
 
-/** Go to a message target: move the camera, then open the target's panel (Phase 3 §4.14). */
+/**
+ * Go to a message target: move the camera, then open the target's panel (Phase 3 §4.14), or open the deck of a
+ * researched ride or stall and scroll its card into view (the focus stays where it is).
+ */
 export function goToTarget(ctx: UiContext, target: LocateTarget): void {
   if (target.tile !== null) centreOnTile(ctx, target.tile);
   const p = target.panel;
   if (!p) return;
-  if ('defId' in p) {
-    ctx.openPanel(p.kind);
-    const card = ctx.root.querySelector<HTMLElement>(`.panel [data-def="${CSS.escape(p.defId)}"]`);
-    if (card) {
-      card.scrollIntoView({ block: 'nearest' });
-      card.focus();
-    }
+  if ('deck' in p) {
+    ctx.openDeck(p.deck);
+    ctx.root.querySelector<HTMLElement>(`.hand [data-def="${CSS.escape(p.defId)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     return;
   }
   // Opening an entity panel also selects the entity (see `openPanel` in ui/index.ts).

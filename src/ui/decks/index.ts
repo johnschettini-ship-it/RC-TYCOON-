@@ -2,9 +2,9 @@
  * Decks (Phase 7 §4.4–§4.6): the deck list and the hand. One deck is open at a time; a press on the open deck closes
  * the hand. The open deck is session data (saves do not store it).
  *
- * Phone tuck: when a card becomes pressed, the hand tucks away (hidden; `--toolbar-space` shrinks to the chip row) and
- * comes back with the same deck when no card is pressed any more. A deck chip pressed while tucked shows the hand,
- * which then stays until a card next becomes pressed. Desktop never tucks; a layout change ends a tuck.
+ * Phone tuck: when a card (a tool card, or a held ride or stall card) becomes pressed, the hand tucks away (hidden;
+ * `--toolbar-space` shrinks to the chip row) and comes back with the same deck when no card is pressed any more. A deck
+ * chip pressed while tucked shows the hand, which then stays until a card next becomes pressed. Desktop never tucks; a layout change ends a tuck.
  */
 import { CARD_LIFT_PX } from '../../data/tuning/interface';
 import type { UiContext } from '../context';
@@ -12,13 +12,15 @@ import type { UiPart } from '../extensions';
 import { h } from '../dom';
 import { createDeckList } from './deckList';
 import { createHand } from './hand';
-import type { DeckId } from './model';
+import { heldCardId, type DeckId } from './model';
 import { allToolCards } from './toolCards';
+
+export { holdCard } from './toolCards';
 
 export interface DecksUi extends UiPart {
   list: HTMLElement;
   hand: HTMLElement;
-  /** Opens the hand with a deck. `zone` is for the ride and stall decks (their zones come with the content cards). */
+  /** Opens the hand with a deck. `zone` scrolls the ride or stall cards of that zone into view. */
   open(deck: DeckId, zone?: string): void;
   close(): void;
   current(): DeckId | null;
@@ -34,8 +36,8 @@ export function createDecks(ctx: UiContext): DecksUi {
 
   /** Deck chips are pressed only while the hand shows their deck. */
   const syncList = (): void => list.setOpen(hand.visible() ? hand.deck() : null);
-  function open(deck: DeckId): void {
-    hand.show(deck);
+  function open(deck: DeckId, zone?: string): void {
+    hand.show(deck, zone);
     syncList();
   }
   function close(): void {
@@ -45,6 +47,7 @@ export function createDecks(ctx: UiContext): DecksUi {
 
   /** Pressed state of each card in the last frame: a card that turns pressed tucks the hand (phone). */
   const wasPressed = defs.map(() => false);
+  let wasHeld: string | null = null;
   let lastLayout = '';
   const tuck = (): void => {
     const phone = ctx.root.dataset.layout === 'bottom';
@@ -59,6 +62,10 @@ export function createDecks(ctx: UiContext): DecksUi {
       wasPressed[i] = on;
       any ||= on;
     }
+    const held = heldCardId(ctx.game.tool);
+    if (held !== null && held !== wasHeld) turnedOn = true;
+    wasHeld = held;
+    any ||= held !== null;
     if (!phone || layoutChanged) hand.setTucked(false);
     else if (turnedOn) hand.setTucked(true);
     else if (!any) hand.setTucked(false);
@@ -75,6 +82,7 @@ export function createDecks(ctx: UiContext): DecksUi {
     current: () => hand.deck(),
     controlFor(toolId) {
       if (toolId === 'inspect') return null;
+      if (toolId === 'rides' || toolId === 'stalls') return list.buttonFor(toolId);
       const def = defs.find((d) => d.id === toolId);
       if (def) return hand.cardFor(toolId) ?? list.buttonFor(def.deck);
       if (toolId === 'demolish') return list.demolish;
@@ -82,10 +90,10 @@ export function createDecks(ctx: UiContext): DecksUi {
       const other = ctx.root.querySelector(`[data-tool="${toolId}"]`);
       return other instanceof HTMLElement ? other : null;
     },
-    update() {
+    update(now) {
       tuck();
       list.update();
-      hand.update();
+      hand.update(now);
     },
   };
 }

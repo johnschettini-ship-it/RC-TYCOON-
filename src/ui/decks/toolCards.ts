@@ -1,16 +1,16 @@
 /**
  * Tool cards (Phase 7 §4.4): every old toolbar tool that moves into a deck, with the icon, label, press, and pressed
- * state of its toolbar button. The temporary Rides and Stalls cards open today's picker panels until the ride and
- * stall cards replace them.
+ * state of its toolbar button. Also what a press on a ride or stall card does (`holdCard`).
  */
 import { text } from '../../data/strings/en';
 import { pathItemAction } from '../../render/management/toolOptions';
 import type { ToolId } from '../../render/types';
 import type { PanelKind, UiContext } from '../context';
+import { startStation } from '../track/builder';
 import { toolbarEntries } from '../extensions';
 import { icon } from '../icons';
 import { mgmtIcon } from '../management/icons';
-import { orderToolCards, type DeckId } from './model';
+import { orderToolCards, type CardSpec, type DeckId } from './model';
 
 export interface ToolCardDef {
   /** `data-tool` and `data-testid="tool-<id>"`: the id of the toolbar button the card replaces. */
@@ -39,8 +39,6 @@ const panelIs = (ctx: UiContext, kind: PanelKind): boolean => ctx.activePanel()?
 
 /** The panel each panel card opens; a second press closes it. */
 const PANEL_OF: Readonly<Partial<Record<string, PanelKind>>> = {
-  rides: 'ridePicker',
-  stalls: 'stallPicker',
   staff: 'staff',
   research: 'research',
   marketing: 'marketing',
@@ -48,14 +46,9 @@ const PANEL_OF: Readonly<Partial<Record<string, PanelKind>>> = {
   park: 'park',
 };
 
-/** The temporary cards that stand where the ride and stall cards go: first in their deck. */
-const STAND_INS: ReadonlySet<string> = new Set(['rides', 'stalls']);
-
-/** The base cards, the temporary Rides and Stalls cards, and every extension entry. */
+/** The base cards and every extension entry. */
 export function allToolCards(_ctx: UiContext): ToolCardDef[] {
   const base: ToolCardDef[] = [
-    { id: 'rides', deck: 'rides', label: text('ui.tool.rides'), icon: () => icon('rides'), onClick: (c) => togglePanel(c, 'ridePicker'), pressed: (c) => c.game.tool.tool === 'placeRide' || panelIs(c, 'ridePicker') },
-    { id: 'stalls', deck: 'stalls', label: text('ui.tool.stalls'), icon: () => icon('stalls'), onClick: (c) => togglePanel(c, 'stallPicker'), pressed: (c) => c.game.tool.tool === 'placeStall' || panelIs(c, 'stallPicker') },
     { id: 'footpath', deck: 'paths', label: text('ui.tool.footpath'), icon: () => icon('footpath'), onClick: (c) => selectTool(c, 'footpath'), pressed: (c) => c.game.tool.tool === 'footpath' },
     { id: 'queue', deck: 'paths', label: text('ui.tool.queue'), icon: () => icon('queue'), onClick: (c) => selectTool(c, 'queue'), pressed: (c) => c.game.tool.tool === 'queue' },
     {
@@ -90,16 +83,33 @@ export function allToolCards(_ctx: UiContext): ToolCardDef[] {
   return [...base, ...extra];
 }
 
-/** The cards of one deck, in hand order: the temporary card first, then the tool cards by `TOOL_CARD_ORDER`. */
+/** The tool cards of one deck, in hand order (`TOOL_CARD_ORDER`). */
 export function cardsOfDeck(deck: DeckId, cards: readonly ToolCardDef[]): ToolCardDef[] {
-  const own = cards.filter((c) => c.deck === deck);
-  return [...own.filter((c) => STAND_INS.has(c.id)), ...orderToolCards(deck, own.filter((c) => !STAND_INS.has(c.id)))];
+  return orderToolCards(deck, cards.filter((c) => c.deck === deck));
 }
 
 /**
- * Put back (a press on Put back or on the held card). A card pressed because its panel, picker, or chips are open does
- * what its second press does: it closes them. A card pressed because its tool is active (a tool card, or Rides, Stalls,
- * Staff, or Shows held through `placeRide`, `placeStall`, `patrol`, or `placeShowSite`) selects Inspect.
+ * A press on a ride or stall card (Phase 7 §4.6) sets the tool state as the pickers did: a flat ride or stall is placed
+ * with no ghost or drag (rides face the viewer with rotation 0, front south; stalls with rotation 2, service side
+ * south); a track ride starts the station builder.
+ */
+export function holdCard(ctx: UiContext, spec: CardSpec): void {
+  if (spec.kind === 'track') {
+    startStation(ctx.game, spec.id);
+    return;
+  }
+  const t = ctx.game.tool;
+  t.tool = spec.kind === 'flat' ? 'placeRide' : 'placeStall';
+  t.defId = spec.id;
+  t.ghost = null;
+  t.drag = null;
+  t.rotation = spec.kind === 'flat' ? 0 : 2;
+}
+
+/**
+ * Put back (a press on Put back or on the held card). A card pressed because its panel or chips are open does what its
+ * second press does: it closes them. A card pressed because its tool is active (a tool card, or Staff or Shows held
+ * through `patrol` or `placeShowSite`) selects Inspect.
  */
 export function putBack(ctx: UiContext, def: ToolCardDef): void {
   const panel = PANEL_OF[def.id];

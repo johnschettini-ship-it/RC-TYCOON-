@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, openTool, pickCard, toolControl } from './helpers';
+import { cardOf, centerOn, isPhone, newPark, openTool, pickCard, setSpeed, tilePoint, toolControl } from './helpers';
 
 const tc = <T>(page: Page, f: string): Promise<T> => page.evaluate(`(() => { const g = window.__tc; return ${f}; })()`) as Promise<T>;
 const toolNow = (page: Page): Promise<string> => tc<string>(page, 'g.tool.tool');
@@ -27,7 +27,7 @@ for (const [id, state] of TOOL_STATES) {
   });
 }
 
-const PANELS: Array<[string, RegExp]> = [['staff', /Staff/], ['research', /Research/], ['marketing', /Marketing/], ['finance', /Finance/], ['park', /Deck Park/], ['messages', /Messages/], ['rides', /Rides/], ['stalls', /Stalls/]];
+const PANELS: Array<[string, RegExp]> = [['staff', /Staff/], ['research', /Research/], ['marketing', /Marketing/], ['finance', /Finance/], ['park', /Deck Park/], ['messages', /Messages/]];
 for (const [id, title] of PANELS) {
   test(`${id} opens its panel from its new place`, async ({ page }) => {
     await openTool(page, id);
@@ -74,15 +74,74 @@ test('Put back on the Finance card closes its panel and keeps Inspect', async ({
   await expect(page.getByTestId('tool-finance')).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('Put back on the Rides card while a ride is placed selects Inspect and opens no picker', async ({ page }) => {
+test('Put back on the held Carousel card selects Inspect', async ({ page }) => {
   await pickCard(page, 'flat', 'carousel');
   expect(await toolNow(page)).toBe('placeRide');
-  await toolControl(page, 'rides');
-  await expect(page.getByTestId('tool-rides')).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('.card-wrap:has([data-tool="rides"]) [data-testid="card-put-back"]').click();
+  // The phone tucks the hand while the card is held: the card is made visible first.
+  const card = await cardOf(page, 'flat', 'carousel');
+  await expect(card).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('.card-wrap:has([data-testid="card-carousel"]) [data-testid="card-put-back"]').click();
   await expect.poll(() => toolNow(page)).toBe('inspect');
   await expect(page.locator('.panel')).toBeHidden();
-  await expect(page.getByTestId('tool-rides')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'false');
+});
+
+/** Unlocks Spiral Slide (a flat ride that research unlocks) through the research state that `isUnlocked` reads. */
+async function unlockOneFlatRide(page: Page): Promise<string> {
+  const id = 'spiral_slide';
+  await expect(page.getByTestId(`card-${id}`)).toHaveCount(0);
+  await page.evaluate((i) => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push(i), id);
+  return id;
+}
+
+test('hold the Carousel card and place it: one ride, cash falls by $1,200', async ({ page }, info) => {
+  await setSpeed(page, 'Pause');
+  const cash0 = await tc<number>(page, 'g.world.state.park.cash');
+  await pickCard(page, 'flat', 'carousel');
+  await expect(await cardOf(page, 'flat', 'carousel')).toHaveAttribute('aria-pressed', 'true');
+  expect(await toolNow(page)).toBe('placeRide');
+  await centerOn(page, 31, 56);
+  const pt = await tilePoint(page, 31, 56);
+  if (info.project.name === 'phone') {
+    await page.touchscreen.tap(pt.x, pt.y);
+    await page.getByRole('region', { name: 'Tool options' }).getByRole('button', { name: 'Confirm' }).click();
+  } else {
+    await page.mouse.click(pt.x, pt.y);
+  }
+  expect(await tc<number>(page, 'g.world.state.rides.length')).toBe(1);
+  expect(cash0 - (await tc<number>(page, 'g.world.state.park.cash'))).toBe(120_000);
+});
+
+test('a track ride card starts the station builder', async ({ page }) => {
+  const id = await tc<string>(page, `document.querySelector('[data-kind="track"]').dataset.def`);
+  await pickCard(page, 'track', id);
+  expect(await toolNow(page)).toBe('track');
+});
+
+test('ride cards are in zone order; each card names its zone and its cost', async ({ page }) => {
+  const zones = await page.locator('[data-testid="hand"] .hand-zone').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.zone));
+  expect(zones).toEqual(['chill', 'family', 'thrill'].filter((z) => zones.includes(z)));
+  await expect(await cardOf(page, 'flat', 'carousel')).toHaveAccessibleName(/Family.*Carousel.*\$1,200/);
+  await expect(page.locator('[data-testid="hand"] [data-tool="shows"]')).toHaveCount(1);
+});
+
+test('a research unlock adds its card with no reload', async ({ page }) => {
+  const id = await unlockOneFlatRide(page);
+  await expect(page.getByTestId(`card-${id}`)).toHaveCount(1, { timeout: 1500 });
+});
+
+test('loading a save rebuilds the hand and holds no card', async ({ page }) => {
+  await openTool(page, 'menu');
+  await page.getByTestId('menu-save').click();
+  await page.getByTestId('slot-1').click();
+  await pickCard(page, 'flat', 'carousel');
+  await openTool(page, 'menu');
+  await page.getByTestId('menu-load').click();
+  await page.getByTestId('slot-1').click();
+  expect(await toolNow(page)).toBe('inspect');
+  await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', 'rides');
+  await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('card-put-back')).toHaveCount(0);
 });
 
 test('no toolbar named Tools is on the screen', async ({ page }) => {

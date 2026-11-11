@@ -28,6 +28,8 @@ export function createDeckList(ctx: UiContext, handId: string, onPress: (deck: D
         class: 'deck-btn',
         'data-deck': deck,
         'data-testid': `deck-${deck}`,
+        // The Rides and Stalls decks replace the toolbar buttons of those ids.
+        ...(deck === 'rides' || deck === 'stalls' ? { 'data-tool': deck } : {}),
         'aria-pressed': 'false',
         'aria-controls': handId,
         text: text(`ui.deck.${deck}`),

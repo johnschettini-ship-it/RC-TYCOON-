@@ -58,15 +58,15 @@ describe('message locate target (Phase 3 §4.14)', () => {
     expect(locateTarget(world, msg(3, 0, { entityId: staffId }))).toEqual({ tile, panel: { kind: 'staff', id: staffId } });
   });
 
-  it('a research message opens the build picker at its item', () => {
+  it('a research message opens the Rides or Stalls deck at its card', () => {
     const world = makeTestWorld();
     expect(locateTarget(world, msg(1, 0, { category: 'research', textId: 'msg.research.newRide', params: { itemId: 'spiral_slide', name: 'Spiral Slide' } }))).toEqual({
       tile: null,
-      panel: { kind: 'ridePicker', defId: 'spiral_slide' },
+      panel: { deck: 'rides', defId: 'spiral_slide' },
     });
     expect(locateTarget(world, msg(2, 0, { category: 'research', textId: 'msg.research.newStall', params: { itemId: 'ice_cream_cart', name: 'Ice Cream Cart' } }))).toEqual({
       tile: null,
-      panel: { kind: 'stallPicker', defId: 'ice_cream_cart' },
+      panel: { deck: 'stalls', defId: 'ice_cream_cart' },
     });
   });
 });

@@ -3,8 +3,6 @@ export const uiStrings: Record<string, string> = {
   // Tools (Phase 1 §7; Phase 7 tool cards and controls)
   'ui.tool.footpath': 'Footpath',
   'ui.tool.queue': 'Queue',
-  'ui.tool.rides': 'Rides',
-  'ui.tool.stalls': 'Stalls',
   'ui.tool.demolish': 'Demolish',
   'ui.tool.finance': 'Finance',
   'ui.tool.park': 'Park',
@@ -44,11 +42,8 @@ export const uiStrings: Record<string, string> = {
   'ui.status.pathTile': '1 tile · {cost}',
   'ui.status.demolishHint': 'Tap something to remove it',
 
-  // Pickers
-  'ui.picker.rides': 'Rides',
-  'ui.picker.stalls': 'Stalls',
+  // Ride and stall cards and their details
   'ui.picker.empty': 'Nothing is available yet',
-  'ui.picker.card': '{name}, {tag}, costs {cost}',
   'ui.picker.price': 'Price {price}',
   'ui.stat.excitement': 'Excitement',
   'ui.stat.intensity': 'Intensity',

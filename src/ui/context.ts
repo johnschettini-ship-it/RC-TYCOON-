@@ -10,8 +10,6 @@ export type PanelKind =
   | 'guest'
   | 'park'
   | 'finance'
-  | 'ridePicker'
-  | 'stallPicker'
   // Phase 3 (W2-B)
   | 'staff'
   | 'research'

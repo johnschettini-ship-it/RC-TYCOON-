@@ -64,10 +64,15 @@ test.describe('keyboard-only play', () => {
     for (let k = 0; k <= 3; k++) await expect.poll(() => contentAt(page, start + k)).toBe(1);
     await expect(page.getByTestId('cursor-line')).toHaveText(/footpath/);
 
-    // Rides: Tab to the toolbar button, Enter opens the picker (focus moves into it), Tab to the Carousel, Enter.
-    await tabTo(page, await toolControl(page, 'rides'));
+    // Rides: Tab to the Rides deck button (its deck is open at the start); Enter closes the hand and Enter opens it
+    // again. Tab on to the Carousel card, Enter holds it.
+    const rides = await toolControl(page, 'rides');
+    await tabTo(page, rides);
     await page.keyboard.press('Enter');
-    await expect(page.locator('.panel')).toBeVisible();
+    await expect(page.getByTestId('hand')).toBeHidden();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', 'rides');
+    await expect(rides).toHaveAttribute('aria-pressed', 'true');
     await tabTo(page, await cardOf(page, 'flat', 'carousel'));
     await page.keyboard.press('Enter');
     await expect.poll(() => page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.tool.tool)).toBe('placeRide');

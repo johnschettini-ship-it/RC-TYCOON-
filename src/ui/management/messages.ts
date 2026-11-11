@@ -43,7 +43,7 @@ export function messageIcon(category: MessageCategory): MgmtIconName {
 
 export type LocatePanel =
   | { kind: 'ride' | 'stall' | 'guest' | 'staff'; id: EntityId }
-  | { kind: 'ridePicker' | 'stallPicker'; defId: string };
+  | { deck: 'rides' | 'stalls'; defId: string };
 
 export interface LocateTarget {
   /** Tile to centre the camera on, or null to leave the camera. */
@@ -67,7 +67,7 @@ function findById<T extends { id: number }>(list: readonly T[], id: number): T |
 
 /**
  * Where a tap on a message goes: the target entity's tile and panel; else the message tile;
- * a research message opens the build picker at its item. Null: the message only opens the log.
+ * a research message opens the Rides or Stalls deck at its card. Null: the message only opens the log.
  */
 export function locateTarget(world: World, m: MessageLike): LocateTarget | null {
   const s = world.state;
@@ -94,7 +94,7 @@ export function locateTarget(world: World, m: MessageLike): LocateTarget | null 
   if (m.category === 'research' && typeof itemId === 'string') {
     const info = contentInfo(itemId);
     if (info && (info.kind === 'flatRide' || info.kind === 'trackRide' || info.kind === 'stall')) {
-      return { tile: null, panel: { kind: info.kind === 'stall' ? 'stallPicker' : 'ridePicker', defId: itemId } };
+      return { tile: null, panel: { deck: info.kind === 'stall' ? 'stalls' : 'rides', defId: itemId } };
     }
   }
   if (m.tile >= 0 && m.tile < s.map.width * s.map.height) return { tile: m.tile, panel: null };

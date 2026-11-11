@@ -36,6 +36,12 @@ async function panel(page: Page, id: string): Promise<void> {
   await expect(page.locator('.panel')).toBeVisible();
 }
 
+/** Open the Rides or Stalls deck: the hand shows its ride or stall cards. */
+async function deck(page: Page, id: 'rides' | 'stalls'): Promise<void> {
+  await openTool(page, id);
+  await expect(page.getByTestId('hand').locator('.content-card').first()).toBeVisible();
+}
+
 /** A built carousel, snack stall, and a few guests (debug hook; commands only). */
 async function furnish(page: Page): Promise<{ ride: number; stall: number }> {
   return page.evaluate(() => {
@@ -90,10 +96,15 @@ test.describe('axe scan: no serious or critical issues (Phase 6 §9)', () => {
     await openTool(page, 'footpath');
     await scan(page, 'footpath tool status');
     await page.keyboard.press('Escape');
-    for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages', 'rides', 'stalls']) {
+    for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages']) {
       await panel(page, id);
       await scan(page, id);
       await openTool(page, id);
+    }
+    // The hand with the ride cards, then with the stall cards.
+    for (const id of ['rides', 'stalls'] as const) {
+      await deck(page, id);
+      await scan(page, `${id} cards`);
     }
     const { ride, stall } = await furnish(page);
     await select(page, 'ride', ride);
@@ -188,11 +199,15 @@ test.describe('touch targets (Phase 6 §4.7: ≥ 44 × 44 CSS px)', () => {
     await newPark(page);
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     expect(await smallTargets(page), 'HUD and toolbar').toEqual([]);
-    for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages', 'rides', 'stalls']) {
+    for (const id of ['park', 'finance', 'staff', 'research', 'marketing', 'messages']) {
       await openTool(page, id);
       await expect(page.locator('.panel')).toBeVisible();
       expect(await smallTargets(page), id).toEqual([]);
       await openTool(page, id);
+    }
+    for (const id of ['rides', 'stalls'] as const) {
+      await deck(page, id);
+      expect(await smallTargets(page), `${id} cards`).toEqual([]);
     }
     const { ride, stall } = await furnish(page);
     await select(page, 'ride', ride);
@@ -280,12 +295,14 @@ test.describe('175% text scale with a pseudo-localized UI (Phase 6 §4.7, §9)',
     await expect(page.locator('.title-screen')).toBeHidden();
     await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
     await check('HUD and toolbar');
-    for (const id of ['park', 'finance', 'research', 'rides']) {
+    for (const id of ['park', 'finance', 'research']) {
       await openTool(page, id);
       await expect(page.locator('.panel')).toBeVisible();
       await check(id);
       await openTool(page, id);
     }
+    await deck(page, 'rides');
+    await check('ride cards');
     const { ride } = await furnish(page);
     await select(page, 'ride', ride);
     await check('ride panel');

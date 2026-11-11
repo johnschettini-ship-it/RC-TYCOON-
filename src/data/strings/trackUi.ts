@@ -3,11 +3,7 @@
  * Master R4: no final period; `!` and `?` stay. Keys start with `ui.track.`.
  */
 export const trackUiStrings: Record<string, string> = {
-  // Rides picker (§7.1 step 1)
-  'ui.track.tabFlat': 'Flat rides',
-  'ui.track.tabTrack': 'Track rides',
-  'ui.track.tabs': 'Ride kinds',
-  'ui.track.card': '{name}, {tag}, track ride, from {cost}',
+  // Track ride facts (track ride cards and their details)
   'ui.track.from': 'From {cost}',
   'ui.track.drive.gravity': 'Gravity',
   'ui.track.drive.powered': 'Powered',

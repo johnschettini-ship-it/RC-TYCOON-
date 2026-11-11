@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { makeTestWorld } from '../../helpers/world';
 import { toolbarEntries } from '../../../src/ui/extensions';
 import { defaultToolState } from '../../../src/render/types';
+import { trackToolOf } from '../../../src/render/track/toolState';
 import {
   DECK_ORDER, OLD_TOOL_IDS, RIDE_ZONES, STALL_ZONES, TOOL_PLACE, handSignature, heldCardId, orderToolCards, rideCards, sortCards,
   stallCards, zonesPresent, type CardSpec, type OldToolId,
@@ -59,6 +60,22 @@ describe('deck model (Phase 7 §4.4, §4.5)', () => {
     t.defId = 'carousel';
     expect(heldCardId(t)).toBe('carousel');
     t.tool = 'footpath';
+    expect(heldCardId(t)).toBeNull();
+  });
+  it('a held stall card is its def id', () => {
+    const t = defaultToolState();
+    t.tool = 'placeStall';
+    t.defId = 'snack_shack';
+    expect(heldCardId(t)).toBe('snack_shack');
+  });
+  it('the track tool holds its type only while it places the station', () => {
+    const t = defaultToolState();
+    t.tool = 'track';
+    const st = trackToolOf(t);
+    st.typeId = 'steel_coaster';
+    st.phase = 'station';
+    expect(heldCardId(t)).toBe('steel_coaster');
+    st.phase = 'pieces';
     expect(heldCardId(t)).toBeNull();
   });
 });
