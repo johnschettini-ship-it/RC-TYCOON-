@@ -1,0 +1,118 @@
+{
+  "B": 363520,
+  "L_proto": 378401,
+  "C_ride": 500,
+  "C_guest": 209,
+  "C_MAP": 3151,
+  "C_MAP_SRC": 3357,
+  "R_GZIP": 0.24295432458697766,
+  "K_SMALL": 2,
+  "N_STAMP": 8,
+  "T_TRACK": 13312,
+  "T_REST": 8192,
+  "P": 422946.5,
+  "desktop": {
+    "frameP95": 16.8,
+    "spriteBuildMsMax": 1.6999999955296516,
+    "chunkBuildMsMax": 2.100000001490116,
+    "chunkBuildMsMaxLoad": 5.100000001490116,
+    "turnFrameMsMax": 22.30000000447035,
+    "rideBuildMsMax": 1.6999999955296516,
+    "spriteMb": 0.530029296875,
+    "chunkMb": 18.11065673828125,
+    "loadavgBefore": "1.08 0.61 0.51 1/297 12391",
+    "loadavgAfter": "1.08 0.61 0.51 2/310 12406"
+  },
+  "phone": {
+    "frameP95K2": 66.6,
+    "frameP95K3": 33.4,
+    "spriteBuildMsMax": 7.899999998509884,
+    "chunkBuildMsMax": 15.300000004470348,
+    "chunkBuildMsMaxLoad": 4.700000002980232,
+    "turnFrameMsMax": 83.89999999850988,
+    "rideBuildMsMax": 7.899999998509884,
+    "spriteMb": 0.414794921875,
+    "chunkMb": 9.9102783203125,
+    "loadavgBefore": "1.07 0.61 0.52 1/298 12472",
+    "loadavgAfter": "1.07 0.61 0.52 4/310 12489"
+  },
+  "classic": {
+    "phoneFrameP95": 49.9,
+    "desktopFrameP95": 16.8,
+    "phoneRatio": 1.3346693386773547,
+    "desktopRatio": 1
+  },
+  "kill7": "fires",
+  "constants": {
+    "PIXEL_CODE_STEP_KB": {
+      "3": {
+        "step": 20,
+        "limit": 107
+      },
+      "6": {
+        "step": 10,
+        "limit": 148
+      },
+      "7": {
+        "step": 8,
+        "limit": 156
+      },
+      "8": {
+        "step": 0,
+        "limit": 156
+      },
+      "9": {
+        "step": 0,
+        "limit": 156
+      },
+      "1a-i": {
+        "step": 22,
+        "limit": 22
+      },
+      "1a-ii": {
+        "step": 20,
+        "limit": 42
+      },
+      "1b": {
+        "step": 7,
+        "limit": 49
+      },
+      "1c": {
+        "step": 12,
+        "limit": 61
+      },
+      "2a": {
+        "step": 11,
+        "limit": 72
+      },
+      "2b": {
+        "step": 15,
+        "limit": 87
+      },
+      "4a": {
+        "step": 18,
+        "limit": 125
+      },
+      "4b": {
+        "step": 6,
+        "limit": 131
+      },
+      "4c": {
+        "step": 0,
+        "limit": 131
+      },
+      "5a": {
+        "step": 7,
+        "limit": 138
+      },
+      "5b": {
+        "step": 0,
+        "limit": 156
+      }
+    },
+    "R_GZIP": 0.24295432458697766,
+    "BUILD_BUDGET_MS_DESKTOP": 4,
+    "BUILD_BUDGET_MS_PHONE": 8
+  },
+  "colourMapKeys": 872
+}
