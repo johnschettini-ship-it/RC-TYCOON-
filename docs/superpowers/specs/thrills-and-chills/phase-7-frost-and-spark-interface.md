@@ -1,7 +1,7 @@
 # Phase 7 — Interface ("Frost and Spark")
 
 - **Build:** 4. No save schema change. Settings document version 2.
-- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft.
+- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.10, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft; 4.1 and 4.2 also describe the day chip and the view controls that replaced the day pill after the owner's test play.
 - **Master spec:** `../2026-11-09-thrills-and-chills-design.md`.
 - **Approved draft pictures:** `../../../screenshots/phase-7-draft-desktop.png` (1280 × 800) and `../../../screenshots/phase-7-draft-phone.png` (390 × 844).
 
@@ -57,18 +57,19 @@ The layout switch stays at 900 CSS px (`toolbarPlacement`, `src/ui/layout.ts`). 
 | **Deck list** | Top left, below the status pill. A column. When the column does not fit, it scrolls and Demolish stays in view at its bottom. | A row of chips directly above the hand. The row scrolls sideways. |
 | **Mood bar** | Top centre. Width `clamp(280px, 40vw, 520px)`. | Second row. Full width. |
 | **Controls** | Top right, row 1: the 4 speed buttons, Messages, Menu. | Top row, right: Messages, one Speed button, Menu. |
-| **Day pill** | Top right, row 2. | Third row. The date and clock wrap to more lines first; the row scrolls sideways when it still does not fit. |
+| **Chip row** (day chip, objectives flag, view controls) | Top right, row 2, right-aligned under the controls: `[day chip] [objectives flag] [view controls]`, with no plate round the group. | Third row: the day chip (and the objectives flag) at the left, the two view rotate buttons side by side at the right; the map shows between them. At large text the date wraps inside the chip and the chip grows. |
 | **Hand** | Bottom centre, on the zone strip. | Bottom, full width. |
-| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the day pill. A tip too tall for the space above the chip row moves up over the top region. |
+| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the chip row. A tip too tall for the space above the chip row moves up over the top region. |
 | **Card details** | The side panel on the right (the existing panel position). | The bottom sheet (the existing sheet). |
 
 Rules:
 - The UI root keeps the CSS variables `--hud-bottom` (bottom edge of the top region) and `--toolbar-space` (height of the bottom region). The UI measures both with a `ResizeObserver`, as it does today. Existing panels, bars, and toasts use these variables, so they stay clear of the new regions. On desktop, `--toolbar-space` is now the height of the hand, and the side panel ends above the hand.
 - **Exception (desktop, card details):** when the card details panel does not fit above the hand (large text or a low window), it runs to the bottom of the screen and the hand gets narrower: it ends at the left edge of the panel (`data-details="tall"` on the UI root). The UI measures this when the panel opens or closes and when a region changes its size.
+- The chip row has no plate and `pointer-events: none`; only the day chip, the objectives flag, and the view controls take a press. A press between them goes to the map. The row is as high as its controls (44 px at 100%).
 - The zone strip has `pointer-events: none`. A click on it goes to the map. (No full-body mascots are drawn at the bottom corners; see section 4.8.)
 - With the hand open on a 390 × 844 screen at 100% text scale, the free map area is at least 45% of the screen height.
 
-### 4.2 Status pill and day pill
+### 4.2 Status pill, day chip, and view controls
 **Status pill.** One button. It opens the Park panel.
 - Desktop: park name, cash, guests, rating. Each number has a text label.
 - Phone: cash, guests, rating. Guests and rating have an icon and a screen-reader label.
@@ -76,7 +77,13 @@ Rules:
 - Negative cash shows a minus sign and the danger text colour.
 - The elements keep their test ids: `hud-name`, `hud-cash`, `hud-guests`, `hud-rating`.
 
-**Day pill.** In this order: weather badge, date and clock (`hud-date`), then every `UiExtension.hud` part (the view rotate buttons and the objectives flag). The extension contract does not change.
+**Day chip** (`data-testid="day-pill"`; after the owner's test play the wide day pill became this chip). A slim pill that holds only the weather badge and the date and clock (`hud-date`).
+- At text scale 100% the visible plate is at most 36 px high and as wide as its content (at most 200 px with `Mar · Year 1 · 17:00`); font `calc(13px * var(--ts, 1))`; weather icon 20 px, forecast icon 12 px; surface, ink outline, full radius.
+- The weather badge (`hud-weather`) is a 44 × 44 px button that reaches past the plate's edges (transparent there). Its name is the weather text only, not the date. A press shows the forecast as a toast.
+
+**Objectives flag** (scenario, `hud-objectives`): directly right of the day chip, 8 px from it.
+
+**View controls** (`.view-controls`): the two view rotate buttons, round 44 × 44 px buttons 8 px apart with the look of the other round buttons of the top region. The view module builds them; `createHud` places them at the right end of the chip row (`UiExtension.hudSlot: 'end'`). Every other `UiExtension.hud` part sits in the `chip` slot, right of the day chip.
 
 **Controls.**
 - Speed: the same 4 buttons in the same group named "Game speed". On a phone, one Speed button shows the current speed (pause icon, `1×`, `2×`, or `4×`); its name is the name of that speed ("Pause", "Speed 2×"). It opens the group as a small menu. A choice or `Esc` closes the menu; when the focus was in the menu, it goes back to the Speed button.
@@ -220,7 +227,7 @@ The UI checks the rules every 2 s and shows the first rule that matches:
 
 **Display (as built, `src/ui/tips/bubble.ts`).** No full-body mascots are drawn at the bottom corners: the owner dropped them (no mascots on the title screen; the small faces stay in the mood bar, the tip bubble, and the tutorial). The constant `MASCOT_MIN_WIDTH_PX` is removed.
 - One tip at a time, in a bubble with a small face of the speaker (the `mascotCanvas` portrait: Frost, Spark, or both). The bubble has the name "Mascot tip". Screen readers hear the tip from a visually hidden `role="status"` region that stays in the page: it gets the tip's sentence when the bubble shows or its tip changes, and is emptied when the bubble hides (the bubble itself has no `aria-live`).
-- **Place:** on desktop the bubble sits centred above the hand, in the place of the tool status bar. On the phone it sits below the day pill; when it is too tall for the space above the chip row (large text), it moves up over the top region, so it never covers the chips.
+- **Place:** on desktop the bubble sits centred above the hand, in the place of the tool status bar. On the phone it sits below the chip row; when it is too tall for the space above the chip row (large text), it moves up over the top region, so it never covers the chips.
 - A **Close** button hides the tip. A closed tip stays hidden until its rule stops matching and then matches again. This is session data; a new park starts with no closed tip, and its first check runs one period (`TIP_CHECK_MS`) after the start.
 - **No tip** (the rules give none): in the Tutorial scenario, and while the **Mascot tips** setting is off. The setting (Settings, Gameplay, default On) turns all tips off; a settings change checks the rules at once.
 - **Hidden while** (the tip comes back when this ends and its rule still matches):
@@ -261,7 +268,7 @@ Rules:
 
 ### 4.10 Accessibility
 Phase 6 §4.7 applies in full. For the new parts:
-- **Tab order:** status pill, mood bar, controls, day pill, deck list, hand, tip, panel.
+- **Tab order:** status pill, mood bar, controls, day chip, objectives flag, view controls, deck list, hand, tip, panel.
 - **Roles:** deck list `role="toolbar"`; deck buttons `aria-pressed` and `aria-controls` (the hand); hand `role="group"`; cards are buttons with `aria-pressed`.
 - **Keyboard:** all current shortcuts stay (`src/input/keyboard.ts`). No new shortcut. `Enter` or `Space` on a card holds it. The map cursor (`C`, arrows, `Enter`) places it.
 - **Touch targets:** every control is at least 44 × 44 CSS px with 8 px gaps.
@@ -303,7 +310,7 @@ None added. None changed. The UI sends the same commands as today.
 | Mood bar | `src/ui/mood/moodBar.ts` | The bar, the faces, the overlay toggle. |
 | Tip model | `src/ui/tips/model.ts` | Pure. The 3 rules and the closed-tip rule. |
 | Tip bubble | `src/ui/tips/bubble.ts` | The bubble with a small face, its button, and its hide rules. |
-| Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, day pill. |
+| Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, chip row (day chip; places the extension parts by `hudSlot`). |
 | Tuning | `src/data/tuning/interface.ts` | The constants of section 8. |
 | Strings | `src/data/strings/interface.ts` | The texts of section 9. |
 

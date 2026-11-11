@@ -326,10 +326,22 @@ test('desktop: a details panel that does not fit above the hand runs to the bott
   expect(card.x).toBeGreaterThanOrEqual(view.x);
   expect(right(card)).toBeLessThanOrEqual(right(view));
 
-  // 1280 × 720 (the size of spec §4.10): the panel ends 10 px above the bottom, and every data row is in view.
+  // 1280 × 720 (the size of spec §4.10): the panel runs past the hand and ends at most 10 px above the bottom — there
+  // when its content needs the room, else with all its content shown (the day chip row leaves it more room since
+  // Task 17) — and every data row is in view.
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBe(720 - 10);
+  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBeLessThanOrEqual(720 - 10);
   await expect(ui).toHaveAttribute('data-details', 'tall');
+  p = (await panel.boundingBox())!;
+  h = (await hand.boundingBox())!;
+  expect(bottom(p)).toBeGreaterThan(h.y);
+  const scroll = await panel.locator('.panel-body').evaluate((el) => el.scrollHeight - el.clientHeight);
+  expect(bottom(p) === 720 - 10 || scroll === 0, `panel bottom ${bottom(p)}, body scroll ${scroll}`).toBe(true);
+  // A lower window, where the content needs more room than there is: the panel ends exactly 10 px above the bottom.
+  await page.setViewportSize({ width: 1280, height: 660 });
+  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBe(660 - 10);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBeLessThanOrEqual(720 - 10);
   p = (await panel.boundingBox())!;
   h = (await hand.boundingBox())!;
   expect(right(h)).toBeLessThanOrEqual(p.x - 8);

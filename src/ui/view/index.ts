@@ -1,6 +1,7 @@
 /**
  * View rotation and Buy Land (Phase 4 §4.8–4.9, §7). Owner: W3-G. Registered in `../extensions.ts`.
- * - HUD: two 44 × 44 rotate buttons (counter-clockwise, clockwise) on all devices; keys `[` and `]` do the same.
+ * - HUD: the view controls, two round 44 × 44 rotate buttons (counter-clockwise, clockwise) at the right end of the chip
+ *   row on all devices; keys `[` and `]` do the same.
  * - Toolbar: the Buy Land tool button.
  * - Bar: while Buy Land is active, the hint or the total chip (tiles of land and rights, price, the reason when the
  *   rectangle cannot be bought), a legend of the ownership tints, and Confirm (touch rectangles) and Cancel.
@@ -47,15 +48,15 @@ function hud(ctx: UiContext): UiPart {
   const turn = (dir: 1 | -1): void => rotateView(game.camera, game.world.state.map, dir);
   const left = h(
     'button',
-    { type: 'button', class: 'speed-btn view-rotate', 'data-testid': 'view-rotate-left', 'aria-label': text('land.view.rotateLeft'), title: text('land.view.rotateLeft'), onclick: () => turn(-1) },
+    { type: 'button', class: 'hud-btn view-rotate', 'data-testid': 'view-rotate-left', 'aria-label': text('land.view.rotateLeft'), title: text('land.view.rotateLeft'), onclick: () => turn(-1) },
     lineIcon(ROTATE_D, true),
   );
   const right = h(
     'button',
-    { type: 'button', class: 'speed-btn view-rotate', 'data-testid': 'view-rotate-right', 'aria-label': text('land.view.rotateRight'), title: text('land.view.rotateRight'), onclick: () => turn(1) },
+    { type: 'button', class: 'hud-btn view-rotate', 'data-testid': 'view-rotate-right', 'aria-label': text('land.view.rotateRight'), title: text('land.view.rotateRight'), onclick: () => turn(1) },
     lineIcon(ROTATE_D),
   );
-  const el = h('div', { class: 'speed view-rotation', role: 'group', 'aria-label': text('land.view.group') }, left, right);
+  const el = h('div', { class: 'view-controls', role: 'group', 'aria-label': text('land.view.group') }, left, right);
   return { el, update() {} };
 }
 
@@ -163,5 +164,6 @@ function bar(ctx: UiContext): UiPart {
 export const viewUi: UiExtension = {
   toolbar: [buyLandEntry],
   hud,
+  hudSlot: 'end',
   bars: bar,
 };

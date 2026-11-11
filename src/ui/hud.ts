@@ -1,6 +1,7 @@
 /**
- * Top region (Phase 7 §4.1, §4.2): status pill, mood slot, controls (speed, Messages, Menu), and day pill (weather, date
- * and clock, extension parts). The container has no background; only its pills and buttons take pointer events.
+ * Top region (Phase 7 §4.1, §4.2): status pill, mood slot, controls (speed, Messages, Menu), and the chip row: the day
+ * chip (weather, date and clock), the extension parts (the objectives flag right of the chip, the view controls at the
+ * row's right end). The container and the chip row have no background; only their pills and buttons take pointer events.
  */
 import { text } from '../data/strings/en';
 import type { Speed } from '../loop';
@@ -83,13 +84,22 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
   );
   const controls = h('div', { class: 'hud-controls' }, h('div', { class: 'speed-wrap' }, speedToggle, speedGroup), messages, menu);
 
-  // Day pill: weather badge, date and clock, then the extension parts (view rotate buttons, objectives flag).
+  // Chip row: the day chip (weather badge, date and clock), the extension parts of the `chip` slot right of it (the
+  // objectives flag), and those of the `end` slot at the right end (the view controls). The modules own their parts.
   const date = h('span', { class: 'hud-date', 'data-testid': 'hud-date' });
   const weather = createWeatherBadge(ctx);
-  const extra = UI_EXTENSIONS.flatMap((x) => (x.hud ? [x.hud(ctx)] : []));
-  const dayPill = h('div', { class: 'pill day-pill', 'data-testid': 'day-pill' }, weather.el, h('span', { class: 'hud-clock', title: text('ui.hud.date') }, date), ...extra.map((p) => p.el));
+  const chip = h('div', { class: 'pill day-pill', 'data-testid': 'day-pill' }, weather.el, h('span', { class: 'hud-clock', title: text('ui.hud.date') }, date));
+  const placed = UI_EXTENSIONS.flatMap((x) => (x.hud ? [{ part: x.hud(ctx), end: x.hudSlot === 'end' }] : []));
+  const extra = placed.map((p) => p.part);
+  const dayRow = h(
+    'div',
+    { class: 'hud-day' },
+    chip,
+    ...placed.filter((p) => !p.end).map((p) => p.part.el),
+    ...placed.filter((p) => p.end).map((p) => p.part.el),
+  );
 
-  const el = h('header', { class: 'hud', role: 'region', 'aria-label': text('ui.hud.label') }, statusPill, moodSlot, controls, dayPill);
+  const el = h('header', { class: 'hud', role: 'region', 'aria-label': text('ui.hud.label') }, statusPill, moodSlot, controls, dayRow);
 
   // The phone's speed menu: a choice, Esc, or a press outside closes it; a layout change resets it.
   let speedOpen = false;

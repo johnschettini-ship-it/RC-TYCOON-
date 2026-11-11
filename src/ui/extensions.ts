@@ -42,8 +42,13 @@ export type PanelFactory = (ctx: UiContext, id: number | null) => PanelView;
 
 export interface UiExtension {
   toolbar?: ToolbarEntry[];
-  /** HUD controls, after the weather badge (view rotate buttons, objectives flag). */
+  /** HUD controls in the chip row of the top region (view rotate buttons, objectives flag). */
   hud?(ctx: UiContext): UiPart;
+  /**
+   * Where the `hud` part sits in the chip row (Phase 7 §4.2): `chip` (the default) directly right of the day chip (the
+   * objectives flag), `end` at the right end of the row (the view controls).
+   */
+  hudSlot?: 'chip' | 'end';
   /** Tool bars, mini-bars, legends, sheets, and dialogs mounted on the UI root (they show and hide themselves). */
   bars?(ctx: UiContext): UiPart;
   /** A section at the end of the park panel (After Dark switch, awards). */

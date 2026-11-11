@@ -92,7 +92,7 @@ button { font: inherit; color: inherit; }
   align-items: start;
   gap: 8px;
   pointer-events: none;
-  /* Desktop: status pill | mood slot | controls over the day pill. */
+  /* Desktop: status pill | mood slot | controls over the chip row. */
   grid-template-columns: minmax(0, 1fr) clamp(280px, 40vw, 520px) minmax(320px, 1fr);
   grid-template-areas: 'status mood controls' '. . day';
 }
@@ -154,20 +154,44 @@ button { font: inherit; color: inherit; }
 .speed-btn { width: var(--touch); height: var(--touch); display: inline-grid; place-items: center; padding: 0; font-weight: 700; background: transparent; border-color: transparent; border-radius: 22px; }
 .speed-btn .icon { width: 18px; height: 18px; }
 .speed-btn.active, .speed-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
-.day-pill {
+/*
+ * Chip row (§4.2): the day chip, the objectives flag right of it, the view controls. The row has no plate and takes no
+ * pointer events (a press between its controls reaches the map); it is as high as its controls.
+ */
+.hud-day {
   grid-area: day;
   justify-self: end;
   max-width: 100%;
-  min-height: calc(var(--touch) + 6px);
+  min-height: var(--touch);
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 4px 8px;
-  padding: 3px 12px;
+  justify-content: flex-end;
+  gap: 8px;
+  pointer-events: none;
 }
-.hud-clock { font-weight: 600; font-variant-numeric: tabular-nums; }
+.hud-day > * { flex: none; }
+/* The day chip: a slim pill (36 px at 100%) as wide as its weather icons and date; the date wraps at large text. */
+.hud-day > .day-pill {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 12px 0 0;
+  border-radius: 999px;
+  font-size: calc(13px * var(--ts, 1));
+  line-height: 1.2;
+}
+.day-pill:has(.hud-weather:hover) { background: var(--surface-3); }
+/* The weather button is a 44 × 44 target that reaches past the plate's top, bottom, and left edge (transparent there). */
+.day-pill > .hud-weather { flex: none; margin: -7px 0 -7px -3px; padding: 0 4px; align-items: center; border-radius: 999px; }
+.day-pill > .hud-weather:hover { background: transparent; }
+.day-pill .hud-weather .icon { width: 20px; height: 20px; }
+.day-pill .hud-weather .icon.small { width: 12px; height: 12px; margin: 8px 0 0 -2px; }
+.hud-clock { min-width: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.view-controls { display: flex; gap: 8px; }
 
-/* Phone (Phase 7 §4.1): row 1 status pill and controls, row 2 mood slot, row 3 day pill (scrolls sideways). */
+/* Phone (Phase 7 §4.1): row 1 status pill and controls, row 2 mood slot, row 3 the chip row. */
 #ui[data-layout='bottom'] .hud {
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: 'status controls' 'mood mood' 'day day';
@@ -181,18 +205,9 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .mood-text { display: none; }
 #ui[data-layout='bottom'] .mood-bar { padding: 2px 8px; }
 #ui[data-layout='bottom'] .speed-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 3; }
-#ui[data-layout='bottom'] .day-pill {
-  justify-self: start;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: none;
-  padding: 6px 12px;
-}
-#ui[data-layout='bottom'] .day-pill::-webkit-scrollbar { display: none; }
-#ui[data-layout='bottom'] .day-pill > * { flex: none; }
-/* The date and clock wrap to more lines before the row scrolls (large text, long languages). */
-#ui[data-layout='bottom'] .day-pill > .hud-clock { flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }
+/* The chip and the objectives flag at the left, the view controls side by side at the right. */
+#ui[data-layout='bottom'] .hud-day { justify-self: stretch; justify-content: flex-start; }
+#ui[data-layout='bottom'] .view-controls { margin-left: auto; }
 
 /* Decks (Phase 7 §4.4, §4.5): the deck list, the hand, and tool cards. */
 .decks { display: contents; }
@@ -448,7 +463,7 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .path-height-bar { bottom: calc(var(--toolbar-space) + 8px + var(--tool-status-h, 60px) + 8px); }
 
 /* Mascot tip (Phase 7 §4.8): the small face, one sentence with its button, and Close. Desktop: centred above the hand,
-   where the tool status bar shows while a tool is active (the bubble hides then). Phone: below the day pill. */
+   where the tool status bar shows while a tool is active (the bubble hides then). Phone: below the chip row. */
 .tip-bubble {
   position: absolute;
   pointer-events: auto;
@@ -481,7 +496,7 @@ button { font: inherit; color: inherit; }
   margin: 0 auto;
   transform: none;
 }
-/* Phone: below the day pill; a tip too tall for the space above the chip row (large text) moves up over the top
+/* Phone: below the chip row; a tip too tall for the space above the chip row (large text) moves up over the top
    region, so it never covers the chips. The UI measures its height (`--tip-h`). */
 #ui[data-layout='bottom'] .tip-bubble {
   top: max(calc(8px + var(--safe-top)), min(calc(var(--hud-bottom) + 8px), calc(100% - var(--toolbar-space) - 8px - var(--tip-h, 0px))));
