@@ -13,9 +13,9 @@ Every automated part is green.
 | Check | Command | Result |
 |---|---|---|
 | Typecheck | `npm run typecheck` | clean |
-| Unit + integration | `npm test` | 3,587 passed, 2 skipped, at the end of Task 17 (Task 14: 3,578 passed, 2 skipped) |
-| Build | `npm run build` | first load 354.2 KB gzipped: JavaScript 343.9 KB + CSS 10.3 KB (budget 400 KB), at the end of Task 17 |
-| Desktop + phone | `npm run e2e` (projects `desktop` 1280 × 800 and `phone` Pixel 7) | 316 passed, 144 skipped (opt-in screenshot and perf scripts, tests for the other project), 0 failed, at the end of Task 17 (Task 16b: 306 passed, 142 skipped; Task 14: 267 passed, 115 skipped) |
+| Unit + integration | `npm test` | 3,587 passed, 2 skipped, at the end of Task 18 (unchanged from Task 17; Task 14: 3,578 passed, 2 skipped) |
+| Build | `npm run build` | first load 354.2 KB gzipped: JavaScript 343.9 KB + CSS 10.3 KB (budget 400 KB), at the end of Task 18 (unchanged from Task 17) |
+| Desktop + phone | `npm run e2e` (projects `desktop` 1280 × 800 and `phone` Pixel 7) | 329 passed, 145 skipped (opt-in screenshot and perf scripts, tests for the other project), 0 failed, at the end of Task 18 (Task 17: 316 passed, 144 skipped; Task 16b: 306 passed, 142 skipped; Task 14: 267 passed, 115 skipped) |
 | Performance | `TC_PERF=1 npx playwright test tests/e2e/perf.spec.ts tests/e2e/perf-build3.spec.ts` | 9 passed, 5 skipped (scenes of the other project), also at the end of Task 16b: desktop 2,000 guests, phone 800 guests at CPU 4×, scenes build1, build2, phone |
 | Release check | `node scripts/check-release.ts --no-build` | no automated check failed (exit 0); MANUAL and OWNER rows remain, among them one OWNER row per OPEN or GAP audit line (Build 4: 7.10) |
 
@@ -128,3 +128,4 @@ the documents, and the dead code. The items of the deferred list that stay open,
 - X: the title screen keeps the menu-hides-while-a-view-shows rule; the view is on a plate (desktop) or a bottom sheet (phone).
 - Y: title layout rules: one pure position function, measured menu height, a "low" kind, the name never touches the rides, the picture always covers the window, the menu grows on large windows.
 - AA: after the owner's test play, the day pill became a small chip and the view rotate buttons moved to the right (the owner chose this design)
+- AB: after the owner's test play, the mood bar became 44 px high and the cards about 12% smaller

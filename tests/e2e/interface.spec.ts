@@ -13,11 +13,12 @@ test('the game loads the bundled font and asks no other host for anything', asyn
   expect(foreign).toEqual([]);
 });
 
-test('the mood bar names the balance and toggles the Temperament overlay', async ({ page }, info) => {
+test('the mood bar names the balance and toggles the Temperament overlay', async ({ page }) => {
   await newPark(page);
   const bar = page.getByTestId('hud-balance');
   await expect(bar).toHaveAttribute('aria-label', 'Thrill/Chill balance: no guests yet, No guests yet');
-  if (info.project.name === 'desktop') await expect(page.getByTestId('mood-text')).toHaveText('No guests yet');
+  // The lean text is the title (Task 18: no lean line under the track).
+  await expect(bar).toHaveAttribute('title', 'No guests yet');
   const overlay = () => page.evaluate(() => (window as unknown as { __tc: { tool: { overlay: string } } }).__tc.tool.overlay);
   await bar.click();
   await expect(bar).toHaveAttribute('aria-pressed', 'true');
@@ -50,7 +51,7 @@ test('the mood bar and the weather button have a name before the first frame', a
   await expect(page.getByTestId('hud-weather')).toHaveAttribute('aria-label', /^Weather: \S/);
 });
 
-test('at 30/40/30 the mood bar segments keep the guest mix in proportion while a percentage moves beside the knot', async ({ page }) => {
+test('at 30/40/30 the mood bar segments keep the guest mix in proportion while a percentage moves beside the knot', async ({ page }, info) => {
   await newPark(page);
   await page.evaluate(() => {
     const g = (window as unknown as { __tc: { paused: boolean; world: { state: { map: { content: ArrayLike<number> }; guests: unknown[]; nextId: number } } } }).__tc;
@@ -82,10 +83,15 @@ test('at 30/40/30 the mood bar segments keep the guest mix in proportion while a
     const text = r.getBoundingClientRect();
     return { inner, widths: segs.map((s) => s.width), familyEdge: segs[1]!.left, knotLeft: knot.left, knotRight: knot.right, text: { left: text.left, right: text.right }, label: family.textContent };
   });
-  expect(m.label).toBe('40%');
   expect(Math.abs(m.widths[0]! - 0.3 * m.inner)).toBeLessThanOrEqual(1);
   expect(Math.abs(m.widths[1]! - 0.4 * m.inner)).toBeLessThanOrEqual(1);
   expect(Math.abs(m.widths[2]! - 0.3 * m.inner)).toBeLessThanOrEqual(1);
+  // The phone shows no percentages in the segments (Task 18); the name keeps them.
+  if (info.project.name === 'phone') {
+    expect(m.label).toBe('');
+    return;
+  }
+  expect(m.label).toBe('40%');
   // The knot sits at the middle (50%), and the Family percentage is clear of it.
   expect(m.text.right <= m.knotLeft || m.text.left >= m.knotRight).toBe(true);
 });

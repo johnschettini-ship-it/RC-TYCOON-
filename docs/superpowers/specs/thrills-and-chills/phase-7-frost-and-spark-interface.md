@@ -93,7 +93,8 @@ Rules:
 ### 4.3 Mood bar
 The mood bar shows the guest mix, the same data as today (`temperamentShares` and `sharePercents` in `src/ui/format.ts`). It updates every 500 ms.
 
-- **Parts:** Frost head at the left end. Spark head at the right end. Between them, three segments: Chill, Family, Thrill. A knot marks the lean. One line of text below the bar (desktop only).
+- **Parts:** Frost head at the left end. Spark head at the right end. Between them, three segments: Chill, Family, Thrill. A knot marks the lean. There is no line of text below the bar: the lean text is in the accessible name and in the `title`.
+- **Size (after the owner's test play):** the plate is 44 px high at 100% text on both layouts (it may grow with large text; nothing is clipped). The faces are 30 px high. The track is 16 px high on the desktop and 14 px on the phone. On the desktop the bar is at most 400 px wide and centred in the top region.
 - **Lean:** `L = thrill% − chill%`. The knot is at `50% + L / 2` of the bar width.
 - **Text:**
 
@@ -107,7 +108,7 @@ The mood bar shows the guest mix, the same data as today (`temperamentShares` an
 - **Faces:** Frost has the sad face while Chill is the under-served group of rule 3 in section 4.8. Spark has the sad face while Thrill is that group. In all other cases the face is happy. The face follows the rule, not the bubble: a closed tip or the Mascot tips setting does not change it. The art is the existing `mascotCanvas` portrait.
 - **Press:** the bar is a button. It turns the Temperament overlay on and off (`aria-pressed`). This replaces the Temperament toolbar button.
 - **Accessible name:** the existing text, "Thrill/Chill balance: {chill}% Chill, {family}% Family, {thrill}% Thrill", then the lean text. Test id `hud-balance`; the button also has `data-tool="temperament"`.
-- **Colour is not the only signal:** each segment shows its percentage as text when the segment is at least 44 px wide. When the knot would cover the percentage, the text moves to the larger part of its segment beside the knot; it is hidden when that part is under 44 px (`segmentLabel`, `src/ui/mood/model.ts`). The lean text and the accessible name give the same data.
+- **Colour is not the only signal:** on the desktop each segment shows its percentage as text (`calc(11px * min(var(--ts, 1), 1.25))`, bold) when the segment is at least 44 px wide; the phone segments show no numbers. When the knot would cover the percentage, the text moves to the larger part of its segment beside the knot; it is hidden when that part is under 44 px (`segmentLabel`, `src/ui/mood/model.ts`). The accessible name (on both layouts) gives the same data.
 - **Reduced motion:** the knot moves with no transition.
 
 ### 4.4 Decks
@@ -158,7 +159,7 @@ The hand is a group named "{deck} cards". It shows only unlocked content, as the
 
 The accessible name of a card is its visible text, as Phase 6 §4.7 requires.
 
-**Size:** 128 × 172 CSS px on desktop, 104 × 140 on phone, multiplied by the text scale up to 150%.
+**Size (after the owner's test play, about 12% smaller):** ride and stall cards 112 × 152 CSS px on desktop, 92 × 124 on phone; tool cards (`--card-w`, `--card-h`) 92 × 110 on desktop, 82 × 96 on phone; multiplied by the text scale up to 150%. The picture gives way to the text down to 18 px (times the text scale); a card whose text needs more room at large text grows, and all cards of a deck keep one height. Font sizes do not change.
 
 **Order.**
 - Rides deck: zone (Chill, Family, Thrill), then build cost from low to high, then name. A track ride uses its station cost (`stationCost` with `minStationTiles`), the cost that its picker card shows today.

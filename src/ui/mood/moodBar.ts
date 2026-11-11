@@ -1,6 +1,7 @@
 /**
  * Mood bar (Phase 7 §4.3): one button with Frost, three segments (Chill, Family, Thrill), a knot for the lean, and Spark.
- * It turns the Temperament overlay on and off. The portraits are decoration; the accessible name carries the data.
+ * It turns the Temperament overlay on and off. The portraits are decoration; the accessible name carries the data, and
+ * the title the lean text. The percentages show in the segments on the desktop only.
  */
 import { MOOD_UPDATE_MS } from '../../data/tuning/interface';
 import { text } from '../../data/strings/en';
@@ -12,7 +13,8 @@ import { mascotCanvas } from '../scenario/mascotArt';
 import { tipInput, underServedGroup } from '../tips/model';
 import { faceMoods, knotPercent, leanTextId, segmentLabel } from './model';
 
-const PORTRAIT_PX = { side: 48, bottom: 40 } as const;
+/** Height of the two faces in CSS px, on both layouts (the plate is 44 px high at 100%). */
+const FACE_PX = 30;
 
 export function createMoodBar(ctx: UiContext): UiPart {
   const { game } = ctx;
@@ -23,7 +25,6 @@ export function createMoodBar(ctx: UiContext): UiPart {
   const track = h('span', { class: 'mood-track' }, segChill, segFamily, segThrill, knot);
   const frostSlot = h('span', { class: 'mood-face', 'aria-hidden': 'true' });
   const sparkSlot = h('span', { class: 'mood-face', 'aria-hidden': 'true' });
-  const line = h('span', { class: 'mood-text', 'data-testid': 'mood-text' });
   const el = h(
     'button',
     {
@@ -37,7 +38,7 @@ export function createMoodBar(ctx: UiContext): UiPart {
       },
     },
     frostSlot,
-    h('span', { class: 'mood-middle' }, track, line),
+    track,
     sparkSlot,
   );
 
@@ -72,7 +73,9 @@ export function createMoodBar(ctx: UiContext): UiPart {
   {
     const shares = temperamentShares(game.world.state.guests);
     const p = sharePercents(shares);
-    setAttr(el, 'aria-label', nameOf(shares, p, text(leanTextId(p, shares.total))));
+    const lean = text(leanTextId(p, shares.total));
+    setAttr(el, 'aria-label', nameOf(shares, p, lean));
+    setAttr(el, 'title', lean);
   }
 
   let last = -Infinity;
@@ -82,21 +85,22 @@ export function createMoodBar(ctx: UiContext): UiPart {
       setAttr(el, 'aria-pressed', game.tool.overlay === 'temperament' ? 'true' : 'false');
       if (now - last < MOOD_UPDATE_MS) return;
       last = now;
-      const px = ctx.root.dataset.layout === 'bottom' ? PORTRAIT_PX.bottom : PORTRAIT_PX.side;
+      const phone = ctx.root.dataset.layout === 'bottom';
       // The faces follow the rule of section 4.8, not the tip bubble: the tips setting does not matter.
       const moods = faceMoods(underServedGroup(tipInput(game.world, true)));
       const shares = temperamentShares(game.world.state.guests);
       const p = sharePercents(shares);
       const lean = text(leanTextId(p, shares.total));
       setAttr(el, 'aria-label', nameOf(shares, p, lean));
-      setText(line, lean);
+      setAttr(el, 'title', lean);
       const width = track.clientWidth;
       segs.forEach((s, i) => {
         const v = p[s.key];
         const grow = String(v);
         if (s.el.style.flexGrow !== grow) s.el.style.flexGrow = grow;
-        // The percentage keeps clear of the knot (it moves to the larger part of its segment beside the knot).
-        const label = segmentLabel(p, s.key, width);
+        // The percentage keeps clear of the knot (it moves to the larger part of its segment beside the knot). The phone
+        // shows no percentages: its track is too slim for them.
+        const label = phone ? { show: false, padStart: 0, padEnd: 0 } : segmentLabel(p, s.key, width);
         setText(s.num, label.show ? text('ui.mood.percent', { n: v }) : '');
         // Centred in the room left by padStart / padEnd: a shift by half their difference, with no change of layout size.
         const dx = label.show ? Math.round((label.padStart - label.padEnd) / 2) : 0;
@@ -109,8 +113,8 @@ export function createMoodBar(ctx: UiContext): UiPart {
       toggleClass(el, 'empty', shares.total === 0);
       const left = `${knotPercent(p)}%`;
       if (knot.style.left !== left) knot.style.left = left;
-      portrait('frost', frostSlot, moods.frost, px);
-      portrait('spark', sparkSlot, moods.spark, px);
+      portrait('frost', frostSlot, moods.frost, FACE_PX);
+      portrait('spark', sparkSlot, moods.spark, FACE_PX);
     },
   };
 }
