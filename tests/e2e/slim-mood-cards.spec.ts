@@ -101,6 +101,36 @@ test('at 30/40/30 the segments are in proportion; the desktop numbers fit their 
   }
 });
 
+test('desktop 175% text: the percentages and the track grow with the text, and no number is cut', async ({ page }, info) => {
+  test.skip(isPhone(info), 'the phone shows no percentages');
+  await newPark(page);
+  await textScale(page, 175);
+  await mix304030(page);
+  // The plate grows with the font; the track is 16 px × 1.75 and the numbers 11 px × 1.75 (no cap at 125%).
+  await expect.poll(() => page.evaluate(() => (document.querySelector('.mood-track') as HTMLElement).getBoundingClientRect().height)).toBe(28);
+  const m = await page.evaluate(() => {
+    const track = document.querySelector('.mood-track') as HTMLElement;
+    const knot = (track.querySelector('.mood-knot') as HTMLElement).getBoundingClientRect();
+    return {
+      knot: { left: knot.left, right: knot.right },
+      segs: [...track.querySelectorAll<HTMLElement>('.seg')].map((s) => {
+        const r = s.getBoundingClientRect();
+        const num = s.querySelector('.seg-num') as HTMLElement;
+        const n = num.getBoundingClientRect();
+        return { left: r.left, right: r.right, text: num.textContent ?? '', size: getComputedStyle(s).fontSize, num: { left: n.left, right: n.right }, cut: num.scrollWidth > num.clientWidth };
+      }),
+    };
+  });
+  expect(m.segs.map((s) => s.size)).toEqual(['19.25px', '19.25px', '19.25px']);
+  for (const s of m.segs) {
+    if (s.text === '') continue;
+    expect(s.cut, `${s.text} cut`).toBe(false);
+    expect(s.num.left).toBeGreaterThanOrEqual(s.left - 0.5);
+    expect(s.num.right).toBeLessThanOrEqual(s.right + 0.5);
+    expect(s.num.right <= m.knot.left || s.num.left >= m.knot.right, `${s.text} under the knot`).toBe(true);
+  }
+});
+
 test('the mood bar name holds the three percentages and the lean text; the title holds the lean text', async ({ page }) => {
   await newPark(page);
   const bar = page.getByTestId('hud-balance');
@@ -123,6 +153,20 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
   // All ride cards of the deck keep one height.
   const heights = await page.evaluate(() => [...new Set([...document.querySelectorAll('.card.content-card')].map((c) => c.getBoundingClientRect().height))]);
   expect(heights).toHaveLength(1);
+  if (!phone) {
+    // Desktop: every name fits one line, and no picture is a thin strip (at least 0.3 × 152 px, the picture of a card
+    // whose cost and Track tag take two rows).
+    const parts = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.card.content-card')].map((c) => {
+        const name = c.querySelector('.card-name') as HTMLElement;
+        return { name: name.textContent ?? '', lines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)), picture: (c.querySelector('.card-preview') as HTMLElement).getBoundingClientRect().height };
+      }),
+    );
+    for (const p of parts) {
+      expect(p.lines, `${p.name} lines`).toBe(1);
+      expect(p.picture, `${p.name} picture`).toBeGreaterThanOrEqual(45.6 - 0.5);
+    }
+  }
   await page.getByTestId('deck-paths').click();
   await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', 'paths');
   const tool = await boxOf(page, '.card.tool-card');

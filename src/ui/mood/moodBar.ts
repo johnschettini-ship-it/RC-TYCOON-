@@ -93,7 +93,9 @@ export function createMoodBar(ctx: UiContext): UiPart {
       const lean = text(leanTextId(p, shares.total));
       setAttr(el, 'aria-label', nameOf(shares, p, lean));
       setAttr(el, 'title', lean);
-      const width = track.clientWidth;
+      // The percentages grow with the text: the label rule works in 100% text px, so its room and the knot's grow too.
+      const ts = Number(ctx.root.dataset.textScale ?? 100) / 100 || 1;
+      const width = track.clientWidth / ts;
       segs.forEach((s, i) => {
         const v = p[s.key];
         const grow = String(v);
@@ -103,7 +105,7 @@ export function createMoodBar(ctx: UiContext): UiPart {
         const label = phone ? { show: false, padStart: 0, padEnd: 0 } : segmentLabel(p, s.key, width);
         setText(s.num, label.show ? text('ui.mood.percent', { n: v }) : '');
         // Centred in the room left by padStart / padEnd: a shift by half their difference, with no change of layout size.
-        const dx = label.show ? Math.round((label.padStart - label.padEnd) / 2) : 0;
+        const dx = label.show ? Math.round(((label.padStart - label.padEnd) * ts) / 2) : 0;
         const shift = dx !== 0 ? `translateX(${dx}px)` : '';
         if (shifts[i] !== shift) {
           shifts[i] = shift;
