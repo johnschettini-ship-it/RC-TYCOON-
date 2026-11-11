@@ -136,6 +136,7 @@ button { font: inherit; color: inherit; }
 .mood-middle { display: flex; flex: 1 1 0; flex-direction: column; gap: 2px; min-width: 0; }
 .mood-track { position: relative; display: flex; height: 22px; border-radius: 11px; overflow: hidden; background: var(--surface-2); border: var(--control-outline); }
 .mood-track .seg { display: flex; align-items: center; justify-content: center; flex-basis: 0; flex-grow: 0; min-width: 0; overflow: hidden; font-style: normal; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.mood-track .seg-num { display: inline-block; flex: none; }
 .mood-knot { position: absolute; top: -1px; bottom: -1px; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--surface); border: 2px solid var(--ink); box-sizing: border-box; transition: left 0.4s ease; pointer-events: none; }
 .mood-text { display: block; text-align: center; font-weight: 600; line-height: 1.2; white-space: normal; }
 .tc-rm .mood-knot { transition: none; }

@@ -41,13 +41,15 @@ export function createMoodBar(ctx: UiContext): UiPart {
     sparkSlot,
   );
 
+  // The percentage is an inner span: moving it beside the knot must not change the segment's width (§4.3).
   const segs = [
-    { el: segChill, key: 'chill' },
-    { el: segFamily, key: 'family' },
-    { el: segThrill, key: 'thrill' },
+    { el: segChill, num: h('span', { class: 'seg-num' }), key: 'chill' },
+    { el: segFamily, num: h('span', { class: 'seg-num' }), key: 'family' },
+    { el: segThrill, num: h('span', { class: 'seg-num' }), key: 'thrill' },
   ] as const;
-  /** The padding each segment has now (written only when it changes). */
-  const pads = ['', '', ''];
+  for (const s of segs) s.el.append(s.num);
+  /** The shift each percentage has now (written only when it changes). */
+  const shifts = ['', '', ''];
 
   // A portrait is drawn again only when its mood or its size changes.
   const drawn = { frost: '', spark: '' };
@@ -95,11 +97,13 @@ export function createMoodBar(ctx: UiContext): UiPart {
         if (s.el.style.flexGrow !== grow) s.el.style.flexGrow = grow;
         // The percentage keeps clear of the knot (it moves to the larger part of its segment beside the knot).
         const label = segmentLabel(p, s.key, width);
-        setText(s.el, label.show ? `${v}%` : '');
-        const pad = label.show && (label.padStart > 0 || label.padEnd > 0) ? `0 ${Math.round(label.padEnd)}px 0 ${Math.round(label.padStart)}px` : '';
-        if (pads[i] !== pad) {
-          pads[i] = pad;
-          s.el.style.padding = pad;
+        setText(s.num, label.show ? `${v}%` : '');
+        // Centred in the room left by padStart / padEnd: a shift by half their difference, with no change of layout size.
+        const dx = label.show ? Math.round((label.padStart - label.padEnd) / 2) : 0;
+        const shift = dx !== 0 ? `translateX(${dx}px)` : '';
+        if (shifts[i] !== shift) {
+          shifts[i] = shift;
+          s.num.style.transform = shift;
         }
       });
       toggleClass(el, 'empty', shares.total === 0);

@@ -50,6 +50,46 @@ test('the mood bar and the weather button have a name before the first frame', a
   await expect(page.getByTestId('hud-weather')).toHaveAttribute('aria-label', /^Weather: \S/);
 });
 
+test('at 30/40/30 the mood bar segments keep the guest mix in proportion while a percentage moves beside the knot', async ({ page }) => {
+  await newPark(page);
+  await page.evaluate(() => {
+    const g = (window as unknown as { __tc: { paused: boolean; world: { state: { map: { content: ArrayLike<number> }; guests: unknown[]; nextId: number } } } }).__tc;
+    const s = g.world.state;
+    let tile = 0;
+    for (let i = 0; i < s.map.content.length; i++) if (s.map.content[i] === 1) { tile = i; break; }
+    // 3 Chill, 4 Family, 3 Thrill: 30/40/30, the knot at 50% lies on the Family percentage.
+    for (const temperament of [20, 20, 20, 50, 50, 50, 50, 80, 80, 80]) {
+      const id = s.nextId++;
+      s.guests.push({
+        id, tile, z: 8, wetUntilTick: -1, nextTile: -1, progress: 0, dir: 0, lane: id % 4, state: 'walking', stateTicks: 0, target: null,
+        cash: 8000, needs: { hunger: 40, thirst: 40, bladder: 20, energy: 230, happiness: 180, nausea: 0 },
+        temperament, thoughts: [], thoughtCooldowns: {}, ridden: {}, spent: 0,
+        items: { map: false, umbrella: false, balloon: false }, nextDecisionTick: 1e9, lostSinceTick: -1,
+        noRideStreak: 0, seat: null, activityId: -1, trashTimer: 0, withdrawals: 0, lostSteps: 0, bestDistance: -1, lostTarget: null,
+      });
+    }
+  });
+  const bar = page.getByTestId('hud-balance');
+  await expect(bar).toHaveAttribute('aria-label', /30% Chill/);
+  const m = await page.evaluate(() => {
+    const track = document.querySelector('.mood-track') as HTMLElement;
+    const inner = track.clientWidth;
+    const segs = [...track.querySelectorAll<HTMLElement>('.seg')].map((s) => s.getBoundingClientRect());
+    const knot = (track.querySelector('.mood-knot') as HTMLElement).getBoundingClientRect();
+    const family = track.querySelector('.seg-family') as HTMLElement;
+    const r = document.createRange();
+    r.selectNodeContents(family);
+    const text = r.getBoundingClientRect();
+    return { inner, widths: segs.map((s) => s.width), familyEdge: segs[1]!.left, knotLeft: knot.left, knotRight: knot.right, text: { left: text.left, right: text.right }, label: family.textContent };
+  });
+  expect(m.label).toBe('40%');
+  expect(Math.abs(m.widths[0]! - 0.3 * m.inner)).toBeLessThanOrEqual(1);
+  expect(Math.abs(m.widths[1]! - 0.4 * m.inner)).toBeLessThanOrEqual(1);
+  expect(Math.abs(m.widths[2]! - 0.3 * m.inner)).toBeLessThanOrEqual(1);
+  // The knot sits at the middle (50%), and the Family percentage is clear of it.
+  expect(m.text.right <= m.knotLeft || m.text.left >= m.knotRight).toBe(true);
+});
+
 /**
  * Controls of the top region, the deck list, and the hand that are smaller than 44 × 44 px or closer than 8 px to
  * another control, and text that its own box cuts off (spec §4.10, Phase 6 §4.7).
