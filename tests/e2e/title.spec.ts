@@ -218,8 +218,22 @@ test.describe('title screen: the skyline (design E)', () => {
     );
     expect(clipped).toEqual([]);
     for (const b of g.buttons) expect(inside(b, g.vw, g.vh), `${b.id} inside the window`).toBe(true);
-    // The New game view: Start can be reached.
+    // The New game view: the three mode buttons hold their titles and lines inside their outlines.
     await page.getByTestId('title-new').click();
+    await expect(page.getByTestId('title-tutorial')).toBeVisible();
+    const spill = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.tc-modes > button')].flatMap((btn) => {
+        const box = btn.getBoundingClientRect();
+        const out = [...btn.querySelectorAll<HTMLElement>('*')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.left < box.left - 0.5 || r.right > box.right + 0.5;
+        });
+        const bad = btn.scrollWidth > btn.clientWidth + 1 || out.length > 0;
+        return bad ? [`${btn.dataset.testid}: ${btn.scrollWidth} > ${btn.clientWidth}, ${out.length} part(s) outside`] : [];
+      }),
+    );
+    expect(spill).toEqual([]);
+    // Start can be reached.
     await page.getByTestId('title-start').scrollIntoViewIfNeeded();
     await expect(page.getByTestId('title-start')).toBeInViewport();
     watch.expectNoErrors();

@@ -8,8 +8,10 @@ const CSS = `
 .tc-view-head { display: flex; align-items: center; gap: 8px; }
 .tc-view-head h2 { margin: 0; font-size: calc(20px * var(--ts, 1)); flex: 1; }
 .tc-section-title { margin: 6px 0 0; font-size: calc(12px * var(--ts, 1)); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-ink); }
-.tc-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-.tc-mode { flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; min-height: 64px; }
+/* The column's least width grows with the text scale, so large text gives fewer, wider columns (G8). */
+.tc-modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(120px * var(--ts, 1))), 1fr)); gap: 8px; }
+.tc-mode { flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; min-height: 64px; min-width: 0; }
+.tc-mode > * { max-width: 100%; overflow-wrap: anywhere; }
 .tc-mode .btn-label { font-weight: 800; font-size: calc(16px * var(--ts, 1)); }
 .tc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .tc-chip {
