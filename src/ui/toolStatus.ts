@@ -1,6 +1,7 @@
 /**
  * Tool status bar: ghost state (icon + colour + text), path cost before release,
  * and Rotate / Confirm / Cancel for placement on touch and desktop (Phase 1 §4.1). Owner: W1-B.
+ * Phase 7 §4.6: on the phone, while a ride or stall card is held, a Details button opens the card details panel.
  */
 import { getFlatRideDef, getStallDef } from '../data/catalog';
 import { text } from '../data/strings/en';
@@ -8,6 +9,7 @@ import { contentName } from './contentName';
 import { localizeReason } from '../i18n';
 import type { Dir } from '../sim/map';
 import type { UiContext } from './context';
+import { heldCardId } from './decks/model';
 import { h, setText, toggleClass } from './dom';
 import { formatMoney } from './format';
 import { icon } from './icons';
@@ -58,10 +60,12 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
     h('span', { text: text('ui.status.confirm') }),
   );
   const cancel = h('button', { type: 'button', class: 'btn', 'aria-label': text('ui.status.cancel'), onclick: cancelTool }, icon('cross'), h('span', { text: text('ui.status.cancel') }));
+  const details = h('button', { type: 'button', class: 'btn status-details', 'data-testid': 'status-details', hidden: true, text: text('ui.card.details'), onclick: () => ctx.openPanel('cardDetails') });
   const el = h(
     'div',
     { class: 'tool-status', role: 'region', 'aria-label': text('ui.status.label'), hidden: true },
     h('div', { class: 'status-line', 'aria-live': 'polite' }, okIcon, badIcon, h('span', { class: 'status-texts' }, msg, detail)),
+    details,
     h('div', { class: 'status-actions' }, rotate, confirm, cancel),
   );
 
@@ -76,6 +80,9 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
       if (!visible) return;
       rotate.hidden = !place;
       confirm.hidden = !place;
+      // Desktop opens the card details panel by itself; the phone opens it from here.
+      const showDetails = place && ctx.root.dataset.layout === 'bottom' && heldCardId(t) !== null;
+      if (details.hidden === showDetails) details.hidden = !showDetails;
       let valid: boolean | null = null;
       if (place) {
         const g = t.ghost;

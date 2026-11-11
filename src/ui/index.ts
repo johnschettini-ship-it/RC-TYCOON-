@@ -8,10 +8,12 @@ import { SaveStore, importFile, type KeyValueStore } from '../save';
 import type { PanelKind, PanelView, UiContext } from './context';
 import { h } from './dom';
 import { createDecks, type DecksUi } from './decks';
+import { heldCardId } from './decks/model';
 import { createHud } from './hud';
 import { toolbarPlacement } from './layout';
 import { openMenu } from './menu';
 import { PanelHost } from './panelHost';
+import { createCardDetailsPanel, heldCard } from './panels/cardDetails';
 import { createFinancePanel } from './panels/finance';
 import { createGuestPanel } from './panels/guest';
 import { createParkPanel } from './panels/park';
@@ -144,6 +146,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
           break;
         case 'messages':
           view = createMessagesPanel(ctx);
+          break;
+        case 'cardDetails':
+          // Phase 7 §4.7: the data of the held ride or stall card; with no such card nothing opens.
+          if (!heldCard(game)) return;
+          view = createCardDetailsPanel(ctx);
           break;
         default: {
           // Phase 6 (Wave 4.0): panels from UI extensions (the show site panel, W4-C); none yet = nothing opens.
@@ -317,6 +324,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   };
 
   let lastTool = game.tool.tool;
+  let lastHeld: string | null = null;
   game.onFrame(() => {
     const now = performance.now();
     // Inspect selection from the input layer opens the matching panel.
@@ -341,6 +349,17 @@ export function mountUI(root: HTMLElement, game: Game): void {
         if (id >= 0 && game.world.state.staff.members.some((m) => m.id === id) && panels.current()?.kind !== 'staff') ctx.openPanel('staff', id);
       }
       lastTool = tool;
+    }
+    // Phase 7 §4.7: on desktop the card details panel opens when a ride or stall card becomes the held card. An open
+    // details panel goes to the new held card on the phone too, and closes when no card is held. A panel that the
+    // player closed stays closed until the held card changes.
+    const held = heldCardId(game.tool);
+    if (held !== lastHeld) {
+      lastHeld = held;
+      const open = panels.current()?.kind === 'cardDetails';
+      if (held === null) {
+        if (open) panels.close();
+      } else if (open || root.dataset.layout === 'side') ctx.openPanel('cardDetails');
     }
     follow();
     hud.update(now);

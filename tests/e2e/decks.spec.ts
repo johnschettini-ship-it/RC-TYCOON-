@@ -144,6 +144,105 @@ test('loading a save rebuilds the hand and holds no card', async ({ page }) => {
   await expect(page.getByTestId('card-put-back')).toHaveCount(0);
 });
 
+test('the card details panel shows the data of the held card', async ({ page }, info) => {
+  await pickCard(page, 'flat', 'carousel');
+  if (info.project.name === 'phone') await page.getByTestId('status-details').click();
+  const panel = page.locator('.panel');
+  await expect(panel.locator('.panel-title')).toHaveText('Carousel');
+  await expect(panel).toContainText('Seats');
+  await expect(panel).toContainText('16');
+  await expect(panel).toContainText('2.50');
+  await panel.getByRole('button', { name: 'Close' }).click();
+  expect(await toolNow(page)).toBe('placeRide');
+  // The phone tucks the hand while the card is held: the card is made visible first.
+  await cardOf(page, 'flat', 'carousel');
+  await page.getByTestId('card-put-back').click();
+  await expect(page.getByTestId('status-details')).toBeHidden();
+});
+
+test('desktop: the details panel opens by itself; after Close it stays closed until another card is held', async ({ page }) => {
+  test.skip(isPhone(test.info()), 'desktop layout');
+  const panel = page.locator('.panel');
+  await pickCard(page, 'flat', 'carousel');
+  await expect(panel.locator('.panel-title')).toHaveText('Carousel');
+  await expect(panel).toContainText('Drag the card to the map. Or press the card, then press the map');
+  // The Details button is for the phone.
+  await expect(page.getByRole('region', { name: 'Tool options' })).toBeVisible();
+  await expect(page.getByTestId('status-details')).toBeHidden();
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await page.waitForTimeout(400);
+  await expect(panel).toBeHidden();
+  expect(await toolNow(page)).toBe('placeRide');
+  await pickCard(page, 'flat', 'big_wheel');
+  await expect(panel.locator('.panel-title')).toHaveText('Big Wheel');
+  // No held card: the panel closes.
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  expect(await toolNow(page)).toBe('inspect');
+});
+
+test('phone: the details panel opens from the Details button, above the deck chips', async ({ page }) => {
+  test.skip(!isPhone(test.info()), 'phone layout');
+  const panel = page.locator('.panel');
+  const details = page.getByTestId('status-details');
+  await expect(details).toBeHidden();
+  await pickCard(page, 'flat', 'carousel');
+  await expect(details).toBeVisible();
+  await expect(details).toHaveText('Details');
+  // It does not open by itself.
+  await page.waitForTimeout(400);
+  await expect(panel).toBeHidden();
+  await details.click();
+  await expect(panel.locator('.panel-title')).toHaveText('Carousel');
+  await expect(panel).toContainText('Tap the map to place it');
+  const sheet = (await panel.boundingBox())!;
+  const chips = (await page.getByTestId('deck-rides').boundingBox())!;
+  expect(sheet.y + sheet.height).toBeLessThanOrEqual(chips.y);
+  // Put back closes the panel and takes the button away.
+  await cardOf(page, 'flat', 'carousel');
+  await page.getByTestId('card-put-back').click();
+  await expect(panel).toBeHidden();
+  await expect(details).toBeHidden();
+});
+
+test('a held stall card shows its type, its price, and its running cost', async ({ page }) => {
+  await pickCard(page, 'stall', 'snack_shack');
+  if (isPhone(test.info())) await page.getByTestId('status-details').click();
+  const panel = page.locator('.panel');
+  await expect(panel.locator('.panel-title')).toHaveText('Snack Shack');
+  await expect(panel.locator('.details-zone')).toHaveText('Food');
+  await expect(panel.locator('.details-cost')).toHaveText('$400');
+  await expect(panel.locator('.details-rows')).toHaveText(/Type\s*Food\s*Ticket\s*\$3\.00\s*Running cost per month\s*\$20$/);
+});
+
+test('a held track ride card shows its four values, and the station builder stays', async ({ page }) => {
+  const phone = isPhone(test.info());
+  const panel = page.locator('.panel');
+  const builder = page.getByTestId('track-builder');
+  await pickCard(page, 'track', 'junior_coaster');
+  await expect(builder).toBeVisible();
+  // The phone opens the panel from the builder, which is the tool status bar of a track card.
+  if (phone) await page.getByTestId('track-details').click();
+  else await expect(page.getByTestId('track-details')).toBeHidden();
+  await expect(panel.locator('.panel-title')).toHaveText('Junior Coaster');
+  // The "From" cost is the build cost of a track ride: it shows in the place of the cost.
+  await expect(panel.locator('.details-lines li')).toHaveText(['Gravity', 'Up to 12 m high', '2 seats per car']);
+  await expect(panel.locator('.details-cost')).toHaveText('From $1,584');
+  expect(await toolNow(page)).toBe('track');
+  if (phone) {
+    // The sheet lies where the builder is: the builder comes back when the sheet closes.
+    await expect(builder).toBeHidden();
+  } else {
+    const a = (await panel.boundingBox())!;
+    const b = (await builder.boundingBox())!;
+    expect(b.x + b.width).toBeLessThanOrEqual(a.x);
+  }
+  await panel.getByRole('button', { name: 'Close' }).click();
+  await expect(panel).toBeHidden();
+  await expect(builder).toBeVisible();
+  expect(await toolNow(page)).toBe('track');
+});
+
 test('no toolbar named Tools is on the screen', async ({ page }) => {
   await expect(page.getByRole('toolbar', { name: 'Tools' })).toHaveCount(0);
   await expect(page.getByRole('toolbar', { name: 'Card decks' })).toBeVisible();

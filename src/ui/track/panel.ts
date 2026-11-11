@@ -198,10 +198,12 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const lenLess = h('button', { type: 'button', class: 'btn step', 'aria-label': text('ui.track.lengthLess'), onclick: () => setStationLength(game, st().stationLength - 1) }, '−');
   const lenMore = h('button', { type: 'button', class: 'btn step', 'aria-label': text('ui.track.lengthMore'), onclick: () => setStationLength(game, st().stationLength + 1) }, '+');
   const stationHint = h('p', { class: 'tb-hint muted' });
+  // Phase 7 §4.6: the builder is the tool status bar of a held track card, so the phone's Details button is here.
+  const details = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-details', onclick: () => ctx.openPanel('cardDetails') }, h('span', { text: text('ui.card.details') }));
   const stationBox = h(
     'div',
     { class: 'tb-station' },
-    h('div', { class: 'tb-row' }, rotate, h('div', { class: 'stepper', role: 'group', 'aria-label': text('ui.track.station.length') }, h('span', { class: 'row-label', text: text('ui.track.station.length') }), lenLess, lenValue, lenMore)),
+    h('div', { class: 'tb-row' }, rotate, details, h('div', { class: 'stepper', role: 'group', 'aria-label': text('ui.track.station.length') }, h('span', { class: 'row-label', text: text('ui.track.station.length') }), lenLess, lenValue, lenMore)),
     stationHint,
   );
 
@@ -315,20 +317,26 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       const t = game.tool;
       const s = st();
       const visible = t.tool === 'track' && s.phase !== 'idle';
-      if (el.hidden === visible) el.hidden = !visible;
+      const layout = ctx.root.dataset.layout ?? 'side';
+      // Phase 7 §4.7: the card details panel shows the held track card, so the builder stays. On the phone its sheet
+      // lies where the builder is: the builder hides until the sheet closes.
+      const cardDetails = visible && ctx.activePanel()?.kind === 'cardDetails';
+      const show = visible && !(cardDetails && layout === 'bottom');
+      if (el.hidden === show) el.hidden = !show;
       if (!visible) {
         palKey = null;
         return;
       }
-      // Another panel (finance, park, pickers) takes over: leave the builder, the track stays as it is.
-      if (ctx.activePanel()) {
+      // Another panel (finance, park) takes over: leave the builder, the track stays as it is.
+      if (ctx.activePanel() && !cardDetails) {
         leaveBuilder(game, false);
         el.hidden = true;
         palKey = null;
         return;
       }
+      if (!show) return;
       el.dataset.phase = s.phase;
-      el.dataset.layout = ctx.root.dataset.layout ?? 'side';
+      el.dataset.layout = layout;
       const touch = s.touch || el.dataset.layout === 'bottom';
       setText(title, rideTitle(ctx, s));
       const data = s.rideId !== null ? trackData(game.world, s.rideId) : undefined;
@@ -340,6 +348,8 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       gatesBox.hidden = s.phase !== 'entrance' && s.phase !== 'exit';
       rotate.hidden = s.phase !== 'station';
       cancel.hidden = s.phase !== 'station';
+      // Desktop opens the card details panel by itself; the phone opens it from the station controls.
+      if (details.hidden === (layout === 'bottom')) details.hidden = layout !== 'bottom';
       undo.hidden = s.phase === 'station';
       done.hidden = s.phase === 'station';
       build.hidden = s.phase !== 'pieces' || !!data?.circuitClosed;
