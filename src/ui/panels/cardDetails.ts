@@ -54,6 +54,16 @@ export function cardDetailRows(spec: CardSpec): DetailRow[] {
   ];
 }
 
+/**
+ * The hint under the data: the steps that place the held card. Desktop: a flat ride or stall card is dragged, or pressed
+ * and then the map is pressed; a track ride card cannot be dragged, and a click on the map places its station (then the
+ * builder adds the pieces). Phone: a tap only moves the ghost and Confirm builds.
+ */
+export function detailsHintId(kind: CardSpec['kind'], layout: 'side' | 'bottom'): string {
+  if (layout === 'bottom') return kind === 'track' ? 'ui.details.hintPhoneTrack' : 'ui.details.hintPhone';
+  return kind === 'track' ? 'ui.details.hintDesktopTrack' : 'ui.details.hintDesktop';
+}
+
 /** The ride or stall card that the tool holds, or null (no card held, or the held id has no card in the hand). */
 export function heldCard(game: Pick<Game, 'tool' | 'world'>): CardSpec | null {
   const id = heldCardId(game.tool);
@@ -99,7 +109,7 @@ export function createCardDetailsPanel(ctx: UiContext): PanelView {
     update() {
       // The panel shows one card: it closes when that card is not the held card any more.
       if (!spec || heldCardId(game.tool) !== spec.id) return false;
-      setText(hint, text(ctx.root.dataset.layout === 'bottom' ? 'ui.details.hintPhone' : 'ui.details.hintDesktop'));
+      setText(hint, text(detailsHintId(spec.kind, ctx.root.dataset.layout === 'bottom' ? 'bottom' : 'side')));
       return true;
     },
   };

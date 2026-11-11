@@ -2,7 +2,6 @@
 import { version as packageVersion } from '../../package.json';
 import type { World } from '../sim/types';
 import { formatDate } from '../sim/time';
-import { formatSaveDate } from './date';
 import { deserializeWith, SAVE_FORMAT, SCHEMA_VERSION, serializeWorld, validateState, type LoadResult } from './codec';
 import { ERR_EMPTY_SLOT, ERR_NO_STORAGE, ERR_SAVE_FAILED, ERR_UNREADABLE, saveInvalid } from './messages';
 import { migrations } from './migrations';
@@ -23,8 +22,8 @@ export interface SlotInfo {
   parkName: string;
   savedAt: string;
   gameDate: string;
-  /** The month and the year without the clock (the title's park line), from the same tick. */
-  gameDateShort: string;
+  /** The game tick of the save: the title's park line shows its month and year in the game's language. */
+  tick: number;
 }
 
 /** Minimal storage interface so tests can inject a fake (Node has no localStorage). */
@@ -127,7 +126,7 @@ function readSlotInfo(slot: SlotId, json: string): SlotInfo | null {
   if (!isRecord(state) || !isRecord(state.park) || typeof state.park.name !== 'string') return null;
   const tick = state.tick;
   if (typeof tick !== 'number' || !Number.isSafeInteger(tick) || tick < 0) return null;
-  return { slot, parkName: state.park.name, savedAt: raw.savedAt, gameDate: formatDate(tick), gameDateShort: formatSaveDate(tick) };
+  return { slot, parkName: state.park.name, savedAt: raw.savedAt, gameDate: formatDate(tick), tick };
 }
 
 /** File name for an exported save: the park name made safe for file systems. */

@@ -67,7 +67,7 @@ export function createMoodBar(ctx: UiContext): UiPart {
 
   /** The accessible name: the guest mix and the lean text. */
   const nameOf = (shares: ReturnType<typeof temperamentShares>, p: ReturnType<typeof sharePercents>, lean: string): string =>
-    `${shares.total === 0 ? text('ui.hud.balanceEmpty') : text('ui.hud.balance', p)}, ${lean}`;
+    text('ui.mood.name', { balance: shares.total === 0 ? text('ui.hud.balanceEmpty') : text('ui.hud.balance', p), lean });
   // The button has its name from the start: a scan before the first frame finds no unnamed button.
   {
     const shares = temperamentShares(game.world.state.guests);
@@ -97,7 +97,7 @@ export function createMoodBar(ctx: UiContext): UiPart {
         if (s.el.style.flexGrow !== grow) s.el.style.flexGrow = grow;
         // The percentage keeps clear of the knot (it moves to the larger part of its segment beside the knot).
         const label = segmentLabel(p, s.key, width);
-        setText(s.num, label.show ? `${v}%` : '');
+        setText(s.num, label.show ? text('ui.mood.percent', { n: v }) : '');
         // Centred in the room left by padStart / padEnd: a shift by half their difference, with no change of layout size.
         const dx = label.show ? Math.round((label.padStart - label.padEnd) / 2) : 0;
         const shift = dx !== 0 ? `translateX(${dx}px)` : '';

@@ -24,7 +24,7 @@ import { h, newId, popModal, pushModal, setAttr, setText, toggleClass } from './
 import { PARK_NAME_MAX, validateParkName } from './names';
 import { chipGroup } from './scenario/controls';
 import { createScenarioFlow, type FlowHost } from './scenario/flow';
-import { newestSlot } from './scenario/model';
+import { newestSlot, saveDateLabel } from './scenario/model';
 import { progressStore, randomSeed, registerTitle, type TitleView } from './scenario/shared';
 import { openSettingsScreen } from './settings';
 import { injectScenarioStyles } from './scenario/styles';
@@ -110,7 +110,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const showSaveState = (): void => {
     const save = newestSave();
     continueBtn.hidden = save === null;
-    if (save) setText(continueDetail, text('ui.title.continueDetail', { park: save.parkName, date: save.gameDateShort }));
+    if (save) setText(continueDetail, text('ui.title.continueDetail', { park: save.parkName, date: saveDateLabel(save.tick) }));
     newDetail.hidden = save !== null;
     toggleClass(newBtn, 'primary', save === null);
     toggleClass(newBtn, 'go', save === null);
@@ -224,6 +224,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
 
   // Layout (G1): the numbers of `titleLayout` as custom properties and data attributes; again on every size change.
   let menuH = 0;
+  let buttonEdge: number | undefined;
   const vars = new Map<string, string>();
   const setVar = (name: string, value: string): void => {
     if (vars.get(name) === value) return;
@@ -238,7 +239,8 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     setAttr(el, 'data-name', l.name);
     setVar('--tl-ms', String(l.ms));
     setVar('--tl-mb', `${l.mb}px`);
-    // The desktop menu block in whole px (G10, G13); the phone and low menus have fixed sizes in CSS.
+    // The desktop menu block in whole px (G10, G13); the phone and low menus, the sheet and the low plate are centred
+    // on whole px (G1), their other sizes are fixed in CSS.
     const b = l.menuBox;
     if (b) {
       setVar('--tl-menu-left', `${b.left}px`);
@@ -247,6 +249,13 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
       setVar('--tl-h2', `${b.h2}px`);
       setVar('--tl-h3', `${b.h3}px`);
       setVar('--tl-gap', `${b.gap}px`);
+    } else if (l.menuPlace) {
+      setVar('--tl-menu-left', `${l.menuPlace.left}px`);
+      setVar('--tl-menu-w', `${l.menuPlace.width}px`);
+    }
+    if (l.platePlace) {
+      setVar('--tl-plate-left', `${l.platePlace.left}px`);
+      setVar('--tl-plate-w', `${l.platePlace.width}px`);
     }
   };
   /** The safe-area insets in whole CSS px. */
@@ -305,9 +314,13 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     setVar('--tl-safe-left', `${safe.left}px`);
     // The menu form depends only on the window (G2): set it first, then measure the menu block. While a view
     // shows, the menu stays in the layout (invisible and inert), so it is measured in its current form too.
-    apply(titleLayout({ w, h: height, menuH, safe }));
+    const continueShown = !continueBtn.hidden;
+    apply(titleLayout({ w, h: height, menuH, safe, continueShown, buttonEdge }));
     menuH = Math.round(main.getBoundingClientRect().height);
-    const l = titleLayout({ w, h: height, menuH, safe });
+    // A menu button's padding and border side by side (the phone and low menus share their width in whole px with it).
+    const bs = getComputedStyle(newBtn);
+    buttonEdge = Math.round(parseFloat(bs.paddingLeft) + parseFloat(bs.paddingRight) + parseFloat(bs.borderLeftWidth) + parseFloat(bs.borderRightWidth)) || buttonEdge;
+    const l = titleLayout({ w, h: height, menuH, safe, continueShown, buttonEdge });
     apply(l);
     place(l, height);
   };
@@ -362,10 +375,45 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     }
   }
 
+  // While the title is open, the rest of the UI behind it is inert: no focus, no pointer, nothing for a screen reader.
+  // The toast hosts and live regions stay out of it (a toast is still seen and announced); dialogs opened later (the
+  // settings screen, a confirm dialog) are appended after it and stay usable.
+  let madeInert: HTMLElement[] = [];
+  const keepsLive = (c: HTMLElement): boolean =>
+    c.classList.contains('toast-host') || c.hasAttribute('aria-live') || c.getAttribute('role') === 'status' || c.getAttribute('role') === 'alert';
+  const holdUi = (): void => {
+    const parent = el.parentElement;
+    if (!parent) return;
+    madeInert = [...parent.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c !== el && !c.inert && !keepsLive(c));
+    for (const c of madeInert) c.inert = true;
+  };
+  const releaseUi = (): void => {
+    for (const c of madeInert) c.inert = false;
+    madeInert = [];
+  };
+  // Tab and Shift+Tab go round the title's own controls (a dialog opened from it holds its own focus).
+  el.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+    const f = [...el.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]):not([type="radio"]), input[type="radio"]:checked, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+      (x) => x.getClientRects().length > 0 && x.closest('[inert]') === null && getComputedStyle(x).visibility !== 'hidden',
+    );
+    const first = f[0];
+    const last = f[f.length - 1];
+    if (!first || !last) return;
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+
   function show(): void {
     if (!open) {
       open = true;
       pushModal();
+      holdUi();
     }
     game.setSpeed(0);
     el.hidden = false;
@@ -376,6 +424,7 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     if (!open) return;
     open = false;
     popModal();
+    releaseUi();
     el.hidden = true;
   }
 

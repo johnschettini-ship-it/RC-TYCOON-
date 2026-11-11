@@ -36,9 +36,9 @@ export function createMessagesPanel(ctx: UiContext): PanelView {
         'data-testid': 'message-row',
         'data-message-id': m.id,
         // Phase 6 §4.7: the visible line, category, date, and New chip are the accessible name.
-        onclick: () => {
+        onclick: (e: Event) => {
           const t = locateTarget(game.world, m);
-          if (t) goToTarget(ctx, t);
+          if (t) goToTarget(ctx, t, (e as MouseEvent).detail === 0);
         },
       },
       h('span', { class: 'message-icon', 'aria-hidden': 'true' }, mgmtIcon(messageIcon(m.category))),

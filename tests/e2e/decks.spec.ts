@@ -194,7 +194,7 @@ test('phone: the details panel opens from the Details button, above the deck chi
   await expect(panel).toBeHidden();
   await details.click();
   await expect(panel.locator('.panel-title')).toHaveText('Carousel');
-  await expect(panel).toContainText('Tap the map to place it');
+  await expect(panel).toContainText('Tap the map, then press Confirm');
   const sheet = (await panel.boundingBox())!;
   const chips = (await page.getByTestId('deck-rides').boundingBox())!;
   expect(sheet.y + sheet.height).toBeLessThanOrEqual(chips.y);

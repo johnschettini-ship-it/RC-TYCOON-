@@ -26,6 +26,8 @@ export interface DecksUi extends UiPart {
   current(): DeckId | null;
   /** The card of a tool when its deck is open, else its deck button; the control of the other ids; null for `inspect`. */
   controlFor(toolId: string): HTMLElement | null;
+  /** A card is pressed (a tool card of any deck, or a held ride or stall card), as of the last frame. */
+  cardPressed(): boolean;
 }
 
 export function createDecks(ctx: UiContext): DecksUi {
@@ -48,6 +50,7 @@ export function createDecks(ctx: UiContext): DecksUi {
   /** Pressed state of each card in the last frame: a card that turns pressed tucks the hand (phone). */
   const wasPressed = defs.map(() => false);
   let wasHeld: string | null = null;
+  let anyPressed = false;
   let lastLayout = '';
   const tuck = (): void => {
     const phone = ctx.root.dataset.layout === 'bottom';
@@ -66,9 +69,15 @@ export function createDecks(ctx: UiContext): DecksUi {
     if (held !== null && held !== wasHeld) turnedOn = true;
     wasHeld = held;
     any ||= held !== null;
+    anyPressed = any;
     if (!phone || layoutChanged) hand.setTucked(false);
-    else if (turnedOn) hand.setTucked(true);
-    else if (!any) hand.setTucked(false);
+    else if (turnedOn) {
+      // A focus inside the hand that tucks away would fall to the page body: it goes to the open deck's chip.
+      const hadFocus = hand.el.contains(document.activeElement);
+      hand.setTucked(true);
+      const deck = hand.deck();
+      if (hadFocus && hand.el.hidden && deck !== null) list.buttonFor(deck).focus();
+    } else if (!any) hand.setTucked(false);
     syncList();
   };
 
@@ -90,6 +99,7 @@ export function createDecks(ctx: UiContext): DecksUi {
       const other = ctx.root.querySelector(`[data-tool="${toolId}"]`);
       return other instanceof HTMLElement ? other : null;
     },
+    cardPressed: () => anyPressed,
     update(now) {
       tuck();
       list.update();

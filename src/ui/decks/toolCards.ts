@@ -3,7 +3,7 @@
  * state of its toolbar button. Also what a press on a ride or stall card does (`holdCard`).
  */
 import { text } from '../../data/strings/en';
-import { pathItemAction } from '../../render/management/toolOptions';
+import { pathItemAction, toolOptions } from '../../render/management/toolOptions';
 import type { ToolId } from '../../render/types';
 import type { PanelKind, UiContext } from '../context';
 import { startStation } from '../track/builder';
@@ -118,6 +118,14 @@ export function holdCard(ctx: UiContext, spec: CardSpec): void {
 export function putBack(ctx: UiContext, def: ToolCardDef): void {
   const panel = PANEL_OF[def.id];
   const t = ctx.game.tool.tool;
+  if (def.id === 'staff' && t === 'patrol') {
+    // Staff held through its patrol tool: Inspect first, so the closing staff panel drops the staff selection, and no
+    // patrol member, so the frame loop does not open the staff panel again when the patrol tool ends.
+    toolOptions(ctx.game.tool).patrolStaffId = -1;
+    selectTool(ctx, 'inspect');
+    if (panelIs(ctx, 'staff')) ctx.closePanel();
+    return;
+  }
   const ownOpen =
     panel !== undefined ? panelIs(ctx, panel)
     : def.id === 'overlays' ? true

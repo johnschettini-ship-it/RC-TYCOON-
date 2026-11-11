@@ -66,7 +66,7 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
   const speedLabel = h('span', { class: 'speed-now' });
   const speedToggle = h(
     'button',
-    { type: 'button', class: 'hud-btn speed-toggle', 'data-testid': 'speed-toggle', 'aria-label': text('ui.controls.speed'), 'aria-expanded': 'false', 'aria-controls': speedGroup.id },
+    { type: 'button', class: 'hud-btn speed-toggle', 'data-testid': 'speed-toggle', 'aria-label': text(`ui.speed.${game.speed}`), 'aria-expanded': 'false', 'aria-controls': speedGroup.id },
     speedLabel,
   );
   const messagesBadge = h('span', { class: 'tool-badge', 'data-testid': 'messages-badge', 'aria-hidden': 'true', hidden: true });
@@ -106,7 +106,14 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     if (speedToggle.hidden !== !phone) speedToggle.hidden = !phone;
   };
   speedToggle.addEventListener('click', () => setSpeedOpen(!speedOpen));
-  for (const b of speedButtons) b.addEventListener('click', () => setSpeedOpen(false));
+  for (const b of speedButtons) {
+    b.addEventListener('click', () => {
+      // A choice made with the keyboard keeps the focus on a visible control: the menu's Speed button.
+      const had = speedGroup.contains(document.activeElement);
+      setSpeedOpen(false);
+      if (had && speedGroup.hidden) speedToggle.focus();
+    });
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !speedOpen) return;
     setSpeedOpen(false);
@@ -153,8 +160,8 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
       }
       if (game.speed !== lastSpeed) {
         lastSpeed = game.speed;
-        // The name keeps the visible `2×` in it (WCAG 2.5.3); paused shows an icon only.
-        setAttr(speedToggle, 'aria-label', game.speed === 0 ? text('ui.controls.speed') : `${text('ui.controls.speed')} ${game.speed}×`);
+        // The name is the speed's own name: it keeps the visible `2×` in it (WCAG 2.5.3) and names the paused state.
+        setAttr(speedToggle, 'aria-label', text(`ui.speed.${game.speed}`));
         speedLabel.replaceChildren(game.speed === 0 ? icon('pause') : document.createTextNode(`${game.speed}×`));
       }
       setAttr(messages, 'aria-pressed', ctx.activePanel()?.kind === 'messages' ? 'true' : 'false');

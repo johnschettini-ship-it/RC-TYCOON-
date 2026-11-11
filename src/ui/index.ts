@@ -37,7 +37,7 @@ import { toolOptions } from '../render/management/toolOptions';
 import { mountTrackUi } from './track';
 import { extensionPanel, UI_EXTENSIONS } from './extensions';
 import { tileCentreWorld } from '../input/camera';
-import { bindScenarioSettings } from './scenario/shared';
+import { bindScenarioSettings, titleOpen } from './scenario/shared';
 import { localizeReason } from '../i18n';
 import { confirmDialog } from './dialogs';
 import { text } from '../data/strings/en';
@@ -200,6 +200,9 @@ export function mountUI(root: HTMLElement, game: Game): void {
     controlFor(toolId) {
       return decks.controlFor(toolId);
     },
+    cardPressed() {
+      return decks.cardPressed();
+    },
   };
 
   const hud = createHud(ctx, () => openMenu(ctx));
@@ -218,7 +221,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   const tip = createTipBubble(ctx);
   // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).
   const extraBars = UI_EXTENSIONS.flatMap((x) => (x.bars ? [x.bars(ctx)] : []));
-  root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), tip.el, panels.el, toastView.el, messageToast.el, fileInput, title.el);
+  root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), tip.el, tip.live, panels.el, toastView.el, messageToast.el, fileInput, title.el);
   mountTrackUi(ctx);
 
   const applyLayout = (): void => {
@@ -271,7 +274,8 @@ export function mountUI(root: HTMLElement, game: Game): void {
     if (t) toast(t.message, t.kind);
   });
   game.onEvents((events) => {
-    saves.autosave(events);
+    // The world behind the title is not the player's park: it never overwrites the autosave.
+    if (!titleOpen()) saves.autosave(events);
     for (const x of UI_EXTENSIONS) x.onEvents?.(ctx, events);
     // Breakdown and research messages also toast, with a Show button (Phase 3 §4.14).
     const now = performance.now();

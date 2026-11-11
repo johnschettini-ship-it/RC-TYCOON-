@@ -20,6 +20,11 @@ export function monthLabel(monthIndex: number): string {
   return text('prog.monthYear', { month: monthName(m), year: Math.floor(monthIndex / 12) + 1 });
 }
 
+/** The month and the year of a save's tick, without the clock (the park line under Continue), in the game's language. */
+export function saveDateLabel(tick: number): string {
+  return monthLabel(monthIndexOf(tick));
+}
+
 export const monthsText = (n: number): string => (n === 1 ? text('prog.months.one') : text('prog.months.many', { n }));
 const daysText = (n: number): string => (n === 1 ? text('prog.days.one') : text('prog.days.many', { n }));
 /** Happiness 0–255 as a whole percent (170 → 67). */

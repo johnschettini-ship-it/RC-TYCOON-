@@ -10,6 +10,7 @@
  */
 import { text } from '../../data/strings/en';
 import { CARD_DRAG_PX, HAND_REFRESH_MS } from '../../data/tuning/interface';
+import { displayPrefs } from '../../a11y/prefs';
 import type { UiContext } from '../context';
 import { h, newId, setAttr } from '../dom';
 import { contentCard, createToolCard, setHeld, zoneName, type ToolCardView } from './card';
@@ -67,7 +68,9 @@ export interface HandView {
 export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandView {
   const cards = h('div', { class: 'hand-cards' });
   const scroller = h('div', { class: 'hand-scroll' }, cards);
-  const step = (dir: -1 | 1): void => scroller.scrollBy({ left: dir * Math.max(80, scroller.clientWidth * 0.8), behavior: 'smooth' });
+  // Reduced motion: the strip jumps (`.tc-rm` does not stop a `behavior` given here).
+  const step = (dir: -1 | 1): void =>
+    scroller.scrollBy({ left: dir * Math.max(80, scroller.clientWidth * 0.8), behavior: displayPrefs().reducedMotion ? 'auto' : 'smooth' });
   const prev = h('button', { type: 'button', class: 'btn hand-arrow', 'data-testid': 'hand-prev', 'aria-label': text('ui.hand.prev'), title: text('ui.hand.prev'), hidden: true, onclick: () => step(-1) }, chevron('prev'));
   const next = h('button', { type: 'button', class: 'btn hand-arrow', 'data-testid': 'hand-next', 'aria-label': text('ui.hand.next'), title: text('ui.hand.next'), hidden: true, onclick: () => step(1) }, chevron('next'));
   const el = h('div', { class: 'hand', role: 'group', id: newId('hand'), 'data-testid': 'hand', hidden: true }, prev, scroller, next);
@@ -225,8 +228,12 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
   const fill = (): void => {
     if (open === null) return;
     const d = cardsOf(open);
-    // A rebuilt card takes the focus of the card it replaces.
-    const focused = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.content-card')?.dataset.def;
+    // The focus in the strip comes back after the rebuild: to the same tool card or Put back (they are reused), or to
+    // the rebuilt card, or its Put back, that replaces the focused one (the held card when Put back is gone).
+    const active = document.activeElement;
+    const prev = active instanceof HTMLElement && cards.contains(active) ? active : null;
+    const prevDef = prev?.closest('.card-wrap')?.querySelector<HTMLElement>('.content-card')?.dataset.def;
+    const prevBack = prev?.classList.contains('card-put-back') ?? false;
     shownTools = d.tools;
     shown = [...(d.content?.slots ?? []), ...d.tools.map((v) => ({ wrap: v.wrap, card: v.card }))];
     const nodes = [...(d.content?.nodes ?? []), ...d.tools.map((v) => v.wrap)];
@@ -237,7 +244,14 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
     heldWrap = null;
     heldId = null;
     syncHeld();
-    if (focused) (d.content?.wraps.get(focused)?.firstElementChild as HTMLElement | undefined)?.focus();
+    if (!prev || document.activeElement === prev) return;
+    if (prev.isConnected) {
+      prev.focus({ preventScroll: true });
+      return;
+    }
+    const wrap = prevDef === undefined ? undefined : d.content?.wraps.get(prevDef);
+    const target = (prevBack ? wrap?.querySelector<HTMLElement>('.card-put-back') : null) ?? (wrap?.firstElementChild as HTMLElement | null | undefined);
+    target?.focus({ preventScroll: true });
   };
 
   /** Shows the held ride or stall card of the open deck as held (only on a change). */

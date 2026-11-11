@@ -116,7 +116,7 @@ The deck list is a toolbar named "Card decks" with 5 toggle buttons and the Demo
 
 - A press on a deck opens the hand with that deck. A press on the open deck closes the hand. The Rides deck is open when a park starts.
 - **Phone tuck:** on the phone layout the hand tucks away (hidden; `--toolbar-space` is then the height of the chip row) while any card is pressed, and comes back when no card is pressed. A press on a deck chip while the hand is tucked shows the hand. The desktop hand never tucks.
-- **Research messages:** the Show button of a research message that unlocked a ride or stall opens the Rides or Stalls deck and scrolls the new card into view (the focus does not move). It replaces the old ride and stall pickers as the message's target.
+- **Research messages:** the Show button of a research message that unlocked a ride or stall opens the Rides or Stalls deck and scrolls the new card into view. When Show was pressed with the keyboard in the Messages panel (which closes), the focus moves to the new card; with a pointer the focus does not move. It replaces the old ride and stall pickers as the message's target.
 - The open deck and the hand state are session data. Saves do not store them.
 - **Demolish** is the last item of the deck list, after a divider. It is not a deck. It selects the Demolish tool (`aria-pressed`).
 - A **tool card** does what its toolbar button does today. It has the icon and the label of that button. `ToolbarEntry` (`src/ui/extensions.ts`) gets one new required field, `deck`, so each extension names the deck of its tool.
@@ -219,7 +219,7 @@ The UI checks the rules every 2 s and shows the first rule that matches:
 - The rule matches when the largest gap is at least `TIP_GAP_POINTS`. The group with the largest gap is the under-served group. A tie goes to Chill, then Family, then Thrill.
 
 **Display (as built, `src/ui/tips/bubble.ts`).** No full-body mascots are drawn at the bottom corners: the owner dropped them (no mascots on the title screen; the small faces stay in the mood bar, the tip bubble, and the tutorial). The constant `MASCOT_MIN_WIDTH_PX` is removed.
-- One tip at a time, in a bubble with a small face of the speaker (the `mascotCanvas` portrait: Frost, Spark, or both). The bubble has `aria-live="polite"` and the name "Mascot tip".
+- One tip at a time, in a bubble with a small face of the speaker (the `mascotCanvas` portrait: Frost, Spark, or both). The bubble has the name "Mascot tip". Screen readers hear the tip from a visually hidden `role="status"` region that stays in the page: it gets the tip's sentence when the bubble shows or its tip changes, and is emptied when the bubble hides (the bubble itself has no `aria-live`).
 - **Place:** on desktop the bubble sits centred above the hand, in the place of the tool status bar. On the phone it sits below the day pill.
 - A **Close** button hides the tip. A closed tip stays hidden until its rule stops matching and then matches again. This is session data; a new park starts with no closed tip, and its first check runs one period (`TIP_CHECK_MS`) after the start.
 - **No tip** (the rules give none): in the Tutorial scenario, and while the **Mascot tips** setting is off. The setting (Settings, Gameplay, default On) turns all tips off; a settings change checks the rules at once.
@@ -227,7 +227,7 @@ The UI checks the rules every 2 s and shows the first rule that matches:
   - a dialog is open, or the title screen is open;
   - a tool other than Inspect is active (for example a held card);
   - a map overlay is on, or the overlay chip row is open (on the phone the overlay legend takes the bubble's place);
-  - on the phone, a panel is open.
+  - on the phone, a panel is open, or a card of the hand is pressed (for example while the Shows or Scenery picker is open).
 - When the bubble hides while one of its buttons has the focus, the focus goes to the Rides deck button, not to the page body.
 - A tip makes no sound and is not a toast. The toast rules (`ToastArbiter`) do not change.
 

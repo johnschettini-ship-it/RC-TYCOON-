@@ -68,17 +68,20 @@ export function centreOnTile(ctx: UiContext, tile: number): void {
 
 /**
  * Go to a message target: move the camera, then open the target's panel (Phase 3 §4.14), or open the deck of a
- * researched ride or stall and scroll its card into view (the focus stays where it is). The Messages panel closes first:
- * the hand shows the card.
+ * researched ride or stall and scroll its card into view. The Messages panel closes first: the hand shows the card.
+ * `keyboard`: the press came from the keyboard (a click with `detail` 0); the focus then moves to the new card, so the
+ * keyboard keeps a place on the screen. With a pointer the focus does not move.
  */
-export function goToTarget(ctx: UiContext, target: LocateTarget): void {
+export function goToTarget(ctx: UiContext, target: LocateTarget, keyboard = false): void {
   if (target.tile !== null) centreOnTile(ctx, target.tile);
   const p = target.panel;
   if (!p) return;
   if ('deck' in p) {
     if (ctx.activePanel()?.kind === 'messages') ctx.closePanel();
     ctx.openDeck(p.deck);
-    ctx.root.querySelector<HTMLElement>(`.hand [data-def="${CSS.escape(p.defId)}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    const card = ctx.root.querySelector<HTMLElement>(`.hand [data-def="${CSS.escape(p.defId)}"]`);
+    card?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (keyboard) card?.focus({ preventScroll: true });
     return;
   }
   // Opening an entity panel also selects the entity (see `openPanel` in ui/index.ts).

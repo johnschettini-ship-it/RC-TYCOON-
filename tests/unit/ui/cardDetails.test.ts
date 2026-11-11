@@ -5,7 +5,7 @@ import { getFlatRideDef, getTrackRideDef, STALLS } from '../../../src/data/catal
 import { text } from '../../../src/data/strings/en';
 import { defaultToolState } from '../../../src/render/types';
 import { trackToolOf } from '../../../src/render/track/toolState';
-import { cardDetailRows, heldCard } from '../../../src/ui/panels/cardDetails';
+import { cardDetailRows, detailsHintId, heldCard } from '../../../src/ui/panels/cardDetails';
 import { formatMoney, formatPrice } from '../../../src/ui/format';
 import { minStationTiles, pickableTrackTypes, stationCost } from '../../../src/ui/track/builder';
 
@@ -66,5 +66,16 @@ describe('card details (Phase 7 §4.7)', () => {
     expect(heldCard(game)).toMatchObject({ id: type.id, kind: 'track' });
     trackToolOf(game.tool).phase = 'pieces';
     expect(heldCard(game)).toBeNull();
+  });
+
+  it('the hint names the real steps for the card kind and the layout', () => {
+    // Desktop: a flat ride or stall card drags or is pressed, then the map; a track ride card cannot be dragged.
+    expect(text(detailsHintId('flat', 'side'))).toBe('Drag the card to the map. Or press the card, then press the map');
+    expect(text(detailsHintId('stall', 'side'))).toBe('Drag the card to the map. Or press the card, then press the map');
+    expect(text(detailsHintId('track', 'side'))).toBe('Click the map to place the station, then build the track piece by piece');
+    // Phone: a tap moves the ghost, Confirm builds.
+    expect(text(detailsHintId('flat', 'bottom'))).toBe('Tap the map, then press Confirm');
+    expect(text(detailsHintId('stall', 'bottom'))).toBe('Tap the map, then press Confirm');
+    expect(text(detailsHintId('track', 'bottom'))).toBe('Tap the map to move the station, then press Confirm');
   });
 });

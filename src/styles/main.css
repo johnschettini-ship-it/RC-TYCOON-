@@ -640,9 +640,10 @@ button { font: inherit; color: inherit; }
 .bar.neg { top: 50%; background: var(--danger); }
 .bar-label { position: absolute; bottom: -16px; left: -4px; right: -4px; text-align: center; font-size: calc(9px * var(--ts, 1)); color: var(--muted-ink); }
 
-/* Toasts */
+/* Toasts: above the title screen's layers (veil 1, name, menu and plate 2, detail sheet 3), below dialogs (5). */
 .toast-host {
   position: absolute;
+  z-index: 4;
   top: calc(var(--hud-bottom) + 10px);
   left: 0; right: 0;
   display: flex; justify-content: center;
@@ -763,22 +764,21 @@ button { font: inherit; color: inherit; }
   --f1: calc(21px * var(--tl-ms, 1) * var(--ts, 1)); --f2: calc(18px * var(--tl-ms, 1) * var(--ts, 1)); --f3: calc(13px * var(--tl-ms, 1) * var(--ts, 1));
 }
 .title-screen[data-kind='phone'] .title-menu {
-  left: var(--tl-safe-left); right: var(--tl-safe-right); bottom: var(--tl-mb); margin: 0 auto;
-  width: min(100% - 32px - var(--tl-safe-left) - var(--tl-safe-right), 560px);
+  /* Centred on whole px (G1): at most 560 px, 16 px from the safe edges, a width its buttons share in whole px. */
+  left: var(--tl-menu-left); bottom: var(--tl-mb); width: var(--tl-menu-w);
   --h1: 60px; --h2: 60px; --h3: 46px; --gap: 10px;
   --f1: calc(19px * var(--ts, 1)); --f2: calc(16px * var(--ts, 1)); --f3: calc(13px * var(--ts, 1));
 }
 /* As the design: the row form's narrow buttons keep 4 px at the sides. */
 .title-screen[data-kind='phone'][data-menu='row'] .title-menu .btn { padding: 4px; }
 .title-screen[data-kind='phone'][data-menu='column'] .title-menu {
-  width: calc(100% - 32px - var(--tl-safe-left) - var(--tl-safe-right));
   --h1: 64px; --h2: 56px; --h3: 48px; --gap: 12px;
   --f1: calc(21px * var(--ts, 1)); --f2: calc(18px * var(--ts, 1));
 }
 /* Low windows (landscape phones, G6): one row of six buttons, centred; it may wrap. */
 .title-screen[data-kind='low'] .title-menu {
-  left: var(--tl-safe-left); right: var(--tl-safe-right); bottom: var(--tl-mb); margin: 0 auto;
-  width: min(100% - 24px - var(--tl-safe-left) - var(--tl-safe-right), 820px);
+  /* Centred on whole px (G1): at most 820 px, 12 px from the safe edges, a width its buttons share in whole px. */
+  left: var(--tl-menu-left); bottom: var(--tl-mb); width: var(--tl-menu-w);
   flex-direction: row; flex-wrap: wrap; justify-content: center;
   --h1: 52px; --h2: 52px; --h3: 52px; --gap: 10px;
   --f1: calc(17px * var(--ts, 1)); --f2: calc(16px * var(--ts, 1)); --f3: calc(12px * var(--ts, 1));
@@ -807,7 +807,8 @@ button { font: inherit; color: inherit; }
 }
 .title-screen[data-kind='desktop'] .title-plate.wide { width: min(calc(760px * var(--tl-ms, 1)), var(--plate-room)); }
 .title-screen[data-kind='phone'] .title-plate {
-  left: 0; right: 0; bottom: 0; margin: 0 auto; width: min(100%, 560px);
+  /* min(100%, 560px), centred on whole px. */
+  left: var(--tl-plate-left); bottom: 0; width: var(--tl-plate-w);
   max-height: max(60%, 100% - var(--tl-name-bottom) - 12px);
   border-bottom: 0; border-radius: 24px 24px 0 0; box-shadow: none;
   padding: 10px calc(20px + var(--tl-safe-right)) calc(40px + var(--tl-safe-bottom)) calc(20px + var(--tl-safe-left));
@@ -815,10 +816,10 @@ button { font: inherit; color: inherit; }
 .title-screen[data-kind='phone'] .title-grab { display: block; flex: none; width: 48px; height: 6px; margin: 0 auto 2px; border-radius: 3px; background: var(--rule); }
 .title-screen[data-kind='low'] .title-plate {
   top: calc(8px + var(--tl-safe-top)); bottom: calc(8px + var(--tl-safe-bottom));
-  left: var(--tl-safe-left); right: var(--tl-safe-right); margin: 0 auto;
-  width: min(560px, 100% - 16px - var(--tl-safe-left) - var(--tl-safe-right));
+  /* min(560px, the safe width less 16 px), centred on whole px. */
+  left: var(--tl-plate-left); width: var(--tl-plate-w);
 }
-.title-screen[data-kind='low'] .title-plate.wide { width: calc(100% - 16px - var(--tl-safe-left) - var(--tl-safe-right)); }
+.title-screen[data-kind='low'] .title-plate.wide { left: calc(8px + var(--tl-safe-left)); width: calc(100% - 16px - var(--tl-safe-left) - var(--tl-safe-right)); }
 /* The scenario detail sheet that the flow opens over the title lies above the veil, the name and the plate. */
 .title-screen > .tc-sheet-backdrop { z-index: 3; }
 .title-buttons { display: flex; flex-direction: column; gap: 8px; }
@@ -887,6 +888,10 @@ button { font: inherit; color: inherit; }
 .seg-label { display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
 .seg-detail { font-size: calc(11px * var(--ts, 1)); font-weight: 500; color: var(--muted-ink); }
 .segmented.compact .seg-btn { flex: 0 1 auto; }
+/* The path Height bar's ramp chips at ground level (ramps need an elevated line): they cannot be pressed, but the
+ * selected one still looks selected (ink, white text) and the others stay readable; a dashed edge marks them. */
+.path-height-bar .seg-btn:disabled { opacity: 1; border-style: dashed; }
+.path-height-bar .seg-btn:disabled:not([aria-pressed='true']) { color: var(--muted-ink); }
 .meter.low .meter-fill { background: var(--danger); }
 
 /* Staff panel */
@@ -1030,8 +1035,9 @@ button { font: inherit; color: inherit; }
 .tb-status.valid { border-color: var(--ok); }
 .tb-status.invalid { border-color: var(--danger); }
 .tb-status.invalid .status-detail { color: var(--danger-text); }
-.tb-groups { display: flex; flex-wrap: wrap; gap: 4px; }
-#ui[data-layout='bottom'] .tb-groups { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.tb-groups { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The row scrolls sideways; its padding holds the 5 px focus ring, which the scrolling box would clip. */
+#ui[data-layout='bottom'] .tb-groups { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 6px 5px; }
 .tb-groups::-webkit-scrollbar { display: none; }
 .tb-group {
   pointer-events: auto; cursor: pointer;
@@ -1061,7 +1067,7 @@ button { font: inherit; color: inherit; }
 .btn.small { min-height: 36px; padding: 4px 8px; font-size: calc(12px * var(--ts, 1)); gap: 4px; }
 .btn.small .icon { width: 16px; height: 16px; }
 .btn.step { min-width: var(--touch); padding: 4px; font-size: calc(18px * var(--ts, 1)); }
-.stepper { display: inline-flex; align-items: center; gap: 6px; }
+.stepper { display: inline-flex; align-items: center; gap: 8px; }
 .stepper-value { min-width: 56px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .tb-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tb-actions .big-action { min-height: 56px; flex: 1 1 140px; font-size: calc(16px * var(--ts, 1)); }
@@ -1215,6 +1221,12 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 /* High contrast (Phase 6 §4.7, Phase 7 §4.9): the token values of `.tc-hc` in tokens.css (thicker outlines, white
  * buttons, labels in full ink); the focus ring outline grows too. */
 .tc-hc :focus-visible { outline-width: 4px; }
+
+/* Focus ring over the hard shadow (§4.9): the controls that draw their own shadow keep the ring on top of it, and a
+ * pressed card shows the ring inside its gold edge. One rule for all of them, after their own rules; high contrast
+ * keeps it. */
+:is(.pill, .mood-bar, .hud-btn, .card, .title-menu .btn):focus-visible { box-shadow: var(--focus-ring), var(--shadow); }
+.card[aria-pressed='true']:focus-visible { box-shadow: var(--focus-ring), 0 0 0 9px var(--gold), var(--shadow); }
 
 /* Reduced motion (Phase 6 §4.7): no UI transitions or animations. */
 .tc-rm *, .tc-rm *::before, .tc-rm *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

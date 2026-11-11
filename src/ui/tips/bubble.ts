@@ -3,8 +3,10 @@
  * The rules (`./model`) run every `TIP_CHECK_MS`. Desktop: centred above the hand, where the tool status bar shows
  * while a tool is active. Phone: below the day pill. Hidden while a dialog or the title is open, while a tool other
  * than Inspect is active, while an overlay is on or the overlay chip row is open (the overlay legend takes its place on
- * the phone), and on the phone while a panel is open; it comes back when that ends and a tip still matches. When the
- * bubble hides while one of its buttons has the focus, the focus goes to the Rides deck button, not to the page body.
+ * the phone), and on the phone while a panel is open or a card of the hand is pressed (a picker, a panel, a held card);
+ * it comes back when that ends and a tip still matches. When the bubble hides while one of its buttons has the focus,
+ * the focus goes to the Rides deck button, not to the page body. Screen readers hear the tip from a lasting status
+ * region (`live`): it gets the sentence when the bubble shows or its tip changes, and is emptied when the bubble hides.
  * Browser only.
  */
 import { text } from '../../data/strings/en';
@@ -21,7 +23,7 @@ import { dropStale, matchingTips, shownTip, tipInput, type Tip, type TipId } fro
 /** Face height (CSS px) per layout. */
 const FACE_PX = { side: 48, bottom: 40 } as const;
 
-export function createTipBubble(ctx: UiContext): UiPart {
+export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } {
   const { game, root } = ctx;
   const art = h('div', { class: 'tip-art', 'aria-hidden': 'true' });
   const say = h('p', { class: 'tip-text', 'data-testid': 'tip-text' });
@@ -33,11 +35,14 @@ export function createTipBubble(ctx: UiContext): UiPart {
   );
   const el = h(
     'aside',
-    { class: 'tip-bubble', 'data-testid': 'tip', 'aria-live': 'polite', 'aria-label': text('ui.tip.label'), hidden: true },
+    { class: 'tip-bubble', 'data-testid': 'tip', 'aria-label': text('ui.tip.label'), hidden: true },
     art,
     h('div', { class: 'tip-body' }, say, action),
     close,
   );
+
+  // A live region that stays in the DOM (a region that appears with its text is often not announced).
+  const live = h('div', { class: 'sr-only', role: 'status', 'aria-live': 'polite', 'data-testid': 'tip-live' });
 
   let closed = new Set<TipId>();
   let tip: Tip | null = null;
@@ -94,6 +99,7 @@ export function createTipBubble(ctx: UiContext): UiPart {
 
   return {
     el,
+    live,
     update(now) {
       if (now - lastCheck >= TIP_CHECK_MS) {
         lastCheck = now;
@@ -105,9 +111,10 @@ export function createTipBubble(ctx: UiContext): UiPart {
         game.tool.tool !== 'inspect' ||
         game.tool.overlay !== 'none' ||
         overlayChipsOpen(ctx) ||
-        (root.dataset.layout === 'bottom' && ctx.activePanel() !== null);
+        (root.dataset.layout === 'bottom' && (ctx.activePanel() !== null || ctx.cardPressed()));
       const visible = tip !== null && !blocked;
       if (visible && tip) show(tip);
+      setText(live, visible && tip ? text(`ui.tip.${tip.id}`) : '');
       if (el.hidden === visible) {
         // A button of the bubble that hides with it would drop the focus to the page body.
         const hadFocus = !visible && el.contains(document.activeElement);

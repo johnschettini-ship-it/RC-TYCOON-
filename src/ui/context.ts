@@ -47,6 +47,8 @@ export interface UiContext {
    * Messages, and Menu for their ids; null for `inspect`.
    */
   controlFor(toolId: string): HTMLElement | null;
+  /** A card of the hand is pressed: a tool card (its tool, panel, picker, or chips) or a held ride or stall card. */
+  cardPressed(): boolean;
 }
 
 /** One panel view inside the panel host. */

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_VERSION, SaveStore, serialize, slotKey, type KeyValueStore } from '../../../src/save';
 import { formatDate } from '../../../src/sim/time';
-import { formatSaveDate } from '../../../src/save/date';
 import { makeTestWorld, stateHash } from '../../helpers/world';
 import { makeRichWorld } from './fixture';
 
@@ -118,8 +117,8 @@ describe('SaveStore', () => {
     new SaveStore(mem, () => '2026-11-09T08:00:00.000Z').save('auto', a);
     new SaveStore(mem, () => '2026-11-09T09:00:00.000Z').save('2', b);
     expect(new SaveStore(mem).list()).toEqual([
-      { slot: '2', parkName: 'Beta Park', savedAt: '2026-11-09T09:00:00.000Z', gameDate: formatDate(3675), gameDateShort: formatSaveDate(3675) },
-      { slot: 'auto', parkName: 'Alpha Park', savedAt: '2026-11-09T08:00:00.000Z', gameDate: formatDate(a.state.tick), gameDateShort: formatSaveDate(a.state.tick) },
+      { slot: '2', parkName: 'Beta Park', savedAt: '2026-11-09T09:00:00.000Z', gameDate: formatDate(3675), tick: 3675 },
+      { slot: 'auto', parkName: 'Alpha Park', savedAt: '2026-11-09T08:00:00.000Z', gameDate: formatDate(a.state.tick), tick: a.state.tick },
     ]);
     expect(formatDate(3675)).toBe('Apr · Year 1 · 01:30');
   });

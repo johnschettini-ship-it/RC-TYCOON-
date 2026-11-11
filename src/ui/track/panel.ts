@@ -43,6 +43,21 @@ import {
 const ICON_W = 44;
 const ICON_H = 28;
 
+/**
+ * The colours of the piece icons, read from the tokens (tokens.css) the first time an icon is drawn: the line and most
+ * marks in ink (3:1 or more on the light piece button and on the gold pressed one), brakes in --danger, the water channel
+ * and bank marks in --ok, the spooky sheet in --cat-weather. A token that does not resolve leaves the canvas default.
+ */
+let iconInk: Record<'ink' | 'danger' | 'ok' | 'spooky', string> | null = null;
+function iconColours(): Record<'ink' | 'danger' | 'ok' | 'spooky', string> {
+  if (!iconInk) {
+    const st = typeof document !== 'undefined' ? getComputedStyle(document.documentElement) : null;
+    const token = (name: string): string => st?.getPropertyValue(name).trim() ?? '';
+    iconInk = { ink: token('--ink'), danger: token('--danger'), ok: token('--ok'), spooky: token('--cat-weather') };
+  }
+  return iconInk;
+}
+
 /** Small drawing of a piece: side view for slopes and loops, top view for the rest. */
 function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
   const dpr = Math.min(3, (typeof window !== 'undefined' && window.devicePixelRatio) || 1);
@@ -50,6 +65,7 @@ function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
   const ctx = c.getContext('2d');
   if (!ctx) return c;
   ctx.scale(dpr, dpr);
+  const col = iconColours();
   const sm = pieceStatic(def.id).samples;
   const side = def.group === 'G' || def.group === 'X' || def.group === 'L' || def.group === 'Cs';
   let u0 = Infinity;
@@ -75,7 +91,7 @@ function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
     if (i === 0) ctx.moveTo(ox + u * k, oy + v * k);
     else ctx.lineTo(ox + u * k, oy + v * k);
   }
-  ctx.strokeStyle = '#f2f5f8';
+  ctx.strokeStyle = col.ink;
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -83,10 +99,10 @@ function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
   // Marks for special pieces.
   const midX = ox + (((sm.x[Math.floor(sm.n / 2)] as number) + 0) * k);
   const midY = oy + (side ? -(sm.h[Math.floor(sm.n / 2)] as number) : (sm.y[Math.floor(sm.n / 2)] as number)) * k;
-  ctx.fillStyle = '#ffd23f';
+  ctx.fillStyle = col.ink;
   if (def.special === 'station') ctx.fillRect(midX - 9, midY + 4, 18, 3);
   if (def.special === 'brakes' || def.special === 'blockBrake') {
-    ctx.fillStyle = def.special === 'brakes' ? '#f07a3a' : '#ffd23f';
+    ctx.fillStyle = def.special === 'brakes' ? col.danger : col.ink;
     for (let i = -2; i <= 2; i++) ctx.fillRect(midX + i * 5 - 1, midY - 4, 2, 8);
   }
   // Water pieces (Phase 4 §4.4): a blue channel line, foam for splashdowns, waterfalls, and rough water, a swirl for
@@ -99,36 +115,36 @@ function pieceIcon(def: TrackPieceDef): HTMLCanvasElement {
       if (i === 0) ctx.moveTo(ox + u * k, oy + v * k);
       else ctx.lineTo(ox + u * k, oy + v * k);
     }
-    ctx.strokeStyle = '#4fb3d9';
+    ctx.strokeStyle = col.ok;
     ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.fillStyle = '#f2fbff';
+    ctx.fillStyle = col.ink;
     if (def.special === 'splashdown' || def.special === 'waterfall' || def.special === 'rough') {
       for (let i = -2; i <= 2; i++) ctx.fillRect(midX + i * 5 - 1, midY - 6 + (i % 2 === 0 ? 0 : 2), 2, 3);
     }
     if (def.special === 'whirlpool') {
-      ctx.strokeStyle = '#f2fbff';
+      ctx.strokeStyle = col.ink;
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.arc(midX, midY, 5, 0.3, Math.PI * 1.7);
       ctx.stroke();
     }
     if (def.water.drive === 'conveyor' && def.special !== 'station') {
-      ctx.fillStyle = '#ffd23f';
+      ctx.fillStyle = col.ink;
       for (let i = -2; i <= 2; i++) ctx.fillRect(midX + i * 5 - 1, midY - 2 - i * 1.2, 2, 4);
     }
   }
   if (def.special === 'spooky') {
-    ctx.fillStyle = '#b39ddb';
+    ctx.fillStyle = col.spooky;
     ctx.fillRect(midX - 8, midY - 9, 16, 12);
-    ctx.fillStyle = '#12202e';
+    ctx.fillStyle = col.ink;
     ctx.fillRect(midX - 4, midY - 6, 2, 3);
     ctx.fillRect(midX + 2, midY - 6, 2, 3);
   }
   if (def.exit.bank !== def.entry.bank || def.entry.bank !== 'none') {
     const end = def.exit.bank === 'none' ? def.entry.bank : def.exit.bank;
     const tilt = end === 'left' ? -1 : 1;
-    ctx.strokeStyle = '#4fb3d9';
+    ctx.strokeStyle = col.ok;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(ICON_W - 12, ICON_H - 6 - tilt * 3);

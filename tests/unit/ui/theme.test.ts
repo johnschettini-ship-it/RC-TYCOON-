@@ -20,6 +20,21 @@ describe('look (Phase 7 §4.9)', () => {
       expect(/var\(--(panel|panel-2|panel-3|line|panel-text|muted|bg)\)/.test(s), `${f} uses an old token`).toBe(false);
     }
   });
+  it('the browser colours (index.html, the web manifest) are of the new look: ink bars, the title sky as the splash', () => {
+    const html = read('index.html').toLowerCase();
+    const manifest = JSON.parse(read('public/manifest.webmanifest')) as { theme_color: string; background_color: string };
+    for (const c of OLD_DARK) {
+      expect(html.includes(c), `index.html has ${c}`).toBe(false);
+      expect(JSON.stringify(manifest).toLowerCase().includes(c), `the manifest has ${c}`).toBe(false);
+    }
+    expect(html).toContain('<meta name="theme-color" content="#1f2340" />');
+    expect(manifest.theme_color).toBe('#1f2340');
+    expect(manifest.background_color).toBe('#ffe9bf');
+    // The same values as the tokens: --ink and --title-sky.
+    const t = read('src/styles/tokens.css');
+    expect(t).toContain('--ink: #1f2340;');
+    expect(t).toContain('--title-sky: #ffe9bf;');
+  });
   it('tokens.css has the spec values', () => {
     const t = read('src/styles/tokens.css');
     for (const line of ['--ink: #1f2340;', '--surface: #ffffff;', '--surface-2: #eef0f7;', '--muted-ink: #4d5170;', '--gold: #ffc12e;', '--accent-chill: #56b4e9;', '--accent-family: #2fb38a;', '--accent-thrill: #e69f00;', '--danger-text: #b34700;']) {

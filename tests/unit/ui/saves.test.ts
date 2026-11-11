@@ -81,8 +81,8 @@ describe('save actions (Phase 1 §4.7)', () => {
     const { backend, actions } = setup();
     expect(actions.hasAutosave()).toBe(false);
     backend.infos = [
-      { slot: 'auto', parkName: 'A', savedAt: 'x', gameDate: 'Mar · Year 1 · 09:00', gameDateShort: 'Mar · Year 1' },
-      { slot: '2', parkName: 'B', savedAt: 'y', gameDate: 'Apr · Year 1 · 10:00', gameDateShort: 'Apr · Year 1' },
+      { slot: 'auto', parkName: 'A', savedAt: 'x', gameDate: 'Mar · Year 1 · 09:00', tick: 0 },
+      { slot: '2', parkName: 'B', savedAt: 'y', gameDate: 'Apr · Year 1 · 10:00', tick: 3600 },
     ];
     expect(actions.hasAutosave()).toBe(true);
     expect(actions.slots().map((s) => [s.slot, s.info?.parkName ?? null])).toEqual([['1', null], ['2', 'B'], ['3', null]]);
