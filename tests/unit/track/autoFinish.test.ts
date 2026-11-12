@@ -8,17 +8,19 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../../src/sim/research/api', () => ({ isUnlocked: () => true }));
 
-import { getTrackTypeDef, type TrackTypeDef } from '../../../src/data/track';
-import { AUTO_FINISH } from '../../../src/data/tuning/track';
+import { getTrackPieceDef, getTrackTypeDef, type TrackPieceDef, type TrackTypeDef } from '../../../src/data/track';
+import { AUTO_FINISH, BRAKE_SPEED } from '../../../src/data/tuning/track';
 import { TRACK_ERR, TRACK_WARN, fillTrackString } from '../../../src/data/strings/track';
 import { executeCommand } from '../../../src/sim/commands';
 import type { CommandResult } from '../../../src/sim/commands/types';
 import { Content, tileIndex } from '../../../src/sim/map';
 import {
   findClosingPath,
+  isPlainPiece,
   planPath,
   startAutoFinish,
   type AutoFinishOutcome,
+  type AutoPiece,
 } from '../../../src/sim/rides/track/autoFinish';
 import { trackEnd } from '../../../src/sim/rides/track/build';
 import { jointsEqual, pieceEntryJoint, pieceExitJoint, pieceWorldTiles } from '../../../src/sim/rides/track/geometry';
@@ -34,10 +36,13 @@ import {
   dataOf,
   EAST,
   expectOk,
+  NEAR_LIMIT_DROP_PIECES,
   place,
   R1_PIECES,
   rideOf,
   times,
+  UNSAFE_DROP_PIECES,
+  writePieces,
   type PieceSpec,
 } from './helpers';
 
@@ -61,8 +66,24 @@ function r1Open(missing = 5, setup = true): { w: World; id: number } {
   return { w, id };
 }
 
-function cmdOf(id: number, f: Found): { type: 'autoFinishTrack'; rideId: number; pieces: { defId: string; chain: boolean }[] } {
-  return { type: 'autoFinishTrack', rideId: id, pieces: f.pieces.map((p) => ({ defId: p.defId, chain: p.chain })) };
+function cmdOf(id: number, f: Found): { type: 'autoFinishTrack'; rideId: number; pieces: AutoPiece[] } {
+  return {
+    type: 'autoFinishTrack',
+    rideId: id,
+    pieces: f.pieces.map((p) => (p.brakeSpeed === null ? { defId: p.defId, chain: p.chain } : { defId: p.defId, chain: p.chain, brakeSpeed: p.brakeSpeed })),
+  };
+}
+
+/**
+ * Owner 2026-11-12 ("Allow brakes + 3 s limit"): the 64 m climb of `NEAR_LIMIT_DROP_PIECES` cut just after its drop, on
+ * the flat at about 33 m/s with no brakes yet. Without brakes no plain turn is safe at that speed (lateral over 3.00 G).
+ */
+function afterBigDrop(setup = true): { w: World; id: number } {
+  const w = makeTestWorld();
+  const id = place(w, 'steel_coaster', 4, 2, EAST, setup);
+  const valleyEnd = NEAR_LIMIT_DROP_PIECES.findIndex((p) => p === 'gentle_down_to_flat');
+  addAll(w, id, NEAR_LIMIT_DROP_PIECES.slice(0, valleyEnd + 1), setup);
+  return { w, id };
 }
 
 const steel = getTrackTypeDef('steel_coaster') as TrackTypeDef;
@@ -212,17 +233,89 @@ describe('Auto-finish search (R1, R8)', () => {
     expect(s.nodes).toBeLessThanOrEqual(AUTO_FINISH.nodeLimit);
   });
 
-  it('stops at the node limit and says no path was found', () => {
+  it('stops at the node limit and tells the player what to change', () => {
     // A far track end with a low limit: the search gives up instead of running on.
     const { w, id } = r1Open(5);
     const s = startAutoFinish(w, id, { nodeLimit: 3 });
-    expect(s.step(Infinity)).toEqual({ kind: 'none', reason: TRACK_ERR.autoFinishNone });
+    expect(s.step(Infinity)).toEqual({ kind: 'none', reason: TRACK_ERR.autoFinishGaveUp });
     expect(s.nodes).toBe(3);
   });
+
+  it('a track end with no safe way back stops at the node budget (about 3 s on the reference desktop)', () => {
+    // Owner 2026-11-12: the 70 m climb of UNSAFE_DROP_PIECES cut high on its lift; every way down passes 6.0 G.
+    const w = makeTestWorld();
+    const id = place(w, 'steel_coaster', 4, 2, EAST);
+    writePieces(w, id, UNSAFE_DROP_PIECES.slice(0, 12));
+    const s = startAutoFinish(w, id);
+    expect(s.step(Infinity)).toEqual({ kind: 'none', reason: TRACK_ERR.autoFinishGaveUp });
+    expect(s.nodes).toBe(AUTO_FINISH.nodeLimit);
+    expect(TRACK_ERR.autoFinishGaveUp).toBe('No safe way back found: build closer to the station or lower the track');
+  }, 60_000);
 
   it('a closed circuit and an empty track are refused at once', () => {
     const { w, id } = r1Open(0);
     expect(findClosingPath(w, id)).toEqual({ kind: 'none', reason: TRACK_ERR.circuitAlreadyComplete });
+  });
+
+  it('may use plain brakes (owner 2026-11-12), never block brakes or special pieces', () => {
+    const def = (id: string): TrackPieceDef => getTrackPieceDef(id) as TrackPieceDef;
+    expect(isPlainPiece(steel, def('brakes'))).toBe(true);
+    expect(isPlainPiece(steel, def('block_brake'))).toBe(false);
+    expect(isPlainPiece(steel, def('vertical_loop_right'))).toBe(false);
+    expect(AUTO_FINISH.brakeSpeeds.length).toBeGreaterThan(0);
+    for (const v of AUTO_FINISH.brakeSpeeds) expect(Number.isInteger(v) && v >= BRAKE_SPEED.min && v <= BRAKE_SPEED.max).toBe(true);
+  });
+
+  it('finds a way back after a big drop by braking before the turns (owner 2026-11-12)', () => {
+    const { w, id } = afterBigDrop();
+    const f = found(findClosingPath(w, id));
+    const brakes = f.pieces.filter((p) => p.defId === 'brakes');
+    expect(brakes.length).toBeGreaterThan(0);
+    for (const b of brakes) expect(AUTO_FINISH.brakeSpeeds).toContain(b.brakeSpeed);
+    expect(f.pieces.some((p) => p.defId === 'block_brake')).toBe(false);
+    for (const p of f.pieces) expect(p.brakeSpeed === null).toBe(p.defId !== 'brakes');
+    // R8: the finished lap passes and its strongest car stays within the hard limits.
+    const d = dataOf(w, id);
+    const lap = runTestLapDetailed(w.state.map, { ...d, pieces: [...d.pieces, ...f.pieces], circuitClosed: true }, steel);
+    expect(lap.result.passed).toBe(true);
+    expect(lap.breach).toBeNull();
+    expect(f.test).toEqual(lap.result);
+  });
+
+  it('a path with brakes is the same however the search is sliced, and builds with the command and piece by piece', () => {
+    const a = found(findClosingPath(afterBigDrop().w, afterBigDrop().id));
+    const b = afterBigDrop();
+    const s = startAutoFinish(b.w, b.id);
+    let o: AutoFinishOutcome | null = null;
+    while (!(o = s.step(7)));
+    expect(o).toEqual(a);
+    // The command, with the brake speeds.
+    const c = afterBigDrop(false);
+    const cash0 = c.w.state.park.cash;
+    expectOk(executeCommand(c.w, cmdOf(c.id, a), { setup: false }));
+    expect(dataOf(c.w, c.id).circuitClosed).toBe(true);
+    expect(dataOf(c.w, c.id).pieces.slice(-a.pieces.length)).toEqual(a.pieces);
+    expect(cash0 - c.w.state.park.cash).toBe(a.cost);
+    // Piece by piece with addTrackPiece.
+    const e = afterBigDrop(false);
+    for (const p of a.pieces) expectOk(add(e.w, e.id, p.brakeSpeed === null ? { id: p.defId, chain: p.chain } : { id: p.defId, chain: p.chain, brakeSpeed: p.brakeSpeed }, false));
+    expect(dataOf(e.w, e.id).pieces.slice(-a.pieces.length)).toEqual(a.pieces);
+  });
+
+  it('the command checks brake speeds like addTrackPiece', () => {
+    const { w, id } = afterBigDrop(false);
+    const f = found(findClosingPath(w, id));
+    const cmd = cmdOf(id, f);
+    const k = cmd.pieces.findIndex((p) => p.defId === 'brakes');
+    const h0 = stateHash(w);
+    const withSpeed = (speed: number): typeof cmd => ({ ...cmd, pieces: cmd.pieces.map((p, i) => (i === k ? { ...p, brakeSpeed: speed } : p)) });
+    expect(reasonOf(executeCommand(w, withSpeed(BRAKE_SPEED.max + 1), { setup: false }))).toBe(TRACK_ERR.brakeSpeedRange);
+    expect(reasonOf(executeCommand(w, withSpeed(2.5), { setup: false }))).toBe(TRACK_ERR.brakeSpeedRange);
+    // A brake speed on a piece that is not a brake is refused.
+    const j = cmd.pieces.findIndex((p) => p.defId !== 'brakes');
+    const other = { ...cmd, pieces: cmd.pieces.map((p, i) => (i === j ? { ...p, brakeSpeed: 6 } : p)) };
+    expect(reasonOf(executeCommand(w, other, { setup: false }))).toBe(TRACK_ERR.typeCannotUse);
+    expect(stateHash(w)).toBe(h0);
   });
 
   const OTHER: { typeId: string; specs: PieceSpec[] }[] = [

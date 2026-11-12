@@ -12,6 +12,41 @@ TC_BALANCE_SEEDS=12345,777,2024,1,42,9001,7,99,31337,500 npx vitest run tests/in
 
 ---
 
+## 2026-11-12 — Safety limits, the meter, the projection and Auto-finish (ride work 1, Tasks 3–9; owner decisions R5, R7, R1, R8)
+
+New constants in `src/data/tuning/track.ts`, all new with this work (no old value):
+
+| Constant | Value | Meaning | Status |
+|---|---|---|---|
+| `SAFETY_LIMIT.posGMax` | 6.0 G | Hard limit: vertical G of the strongest car (its own 5-tick window) above this cannot be built or opened | owner value (R7) |
+| `SAFETY_LIMIT.vertGMin` | −2.0 G | Hard limit: vertical G below this | owner value (R7) |
+| `SAFETY_LIMIT.latMax` | 3.0 G | Hard limit: lateral G above this | owner value (R7) |
+| `METER_WARN_MARGIN_G` | 0.5 G | The meter shows "Near the limit" from this far below a rating penalty limit (5.0 / −1.5 / 2.5) up to the hard limit | provisional |
+| `PROJECTION_MAX_TICKS` | 2,400 (120 s) | The section projection follows the train at most this long past its cached prefix; a train still on the candidate then counts as not reached | provisional |
+| `AUTO_FINISH.maxPieces` | 40 | Most pieces a found path adds | provisional |
+| `AUTO_FINISH.nodeLimit` | 33,000 | Node budget: about 3 s of search on the reference desktop (see below); was 20,000 in Task 7 | provisional |
+| `AUTO_FINISH.lapTries` | 8 | Most closed test laps one search runs | provisional |
+| `AUTO_FINISH.nodesPerSlice` | 16 | Nodes per slice in the builder | provisional |
+| `AUTO_FINISH.frameBudgetMs` | 10 | Search time per frame in the builder (the plan's 1,500 nodes per frame would hold a frame for about 300 ms) | provisional |
+| `AUTO_FINISH.weight` | 2 | `f = g + weight·h` | provisional |
+| `AUTO_FINISH.brakeSpeeds` | 17, 12, 7 m/s | Brake speeds the search may lay (owner 2026-11-12, "Allow brakes + 3 s limit"): 17 and 7 are the fastest whole speeds the plain medium (r 10 m) and small (r 2 m) turns take within 3.0 G sideways (v² / (r·g) ≤ 3); 12 is between them | provisional |
+| `AUTO_FINISH.brakeExtraMm` | 4,000 (one tile) | Added to a path's length per brake, so a path without brakes comes first | provisional |
+
+Why the node budget is 33,000: the owner asked that the search stop after about 3 s. Counting nodes instead of time keeps
+the answer deterministic. On the development container (about 1.8× slower than the reference desktop, ride work 1
+Task 3–4 report) the sweep's cases that spend the budget took a median 0.164 ms per node, so 3 s × 1.8 / 0.164 ms ≈
+33,000. Measured at 33,000 they stop after a median 5.4 s there (about 3.0 s on the reference desktop), worst 10.3 s
+(about 5.7 s). A phone (about 4× slower than the desktop) waits about 12 s at the median.
+
+Sweep (every test circuit cut after every piece, one whole search each, development container), Task 7 → now:
+
+| | Task 7 (no brakes, 20,000 nodes) | Brakes, 33,000 nodes |
+|---|---|---|
+| Found, all circuits | 255 of 361 (71 %) | 269 of 361 (75 %) |
+| Found, without the deliberately unsafe `UNSAFE_DROP` | 250 of 293 (85 %) | 258 of 293 (88 %) |
+| Found: median / p90 / worst time | 9.6 ms / 2.5 s / 4.5 s | 10.8 ms / 1.1 s / 6.3 s |
+| None: median / worst time | 5.4 s / 7.7 s | 3.6 s / 10.3 s |
+
 ## 2026-11-12 — Height limits and the intensity step (ride work 1, Task 1; owner decision R2)
 
 The height limits (climb above the station) are the owner's values of `ride-decisions-2026-11-12.md` R2: Steel 50 → 75,

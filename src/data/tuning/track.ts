@@ -207,6 +207,23 @@ export const PROJECTION_MAX_TICKS = 2_400;
  * `nodeLimit` expanded nodes and `lapTries` closed test laps. The builder runs the search in slices of `nodesPerSlice`
  * nodes until `frameBudgetMs` of the frame are spent (Task 7 measured about 0.2 ms per node on desktop, so the plan's
  * 1,500 nodes per frame would hold a frame for about 300 ms). The answer never depends on the slicing.
+ *
+ * Owner 2026-11-12 ("Allow brakes + 3 s limit"): the search may lay the ride's plain brake piece, at the speeds of
+ * `brakeSpeeds` (m/s, tried in this order): 17 and 7 are the fastest whole speeds the plain medium (radius 10 m) and
+ * small (radius 2 m) turns take within the 3.0 G lateral limit (v² / (r·g) ≤ 3), 12 sits between them for the slopes
+ * after a brake. A brake adds `brakeExtraMm` to the path's length, so a path without one comes first. `nodeLimit` is a
+ * node budget of about 3 s of search on the reference desktop (counting nodes, not time, keeps the answer deterministic):
+ * the cases that spend it took a median 0.164 ms per node on the development container, about 1.8× slower than the
+ * reference desktop, so 3 s × 1.8 / 0.164 ms ≈ 33,000 (was 20,000).
  * Provisional (tuning-log.md).
  */
-export const AUTO_FINISH = { maxPieces: 40, nodeLimit: 20_000, lapTries: 8, nodesPerSlice: 16, frameBudgetMs: 10, weight: 2 } as const;
+export const AUTO_FINISH = {
+  maxPieces: 40,
+  nodeLimit: 33_000,
+  lapTries: 8,
+  nodesPerSlice: 16,
+  frameBudgetMs: 10,
+  weight: 2,
+  brakeSpeeds: [17, 12, 7],
+  brakeExtraMm: 4_000,
+} as const;

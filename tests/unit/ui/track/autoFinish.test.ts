@@ -26,7 +26,7 @@ import {
   undoPiece,
 } from '../../../../src/ui/track/builder';
 import { makeTestWorld } from '../../../helpers/world';
-import { addAll, dataOf, EAST, place, R1_PIECES, rideOf } from '../../track/helpers';
+import { addAll, dataOf, EAST, NEAR_LIMIT_DROP_PIECES, place, R1_PIECES, rideOf } from '../../track/helpers';
 
 /** A game in the piece step of R1 without its last five pieces. */
 function setup(): { game: Game; id: number; cmds: Command[] } {
@@ -78,6 +78,30 @@ describe('Auto-finish in the builder (R1)', () => {
     expect(st.phase).toBe('entrance');
     undoPiece(game);
     expect(dataOf(game.world, id).pieces.length).toBe(n0 + shown.length - 1);
+  });
+
+  it('a path with brakes (owner 2026-11-12) is confirmed with each brake speed', () => {
+    // The 64 m climb of NEAR_LIMIT_DROP_PIECES cut just after its drop: the way back brakes before its turns.
+    const game = new Game(makeTestWorld());
+    const id = place(game.world, 'steel_coaster', 4, 2, EAST);
+    addAll(game.world, id, NEAR_LIMIT_DROP_PIECES.slice(0, NEAR_LIMIT_DROP_PIECES.indexOf('gentle_down_to_flat') + 1));
+    enterPieces(game, id);
+    const cmds: Command[] = [];
+    game.onCommand((c) => cmds.push(c));
+    const st = trackToolOf(game.tool);
+    startAutoFinishUi(game);
+    runSearch(game);
+    expect(st.autoFinish?.state).toBe('found');
+    const shown = st.autoFinish!.pieces;
+    expect(shown.some((p) => p.defId === 'brakes')).toBe(true);
+    const r = confirmAutoFinish(game);
+    expect(r?.ok).toBe(true);
+    expect(cmds.at(-1)).toEqual({
+      type: 'autoFinishTrack',
+      rideId: id,
+      pieces: shown.map((p) => (p.defId === 'brakes' ? { defId: p.defId, chain: p.chain, brakeSpeed: p.brakeSpeed } : { defId: p.defId, chain: p.chain })),
+    });
+    expect(dataOf(game.world, id).pieces.slice(-shown.length)).toEqual(shown);
   });
 
   it('Enter confirms a found path; Escape cancels it first and leaves the builder only after', () => {

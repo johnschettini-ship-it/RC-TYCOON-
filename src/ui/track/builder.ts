@@ -14,7 +14,7 @@ import type { Command, CommandResult } from '../../sim/commands/types';
 import { Content, inBounds, isOwned, tileIndex, type Dir, type MapState } from '../../sim/map';
 import { isUnlocked } from '../../sim/research/api';
 import { nextTrackPieces, previewTrackPiece } from '../../sim/rides/track/api';
-import { startAutoFinish, type AutoFinishSearch } from '../../sim/rides/track/autoFinish';
+import { startAutoFinish, type AutoFinishSearch, type AutoPiece } from '../../sim/rides/track/autoFinish';
 import { canAfford } from '../../sim/economy/ledger';
 import { stationPieces, trackEnd } from '../../sim/rides/track/build';
 import { findRide, trackData } from '../../sim/rides/track/common';
@@ -743,12 +743,17 @@ export function stepAutoFinishUi(host: BuilderHost): void {
   bump(st);
 }
 
+/** A found piece as the command sends it (a brake with its speed). */
+function autoPieceOf(p: TrackPieceInstance): AutoPiece {
+  return p.brakeSpeed === null ? { defId: p.defId, chain: p.chain } : { defId: p.defId, chain: p.chain, brakeSpeed: p.brakeSpeed };
+}
+
 /** Confirm the shown path: one `autoFinishTrack` command with its pieces. Null when no affordable path is shown. */
 export function confirmAutoFinish(host: BuilderHost): CommandResult | null {
   const st = trackToolOf(host.tool);
   const v = st.autoFinish;
   if (st.rideId === null || !v || v.state !== 'found' || !v.affordable) return null;
-  const r = host.dispatch({ type: 'autoFinishTrack', rideId: st.rideId, pieces: v.pieces.map((p) => ({ defId: p.defId, chain: p.chain })) });
+  const r = host.dispatch({ type: 'autoFinishTrack', rideId: st.rideId, pieces: v.pieces.map(autoPieceOf) });
   autoRuns.delete(st);
   st.autoFinish = null;
   if (r.ok) afterTrackChange(host, r.warnings.includes(TRACK_WARN.circuitComplete));

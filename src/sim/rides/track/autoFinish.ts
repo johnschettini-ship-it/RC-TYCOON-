@@ -2,15 +2,18 @@
  * Auto-finish (R1, R8, owner 2026-11-12; plan ride-work-1 decision 9, Task 7). Owner: W1-G.
  *
  * A weighted A* search from the track end back to the station's entry joint over the ride's plain pieces (its own set
- * and groups, `special === null`, no loops, corkscrews or helices); a chainable piece gets a chain only where the
- * projected train would stop on it without one. Every piece of a path passes the same rules as `addTrackPiece` would apply once the pieces before it are
+ * and groups, `special === null` or a plain brake, no loops, corkscrews or helices); a chainable piece gets a chain only
+ * where the projected train would stop on it without one. A brake (owner 2026-11-12, "Allow brakes + 3 s limit") is
+ * tried at each speed of `AUTO_FINISH.brakeSpeeds` below the train's projected speed, never right after another brake;
+ * block brakes, spooky and water features stay out. Every piece of a path passes the same rules as `addTrackPiece` would apply once the pieces before it are
  * built: the tile rules (`checkPieceTiles`, with the path's own pieces as extra envelopes) and the build-time projection
  * (R5/R7: no hard limit passed); the search also skips a piece on which the projected train stops. A closing path is
  * offered only when the finished circuit's test lap passes with no hard limit passed (R8, strongest car).
  *
  * Deterministic: priority `f = g + weight·h` (g: track length added, mm; h: a tile-distance estimate, mm), ties by
  * lower h, then insertion order; children in piece-table order; one visit per joint.
- * Bounded: `AUTO_FINISH` limits the pieces, the expanded nodes and the closed laps. Time-sliced: `step(n)` takes at
+ * Bounded: `AUTO_FINISH` limits the pieces, the expanded nodes (the node budget: about 3 s of search on the reference
+ * desktop, owner 2026-11-12) and the closed laps. Time-sliced: `step(n)` takes at
  * most n nodes off the open list, and the answer never depends on how the search is sliced. Pure: reads the world,
  * changes nothing.
  *
@@ -19,7 +22,7 @@
  */
 import { getTrackPieceDef, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
 import { TRACK_ERR, fillTrackString } from '../../../data/strings/track';
-import { AUTO_FINISH, CHAIN_EXTRA_CENTS, MAX_PIECES, STEEP_RISE_M, TILE_MM } from '../../../data/tuning/track';
+import { AUTO_FINISH, BRAKE_SPEED, CHAIN_EXTRA_CENTS, MAX_PIECES, STEEP_RISE_M, TILE_MM } from '../../../data/tuning/track';
 import type { CommandContext } from '../../commands/types';
 import { canAfford } from '../../economy/ledger';
 import type { World } from '../../types';
@@ -37,6 +40,8 @@ import type { TestResult, TrackPieceInstance, TrackRideData } from './types';
 export interface AutoPiece {
   defId: string;
   chain: boolean;
+  /** A brake's speed (m/s; `addTrackPiece`'s default when left out); only on a brake. */
+  brakeSpeed?: number;
 }
 
 export type AutoFinishOutcome =
@@ -63,13 +68,13 @@ export interface AutoFinishLimits {
 /** Groups that are never plain, even without a `special` (loops, corkscrews, helices). */
 const NOT_PLAIN_GROUPS: readonly string[] = ['L', 'Cs', 'Hx'];
 
-/** A plain piece of this type: one Auto-finish may use. */
+/** A plain piece of this type: one Auto-finish may use (plain brakes included, owner 2026-11-12; block brakes not). */
 export function isPlainPiece(type: TrackTypeDef, def: TrackPieceDef): boolean {
   return (
     def.set === type.pieceSet &&
     type.groups.includes(def.group) &&
     !type.excludePieces.includes(def.id) &&
-    def.special === null &&
+    (def.special === null || def.special === 'brakes') &&
     !NOT_PLAIN_GROUPS.includes(def.group)
   );
 }
@@ -134,10 +139,18 @@ function checkTiles(
   if (!def) return { ok: false, reason: TRACK_ERR.unknownPiece };
   if (!isPlainPiece(type, def)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
   if (spec.chain && (!type.chain || !def.chainable)) return { ok: false, reason: TRACK_ERR.typeCannotUse };
+  let brakeSpeed: number | null = null;
+  if (def.special === 'brakes') {
+    // The same rule as `addTrackPiece` (`planAppend`).
+    brakeSpeed = spec.brakeSpeed ?? BRAKE_SPEED.default;
+    if (!Number.isInteger(brakeSpeed) || brakeSpeed < BRAKE_SPEED.min || brakeSpeed > BRAKE_SPEED.max) return { ok: false, reason: TRACK_ERR.brakeSpeedRange };
+  } else if (spec.brakeSpeed !== undefined) {
+    return { ok: false, reason: TRACK_ERR.typeCannotUse };
+  }
   if (def.entry.slope !== at.slope || def.entry.bank !== at.bank) return { ok: false, reason: TRACK_ERR.doesNotFit };
   const index = data.pieces.length + pathLength;
   if (index >= MAX_PIECES) return { ok: false, reason: TRACK_ERR.tooLong };
-  const piece: TrackPieceInstance = { defId: def.id, x: at.x, y: at.y, z: at.z, dir: at.dir, chain: spec.chain, brakeSpeed: null, cost: 0 };
+  const piece: TrackPieceInstance = { defId: def.id, x: at.x, y: at.y, z: at.z, dir: at.dir, chain: spec.chain, brakeSpeed, cost: 0 };
   const chk = checkPieceTiles(world, ride.id, index, piece, type, data.pieces, { occ, extra, runBefore });
   if (!chk.ok) return chk;
   piece.cost = pieceCost(type, def, spec.chain, chk.heightAboveGround);
@@ -174,6 +187,8 @@ interface SearchNode {
   seq: number;
   /** Unsupported rail tiles at the end. */
   run: number;
+  /** The speed (m/s) of the last brake on the path, 0 before any: part of the visited key, since it sets the speed. */
+  brake: number;
   /** The projection snapshot after this node's piece; null until the node is popped and projected. */
   snap: ProjectionSnapshot | null;
   piece: TrackPieceInstance | null;
@@ -184,6 +199,11 @@ interface SearchNode {
 
 function jointKey(j: Joint): string {
   return `${j.x},${j.y},${j.z},${j.dir},${j.slope},${j.bank}`;
+}
+
+/** The visited key: the joint and the last brake's speed (a path that braked to 7 m/s is not one that did not brake). */
+function nodeKey(j: Joint, brake: number): string {
+  return `${jointKey(j)}|${brake}`;
 }
 
 function quarterTurns(a: number, b: number): number {
@@ -296,13 +316,24 @@ export function startAutoFinish(world: World, rideId: number, limits: Partial<Au
   const h0 = estimate(startJoint, goal);
   open.push({
     joint: startJoint, depth: 0, g: 0, h: h0, f: AUTO_FINISH.weight * h0, seq: seq++,
-    run: trailingUnsupported(world, ride.id, data.pieces, occ), snap: projectPrefix(data, type), piece: null, def: null, tiles: [], parent: null,
+    run: trailingUnsupported(world, ride.id, data.pieces, occ), brake: 0, snap: projectPrefix(data, type), piece: null, def: null, tiles: [], parent: null,
   });
 
-  const child = (parent: SearchNode, t: Extract<TileStep, { ok: true }>, exit: Joint): SearchNode => {
+  const child = (parent: SearchNode, t: Extract<TileStep, { ok: true }>, exit: Joint, brake: number): SearchNode => {
     const h = estimate(exit, goal);
-    const g = parent.g + t.def.lengthMm;
-    return { joint: exit, depth: parent.depth + 1, g, h, f: g + AUTO_FINISH.weight * h, seq: seq++, run: t.runAfter, snap: null, piece: t.piece, def: t.def, tiles: t.tiles, parent };
+    // A brake costs a little more than a straight, so the search brakes only where a plain path does not do.
+    const g = parent.g + t.def.lengthMm + (t.def.special === 'brakes' ? AUTO_FINISH.brakeExtraMm : 0);
+    return { joint: exit, depth: parent.depth + 1, g, h, f: g + AUTO_FINISH.weight * h, seq: seq++, run: t.runAfter, brake, snap: null, piece: t.piece, def: t.def, tiles: t.tiles, parent };
+  };
+
+  /** Push one child of `n` when it passes its tile checks and its joint (with its brake speed) is not visited yet. */
+  const pushChild = (n: SearchNode, spec: AutoPiece, path: PathSoFar, extra: Occupancy | undefined, brake: number): void => {
+    const t = checkTiles(world, ride, data, type, spec, n.joint, path.pieces.length, occ, extra, n.run);
+    if (!t.ok) return;
+    const exit = pieceExitJoint(t.piece);
+    if (jointKey(exit) !== goalKey && seen.has(nodeKey(exit, brake))) return;
+    if (n.depth === 0) rootChildren++;
+    open.push(child(n, t, exit, brake));
   };
 
   /** Push the children of a projected node that pass their tile checks. */
@@ -310,15 +341,19 @@ export function startAutoFinish(world: World, rideId: number, limits: Partial<Au
     if (n.depth + 1 > lim.maxPieces) return;
     const path = pathOf(n);
     const extra = path.pieces.length > 0 ? extraOccupancy(ride.id, data.pieces.length, path) : undefined;
+    // The projected speed at the node's end (mm/s): a brake at or above it would do nothing.
+    const v = (n.snap as ProjectionSnapshot).train.v;
     for (const def of piecesForEnd(type.id, n.joint.slope, n.joint.bank)) {
       if (!isPlainPiece(type, def)) continue;
-      const t = checkTiles(world, ride, data, type, { defId: def.id, chain: false }, n.joint, path.pieces.length, occ, extra, n.run);
-      if (!t.ok) continue;
-      const exit = pieceExitJoint(t.piece);
-      const key = jointKey(exit);
-      if (key !== goalKey && seen.has(key)) continue;
-      if (n.depth === 0) rootChildren++;
-      open.push(child(n, t, exit));
+      if (def.special !== 'brakes') {
+        pushChild(n, { defId: def.id, chain: false }, path, extra, n.brake);
+        continue;
+      }
+      // Never two brakes in a row: one brake already reaches its speed by its end.
+      if (n.def?.special === 'brakes') continue;
+      for (const speed of AUTO_FINISH.brakeSpeeds) {
+        if (speed * 1000 < v) pushChild(n, { defId: def.id, chain: false, brakeSpeed: speed }, path, extra, speed);
+      }
     }
   };
 
@@ -366,7 +401,7 @@ export function startAutoFinish(world: World, rideId: number, limits: Partial<Au
         return null; // a goal is never expanded further
       }
     }
-    seen.add(jointKey(n.joint));
+    seen.add(nodeKey(n.joint, n.brake));
     nodes++;
     expand(n);
     return null;
@@ -381,11 +416,13 @@ export function startAutoFinish(world: World, rideId: number, limits: Partial<Au
       let budget = maxNodes;
       while (budget > 0) {
         if (open.size === 0 || nodes >= lim.nodeLimit) {
-          outcome = rootAnswer() ?? { kind: 'none', reason: TRACK_ERR.autoFinishNone };
+          // The node budget spent (about 3 s of search on the reference desktop): say what the player can change.
+          const reason = open.size === 0 ? TRACK_ERR.autoFinishNone : TRACK_ERR.autoFinishGaveUp;
+          outcome = rootAnswer() ?? { kind: 'none', reason };
           return outcome;
         }
         const n = open.pop() as SearchNode;
-        if (seen.has(jointKey(n.joint))) continue;
+        if (seen.has(nodeKey(n.joint, n.brake))) continue;
         budget--;
         const o = visit(n);
         if (o) {

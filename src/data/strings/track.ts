@@ -55,6 +55,8 @@ export const TRACK_ERR = {
   pieceUnsafeLat: 'Over the safety limit: {g} G sideways (max {limit} G)',
   // R1/R8 (owner 2026-11-12): Auto-finish (the search's answer and the `autoFinishTrack` command's refusals).
   autoFinishNone: 'No safe way back to the station was found',
+  // Owner 2026-11-12 ("Allow brakes + 3 s limit"): the search spent its node budget (about 3 s on the reference desktop).
+  autoFinishGaveUp: 'No safe way back found: build closer to the station or lower the track',
   autoFinishStallsFirst: 'The train stops on piece {n}. Fix that first',
   autoFinishNotClosing: 'These pieces do not reach the station',
   autoFinishLapFails: 'The finished ride would not pass its test',
