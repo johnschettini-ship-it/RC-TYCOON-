@@ -13,7 +13,7 @@ What you see in the three owner pictures:
 - `after-phone.png`: the same pixel park on a phone, closer in; the carousel, the guests and the paths are crisp, with square pixels.
 - `sheet-rides-track.png`: all 18 rides and a roller coaster track in two views, in pixel art; the track joins are clean, but some rides are flat single colours (for example the purple haunted house).
 
-Owner's answer: 
+Owner's answer (2026-11-12): switch to predrawn pictures. The owner chose a new approach: draw every picture when the game is built, download all of it on the first visit, and only copy finished pictures during play. Kill rule 1 (a clear step toward the draft) was not answered directly. The live-drawing approach of this report stops here. Next: spec `phase-8b-predrawn-art.md`.
 
 ## 2. Kill rules
 
