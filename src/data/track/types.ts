@@ -148,7 +148,10 @@ export interface TrackTypeDef {
   ratings: { e: number; i: number; n: number; kAir: number; extra: RatingExtra };
   /** Cents. `pieceFactorPermille` 1000 = factor 1.0. */
   costs: { base: number; pieceFactorPermille: number; runBase: number; extraTrain: number };
+  /** Highest climb of the track above its station (m). */
   maxHeightM: number;
+  /** R2 (owner 2026-11-12): the climb above the station (m) where the intensity step starts (the limit before 2026-11-12). */
+  intensityHeightM: number;
   render: {
     /** Phase 6: `inverted` (rail above the hanging cars), `bobsled` (ice trough), `beam` (monorail beam). */
     rail: 'steel' | 'wood' | 'narrow' | 'kart' | 'tunnel' | 'flume' | 'rapids' | 'inverted' | 'bobsled' | 'beam';

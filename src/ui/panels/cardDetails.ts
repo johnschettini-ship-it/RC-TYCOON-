@@ -42,7 +42,8 @@ export function cardDetailRows(spec: CardSpec): DetailRow[] {
       { labelId: 'ui.details.running', value: formatMoney(def.runningCostMonthly) },
     ];
   }
-  // The four lines of the old track card, in its order: drive, maximum height, seats per car, "From" cost.
+  // The four lines of the old track card, in its order: drive, maximum height, seats per car, "From" cost; then the
+  // climb above which the ride counts as more intense (R2, owner 2026-11-12).
   const type = getTrackTypeDef(spec.id);
   if (!type) return [];
   const line = (labelId: string, params?: Record<string, string | number>): DetailRow => ({ labelId, value: text(labelId, params) });
@@ -51,6 +52,7 @@ export function cardDetailRows(spec: CardSpec): DetailRow[] {
     line('ui.track.maxHeight', { n: type.maxHeightM }),
     line('ui.track.seats', { n: type.vehicle.seatsPerCar }),
     line('ui.track.from', { cost: formatMoney(spec.cost) }),
+    line('ui.track.intensityFrom', { n: type.intensityHeightM }),
   ];
 }
 

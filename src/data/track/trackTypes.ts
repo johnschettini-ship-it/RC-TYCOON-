@@ -112,6 +112,7 @@ function build(e: Extra): TrackTypeDef {
       extraTrain: e.costs.extraTrain * 100,
     },
     maxHeightM: cat.maxHeightM,
+    intensityHeightM: cat.intensityHeightM,
     render: e.render,
   });
 }
@@ -222,6 +223,7 @@ function buildWater(e: WaterExtra): TrackTypeDef {
       extraTrain: e.costs.extraTrain * 100,
     },
     maxHeightM: cat.maxHeightM,
+    intensityHeightM: cat.intensityHeightM,
     render: e.render,
   } satisfies TrackTypeDef);
 }

@@ -176,3 +176,10 @@ export const STOP_DWELL_TICKS = 60;
 
 /** Sound cue `trainDrop` (Phase 6 §4.2 `coaster_cheer`): a train with riders finishes a drop of more than this (m). */
 export const TRAIN_DROP_CUE_M = 10;
+
+/**
+ * R2 (owner 2026-11-12; plan ride-work-1 decision 1): for each whole metre the circuit climbs above its station beyond
+ * the type's old limit (`intensityHeightM`), the test lap adds `perMHundredths` to the intensity (hundredths), at most
+ * `capHundredths`. Added after the §4.10 formula and the water extras, clamped to 10.00. Provisional (tuning-log.md).
+ */
+export const HEIGHT_INTENSITY = { perMHundredths: 10, capHundredths: 200 } as const;

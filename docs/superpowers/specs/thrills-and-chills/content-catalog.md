@@ -36,6 +36,8 @@
 | `merry_mill` | Merry Mill | 6 | Gentle | chill | — | 3×3 | 3.20 | 1.20 | 0.80 | 16 | 30 | $2,200 | $60 | $2 |
 | `gyro_globe` | Gyro Globe | 6 | Thrill | thrill | tall | 3×3 | 7.00 | 8.50 | 7.00 | 8 | 25 | $6,000 | $160 | $5 |
 
+Max height is the highest climb of the track above its station (owner, 2026-11-12; raised by decision R2 of `ride-decisions-2026-11-12.md`). Above its old limit (Steel 50, Inverted 45, Wooden 40, Bobsled 25, Log Flume 20, Spinning Mouse 16, Junior 12, Monorail 12, Rapids 10, Mini Railway 8, Ghost Train 6, Go-Kart 4 m) a ride counts as more intense: +0.10 per metre, at most +2.00 (`HEIGHT_INTENSITY`, provisional; added to the test lap's intensity after the rating formula and the water extras). The ride card shows the old limit as "More intense above {n} m".
+
 The Phase 6 rows come from `phase-6-polish.md` §4.5 (Build 3). Merry Mill is a chill windmill ride.
 
 ---
@@ -44,20 +46,20 @@ The Phase 6 rows come from `phase-6-polish.md` §4.5 (Build 3). Merry Mill is a 
 
 Track pieces, piece costs, build and running costs, extra-train costs, physics, and rating formulas are in `phase-2-coasters.md` (§4 and §8). A track ride counts as `tall` when its highest point is 20 m or more above ground. Water piece sets are in `phase-4-land-scenery-after-dark.md`.
 
-| id | Name | Ph | Unlock | Tag | Flags | Drive | Seats/car | Cars/train | Max trains | Max height | Piece set | Price |
+| id | Name | Ph | Unlock | Tag | Flags | Drive | Seats/car | Cars/train | Max trains | Max height (climb above the station) | Piece set | Price |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `steel_coaster` | Steel Coaster | 2 | start | thrill | — | gravity + chain lift | 4 | 2–7 | 3 | 50 m | full set incl. vertical loop and banked turns | $5 |
-| `junior_coaster` | Junior Coaster | 2 | start | family | — | gravity + chain lift | 2 | 2–6 | 2 | 12 m | no steep slopes, no loop | $3 |
-| `mini_railway` | Mini Railway | 2 | start | chill | — | powered, 5 m/s | 6 | 2–5 | 2 | 8 m | flat, gentle slopes, turns | $2 |
-| `wooden_coaster` | Wooden Coaster | 3 | Coasters | thrill | — | gravity + chain lift | 4 | 2–7 | 3 | 40 m | no loop; airtime bonus; higher friction | $5 |
-| `spinning_mouse` | Spinning Mouse | 3 | Coasters | family | — | gravity + chain lift | 4 | 1 | 6 | 16 m | small turns only; spinning adds nausea | $4 |
-| `ghost_train` | Ghost Train | 3 | Gentle | chill | covered, spooky | powered, 3 m/s | 2 | 1–3 | 4 | 6 m | flat, gentle slopes, turns, spooky tunnel | $3 |
-| `go_karts` | Go-Kart Track | 3 | Thrill | thrill | — | guest-driven, 6–9 m/s | 1 | 1 | 12 | 4 m | flat, gentle slopes, turns; laps | $3 |
-| `log_flume` | Log Flume | 4 | Water | family | — | water channel + conveyor lift | 4 | 1 | 6 | 20 m | flume set; splashdown | $4 |
-| `rapids_raft` | Rapids Raft | 4 | Water | family | — | water current | 8 | 1 | 8 | 10 m | rapids set; waterfall | $4 |
-| `inverted_coaster` | Inverted Coaster | 6 | Coasters | thrill | — | gravity + chain lift | 4 | 3–8 | 3 | 45 m | Steel set + corkscrew + helix; riders hang below the track | $6 |
-| `bobsled_run` | Bobsled Run | 6 | Coasters | thrill | — | gravity + chain lift | 2 | 1–4 | 4 | 25 m | flat, gentle and steep down, banked turns, helix; no loop | $4 |
-| `monorail` | Monorail | 6 | Gentle | chill | — | powered, 8 m/s | 6 | 3–6 | 4 | 12 m | flat, gentle slopes, turns; up to 4 stations | $2 |
+| `steel_coaster` | Steel Coaster | 2 | start | thrill | — | gravity + chain lift | 4 | 2–7 | 3 | 75 m | full set incl. vertical loop and banked turns | $5 |
+| `junior_coaster` | Junior Coaster | 2 | start | family | — | gravity + chain lift | 2 | 2–6 | 2 | 20 m | no steep slopes, no loop | $3 |
+| `mini_railway` | Mini Railway | 2 | start | chill | — | powered, 5 m/s | 6 | 2–5 | 2 | 16 m | flat, gentle slopes, turns | $2 |
+| `wooden_coaster` | Wooden Coaster | 3 | Coasters | thrill | — | gravity + chain lift | 4 | 2–7 | 3 | 60 m | no loop; airtime bonus; higher friction | $5 |
+| `spinning_mouse` | Spinning Mouse | 3 | Coasters | family | — | gravity + chain lift | 4 | 1 | 6 | 24 m | small turns only; spinning adds nausea | $4 |
+| `ghost_train` | Ghost Train | 3 | Gentle | chill | covered, spooky | powered, 3 m/s | 2 | 1–3 | 4 | 10 m | flat, gentle slopes, turns, spooky tunnel | $3 |
+| `go_karts` | Go-Kart Track | 3 | Thrill | thrill | — | guest-driven, 6–9 m/s | 1 | 1 | 12 | 6 m | flat, gentle slopes, turns; laps | $3 |
+| `log_flume` | Log Flume | 4 | Water | family | — | water channel + conveyor lift | 4 | 1 | 6 | 30 m | flume set; splashdown | $4 |
+| `rapids_raft` | Rapids Raft | 4 | Water | family | — | water current | 8 | 1 | 8 | 15 m | rapids set; waterfall | $4 |
+| `inverted_coaster` | Inverted Coaster | 6 | Coasters | thrill | — | gravity + chain lift | 4 | 3–8 | 3 | 70 m | Steel set + corkscrew + helix; riders hang below the track | $6 |
+| `bobsled_run` | Bobsled Run | 6 | Coasters | thrill | — | gravity + chain lift | 2 | 1–4 | 4 | 35 m | flat, gentle and steep down, banked turns, helix; no loop | $4 |
+| `monorail` | Monorail | 6 | Gentle | chill | — | powered, 8 m/s | 6 | 3–6 | 4 | 24 m | flat, gentle slopes, turns; up to 4 stations | $2 |
 
 The Phase 6 rows come from `phase-6-polish.md` §4.5 (Build 3). The Monorail is a multi-station transport ride. The Phase 6 track pieces (corkscrew, helix) are in section 8.
 

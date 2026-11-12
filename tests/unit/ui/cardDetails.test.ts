@@ -28,7 +28,7 @@ describe('card details (Phase 7 §4.7)', () => {
       text(`ui.kind.${def.kind}`), formatPrice(def.defaultPrice), formatMoney(def.runningCostMonthly),
     ]);
   });
-  it('a track ride shows four rows', () => {
+  it('a track ride shows five rows', () => {
     const type = pickableTrackTypes(makeTestWorld())[0]!;
     const cat = getTrackRideDef(type.id)!;
     const cost = stationCost(type, minStationTiles(type, type.vehicle.defaultCars));
@@ -39,10 +39,19 @@ describe('card details (Phase 7 §4.7)', () => {
       { labelId: 'ui.track.maxHeight', value: text('ui.track.maxHeight', { n: type.maxHeightM }) },
       { labelId: 'ui.track.seats', value: text('ui.track.seats', { n: type.vehicle.seatsPerCar }) },
       { labelId: 'ui.track.from', value: text('ui.track.from', { cost: formatMoney(cost) }) },
+      // R2 (owner 2026-11-12): the climb where the ride starts to count as more intense.
+      { labelId: 'ui.track.intensityFrom', value: text('ui.track.intensityFrom', { n: type.intensityHeightM }) },
     ]);
     for (const r of rows) expect(r.value, r.labelId).not.toMatch(/[{}]|^ui\./);
     expect(rows[1]!.value).toBe(`Climbs up to ${type.maxHeightM} m above its station`);
     expect(rows[2]!.value).toBe(`${type.vehicle.seatsPerCar} seats per car`);
+  });
+  it('the Junior Coaster card shows its 20 m limit and the 12 m where it gets more intense (R2)', () => {
+    const cat = getTrackRideDef('junior_coaster')!;
+    const rows = cardDetailRows({ id: 'junior_coaster', kind: 'track', zone: cat.tag, cost: 0, name: cat.name });
+    expect(rows).toHaveLength(5);
+    expect(rows[1]!.value).toBe('Climbs up to 20 m above its station');
+    expect(rows[4]).toEqual({ labelId: 'ui.track.intensityFrom', value: 'More intense above 12 m' });
   });
   it('an id that is not in the catalog has no rows', () => {
     expect(cardDetailRows({ id: 'no_such_ride', kind: 'flat', zone: 'family', cost: 0, name: '' })).toEqual([]);

@@ -117,9 +117,9 @@ These tables replace section 8 of `content-catalog.md` when Phase 6 starts. The 
 **Track ride types**
 | id | Name | Ph | Unlock | Tag | Flags | Drive | Seats/car | Cars/train | Max trains | Max height | Piece set | Price |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `inverted_coaster` | Inverted Coaster | 6 | Coasters | thrill | — | gravity + chain lift | 4 | 3–8 | 3 | 45 m | Steel set + corkscrew + helix; riders hang below the track | $6 |
-| `bobsled_run` | Bobsled Run | 6 | Coasters | thrill | — | gravity + chain lift | 2 | 1–4 | 4 | 25 m | flat, gentle and steep down, banked turns, helix; no loop | $4 |
-| `monorail` | Monorail | 6 | Gentle | chill | — | powered, 8 m/s | 6 | 3–6 | 4 | 12 m | flat, gentle slopes, turns; up to 4 stations | $2 |
+| `inverted_coaster` | Inverted Coaster | 6 | Coasters | thrill | — | gravity + chain lift | 4 | 3–8 | 3 | 70 m (45 m before R2, owner 2026-11-12) | Steel set + corkscrew + helix; riders hang below the track | $6 |
+| `bobsled_run` | Bobsled Run | 6 | Coasters | thrill | — | gravity + chain lift | 2 | 1–4 | 4 | 35 m (25 m before R2, owner 2026-11-12) | flat, gentle and steep down, banked turns, helix; no loop | $4 |
+| `monorail` | Monorail | 6 | Gentle | chill | — | powered, 8 m/s | 6 | 3–6 | 4 | 24 m (12 m before R2, owner 2026-11-12) | flat, gentle slopes, turns; up to 4 stations | $2 |
 
 **Track pieces** (cost as a multiple of the straight piece cost of the same track type, Phase 2)
 | Piece | Track types | Footprint | Height change | Inversions | Min entry speed | Cost |

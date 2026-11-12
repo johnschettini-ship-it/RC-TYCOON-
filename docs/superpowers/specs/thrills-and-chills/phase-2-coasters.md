@@ -105,7 +105,7 @@ Groups: S station, St straight, G gentle, X steep, Ts small turn, Tm medium turn
 | Type | Groups | Notes |
 |---|---|---|
 | Steel Coaster | S St G X Ts Tm B Br BB L + chain | — |
-| Junior Coaster | S St G Ts Tm B Br BB + chain | Max height 12 m. |
+| Junior Coaster | S St G Ts Tm B Br BB + chain | Max height 20 m above the station (12 m before R2, owner 2026-11-12). |
 | Mini Railway | S St G Ts Tm | Powered. |
 | Wooden Coaster (Ph 3) | S St G X Ts Tm B Br BB + chain | Lattice supports. Airtime factor 1.5. |
 | Spinning Mouse (Ph 3) | S St G X Ts Br BB + chain | Single-car trains. `spins = true`. |
@@ -224,6 +224,7 @@ Steps in order:
 1. **Soft cap** each value: if `x > 6`, then `x = 6 + (x − 6) × 0.5`.
 2. **Penalties** on excitement: `posGMax > 5.0` → `E −= 1.5 × (posGMax − 5.0)`. `vertGMin < −1.5` → `E −= 1.5 × (−1.5 − vertGMin)`. `latMax > 2.5` → `E −= 1.5 × (latMax − 2.5)`. `rideTime < 20` → `E ×= rideTime / 20`.
 3. Clamp to 0.00–10.00. Round to the nearest hundredth: `Math.round(x × 100)`. Store integer hundredths.
+4. **Height step** (R2, owner 2026-11-12; added after this formula and the water extras of Phase 4 §4.4): intensity `+= min(2.00, 0.10 × max(0, climb − old limit))`, where `climb` is how high the circuit climbs above its station (whole metres) and the old limit is the type's height limit before 2026-11-12 (`intensityHeightM`: Steel 50, Junior 12, Mini Railway 8, Wooden 40, Spinning Mouse 16, Ghost Train 6, Go-Kart 4 m; content-catalog §2 for the others); clamped to 10.00. Excitement, nausea and the penalty do not change. Values provisional (`HEIGHT_INTENSITY`, tuning-log 2026-11-12).
 
 | Type | E_type | I_type | N_type | kAir | E_extra |
 |---|---|---|---|---|---|
@@ -438,15 +439,15 @@ interface TrackSlice { rides: Record<string, TrackRideData> }   // string keys k
 
 ## 8. Tuning constants (starting values, `src/data/track.ts`)
 
-| Type | Base cost | Piece factor | Run base/mo | Extra train | Car length | Seats/car | μ | c_d (1/m) | Chain | Drive speed | Max height |
+| Type | Base cost | Piece factor | Run base/mo | Extra train | Car length | Seats/car | μ | c_d (1/m) | Chain | Drive speed | Max height (climb above the station; R2, owner 2026-11-12) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| Steel Coaster | $3,000 | 1.0 | $120 | $800 | 2.5 m | 4 | 0.015 | 0.0008 | 3.0 m/s | — | 50 m |
-| Junior Coaster | $1,500 | 0.7 | $60 | $400 | 2.0 m | 2 | 0.020 | 0.0010 | 2.0 m/s | — | 12 m |
-| Mini Railway | $1,200 | 0.6 | $50 | $500 | 3.0 m | 6 | — | — | — | 5.0 m/s | 8 m |
-| Wooden Coaster | $2,800 | 1.2 | $130 | $700 | 2.5 m | 4 | 0.025 | 0.0010 | 2.5 m/s | — | 40 m |
-| Spinning Mouse | $2,500 | 0.9 | $90 | $300 | 2.0 m | 4 | 0.020 | 0.0010 | 2.0 m/s | — | 16 m |
-| Ghost Train | $2,000 | 0.8 | $70 | $300 | 2.0 m | 2 | — | — | — | 3.0 m/s | 6 m |
-| Go-Kart Track | $1,800 | 0.5 | $60 | $100 | 2.0 m | 1 | — | — | — | 6.0–9.0 m/s | 4 m |
+| Steel Coaster | $3,000 | 1.0 | $120 | $800 | 2.5 m | 4 | 0.015 | 0.0008 | 3.0 m/s | — | 75 m |
+| Junior Coaster | $1,500 | 0.7 | $60 | $400 | 2.0 m | 2 | 0.020 | 0.0010 | 2.0 m/s | — | 20 m |
+| Mini Railway | $1,200 | 0.6 | $50 | $500 | 3.0 m | 6 | — | — | — | 5.0 m/s | 16 m |
+| Wooden Coaster | $2,800 | 1.2 | $130 | $700 | 2.5 m | 4 | 0.025 | 0.0010 | 2.5 m/s | — | 60 m |
+| Spinning Mouse | $2,500 | 0.9 | $90 | $300 | 2.0 m | 4 | 0.020 | 0.0010 | 2.0 m/s | — | 24 m |
+| Ghost Train | $2,000 | 0.8 | $70 | $300 | 2.0 m | 2 | — | — | — | 3.0 m/s | 10 m |
+| Go-Kart Track | $1,800 | 0.5 | $60 | $100 | 2.0 m | 1 | — | — | — | 6.0–9.0 m/s | 6 m |
 
 | Constant | Value |
 |---|---|

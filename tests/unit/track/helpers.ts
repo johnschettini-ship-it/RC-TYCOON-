@@ -135,3 +135,24 @@ export const R1_BLOCKS: PieceSpec[] = [
 
 /** A 6-piece closed circuit of small turns around (10, 10). */
 export const SMALL_LOOP: PieceSpec[] = ['turn_small_right', 'turn_small_right', 'straight', 'turn_small_right', 'turn_small_right'];
+
+/**
+ * R2 (owner 2026-11-12): a closed Mini Railway circuit (station at (10, 10) heading +x) whose back straight is a hill
+ * that climbs 10 m above the station, 2 m over the railway's old 8 m limit. Pieces after the first station.
+ */
+export const RAIL_HILL_PIECES: PieceSpec[] = [
+  'station',
+  ...times(10, 'straight'),
+  'turn_medium_right',
+  ...times(3, 'straight'),
+  'turn_medium_right',
+  'flat_to_gentle_up',
+  ...times(4, 'gentle_up'),
+  'gentle_up_to_flat',
+  'flat_to_gentle_down',
+  ...times(4, 'gentle_down'),
+  'gentle_down_to_flat',
+  'turn_medium_right',
+  ...times(3, 'straight'),
+  'turn_medium_right',
+];

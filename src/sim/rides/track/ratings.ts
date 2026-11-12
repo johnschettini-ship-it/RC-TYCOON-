@@ -1,6 +1,6 @@
 /** Ratings from measured values (phase-2-coasters.md §4.10; water extras Phase 4 §4.4). Owner: W1-G; water extras W3-C. */
 import type { TrackPieceDef, TrackTypeDef } from '../../../data/track';
-import { RATING, WARN, WATER_RATING_EXTRAS } from '../../../data/tuning/track';
+import { HEIGHT_INTENSITY, RATING, WARN, WATER_RATING_EXTRAS } from '../../../data/tuning/track';
 import { TRACK_RATING_WARN } from '../../../data/strings/track';
 import type { TestResult } from './types';
 
@@ -145,6 +145,16 @@ export function addWaterExtras(r: Ratings, x: WaterExtras): Ratings {
 }
 
 /** Measured values of a stored test in natural units. */
+/**
+ * R2 (owner 2026-11-12): the intensity added for a circuit that climbs `climbM` above its station (hundredths):
+ * `perMHundredths` per metre above the type's old limit (`intensityHeightM`), at most `capHundredths`.
+ */
+export function heightIntensityStep(climbM: number, type: TrackTypeDef): number {
+  const over = Math.floor(climbM - type.intensityHeightM);
+  if (over <= 0) return 0;
+  return Math.min(HEIGHT_INTENSITY.capHundredths, over * HEIGHT_INTENSITY.perMHundredths);
+}
+
 export function ratingInputsOf(t: TestResult): RatingInputs {
   return {
     vMax: t.vMaxMms / 1000,

@@ -11,6 +11,7 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.drive.waterCurrent': 'Water current',
   'ui.track.maxHeight': 'Climbs up to {n} m above its station',
   'ui.track.seats': '{n} seats per car',
+  'ui.track.intensityFrom': 'More intense above {n} m',
 
   // Builder (§7.1–7.3)
   'ui.track.builder': 'Track builder',

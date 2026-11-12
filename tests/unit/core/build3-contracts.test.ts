@@ -185,8 +185,8 @@ describe('Phase 6 catalog rows (phase-6-polish.md §4.5)', () => {
     expect(getFlatRideDef('magic_carpet')).toMatchObject({ w: 4, d: 3, excitement: 520, intensity: 600, nausea: 380, capacity: 20, cycleTicks: 500, buildCost: 360_000, runningCostMonthly: 10_000, defaultPrice: 300, tag: 'thrill', unlock: 'thrill' });
     expect(getFlatRideDef('gyro_globe')?.flags).toEqual({ covered: false, spooky: false, tall: true });
     expect(getFlatRideDef('kiddie_cars')).toMatchObject({ tag: 'family', unlock: 'gentle', defaultPrice: 100 });
-    expect(getTrackRideDef('monorail')).toMatchObject({ drive: 'powered', driveSpeedMms: 8_000, seatsPerCar: 6, carsMin: 3, carsMax: 6, maxTrains: 4, maxHeightM: 12, defaultPrice: 200 });
-    expect(getTrackRideDef('inverted_coaster')).toMatchObject({ carsMin: 3, carsMax: 8, maxHeightM: 45, defaultPrice: 600, unlock: 'coasters' });
+    expect(getTrackRideDef('monorail')).toMatchObject({ drive: 'powered', driveSpeedMms: 8_000, seatsPerCar: 6, carsMin: 3, carsMax: 6, maxTrains: 4, maxHeightM: 24, defaultPrice: 200 }); // R2 (owner 2026-11-12): 12 → 24 m
+    expect(getTrackRideDef('inverted_coaster')).toMatchObject({ carsMin: 3, carsMax: 8, maxHeightM: 70, defaultPrice: 600, unlock: 'coasters' }); // R2 (owner 2026-11-12): 45 → 70 m
     expect(getStallDef('smoothie_bar')?.effects.needs).toEqual({ thirst: -140, energy: 20 });
     expect(getStallDef('noodle_bar')?.weatherFactors).toEqual({ cold: 1.3, hot: 0.8 });
     expect(getStallDef('photo_booth')?.effects.gives).toBe('photo');

@@ -192,11 +192,12 @@ describe('addTrackPiece validation (phase-2 §4.6)', () => {
     expect(reasonOf(add(w, id, 'flat_to_gentle_down'))).toBe(TRACK_ERR.belowGround);
   });
 
-  it('"Climbs too high for this ride type (max 12 m above the station)"', () => {
+  // R2 (owner 2026-11-12): the Junior Coaster's limit went from 12 m to 20 m; the climb is 1 + 9 × 2 = 19 m, then 21 m.
+  it('"Climbs too high for this ride type (max 20 m above the station)"', () => {
     const w = fresh();
     const id = place(w, 'junior_coaster', 5, 10, EAST);
-    addAll(w, id, [{ id: 'flat_to_gentle_up', chain: true }, ...times(5, { id: 'gentle_up', chain: true })]);
-    expect(reasonOf(add(w, id, { id: 'gentle_up', chain: true }))).toBe('Climbs too high for this ride type (max 12 m above the station)');
+    addAll(w, id, [{ id: 'flat_to_gentle_up', chain: true }, ...times(9, { id: 'gentle_up', chain: true })]);
+    expect(reasonOf(add(w, id, { id: 'gentle_up', chain: true }))).toBe('Climbs too high for this ride type (max 20 m above the station)');
   });
 
   it(`"${TRACK_ERR.noSupports}": span rule passes at 2 and fails at 3`, () => {
@@ -511,21 +512,23 @@ describe('the height limit measures the climb above the station (owner, 2026-11-
     }
   }
 
-  it('a level Mini Railway crosses a valley 10 m deep (more than its 8 m limit above that ground)', () => {
+  // R2 (owner 2026-11-12): the railway's limit went from 8 m to 16 m, so the valley is 18 m deep (was 10 m).
+  it('a level Mini Railway crosses a valley 18 m deep (more than its 16 m limit above that ground)', () => {
     const w = fresh();
     w.state.map.heights.fill(20); // heights are metres in a Uint8Array: raise the land first, then cut the valley
     const id = place(w, 'mini_railway', 5, 10, EAST);
-    valley(w, 12, 22, 10, 10);
+    valley(w, 12, 22, 10, 18);
     for (let k = 0; k < 12; k++) expectOk(add(w, id, 'straight'));
   });
 
-  it('a Mini Railway still cannot climb more than 8 m above its station', () => {
+  // R2 (owner 2026-11-12): 8 m → 16 m; the ninth slope piece would reach 17 m.
+  it('a Mini Railway still cannot climb more than 16 m above its station', () => {
     const w = fresh();
     const id = place(w, 'mini_railway', 5, 10, EAST);
     const r: Array<ReturnType<typeof add>> = [];
     r.push(add(w, id, 'flat_to_gentle_up'));
     for (let k = 0; k < 8; k++) r.push(add(w, id, 'gentle_up'));
-    expect(r.some((x) => !x.ok && x.reason === 'Climbs too high for this ride type (max 8 m above the station)')).toBe(true);
+    expect(r.some((x) => !x.ok && x.reason === 'Climbs too high for this ride type (max 16 m above the station)')).toBe(true);
   });
 
   it('a Mini Railway train may have one car', () => {

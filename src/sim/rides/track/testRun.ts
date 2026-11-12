@@ -18,8 +18,8 @@ import {
 import type { MapState } from '../../map';
 import { getLayout, type CircuitLayout } from './layout';
 import { newTrain, stepTrain, stopCentreMm, trainG, type StepContext } from './physics';
-import { highestAboveGround } from './placement';
-import { addWaterExtras, computeRatings, ratingInputsOf, waterRatingExtras } from './ratings';
+import { climbAboveStationM, highestAboveGround } from './placement';
+import { addWaterExtras, computeRatings, heightIntensityStep, ratingInputsOf, waterRatingExtras } from './ratings';
 import { stepWithStops, usesStops } from './stops';
 import type { TestResult, TrackRideData, TrainState } from './types';
 
@@ -209,7 +209,8 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
   // Phase 4 §4.4: the water extras are added after the Phase 2 formula (rail circuits add nothing).
   const r = addWaterExtras(computeRatings(ratingInputsOf(res), type), waterRatingExtras(layout.statics.map((st) => st.def)));
   res.excitement = r.excitement;
-  res.intensity = r.intensity;
+  // R2 (owner 2026-11-12): a circuit that climbs above the type's old height limit counts as more intense.
+  res.intensity = Math.min(1000, r.intensity + heightIntensityStep(climbAboveStationM(data.pieces), type));
   res.nausea = r.nausea;
   res.penalty = r.penalty;
   return res;

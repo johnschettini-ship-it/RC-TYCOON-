@@ -47,7 +47,10 @@ export interface TrackRideDef {
   carsMin: number;
   carsMax: number;
   maxTrains: number;
+  /** Highest climb of the track above its station (m). */
   maxHeightM: number;
+  /** R2 (owner 2026-11-12): the climb above the station (m) where the intensity step starts (the limit before 2026-11-12). */
+  intensityHeightM: number;
   /** Powered drive speed in mm/s (powered rides), or the max speed for guest-driven karts. */
   driveSpeedMms: number | null;
   /** Minimum speed for guest-driven karts in mm/s. */

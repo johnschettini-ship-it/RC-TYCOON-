@@ -169,8 +169,8 @@ describe('water track types (catalog §2, Phase 4 §8)', () => {
     expect([rapids.drive, rapids.medium, rapids.pieceSet, rapids.stationPiece]).toEqual(['waterCurrent', 'water', 'rapids', 'rapids_station']);
     expect(flume.water).toEqual({ currentMms: FLUME_V_CURRENT * 1000, k: FLUME_K });
     expect(rapids.water).toEqual({ currentMms: RAPIDS_V_CURRENT * 1000, k: RAPIDS_K });
-    expect([flume.vehicle.seatsPerCar, flume.vehicle.carsMax, flume.vehicle.maxTrains, flume.maxHeightM]).toEqual([4, 1, 6, 20]);
-    expect([rapids.vehicle.seatsPerCar, rapids.vehicle.carsMax, rapids.vehicle.maxTrains, rapids.maxHeightM]).toEqual([8, 1, 8, 10]);
+    expect([flume.vehicle.seatsPerCar, flume.vehicle.carsMax, flume.vehicle.maxTrains, flume.maxHeightM]).toEqual([4, 1, 6, 30]); // R2 (owner 2026-11-12): 20 → 30 m
+    expect([rapids.vehicle.seatsPerCar, rapids.vehicle.carsMax, rapids.vehicle.maxTrains, rapids.maxHeightM]).toEqual([8, 1, 8, 15]); // R2 (owner 2026-11-12): 10 → 15 m
     // One boat per station tile: a boat is one 4 m car.
     expect(flume.vehicle.carLengthMm).toBe(4000);
     expect(rapids.vehicle.carLengthMm).toBe(4000);

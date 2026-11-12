@@ -215,7 +215,7 @@ test('a held stall card shows its type, its price, and its running cost', async 
   await expect(panel.locator('.details-rows')).toHaveText(/Type\s*Food\s*Ticket\s*\$3\.00\s*Running cost per month\s*\$20$/);
 });
 
-test('a held track ride card shows its four values, and the station builder stays', async ({ page }) => {
+test('a held track ride card shows its five values, and the station builder stays', async ({ page }) => {
   const phone = isPhone(test.info());
   const panel = page.locator('.panel');
   const builder = page.getByTestId('track-builder');
@@ -229,7 +229,8 @@ test('a held track ride card shows its four values, and the station builder stay
   else await expect(page.getByTestId('track-details')).toBeHidden();
   await expect(panel.locator('.panel-title')).toHaveText('Junior Coaster');
   // The "From" cost is the build cost of a track ride: it shows in the place of the cost.
-  await expect(panel.locator('.details-lines li')).toHaveText(['Gravity', 'Climbs up to 12 m above its station', '2 seats per car']);
+  // R2 (owner 2026-11-12): the Junior Coaster climbs up to 20 m (was 12 m) and is more intense above its old 12 m.
+  await expect(panel.locator('.details-lines li')).toHaveText(['Gravity', 'Climbs up to 20 m above its station', '2 seats per car', 'More intense above 12 m']);
   await expect(panel.locator('.details-cost')).toHaveText('From $1,584');
   expect(await toolNow(page)).toBe('track');
   if (phone) {

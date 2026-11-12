@@ -185,13 +185,8 @@ export function checkPieceTiles(
   // The ride's height limit measures how high the track climbs above its station, not how far the ground drops
   // below it (owner, 2026-11-12): a level railway may cross a valley or a lake on tall supports. Before the
   // station exists (the station piece itself), the limit falls back to the height above the ground.
-  let stationZ = Infinity;
-  for (const p of ownPieces) if (getTrackPieceDef(p.defId)?.special === 'station' && p.z < stationZ) stationZ = p.z;
-  let climb = heightAboveGround;
-  if (stationZ !== Infinity) {
-    climb = 0;
-    for (const t of wts) if (t.railMax - stationZ > climb) climb = t.railMax - stationZ;
-  }
+  const stationZ = lowestStationZ(ownPieces);
+  const climb = stationZ === Infinity ? heightAboveGround : tilesClimb(wts, stationZ);
   if (climb > type.maxHeightM) return { ok: false, reason: fillTrackString(TRACK_ERR.tooHigh, { n: type.maxHeightM }) };
 
   const occ = buildOccupancy(world);
@@ -236,6 +231,37 @@ export function checkPieceTiles(
     else if (++run > MAX_UNSUPPORTED_TILES) return { ok: false, reason: TRACK_ERR.noSupports };
   }
   return { ok: true, tiles: plans, heightAboveGround };
+}
+
+/** Lowest entry height of the station pieces (m), or Infinity when there is none. */
+function lowestStationZ(pieces: readonly TrackPieceInstance[]): number {
+  let z = Infinity;
+  for (const p of pieces) if (getTrackPieceDef(p.defId)?.special === 'station' && p.z < z) z = p.z;
+  return z;
+}
+
+/** Highest rail of the tiles above `stationZ` (m), at least 0. */
+function tilesClimb(wts: readonly WorldPieceTile[], stationZ: number): number {
+  let climb = 0;
+  for (const t of wts) if (t.railMax - stationZ > climb) climb = t.railMax - stationZ;
+  return climb;
+}
+
+/**
+ * How high the circuit climbs above its station (m): the highest rail over all piece tiles minus the lowest station
+ * entry height; 0 when there is no station piece. The height limit (`checkPieceTiles`) and the intensity step (R2,
+ * owner 2026-11-12) both measure this.
+ */
+export function climbAboveStationM(pieces: readonly TrackPieceInstance[]): number {
+  const stationZ = lowestStationZ(pieces);
+  if (stationZ === Infinity) return 0;
+  let climb = 0;
+  for (const p of pieces) {
+    if (!getTrackPieceDef(p.defId)) continue;
+    const c = tilesClimb(pieceWorldTiles(p), stationZ);
+    if (c > climb) climb = c;
+  }
+  return climb;
 }
 
 /** Rail tiles without a support at the end of the existing track. */

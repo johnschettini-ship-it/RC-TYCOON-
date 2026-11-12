@@ -20,7 +20,10 @@ interface Box {
 /** The free space between two boxes in px (0 when they touch or overlap). */
 const boxGap = (a: Box, b: Box): number => Math.hypot(Math.max(0, a.x - (b.x + b.width), b.x - (a.x + a.width)), Math.max(0, a.y - (b.y + b.height), b.y - (a.y + a.height)));
 
-const TOO_HIGH = 'Climbs too high for this ride type (max 8 m above the station)';
+// R2 (owner 2026-11-12): the Mini Railway climbs up to 16 m above its station (was 8 m). The scripts below climb
+// 1 + 7 × 2 = 15 m, so one more gentle slope (17 m) is too high and the gentle-up-to-flat piece (16 m) fits.
+const TOO_HIGH = 'Climbs too high for this ride type (max 16 m above the station)';
+const CLIMB_15M = ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up'];
 const SHOT = process.env.TC_BUILD_SHOT;
 
 async function frames(page: Page, n = 2): Promise<void> {
@@ -271,9 +274,9 @@ test.describe('build mode (Task 22): phone and low layout', () => {
     await pieces(page, true);
     const ok = await tc(page, (g) => {
       const r = g.world.state.rides.find((x) => x.kind === 'track') as { id: number };
-      return ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up'].map((defId) => g.dispatch({ type: 'addTrackPiece', rideId: r.id, defId }).ok);
+      return ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up'].map((defId) => g.dispatch({ type: 'addTrackPiece', rideId: r.id, defId }).ok);
     });
-    expect(ok).toEqual([true, true, true, true]);
+    expect(ok).toEqual(CLIMB_15M.map(() => true));
     await page.getByTestId('track-builder-group-slopes').tap();
     await page.getByTestId('track-piece-gentle_up').tap();
     const build = page.getByTestId('track-build');
@@ -368,7 +371,7 @@ test.describe('build mode (Task 22): phone and low layout', () => {
     await scan(page, 'build mode, a piece that fits');
     await tc(page, (g) => {
       const r = g.world.state.rides.find((x) => x.kind === 'track') as { id: number };
-      for (const defId of ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up']) g.dispatch({ type: 'addTrackPiece', rideId: r.id, defId });
+      for (const defId of ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up']) g.dispatch({ type: 'addTrackPiece', rideId: r.id, defId });
     });
     await page.getByTestId('track-piece-gentle_up').tap();
     await expect(page.getByTestId('track-build')).toBeDisabled();
@@ -419,7 +422,8 @@ test.describe('build mode (Task 22): desktop', () => {
     // Too high: Build disabled, the reason as its description, Enter builds nothing, no toast.
     await tc(page, (g) => {
       const r = g.world.state.rides.find((x) => x.kind === 'track') as { id: number };
-      for (const defId of ['gentle_up', 'gentle_up', 'gentle_up']) g.dispatch({ type: 'addTrackPiece', rideId: r.id, defId });
+      // The flat-to-gentle-up piece is built above with a click; 7 gentle slopes make the 15 m climb.
+      for (const defId of ['gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up', 'gentle_up']) g.dispatch({ type: 'addTrackPiece', rideId: r.id, defId });
     });
     await page.getByTestId('track-piece-gentle_up').click();
     await page.mouse.move(640, 300);

@@ -12,6 +12,22 @@ TC_BALANCE_SEEDS=12345,777,2024,1,42,9001,7,99,31337,500 npx vitest run tests/in
 
 ---
 
+## 2026-11-12 — Height limits and the intensity step (ride work 1, Task 1; owner decision R2)
+
+The height limits (climb above the station) are the owner's values of `ride-decisions-2026-11-12.md` R2: Steel 50 → 75,
+Inverted 45 → 70, Wooden 40 → 60, Bobsled 25 → 35, Log Flume 20 → 30, Spinning Mouse 16 → 24, Junior 12 → 20,
+Monorail 12 → 24, Rapids 10 → 15, Mini Railway 8 → 16, Ghost Train 6 → 10, Go-Kart 4 → 6 m (`maxHeightM`, catalog data,
+`src/data/catalog/trackRides.ts`). The old limits stay as `intensityHeightM`. The step is new (plan ride-work-1
+decision 1), in `src/data/tuning/track.ts`:
+
+| Constant | Value | Meaning | Status |
+|---|---|---|---|
+| `HEIGHT_INTENSITY.perMHundredths` | 10 (+0.10) | Intensity added per whole metre the circuit climbs above the station beyond the old limit | provisional |
+| `HEIGHT_INTENSITY.capHundredths` | 200 (+2.00) | Most intensity the step adds | provisional |
+
+Why: at 0.10 per metre a Junior Coaster at its new 20 m limit gains 0.80 and leaves the calmest guests' range
+(`maxIntensity = 2.0 + 0.08 × T`); the cap keeps height alone from dominating a coaster's rating.
+
 ## 2026-11-11 — Phase 7 interface constants (Build 4, logged at the Build 4 gate)
 
 All values are **provisional** until a play-test. They live in `src/data/tuning/interface.ts` (8 constants) and in
