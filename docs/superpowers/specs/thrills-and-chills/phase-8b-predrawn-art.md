@@ -1,6 +1,6 @@
 # Phase 8b: Predrawn pixel art (design)
 
-- **Status:** Approved by the owner on 2026-11-12 ("That's fine let's go"): revision 5, round 1 decisions D1 to D11 as proposed in section 9. Round 2 (section 11) is still open. Revision 2 repaired three reviews of revision 1; revision 3 repaired the re-reviews of revision 2. Revision 4 followed the owner's decision to ship as a phone app (Android and iPhone) with a website demo. Revision 5 repairs the reviews of revision 4, adds the art rules taken from Orange Day (5.8), and splits the owner decisions into two rounds: the test (section 9) and the app and website (section 11).
+- **Status:** Approved by the owner on 2026-11-12 ("That's fine let's go"): revision 5, round 1 decisions D1 to D11 as proposed in section 9. Round 2 (section 11): decided on 2026-11-12, every row as proposed ("Accept all"); E5 (licence) and E9 (store duties) are prepared with the owner before the first store release, and E10 (master spec changes) comes as a table of old and new text for approval. Revision 2 repaired three reviews of revision 1; revision 3 repaired the re-reviews of revision 2. Revision 4 followed the owner's decision to ship as a phone app (Android and iPhone) with a website demo. Revision 5 repairs the reviews of revision 4, adds the art rules taken from Orange Day (5.8), and splits the owner decisions into two rounds: the test (section 9) and the app and website (section 11).
 - **Build:** Build 5.
 - **Replaces:** the live-drawing approach of `phase-8-pixel-art.md`, stopped by the stage 0 result (`phase-8-stage-0-report.md`). The visual rules of that spec stay where this design does not change them: hard square pixels, ink outlines, the colour ramps, the stepped zoom with the soft far overview (its sections 6 to 8, owner decisions 1 and 2).
 - **Owner decisions so far (2026-11-12):** "Let's switch to predrawn." The game ships as an app on Android and iPhone, with a website demo ("All with website demo"); the model is the owner's project Orange Day: Pocket Republic (Capacitor 7 wrapper, art painted by a build tool, `tools/gen_art.js`, about 15 MB of art in the app). A large download is acceptable ("I've downloaded games with gigs on my phone"). The full art package will grow beyond the code-drawn pictures. Earlier: the final art must be much better than the code-drawn drafts.
@@ -247,7 +247,7 @@ A throwaway worktree, as stage 0. It answers one question: with predrawn picture
 
 Documents to update when the full build starts: the master build table (§3) and its platform line (the game becomes an app with a website demo), a store and packaging guide copied from Orange Day's `docs/MOBILE-STORE.md`, the README originality statement (after D1), its install section (app stores, website demo), the CHANGELOG (art size per release), `tsconfig.json` `include` (adds `tools/`). Prototype shortcuts to fix before the full build (stage 0 report §6): ghosts untinted, slopes and water untested, 115 colours checked by no person, guest items and the sit frame missing, staff anchors not snapped.
 
-## 11. Owner decisions about the app and the website (round 2, before the full build)
+## 11. Owner decisions about the app and the website (round 2): decided 2026-11-12, every row as proposed
 
 Stage 0b depends on these only through B5 and B8, so they can be decided while the test runs.
 
