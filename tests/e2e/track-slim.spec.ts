@@ -96,6 +96,10 @@ test.describe('slim track station row and colour key strip (Task 20)', () => {
       await expect(page.getByTestId('track-rotate')).toHaveAttribute('aria-label', 'Rotate');
       await expect(page.getByTestId('track-more')).toHaveAttribute('aria-label', 'More');
       await expect(page.getByTestId('track-builder-title')).toHaveText('Mini Railway');
+      // A narrow upright phone at 100 %: the name is left out of the row (it would show as "Mi…"); wider rows show it.
+      if (w < 480) await expect(page.getByTestId('track-builder-title')).toBeHidden();
+      else await expect(page.getByTestId('track-builder-title')).toBeVisible();
+      if (process.env.TC_SLIM_SHOT) await page.screenshot({ path: `${process.env.TC_SLIM_SHOT}-${w}x${h}.png` });
       // The hint is the row's accessible description, not a line on the screen.
       await expect(builder.getByText('Tap the map to move the station, then Confirm')).toBeHidden();
       await expect(builder).toHaveAccessibleDescription('Tap the map to move the station, then Confirm');

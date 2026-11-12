@@ -1134,6 +1134,12 @@ button { font: inherit; color: inherit; }
   background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow);
 }
 .tb-more-menu .btn { justify-content: flex-start; }
+/* A narrow upright phone at 100 %: the name would show as "Mi…", so it is left out (the held card shows it, and
+   Confirm's accessible name says it); the controls spread over the row. */
+@media (max-width: 479px) {
+  #ui[data-text-scale='100'] .track-builder.tb-slim .tb-title { display: none; }
+  #ui[data-text-scale='100'] .track-builder.tb-slim { justify-content: space-between; }
+}
 /* 150 % and more: the name takes its own line and wraps; the controls follow on the next line. */
 #ui:not([data-text-scale='100']) .track-builder.tb-slim .tb-title { flex-basis: 100%; }
 /* The low layout: the row sits centred above the deck chips, as wide as its content. */
