@@ -41,7 +41,7 @@ describe('card details (Phase 7 §4.7)', () => {
       { labelId: 'ui.track.from', value: text('ui.track.from', { cost: formatMoney(cost) }) },
     ]);
     for (const r of rows) expect(r.value, r.labelId).not.toMatch(/[{}]|^ui\./);
-    expect(rows[1]!.value).toBe(`Up to ${type.maxHeightM} m high`);
+    expect(rows[1]!.value).toBe(`Climbs up to ${type.maxHeightM} m above its station`);
     expect(rows[2]!.value).toBe(`${type.vehicle.seatsPerCar} seats per car`);
   });
   it('an id that is not in the catalog has no rows', () => {

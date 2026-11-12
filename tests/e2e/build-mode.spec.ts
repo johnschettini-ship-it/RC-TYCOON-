@@ -20,7 +20,7 @@ interface Box {
 /** The free space between two boxes in px (0 when they touch or overlap). */
 const boxGap = (a: Box, b: Box): number => Math.hypot(Math.max(0, a.x - (b.x + b.width), b.x - (a.x + a.width)), Math.max(0, a.y - (b.y + b.height), b.y - (a.y + a.height)));
 
-const TOO_HIGH = 'Too high for this ride type (max 8 m)';
+const TOO_HIGH = 'Climbs too high for this ride type (max 8 m above the station)';
 const SHOT = process.env.TC_BUILD_SHOT;
 
 async function frames(page: Page, n = 2): Promise<void> {

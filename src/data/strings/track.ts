@@ -16,7 +16,7 @@ export const TRACK_ERR = {
   hitsOwnTrack: 'Track hits its own track',
   hitsOtherTrack: 'Track hits another track',
   belowGround: 'Track cannot go below ground',
-  tooHigh: 'Too high for this ride type (max {n} m)',
+  tooHigh: 'Climbs too high for this ride type (max {n} m above the station)',
   noSupports: 'Too many tiles without supports',
   tooLong: 'Track is too long (max 300 pieces)',
   gateBesideStation: 'Gate must be beside the station',

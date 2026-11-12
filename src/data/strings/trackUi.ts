@@ -9,7 +9,7 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.drive.powered': 'Powered',
   'ui.track.drive.guestDriven': 'Guest-driven',
   'ui.track.drive.waterCurrent': 'Water current',
-  'ui.track.maxHeight': 'Up to {n} m high',
+  'ui.track.maxHeight': 'Climbs up to {n} m above its station',
   'ui.track.seats': '{n} seats per car',
 
   // Builder (§7.1–7.3)

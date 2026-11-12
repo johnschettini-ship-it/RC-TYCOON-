@@ -229,7 +229,7 @@ test('a held track ride card shows its four values, and the station builder stay
   else await expect(page.getByTestId('track-details')).toBeHidden();
   await expect(panel.locator('.panel-title')).toHaveText('Junior Coaster');
   // The "From" cost is the build cost of a track ride: it shows in the place of the cost.
-  await expect(panel.locator('.details-lines li')).toHaveText(['Gravity', 'Up to 12 m high', '2 seats per car']);
+  await expect(panel.locator('.details-lines li')).toHaveText(['Gravity', 'Climbs up to 12 m above its station', '2 seats per car']);
   await expect(panel.locator('.details-cost')).toHaveText('From $1,584');
   expect(await toolNow(page)).toBe('track');
   if (phone) {

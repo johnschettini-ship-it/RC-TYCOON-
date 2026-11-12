@@ -182,7 +182,17 @@ export function checkPieceTiles(
     const h = (wts[k] as WorldPieceTile).railMax - (map.heights[idx[k] as number] as number);
     if (h > heightAboveGround) heightAboveGround = h;
   }
-  if (heightAboveGround > type.maxHeightM) return { ok: false, reason: fillTrackString(TRACK_ERR.tooHigh, { n: type.maxHeightM }) };
+  // The ride's height limit measures how high the track climbs above its station, not how far the ground drops
+  // below it (owner, 2026-11-12): a level railway may cross a valley or a lake on tall supports. Before the
+  // station exists (the station piece itself), the limit falls back to the height above the ground.
+  let stationZ = Infinity;
+  for (const p of ownPieces) if (getTrackPieceDef(p.defId)?.special === 'station' && p.z < stationZ) stationZ = p.z;
+  let climb = heightAboveGround;
+  if (stationZ !== Infinity) {
+    climb = 0;
+    for (const t of wts) if (t.railMax - stationZ > climb) climb = t.railMax - stationZ;
+  }
+  if (climb > type.maxHeightM) return { ok: false, reason: fillTrackString(TRACK_ERR.tooHigh, { n: type.maxHeightM }) };
 
   const occ = buildOccupancy(world);
   const plans: TilePlan[] = [];
