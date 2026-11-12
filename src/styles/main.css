@@ -1118,6 +1118,13 @@ button { font: inherit; color: inherit; }
 .tb-status.valid { border-color: var(--ok); }
 .tb-status.invalid { border-color: var(--danger); }
 .tb-status.invalid .status-detail { color: var(--danger-text); }
+/* R5 (ride work 1 Task 6): the live meter of the selected piece, a row of short items under the status line. A level is
+   never colour alone: warn items carry the warning icon, over items the cross, and both the level's words (sr-only). */
+.tb-meter { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: calc(13px * var(--ts, 1)); line-height: 1.25; font-variant-numeric: tabular-nums; }
+.tb-meter-item { display: inline-flex; align-items: center; gap: 3px; min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-weight: 600; }
+.tb-meter-item .meter-icon { width: 1.15em; height: 1.15em; }
+.tb-meter-item[data-level='warn'] { color: var(--warn-text); }
+.tb-meter-item[data-level='over'] { color: var(--danger-text); }
 .tb-groups { display: flex; flex-wrap: wrap; gap: 8px; }
 /* The row scrolls sideways; its padding holds the 5 px focus ring, which the scrolling box would clip. */
 #ui[data-layout='bottom'] .tb-groups { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 6px 5px; }
@@ -1229,6 +1236,10 @@ button { font: inherit; color: inherit; }
 #ui .track-builder.tb-compact .tb-status .state-icon { display: none; }
 #ui .track-builder.tb-compact .tb-status:not(.no-detail) .status-text { display: none; }
 #ui .track-builder.tb-compact .tb-status :is(.status-text, .status-detail) { font-size: calc(12px * var(--ts, 1)); line-height: 1.2; font-weight: 600; }
+/* Without a Chain lift or brake control (a Mini Railway) the row holds only the meter: it sits as close to the tiles as the
+   small line it replaces. */
+#ui .track-builder.tb-compact .tb-options:not(:has(> .btn:not([hidden]), > .stepper:not([hidden]))) { margin-top: -6px; }
+#ui .track-builder.tb-compact .tb-meter { flex: 1 1 180px; gap: 2px 10px; padding: 0 4px; font-size: calc(12px * var(--ts, 1)); line-height: 1.2; }
 #ui .track-builder.tb-compact .tb-actions .big-action { min-height: var(--touch); flex: 1 1 120px; font-variant-numeric: tabular-nums; }
 
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }

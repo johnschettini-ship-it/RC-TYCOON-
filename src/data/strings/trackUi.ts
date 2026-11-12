@@ -65,6 +65,16 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.moveExit': 'Move exit',
   'ui.track.piecesCount': '{n} pieces',
   'ui.track.keys': 'Enter build · Backspace undo · C chain · 1–5 groups · Esc leave',
+  // R5 (owner 2026-11-12; ride work 1 Task 6): the live meter of the selected piece. G values come from
+  // `formatSafetyG` (two decimals, a Unicode minus), the formatter of the Build and Open safety refusals.
+  'ui.track.meter.title': 'On this piece',
+  'ui.track.meter.speed': 'Top {v}',
+  'ui.track.meter.vertical': '{max} G to {min} G',
+  'ui.track.meter.lateral': '{g} G sideways',
+  'ui.track.meter.stops': 'Train stops on piece {n}',
+  'ui.track.meter.level.ok': 'Within the limits',
+  'ui.track.meter.level.warn': 'Near the limit',
+  'ui.track.meter.level.over': 'Over the safety limit',
 
   // Ride panel tabs (§7.4)
   'ui.track.tablist': 'Ride panel sections',

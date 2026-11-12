@@ -427,6 +427,7 @@ interface TrackSlice { rides: Record<string, TrackRideData> }   // string keys k
 2. Place the station tile. The ghost shows a direction arrow. Rotate with `R` or the Rotate button.
 3. The **builder** opens. The palette shows only pieces that fit the current end and the type. Groups: Straight, Slopes, Turns, Banking, Special.
 4. Selecting a piece shows its ghost at the track end with cost, height tag (`+12 m`), and a dashed line to the ground.
+   - **Meter (R5, ride work 1 Task 6, 2026-11-12):** the builder also shows the piece's projected section (§4.9 build rule): top speed, the strongest car's vertical G range and sideways G, each with a level (ok; warn from 0.5 G before the rating penalty limit up to the hard limit; over past it), or "Train stops on piece n" (a warning; Build stays enabled). A piece over a hard limit cannot be built (Build disabled, its reason in the line). The meter is computed only when the ghost changes (`previewTrackPiece(...).meter`), never per frame.
 5. A valid ghost is green with `✓ $45`. An invalid ghost is red with `✕` and the reason text in the panel. The conflicting object gets a red outline.
 6. Piece options appear when available: **Chain lift** toggle, **Brake speed** − / + stepper.
 7. When the circuit closes, a toast says `Circuit complete!`. The builder asks for the **Entrance** gate, then the **Exit** gate.

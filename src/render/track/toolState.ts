@@ -5,6 +5,7 @@
  * Plain data: the UI and input write it, the renderer only reads it.
  */
 import type { Dir } from '../../sim/map';
+import type { SectionProjection } from '../../sim/rides/track/projection';
 import type { TrackPieceInstance } from '../../sim/rides/track/types';
 import type { ToolState } from '../types';
 
@@ -35,6 +36,8 @@ export interface TrackPieceGhost {
   tiles: number[];
   /** Tiles whose content blocks the piece (red outline). */
   conflictTiles: number[];
+  /** R5: the piece's projected section (the builder's meter); null when the piece was refused before the projection. */
+  meter: SectionProjection | null;
 }
 
 /** Ghost of a station run: `length` tiles from (x, y) along the map direction `dir`. */

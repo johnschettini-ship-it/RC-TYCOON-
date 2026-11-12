@@ -25,6 +25,8 @@ import {
   confirmAction,
   heightTag,
   hoverPiece,
+  meterView,
+  type MeterItem,
   isBrakePiece,
   leaveBuilder,
   PALETTE_GROUPS,
@@ -209,6 +211,35 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const statusDetail = h('span', { class: 'status-detail', id: 'tb-reason', 'data-testid': 'track-reason' });
   const status = h('div', { class: 'tb-status', 'aria-live': 'polite' }, okIcon, badIcon, h('span', { class: 'status-texts' }, statusMain, statusDetail));
 
+  // ---------- R5 (Task 6): the live meter of the selected piece. Each item carries its level as data, an icon for warn
+  // and over, and the level's words for screen readers: never colour alone.
+  const meterRow = h('div', { class: 'tb-meter', role: 'group', 'aria-label': text('ui.track.meter.title'), 'data-testid': 'track-meter', hidden: true });
+  const meterSpans = new Map<MeterItem['id'], { el: HTMLElement; warn: SVGSVGElement; over: SVGSVGElement; value: HTMLElement; label: HTMLElement }>();
+  for (const id of ['stops', 'speed', 'vertical', 'lateral'] as const) {
+    const warn = icon('warning', 'icon meter-icon');
+    const over = icon('cross', 'icon meter-icon');
+    const value = h('span', { class: 'meter-value' });
+    const label = h('span', { class: 'sr-only' });
+    const el = h('span', { class: 'tb-meter-item', 'data-testid': `track-meter-${id}`, 'data-level': 'ok', hidden: true }, warn, over, value, label);
+    meterSpans.set(id, { el, warn, over, value, label });
+    meterRow.append(el);
+  }
+  const showMeter = (items: readonly MeterItem[]): void => {
+    if (meterRow.hidden === (items.length > 0)) meterRow.hidden = items.length === 0;
+    for (const [id, m] of meterSpans) {
+      const it = items.find((x) => x.id === id);
+      if (m.el.hidden === !!it) m.el.hidden = !it;
+      if (!it) continue;
+      setText(m.value, it.text);
+      setText(m.label, it.level === 'ok' ? '' : it.label);
+      setAttr(m.el, 'data-level', it.level);
+      const w = it.level === 'warn' ? '' : 'none';
+      const o = it.level === 'over' ? '' : 'none';
+      if (m.warn.style.display !== w) m.warn.style.display = w;
+      if (m.over.style.display !== o) m.over.style.display = o;
+    }
+  };
+
   // ---------- station phase
   const rotateLabel = h('span', { text: text('ui.track.rotate') });
   const rotate = h('button', { type: 'button', class: 'btn tb-rotate', 'data-testid': 'track-rotate', onclick: () => rotateStation(game) }, icon('rotate'), rotateLabel);
@@ -349,6 +380,10 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
     if (compact === compactNow) return;
     compactNow = compact;
     toggleClass(el, 'tb-compact', compact);
+    // Task 6: the condensed panel puts the meter beside the Chain lift and brake options (that row has room), so the
+    // meter adds no row of its own; elsewhere it is its own row under the status line.
+    if (compact) options.append(meterRow);
+    else status.after(meterRow);
     const name = text(compact ? 'ui.track.follow' : 'ui.track.followLong');
     setAttr(follow, 'aria-label', name);
     if (!compact) setText(buildLabel, text('ui.track.build'));
@@ -366,7 +401,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
     'section',
     { class: 'track-builder', role: 'region', 'aria-label': text('ui.track.builder'), 'data-testid': 'track-builder', tabindex: -1, hidden: true },
     header,
-    h('div', { class: 'tb-body' }, stationBox, piecesBox, gatesBox, status),
+    h('div', { class: 'tb-body' }, stationBox, piecesBox, gatesBox, status, meterRow),
     actions,
     keys,
   );
@@ -457,6 +492,10 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       setAttr(follow, 'aria-pressed', s.follow ? 'true' : 'false');
       keys.hidden = touch || s.phase !== 'pieces';
 
+      if (s.phase !== 'pieces') {
+        showMeter([]);
+        toggleClass(status, 'sr-only', false);
+      }
       if (s.phase === 'station') {
         const g = s.stationGhost;
         const type = s.typeId ? getTrackTypeDef(s.typeId) : undefined;
@@ -516,11 +555,17 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
         const g0 = s.pieceGhost;
         const price = compact && !off && g0 && g0.ok && g0.defId === s.selected ? text('ui.track.buildPrice', { cost: formatMoney(g0.cost) }) : text('ui.track.build');
         setText(buildLabel, price);
+        const g = s.pieceGhost;
+        const items = !closed && g && pv !== null ? meterView(g.meter) : [];
+        showMeter(items);
+        // Compact (Task 6): while the piece can be built the meter row takes the small line's place; the line's text
+        // (name, price, height; the height also tags the ghost on the map) stays for screen readers (`sr-only`). A piece
+        // that cannot be built shows its reason as before.
+        toggleClass(status, 'sr-only', compact && items.length > 0 && !!g?.ok);
         if (closed) {
           setStatus(true, text('ui.track.complete'), '');
           return;
         }
-        const g = s.pieceGhost;
         if (!g || pv === null) {
           setStatus(null, text('ui.track.pickPiece'), '');
           return;

@@ -229,11 +229,14 @@ test.describe('build mode (Task 22): phone and low layout', () => {
       expect(lines, await name.textContent() ?? '').toBeLessThanOrEqual(2);
     }
     expect(await clippedText(builder)).toEqual([]);
-    // The status line sits between the tiles and the action row.
+    // Ride work 1 Task 6: while the piece can be built, the meter row takes the small status line's place (between the
+    // tiles and the action row); the line's text, with the height, stays for screen readers.
     const reason = page.getByTestId('track-reason');
-    await expect(reason).toBeVisible();
     await expect(reason).toHaveText(/^Height \+\d+ m$/);
-    const rb = (await reason.boundingBox())!;
+    await expect(page.getByTestId('track-builder').locator('.tb-status')).toHaveClass(/\bsr-only\b/);
+    const meter = page.getByTestId('track-meter');
+    await expect(meter).toBeVisible();
+    const rb = (await meter.boundingBox())!;
     expect(rb.y).toBeGreaterThanOrEqual(tb.y + tb.height);
     expect(rb.y + rb.height).toBeLessThanOrEqual(top('track-undo'));
 

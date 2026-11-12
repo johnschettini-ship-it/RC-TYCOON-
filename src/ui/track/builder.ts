@@ -18,7 +18,11 @@ import { stationPieces, trackEnd } from '../../sim/rides/track/build';
 import { findRide, trackData } from '../../sim/rides/track/common';
 import { pieceWorldTiles, TRACK_DX, TRACK_DY, trackDirFromMapDir } from '../../sim/rides/track/geometry';
 import { buildOccupancy, pieceCost } from '../../sim/rides/track/placement';
+import type { SectionProjection } from '../../sim/rides/track/projection';
+import { formatSafetyG, meterLevel, type MeterLevel } from '../../sim/rides/track/safety';
 import type { TrackPieceInstance } from '../../sim/rides/track/types';
+import { text } from '../../data/strings/en';
+import { formatSpeed } from './testFormat';
 import type { World } from '../../sim/types';
 import {
   resetTrackTool,
@@ -169,9 +173,41 @@ export function pieceGhostFor(world: World, rideId: number, defId: string, chain
   const pv = previewTrackPiece(world, rideId, defId, useChain, brake ?? undefined);
   if (pv.ok) {
     piece.cost = pv.cost;
-    return { defId, piece, ok: true, reason: null, cost: pv.cost, heightAboveGround: pv.heightAboveGround, closes: pv.closes, tiles: pv.tiles, conflictTiles: [] };
+    return { defId, piece, ok: true, reason: null, cost: pv.cost, heightAboveGround: pv.heightAboveGround, closes: pv.closes, tiles: pv.tiles, conflictTiles: [], meter: pv.meter };
   }
-  return { defId, piece, ok: false, reason: pv.reason, cost: 0, heightAboveGround: height, closes: false, tiles, conflictTiles: conflictTiles(world, rideId, piece, pv.reason) };
+  return { defId, piece, ok: false, reason: pv.reason, cost: 0, heightAboveGround: height, closes: false, tiles, conflictTiles: conflictTiles(world, rideId, piece, pv.reason), meter: pv.meter };
+}
+
+/** One item of the builder's meter (R5): the text, its level, and the level's words (the accessible name part). */
+export interface MeterItem {
+  id: 'speed' | 'vertical' | 'lateral' | 'stops';
+  text: string;
+  level: MeterLevel;
+  label: string;
+}
+
+const LEVEL_ORDER: Readonly<Record<MeterLevel, number>> = { ok: 0, warn: 1, over: 2 };
+
+function meterItem(id: MeterItem['id'], textValue: string, level: MeterLevel): MeterItem {
+  return { id, text: textValue, level, label: text(`ui.track.meter.level.${level}`) };
+}
+
+/**
+ * The meter of a piece's projected section (R5, plan ride-work-1 Task 6). Pure. Null → no items; a stall → one warning
+ * item with the piece number; else the top speed, the strongest car's vertical G range (its level the worse of the two
+ * ends) and sideways G. Levels are the sim's `meterLevel`; G values the sim's `formatSafetyG`.
+ */
+export function meterView(meter: SectionProjection | null): MeterItem[] {
+  if (!meter) return [];
+  if (meter.stallPiece !== null) return [meterItem('stops', text('ui.track.meter.stops', { n: meter.stallPiece + 1 }), 'warn')];
+  const pos = meterLevel('posG', meter.posGMax);
+  const neg = meterLevel('negG', meter.vertGMin);
+  const vertical = LEVEL_ORDER[neg] > LEVEL_ORDER[pos] ? neg : pos;
+  return [
+    meterItem('speed', text('ui.track.meter.speed', { v: formatSpeed(meter.vMaxMms) }), 'ok'),
+    meterItem('vertical', text('ui.track.meter.vertical', { max: formatSafetyG(meter.posGMax), min: formatSafetyG(meter.vertGMin) }), vertical),
+    meterItem('lateral', text('ui.track.meter.lateral', { g: formatSafetyG(meter.latMax) }), meterLevel('lat', meter.latMax)),
+  ];
 }
 
 /** Ghost label (§7.1 step 5): `✓ $45` when valid, `✕` when not (the reason shows in the panel). */
