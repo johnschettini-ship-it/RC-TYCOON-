@@ -1,6 +1,6 @@
 # Phase 8b: Predrawn pixel art (design)
 
-- **Status:** Draft for owner approval, revision 5 (2026-11-12). Revision 2 repaired three reviews of revision 1; revision 3 repaired the re-reviews of revision 2. Revision 4 followed the owner's decision to ship as a phone app (Android and iPhone) with a website demo. Revision 5 repairs the reviews of revision 4, adds the art rules taken from Orange Day (5.8), and splits the owner decisions into two rounds: the test (section 9) and the app and website (section 11).
+- **Status:** Approved by the owner on 2026-11-12 ("That's fine let's go"): revision 5, round 1 decisions D1 to D11 as proposed in section 9. Round 2 (section 11) is still open. Revision 2 repaired three reviews of revision 1; revision 3 repaired the re-reviews of revision 2. Revision 4 followed the owner's decision to ship as a phone app (Android and iPhone) with a website demo. Revision 5 repairs the reviews of revision 4, adds the art rules taken from Orange Day (5.8), and splits the owner decisions into two rounds: the test (section 9) and the app and website (section 11).
 - **Build:** Build 5.
 - **Replaces:** the live-drawing approach of `phase-8-pixel-art.md`, stopped by the stage 0 result (`phase-8-stage-0-report.md`). The visual rules of that spec stay where this design does not change them: hard square pixels, ink outlines, the colour ramps, the stepped zoom with the soft far overview (its sections 6 to 8, owner decisions 1 and 2).
 - **Owner decisions so far (2026-11-12):** "Let's switch to predrawn." The game ships as an app on Android and iPhone, with a website demo ("All with website demo"); the model is the owner's project Orange Day: Pocket Republic (Capacitor 7 wrapper, art painted by a build tool, `tools/gen_art.js`, about 15 MB of art in the app). A large download is acceptable ("I've downloaded games with gigs on my phone"). The full art package will grow beyond the code-drawn pictures. Earlier: the final art must be much better than the code-drawn drafts.
@@ -222,7 +222,7 @@ A throwaway worktree, as stage 0. It answers one question: with predrawn picture
 2. If the owner allows hand-made art: source sheets live in `art/source/`, which the release check then allows. `art/PROVENANCE.md` has one row per sheet: author, tool, date, licence or grant. The release check fails a sheet with no row. No picture is traced, copied or generated from another game's art.
 3. Art from an outside artist needs a written grant, and the project needs a licence first (master open decision 2).
 
-## 9. Owner decisions before the test (round 1)
+## 9. Owner decisions before the test (round 1): decided 2026-11-12, every row as proposed
 
 | # | Question | Options and what they mean for players | Proposal |
 |---|---|---|---|
