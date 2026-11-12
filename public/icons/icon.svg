@@ -1,74 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <title>Thrills &amp; Chills: Frost and Spark</title>
-  <defs>
-    <linearGradient id="cool" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1f5d92"/>
-      <stop offset="1" stop-color="#3fa7d6"/>
-    </linearGradient>
-    <linearGradient id="warm" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d9481f"/>
-      <stop offset="1" stop-color="#ffab3d"/>
-    </linearGradient>
-    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#ff7a1a"/>
-      <stop offset="1" stop-color="#ffe14d"/>
-    </linearGradient>
-    <clipPath id="tile"><rect width="512" height="512" rx="104"/></clipPath>
-  </defs>
-  <g clip-path="url(#tile)">
-    <!-- Chill side (left) and Thrill side (right), split by a slanted edge. -->
-    <rect width="512" height="512" fill="url(#warm)"/>
-    <path d="M0 0 H286 L226 512 H0 Z" fill="url(#cool)"/>
-    <!-- Snowflakes and sparks. -->
-    <g fill="#ffffff" opacity="0.85">
-      <circle cx="70" cy="92" r="9"/>
-      <circle cx="150" cy="58" r="6"/>
-      <circle cx="48" cy="400" r="7"/>
-      <circle cx="120" cy="458" r="5"/>
-    </g>
-    <g fill="#fff3a6">
-      <path d="M440 84 l7 17 17 7 -17 7 -7 17 -7 -17 -17 -7 17 -7 z"/>
-      <path d="M470 380 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5 z"/>
-      <path d="M380 470 l4 10 10 4 -10 4 -4 10 -4 -10 -10 -4 10 -4 z"/>
-    </g>
-
-    <!-- Frost, the friendly yeti. -->
-    <g>
-      <path d="M118 196 Q96 150 104 116 Q122 146 146 160 Z" fill="#c9dcef"/>
-      <path d="M262 196 Q284 150 276 116 Q258 146 234 160 Z" fill="#c9dcef"/>
-      <circle cx="160" cy="168" r="34" fill="#f4f8ff"/>
-      <circle cx="190" cy="152" r="40" fill="#f4f8ff"/>
-      <circle cx="222" cy="168" r="34" fill="#f4f8ff"/>
-      <ellipse cx="190" cy="262" rx="112" ry="104" fill="#f4f8ff" stroke="#8fbde0" stroke-width="8"/>
-      <ellipse cx="190" cy="276" rx="80" ry="62" fill="#cfe6f7"/>
-      <ellipse cx="162" cy="262" rx="12" ry="14" fill="#1b2433"/>
-      <ellipse cx="218" cy="262" rx="12" ry="14" fill="#1b2433"/>
-      <circle cx="166" cy="257" r="4.5" fill="#ffffff"/>
-      <circle cx="222" cy="257" r="4.5" fill="#ffffff"/>
-      <ellipse cx="190" cy="286" rx="13" ry="9" fill="#6f8fb3"/>
-      <path d="M164 300 Q190 326 216 300" fill="none" stroke="#3d5a7a" stroke-width="7" stroke-linecap="round"/>
-      <ellipse cx="134" cy="294" rx="14" ry="8" fill="#96b4f0" opacity="0.7"/>
-      <ellipse cx="246" cy="294" rx="14" ry="8" fill="#96b4f0" opacity="0.7"/>
-      <path d="M96 352 Q190 392 284 352 L280 384 Q190 424 100 384 Z" fill="#2f7fd1"/>
-    </g>
-
-    <!-- Spark, the cheerful fire fox. -->
-    <g>
-      <path d="M318 196 L330 96 L384 172 Z" fill="#e9661f" stroke="#b84d14" stroke-width="7" stroke-linejoin="round"/>
-      <path d="M470 196 L458 96 L404 172 Z" fill="#e9661f" stroke="#b84d14" stroke-width="7" stroke-linejoin="round"/>
-      <path d="M334 132 L340 118 L366 166 Z" fill="#ffe8c9"/>
-      <path d="M454 132 L448 118 L422 166 Z" fill="#ffe8c9"/>
-      <path d="M330 96 L338 128 L320 132 Z" fill="#7a2a12"/>
-      <path d="M458 96 L450 128 L468 132 Z" fill="#7a2a12"/>
-      <path d="M380 150 Q384 108 404 98 Q396 126 414 140 Q406 154 380 150 Z" fill="url(#flame)"/>
-      <ellipse cx="394" cy="244" rx="98" ry="86" fill="#f27b2a" stroke="#b84d14" stroke-width="8"/>
-      <path d="M306 260 Q394 226 482 260 Q446 340 394 340 Q342 340 306 260 Z" fill="#ffe8c9"/>
-      <ellipse cx="364" cy="236" rx="12" ry="14" fill="#1b2433"/>
-      <ellipse cx="424" cy="236" rx="12" ry="14" fill="#1b2433"/>
-      <circle cx="368" cy="231" r="4.5" fill="#ffffff"/>
-      <circle cx="428" cy="231" r="4.5" fill="#ffffff"/>
-      <ellipse cx="394" cy="276" rx="14" ry="11" fill="#2a1a14"/>
-      <path d="M374 300 Q394 316 394 290 Q394 316 414 300" fill="none" stroke="#5a2a14" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-    </g>
-  </g>
+  <title>Thrills &amp; Chills</title>
+  <!-- Placeholder app icon (owner, 2026-11-12: the mascots are gone; a final icon comes later). A cool half and a
+       warm half (Chill and Thrill) with a simple coaster hill. Made by the project; no outside art. -->
+  <rect width="512" height="512" rx="112" fill="#1f2340"/>
+  <path d="M0 0H256V512H0Z" fill="#3fa7d6" clip-path="url(#round)"/>
+  <path d="M256 0H512V512H256Z" fill="#f0643a" clip-path="url(#round)"/>
+  <defs><clipPath id="round"><rect width="512" height="512" rx="112"/></clipPath></defs>
+  <path d="M56 372 C150 372 170 140 256 140 C342 140 362 372 456 372" fill="none" stroke="#ffffff" stroke-width="36" stroke-linecap="round"/>
+  <path d="M56 412H456" stroke="#ffffff" stroke-width="20" stroke-linecap="round"/>
 </svg>
