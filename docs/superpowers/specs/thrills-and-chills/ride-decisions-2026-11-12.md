@@ -64,3 +64,7 @@ Rating rule: for each metre above the old limit, the ride's intensity rises by a
 ## Tablets (owner, 2026-11-12)
 
 Tablets get the same as phones: the pixel look with the phone frame set and the phone memory budget. The real-tablet run of the device checklist confirms speed; B4 is judged there.
+
+## Art direction (owner, 2026-11-12)
+
+The owner stopped the pixel art direction after seeing the stage 0b test ("Art needs a better polish let's go with curved clean concepts instead of pixel"). Next: three concept sheets in curved, clean styles (A soft rounded flat, B clay or toy 3D, C bold cartoon); the owner picks one. What stays valid from Phase 8b: the phone app and website demo, drawing pictures ahead of time when it helps speed, the safety and ride work, and the theme and mascot maker (it is drawn in the chosen style). The pixel test branch phase8b-stage0b-proto stays as a record; it is never merged.
