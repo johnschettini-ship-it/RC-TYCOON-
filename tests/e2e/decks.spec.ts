@@ -221,8 +221,11 @@ test('a held track ride card shows its four values, and the station builder stay
   const builder = page.getByTestId('track-builder');
   await pickCard(page, 'track', 'junior_coaster');
   await expect(builder).toBeVisible();
-  // The phone opens the panel from the builder, which is the tool status bar of a track card.
-  if (phone) await page.getByTestId('track-details').click();
+  // The phone opens the panel from the builder, which is the tool status bar of a track card (Task 20: from its "⋯" menu).
+  if (phone) {
+    await page.getByTestId('track-more').click();
+    await page.getByTestId('track-details').click();
+  }
   else await expect(page.getByTestId('track-details')).toBeHidden();
   await expect(panel.locator('.panel-title')).toHaveText('Junior Coaster');
   // The "From" cost is the build cost of a track ride: it shows in the place of the cost.
@@ -265,14 +268,16 @@ for (const scale of [100, 175] as const) {
     await pickCard(page, 'track', 'junior_coaster');
     const builder = page.getByTestId('track-builder');
     await expect(builder).toBeVisible();
+    // Task 20: the station step is one slim row; Details is in the small menu that "⋯" opens, above the row.
+    await page.getByTestId('track-more').click();
     const details = (await page.getByTestId('track-details').boundingBox())!;
     expect(details.width).toBeGreaterThanOrEqual(44);
     expect(details.height).toBeGreaterThanOrEqual(44);
-    // The button is on the screen, in the first line of the station controls (next to Rotate).
+    // The button is on the screen, in the menu above the row (above "⋯").
     expect(details.x).toBeGreaterThanOrEqual(0);
     expect(details.x + details.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-    expect(details.y).toBe((await page.getByTestId('track-rotate').boundingBox())!.y);
-    // Leave, Rotate, Shorter station, Longer station, Cancel, Confirm.
+    expect(details.y + details.height).toBeLessThanOrEqual((await page.getByTestId('track-more').boundingBox())!.y);
+    // Shorter station, Longer station, Rotate, Confirm, More, and Cancel in the menu.
     const others = builder.locator('button:visible:not([data-testid="track-details"])');
     await expect(others).toHaveCount(6);
     for (const other of await others.all()) {

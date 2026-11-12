@@ -1111,6 +1111,38 @@ button { font: inherit; color: inherit; }
 .tb-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .tb-actions .big-action { min-height: 56px; flex: 1 1 140px; font-size: calc(16px * var(--ts, 1)); }
 .track-builder[data-layout='side'] .tb-actions .big-action { min-height: 48px; }
+/* Task 20: the station step on the phone and in the low layout is one slim row (the owner's choice): the ride name, the
+   length stepper (− n +), a round Rotate button, Confirm with the price, and "⋯" with Details and Cancel in a small menu.
+   The wrappers step aside (`display: contents`) so the controls line up in one row; the hint is the row's description,
+   and the stepper's output ("3 tiles") is kept for screen readers (`sr-only`) beside the number on the screen. */
+.tb-len-number { display: none; }
+.track-builder.tb-slim { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 6px; padding-bottom: 6px; overflow: visible; max-height: none; }
+.track-builder.tb-slim[data-layout='bottom'] { padding-left: calc(10px + var(--safe-left)); padding-right: calc(10px + var(--safe-right)); }
+.track-builder.tb-slim :is(.tb-header, .tb-body, .tb-station, .tb-station > .tb-row, .tb-actions) { display: contents; }
+.track-builder.tb-slim :is(.tb-count, .tb-header .icon-btn, .tb-hint, .tb-keys, .stepper .row-label, .tb-rotate > span, .status-text) { display: none; }
+.track-builder.tb-slim .tb-title { order: 1; flex: 1 1 0; font-size: calc(15px * var(--ts, 1)); }
+.track-builder.tb-slim .stepper { order: 2; }
+.track-builder.tb-slim .tb-len-number { display: inline; min-width: 1.2em; }
+.track-builder.tb-slim .tb-rotate { order: 3; width: var(--touch); padding: 0; border-radius: 999px; }
+.track-builder.tb-slim .tb-actions .big-action { order: 4; flex: none; min-height: var(--touch); padding: 4px 10px; gap: 4px; font-size: calc(15px * var(--ts, 1)); font-variant-numeric: tabular-nums; }
+.track-builder.tb-slim .tb-actions .big-action .icon { width: 18px; height: 18px; }
+.track-builder.tb-slim .tb-more { order: 5; width: var(--touch); padding: 0; font-size: calc(18px * var(--ts, 1)); }
+.track-builder.tb-slim .tb-status { order: 0; flex: 1 0 100%; }
+.tb-more-menu {
+  position: absolute; right: calc(12px + var(--safe-right)); bottom: calc(100% + 8px); z-index: 1;
+  display: flex; flex-direction: column; gap: 8px; padding: 8px;
+  background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow);
+}
+.tb-more-menu .btn { justify-content: flex-start; }
+/* 150 % and more: the name takes its own line and wraps; the controls follow on the next line. */
+#ui:not([data-text-scale='100']) .track-builder.tb-slim .tb-title { flex-basis: 100%; }
+/* The low layout: the row sits centred above the deck chips, as wide as its content. */
+#ui[data-low='1'] .track-builder.tb-slim {
+  left: 0; right: 0; margin: 0 auto; width: fit-content; max-width: calc(100% - 20px - var(--safe-left) - var(--safe-right));
+  bottom: calc(var(--toolbar-space) + 8px); border-radius: var(--radius-surface); padding-left: 12px; padding-right: 12px;
+}
+#ui[data-low='1'] .track-builder.tb-slim .tb-title { flex: 0 1 auto; }
+#ui[data-low='1'] .track-builder.tb-slim .tb-more-menu { right: 12px; }
 
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
 .tab {

@@ -13,6 +13,8 @@ export const fieldStrings: Record<string, string> = {
   'fields.overlays.close': 'Close overlays',
   // Legend (Phase 4 §4.6: "A legend shows the 4 band names and thresholds").
   'fields.legend.label': '{overlay} legend',
+  'fields.legend.strip': '{overlay} colour key: {rows}',
+  'fields.legend.stripRow': '{name} {range}',
   'fields.band.none': 'None',
   'fields.band.low': 'Low',
   'fields.band.medium': 'Medium',

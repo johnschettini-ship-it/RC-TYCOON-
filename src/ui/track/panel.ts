@@ -209,17 +209,20 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const status = h('div', { class: 'tb-status', 'aria-live': 'polite' }, okIcon, badIcon, h('span', { class: 'status-texts' }, statusMain, statusDetail));
 
   // ---------- station phase
-  const rotate = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-rotate', onclick: () => rotateStation(game) }, icon('rotate'), h('span', { text: text('ui.track.rotate') }));
+  const rotateLabel = h('span', { text: text('ui.track.rotate') });
+  const rotate = h('button', { type: 'button', class: 'btn tb-rotate', 'data-testid': 'track-rotate', onclick: () => rotateStation(game) }, icon('rotate'), rotateLabel);
   const lenValue = h('output', { class: 'stepper-value', 'data-testid': 'track-station-length' });
+  // Task 20, the slim row: the number alone on the screen; the output keeps the whole text ("3 tiles") for screen readers.
+  const lenNumber = h('span', { class: 'stepper-value tb-len-number', 'aria-hidden': 'true' });
   const lenLess = h('button', { type: 'button', class: 'btn step', 'aria-label': text('ui.track.lengthLess'), onclick: () => setStationLength(game, st().stationLength - 1) }, '−');
   const lenMore = h('button', { type: 'button', class: 'btn step', 'aria-label': text('ui.track.lengthMore'), onclick: () => setStationLength(game, st().stationLength + 1) }, '+');
-  const stationHint = h('p', { class: 'tb-hint muted' });
+  const stationHint = h('p', { class: 'tb-hint muted', id: 'tb-station-hint' });
   // Phase 7 §4.6: the builder is the tool status bar of a held track card, so the phone's Details button is here.
   const details = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-details', onclick: () => ctx.openPanel('cardDetails') }, h('span', { text: text('ui.card.details') }));
   const stationBox = h(
     'div',
     { class: 'tb-station' },
-    h('div', { class: 'tb-row' }, rotate, details, h('div', { class: 'stepper', role: 'group', 'aria-label': text('ui.track.station.length') }, h('span', { class: 'row-label', text: text('ui.track.station.length') }), lenLess, lenValue, lenMore)),
+    h('div', { class: 'tb-row' }, rotate, details, h('div', { class: 'stepper', role: 'group', 'aria-label': text('ui.track.station.length') }, h('span', { class: 'row-label', text: text('ui.track.station.length') }), lenLess, lenValue, lenNumber, lenMore)),
     stationHint,
   );
 
@@ -283,11 +286,66 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   // ---------- actions
   const undo = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-undo', onclick: () => undoPiece(game) }, h('span', { text: text('ui.track.undo') }));
   const build = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-build', onclick: () => buildSelected(game) }, icon('check'), h('span', { text: text('ui.track.build') }));
-  const confirm = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-confirm', onclick: () => confirmAction(game) }, icon('check'), h('span', { text: text('ui.track.confirm') }));
+  const confirmLabel = h('span', { text: text('ui.track.confirm') });
+  const confirm = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-confirm', onclick: () => confirmAction(game) }, icon('check'), confirmLabel);
   const done = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-done', onclick: () => leaveBuilder(game) }, h('span', { text: text('ui.track.done') }));
   const cancel = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-cancel', onclick: () => leaveBuilder(game, false) }, h('span', { text: text('ui.track.cancel') }));
   const keys = h('p', { class: 'tb-keys muted', text: text('ui.track.keys') });
   const actions = h('div', { class: 'tb-actions' }, undo, cancel, confirm, build, done);
+
+  // ---------- Task 20: the slim station row of the phone and the low layout. Details and Cancel move into a small menu
+  // that the "⋯" button opens; they go back to their places when the row is not slim.
+  const moreMenu = h('div', { class: 'tb-more-menu', id: 'tb-more-menu', 'data-testid': 'track-more-menu', role: 'group', 'aria-label': text('ui.track.moreMenu'), hidden: true });
+  const more = h('button', {
+    type: 'button',
+    class: 'btn tb-more',
+    'aria-label': text('ui.track.moreMenu'),
+    title: text('ui.track.moreMenu'),
+    'aria-expanded': 'false',
+    'aria-controls': 'tb-more-menu',
+    'data-testid': 'track-more',
+    hidden: true,
+    onclick: () => setMenu(moreMenu.hidden === true),
+  }, h('span', { text: '⋯', 'aria-hidden': 'true' }));
+  const setMenu = (open: boolean): void => {
+    if (moreMenu.hidden === !open) return;
+    moreMenu.hidden = !open;
+    setAttr(more, 'aria-expanded', open ? 'true' : 'false');
+  };
+  details.addEventListener('click', () => setMenu(false));
+  const detailsHome = details.parentElement as HTMLElement;
+  let slimNow = false;
+  const setSlim = (slim: boolean): void => {
+    if (slim === slimNow) return;
+    slimNow = slim;
+    toggleClass(el, 'tb-slim', slim);
+    // The reading and focus order follows the row: the stepper, then Rotate.
+    toggleClass(lenValue, 'sr-only', slim);
+    if (slim) {
+      detailsHome.append(rotate);
+      moreMenu.append(details, cancel);
+      setAttr(el, 'aria-describedby', 'tb-station-hint');
+      rotate.setAttribute('aria-label', text('ui.track.rotate'));
+    } else {
+      detailsHome.prepend(rotate, details);
+      actions.insertBefore(cancel, confirm);
+      el.removeAttribute('aria-describedby');
+      rotate.removeAttribute('aria-label');
+      confirm.removeAttribute('aria-label');
+      setText(confirmLabel, text('ui.track.confirm'));
+      if (status.hidden) status.hidden = false;
+      setMenu(false);
+    }
+    more.hidden = !slim;
+  };
+  // A press outside the menu and its button closes the menu.
+  document.addEventListener('pointerdown', (e) => {
+    if (moreMenu.hidden) return;
+    const t = e.target as Node | null;
+    if (t && (moreMenu.contains(t) || more.contains(t))) return;
+    setMenu(false);
+  });
+  actions.append(more, moreMenu);
 
   const el = h(
     'section',
@@ -341,6 +399,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       if (el.hidden === show) el.hidden = !show;
       if (!visible) {
         palKey = null;
+        setSlim(false);
         return;
       }
       // Another panel (finance, park) takes over: leave the builder, the track stays as it is.
@@ -352,8 +411,11 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       }
       if (!show) return;
       el.dataset.phase = s.phase;
+      // Task 20: the station step on the phone and in the low layout is one slim row at the bottom.
+      const slim = s.phase === 'station' && layout === 'bottom';
+      setSlim(slim);
       // Task 19: the low layout (a phone held sideways) shows the builder as a right-side panel.
-      setAttr(el, 'data-layout', ctx.root.dataset.low === '1' ? 'side' : layout);
+      setAttr(el, 'data-layout', ctx.root.dataset.low === '1' && !slim ? 'side' : layout);
       const touch = s.touch || layout === 'bottom';
       setText(title, rideTitle(ctx, s));
       const data = s.rideId !== null ? trackData(game.world, s.rideId) : undefined;
@@ -379,11 +441,21 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
         const g = s.stationGhost;
         const type = s.typeId ? getTrackTypeDef(s.typeId) : undefined;
         setText(lenValue, s.stationLength === 1 ? text('ui.track.tile') : text('ui.track.tiles', { n: s.stationLength }));
+        setText(lenNumber, String(s.stationLength));
         setText(stationHint, text(touch ? 'ui.track.station.hintTouch' : 'ui.track.station.hint'));
         const name = s.typeId && getTrackRideDef(s.typeId) ? contentName(s.typeId) : '';
         const cost = g ? g.cost : type ? type.costs.base : 0;
         setStatus(g ? g.valid : null, text('ui.track.station.cost', { name, cost: formatMoney(cost) }), g ? (g.valid ? text('ui.track.fits') : localizeReason(g.reason ?? '')) : text('ui.track.station.title'));
-        confirm.toggleAttribute('disabled', !g);
+        if (slim) {
+          // Confirm carries the price; a station that does not fit cannot be confirmed, and its reason shows above the row.
+          setText(confirmLabel, formatMoney(cost));
+          setAttr(confirm, 'aria-label', text('ui.track.confirmStation', { name, cost: formatMoney(cost) }));
+          const bad = !!g && !g.valid;
+          if (status.hidden === bad) status.hidden = !bad;
+          if (confirm.disabled !== (!g || bad)) confirm.toggleAttribute('disabled', !g || bad);
+        } else {
+          confirm.toggleAttribute('disabled', !g);
+        }
         return;
       }
 

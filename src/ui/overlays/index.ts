@@ -50,6 +50,16 @@ const CSS = `
 .tc-legend-value { margin: 8px 0 0; font-weight: 600; font-size: calc(13px * var(--ts, 1)); }
 .tc-legend-help { margin: 4px 0 0; font-size: calc(12px * var(--ts, 1)); color: var(--muted-ink); }
 #ui[data-layout='bottom'] .tc-legend-help { display: none; }
+/* Task 20, the phone and the low layout: the legend is a slim one-line strip (colour dots and band names, the ranges in
+   its accessible name); the tile value of Calm, Buzz, and Light follows on a second line. */
+#ui[data-layout='bottom'] .tc-overlay-card { max-width: min(360px, calc(100% - 16px)); }
+#ui[data-layout='bottom'] .tc-overlay-chips { max-width: min(260px, 100%); align-self: flex-end; }
+#ui[data-layout='bottom'] .tc-overlay-legend { align-self: flex-end; display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; padding: 2px 10px; border-radius: 999px; line-height: 1.2; }
+#ui[data-layout='bottom'] .tc-overlay-legend h3, #ui[data-layout='bottom'] .tc-legend-range { display: none; }
+#ui[data-layout='bottom'] .tc-legend-rows { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+#ui[data-layout='bottom'] .tc-legend-rows li { gap: 5px; }
+#ui[data-layout='bottom'] .tc-legend-value { margin: 0; flex-basis: 100%; }
+#ui[data-layout='bottom'] .tc-swatch { width: calc(12px * var(--ts, 1)); height: calc(12px * var(--ts, 1)); border-radius: 50%; }
 /* Task 19, the low layout: the legend stays between the top region and the bars at the bottom, and scrolls inside. */
 #ui[data-low='1'] .tc-overlay-card { max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 16px); overflow-y: auto; pointer-events: auto; }
 .tc-swatch { width: 28px; height: 16px; flex: none; border-radius: 3px; border: 1px solid var(--ink); }
@@ -79,8 +89,10 @@ function overlaysIcon(): Element {
 }
 
 /** Legend swatch: the ground, the band tint, and its hatch lines (Calm one way, Buzz the other). */
-function swatch(row: LegendRow): Element {
+function swatch(row: LegendRow, dot: boolean): Element {
   const svg = svgEl('svg', { viewBox: '0 0 28 16', class: 'tc-swatch', 'aria-hidden': 'true', focusable: 'false' });
+  // Task 20: the round dot of the phone strip shows the middle of the swatch, filled to its edge.
+  if (dot) svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
   if (row.hatchDir !== null) svg.append(svgEl('rect', { x: 0, y: 0, width: 28, height: 16, fill: LEGEND_GROUND }));
   if (row.fill !== null) svg.append(svgEl('rect', { x: 0, y: 0, width: 28, height: 16, fill: row.fill }));
   for (let m = 1; m <= row.hatch; m++) {
@@ -91,9 +103,9 @@ function swatch(row: LegendRow): Element {
   return svg;
 }
 
-function legendRows(legend: Legend): HTMLElement[] {
+function legendRows(legend: Legend, dot: boolean): HTMLElement[] {
   return legend.rows.map((row) =>
-    h('li', { 'data-band': row.key }, swatch(row), h('span', { text: row.name }), ' ', h('span', { class: 'tc-legend-range', text: row.range })),
+    h('li', { 'data-band': row.key }, swatch(row, dot), h('span', { text: row.name }), ' ', h('span', { class: 'tc-legend-range', text: row.range })),
   );
 }
 
@@ -131,6 +143,7 @@ function createOverlayCard(ctx: UiContext): UiPart {
 
   const touch = coarsePointer();
   let shown: OverlayId | null = null;
+  let shownStrip = false;
   return {
     el,
     update() {
@@ -144,11 +157,17 @@ function createOverlayCard(ctx: UiContext): UiPart {
         shown = null;
         return;
       }
+      // Task 20: the phone and the low layout show the slim strip; its accessible name holds the ranges.
+      const strip = ctx.root.dataset.layout === 'bottom';
+      if (shown !== overlay || shownStrip !== strip) {
+        shownStrip = strip;
+        const rowsText = legend.rows.map((r) => text('fields.legend.stripRow', { name: r.name, range: r.range })).join(', ');
+        setAttr(legendBox, 'aria-label', strip ? text('fields.legend.strip', { overlay: overlayName(overlay), rows: rowsText }) : text('fields.legend.label', { overlay: overlayName(overlay) }));
+        rows.replaceChildren(...legendRows(legend, strip));
+      }
       if (shown !== overlay) {
         shown = overlay;
         setText(title, legend.title);
-        setAttr(legendBox, 'aria-label', text('fields.legend.label', { overlay: overlayName(overlay) }));
-        rows.replaceChildren(...legendRows(legend));
         setText(help, legend.help);
       }
       if (legendBox.hidden) legendBox.hidden = false;

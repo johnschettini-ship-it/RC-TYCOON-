@@ -25,6 +25,8 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.rotate': 'Rotate',
   'ui.track.confirm': 'Confirm',
   'ui.track.cancel': 'Cancel',
+  'ui.track.moreMenu': 'More',
+  'ui.track.confirmStation': 'Confirm {name} station, {cost}',
   'ui.track.groups': 'Piece groups',
   'ui.track.palette': 'Pieces',
   'ui.track.group.straight': 'Straight',

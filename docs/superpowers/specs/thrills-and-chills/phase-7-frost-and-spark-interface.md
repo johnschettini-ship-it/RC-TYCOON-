@@ -69,6 +69,12 @@ Rules:
 - The zone strip has `pointer-events: none`. A click on it goes to the map. (No full-body mascots are drawn at the bottom corners; see section 4.8.)
 - With the hand open on a 390 × 844 screen at 100% text scale, the free map area is at least 45% of the screen height.
 
+#### Track station row and overlay legend strip on the phone
+Added after the owner's test play (Task 20; the owner chose these designs). They hold on the phone (`data-layout="bottom"`) and in the low layout (`data-low="1"`); the desktop keeps the station panel and the legend card as before.
+
+1. **Track station row:** in the station step the track builder is one slim row at the bottom (above the deck chips): the ride name (cut with an ellipsis when the row is full; the heading keeps the whole name), the length stepper (− n +; the number alone on the screen, the whole "3 tiles" for screen readers), a round Rotate button (accessible name "Rotate"), Confirm with the price ("✓ $1,308"; accessible name "Confirm Mini Railway station, $1,308"), and a "⋯" button (accessible name "More") whose small menu above the row holds Details and Cancel. Every control is 44 × 44 px or more with 8 px gaps, and the plate is at most 64 px high at 100% text (at larger text the name takes its own line and the controls wrap; nothing is cut). A station that does not fit disables Confirm, and its reason (the same text as before) shows directly above the row. The hint "Tap the map to move the station, then Confirm" is the row's accessible description, not a line on the screen. In the low layout the row is centred above the deck chips, as wide as its content. The piece-building step after the station is unchanged (a right-side panel in the low layout).
+2. **Overlay legend strip:** the legend of an overlay is a slim strip under the top region, at the right: a colour dot and the name of each band, no number ranges, at most 28 px high at 100% text (Temperament: Chill · Family · Thrill). The ranges are in the strip's accessible name ("Temperament colour key: Chill 0–35, Family 36–64, Thrill 65–100"). Calm, Buzz, and Light use the same strip; their tile value ("Calm here: 102 (Medium)", or the tap hint) shows on a second line under it.
+
 #### Low layout (a phone held sideways)
 Added after the owner's test play (Task 19; the owner chose this design). A window is **low** when its height is below 500 CSS px and it is wider than high (`isLowScreen`, `LOW_HEIGHT_PX = 500`, `src/ui/layout.ts`). A low window has the phone layout at every width, also from 900 px (`toolbarPlacement(width, height)` returns `'bottom'`), and the UI root has `data-low="1"` (no such attribute otherwise). Its own rules:
 
@@ -214,7 +220,7 @@ A panel of the panel host, kind `cardDetails`. It shows the data of the held con
 
 Rules:
 - Desktop: the panel opens when a content card becomes the held card.
-- Phone: the panel opens from the Details button in the tool status bar. For a held track ride card the tool status bar does not show, so the Details button is in the station builder (`track-details`).
+- Phone: the panel opens from the Details button in the tool status bar. For a held track ride card the tool status bar does not show, so the Details button is in the station builder (`track-details`), in the menu of its "⋯" button (section 4.1, track station row).
 - Track ride: the panel shows three track lines (drive, maximum height, seats per car); the "From" cost is in the cost chip next to the zone.
 - The panel closes when no content card is held. Closing the panel does not put the card back.
 - This panel replaces the stat bars of the old picker cards. No ride or stall data that the picker shows today is lost.
