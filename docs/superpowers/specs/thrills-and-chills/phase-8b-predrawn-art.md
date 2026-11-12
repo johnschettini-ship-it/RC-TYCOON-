@@ -1,17 +1,18 @@
 # Phase 8b: Predrawn pixel art (design)
 
-- **Status:** Draft for owner approval, revision 3 (2026-11-12). Revision 2 repaired three independent reviews of revision 1. Revision 3 repairs the re-reviews of revision 2 (feasibility, speed and memory, player experience and rules).
+- **Status:** Draft for owner approval, revision 4 (2026-11-12). Revision 2 repaired three reviews of revision 1; revision 3 repaired the re-reviews of revision 2. Revision 4 follows the owner's decision to ship as a phone app (Android and iPhone) with a website demo: the art is packed inside the app, so the website download rules of revision 3 go away.
 - **Build:** Build 5.
 - **Replaces:** the live-drawing approach of `phase-8-pixel-art.md`, stopped by the stage 0 result (`phase-8-stage-0-report.md`). The visual rules of that spec stay where this design does not change them: hard square pixels, ink outlines, the colour ramps, the stepped zoom with the soft far overview (its sections 6 to 8, owner decisions 1 and 2).
-- **Owner decisions so far (2026-11-12):** "Let's switch to predrawn." A large download is acceptable ("I've downloaded games with gigs on my phone"). The full art package will grow beyond the code-drawn pictures. Earlier: the final art must be much better than the code-drawn drafts.
+- **Owner decisions so far (2026-11-12):** "Let's switch to predrawn." The game ships as an app on Android and iPhone, with a website demo ("All with website demo"); the model is the owner's project Orange Day: Pocket Republic (Capacitor 7 wrapper, art painted by a build tool, `tools/gen_art.js`, about 15 MB of art in the app). A large download is acceptable ("I've downloaded games with gigs on my phone"). The full art package will grow beyond the code-drawn pictures. Earlier: the final art must be much better than the code-drawn drafts.
 
 ## 0. Summary for the owner
 
+- The game ships as an app for Android and iPhone, wrapped with Capacitor like Orange Day. All pictures are inside the app: no download after install, no website storage limits. The website stays as a free demo in today's look.
 - The game will show pictures drawn once, when the game is built. During play the phone copies finished pictures. Only riders on track rides, chain marks and water ripples stay drawn live, as today.
 - Stage 0 was slow for two reasons: building pictures live, and extra work every frame (a full-screen shadow layer, and a sharper phone picture). This design removes the first and changes the second: shadows become small predrawn pictures, and phones use the coarser setting k = 3.
 - The next test (stage 0b) checks **speed, memory and loading only**. Its pictures are the stage 0 pictures with their faults, plus a new ground and new shadows. It does **not** show better art.
 - Better art comes after the test, batch by batch, and replaces today's look only after you approve it side by side.
-- You decide 11 points before the test (section 9). Each has its options and what they mean for players.
+- You decide 10 points before the test (section 9). Each has its options and what they mean for players.
 
 ## 1. Words
 
@@ -21,7 +22,7 @@
 | Pixel look | Hard-pixel art in the style of the approved draft. The final pictures must be much better than the drafts. |
 | Sheet | One image file that holds many small pictures side by side. |
 | Index | A file that says where each picture sits on its sheet and where its anchor point is. |
-| Pack | A group of sheets that download together. The **core pack** is what a new park needs. |
+| Pack | A group of sheets by kind (rides, people, ground and so on). All packs ship inside the app. |
 | Art pixel | One square of the pixel art. On screen it is enlarged to `n × n` canvas pixels. |
 | k | How many phone screen pixels make one canvas pixel. Stage 0 found that phones need k = 3 (coarser than k = 2). |
 | Crisp levels | Zoom steps at which every art pixel is a whole number of canvas pixels. |
@@ -58,7 +59,9 @@ If the test still fails with these changes, the approach stops (section 6).
 
 ```
 BUILD TIME   drawing code ──► sheet tool (Vite plugin) ──► art/<pack>/<sheet>-<hash>.png + one index per pack
-FIRST VISIT  title screen at once ──► core pack downloads (progress on the title) ──► the park opens when its pictures are ready
+APP          Capacitor wraps the built game; the sheets ship inside the app (Android and iPhone)
+APP START    title at once ──► decode the sheets of the park being opened ──► play
+WEBSITE      demo build in today's look: no art sheets, today's offline rules unchanged
 PLAY         numeric index lookup ──► drawImage from a decoded sheet; ground: tile pieces laid into chunk images
 ```
 
@@ -78,7 +81,7 @@ PLAY         numeric index lookup ──► drawImage from a decoded sheet; grou
 ### 5.2 The index and the picture keys
 
 1. One index per pack, in a compact binary form. The plugin gives the bundle the URL and hash of each index (a virtual module). At load the game turns the index into numeric tables; no string is built per object per frame.
-2. The core index downloads with the core pack and counts in the loading time (B5), not in the 400 KB code limit.
+2. The indexes ship inside the app; reading them counts in the app start time (B5).
 3. Card and picker previews (`src/render/renderer.ts:1195-1196`, `src/render/scenery/preview.ts:20`, `src/render/shows/preview.ts:15`, `src/render/track/preview.ts:105`) also draw from the index.
 4. Key fields per kind follow today's sprite keys (`src/render/sprites/bank.ts`, `src/render/sprites/staff.ts`, `src/render/scenery/sprites.ts`, `src/render/anim.ts`, `src/render/track/layer.ts`). Counts are estimates; the tool prints the true counts.
 
@@ -96,23 +99,20 @@ PLAY         numeric index lookup ──► drawImage from a decoded sheet; grou
 | Ground pieces | terrain, slope shape (16), owned/outside, view, variant; path and queue joins; face steps; water and shore | about 1 000 to 3 000 |
 | **Total** | | **about 35 000 to 45 000** |
 
-### 5.3 Loading, offline and updates
+### 5.3 The app, the website demo, and memory
 
-1. **Title first** (proposed, D4). The title screen draws its own pictures from data in the code, so it shows at once. A progress line on the title shows the download. Settings, language and Offline play work at once.
-2. **While today's look is the default** (D3): the pixel packs download in the background and nothing waits for them. A failed download changes nothing for the player.
-3. **When the pixel look is the default:** before a park starts from New park, a save, the autosave, an import, a scenario or the tutorial, the loader reads the ride and object ids in it and loads their packs behind the progress line. On a failure: while today's look still exists, the park opens in today's look and a message says so; after it is removed, the error shows with **Retry**. A park never draws with holes.
-4. **Cards.** When the pixel look is the default, a card whose pictures are not ready shows a mark and cannot be placed; pressing it says why. Offline, the reason reads "Needs a connection", and the loader retries on the browser's `online` event.
-5. **The art cache.** Name `tcart-v1`, outside the `tc-` prefix that today's code deletes at every update (`public/sw.js:17, 58-69`) and when Offline play is turned off (`src/offline/index.ts:75, 165`). It is kept across builds and keyed by the hash in each file name. A sheet is deleted only when no current index lists it. The code precache leaves the art out (`scripts/sw-manifest-plugin.ts:29-31`, `scripts/check-release.ts:77-97` change with it). The worker's fetch handler serves `art/` requests from `tcart-v1`. Acceptance test (B8): after a code-only release, the update downloads 0 bytes of art.
-6. **One download.** The loader, in the page, fetches every art file and writes it into `tcart-v1`. The first visit downloads each sheet once.
-7. **Old build after a deploy.** If an art file returns 404 (the player kept an old build with "Later"), the game shows the "Update ready" toast; this needs a new toast state (today it shows only when a newer worker waits, `src/offline/index.ts:181-182`).
-8. **Offline play off** keeps `tcart-v1` (it is the art store). Settings gets an action "Remove downloaded pictures" (it shows the size); the README sentence on turning Offline play off changes with it.
-9. **Storage.** After the first park, the game asks the browser for persistent storage; the browser may refuse without asking the player, so this protects nothing for sure. On a storage-full error, the game keeps playing in today's look while it exists and says why. **iPhone:** Safari deletes everything a website stored, saves and pictures, after about 7 days without a visit, unless the game was added to the home screen. The game and the README tell iPhone players to add it to the home screen, or to export their park (Save → Export).
-10. **Decoding and memory.**
-    - Sheets stay compressed until needed. The decoded sheets in use form a set with a byte budget per device class. A sheet used in this frame or the frame before is never removed.
-    - While a sheet decodes, the object keeps its last decoded picture, and the frame counts as incomplete. B3 limits how long this lasts.
-    - When the budget allows, the sheets of the two neighbouring views are decoded ahead, so a view turn finds them ready.
-    - At park start the loader decodes the sheets of the current view of that park, behind the progress line.
-11. **Download size and mobile data** (D5). Before the first download the title shows the size of the core pack and of everything. A setting chooses "Download all pictures now" or "Only when needed" (packs then load when their content is first needed). A website cannot reliably tell Wi-Fi from mobile data, so the game does not try.
+1. **App wrapper.** Capacitor 7, as in Orange Day (`orange-day-pocket-republic`: `capacitor.config.json`, `scripts/build-mobile-www.mjs`, `docs/MOBILE-STORE.md`, `docs/ANDROID-FIRST-RUN.md`). A script assembles the app's web root from the built game and its sheets; `npx cap sync` copies it into the Android and iPhone projects. App ID and name: decision D12.
+2. **Art inside the app.** Every sheet ships in the app. There is no download after install, no art cache, and no "Needs a connection". An app update from the store replaces the sheets.
+3. **Saves** stay in the WebView's local storage as today (`src/save/`). Installed apps are not subject to Safari's 7-day deletion of website data. Export and Import keep working.
+4. **Offline.** The app plays offline by nature. The service worker and the "Update ready" toast are for the website only; the app build leaves them out (store updates replace them).
+5. **Website demo.** The website keeps today's look and today's offline rules, with no pixel sheets. A line on its title links to the app stores. (Decision D3 says what the demo shows if the pixel look becomes the app's only look.)
+6. **Decoding and memory.**
+   - Sheets stay compressed until needed. The decoded sheets in use form a set with a byte budget per device class. A sheet used in this frame or the frame before is never removed.
+   - While a sheet decodes, the object keeps its last decoded picture, and the frame counts as incomplete. B3 limits how long this lasts.
+   - When the budget allows, the sheets of the two neighbouring views are decoded ahead, so a view turn finds them ready.
+   - At park start the game decodes the sheets of the current view of that park, behind a progress line on the title.
+   - Phones get the coarse frame set only (5.1 item 5). Tablets and desktop builds get the full set.
+7. **App size.** The store shows the size before install. The release check prints the app's art size and warns when it grows by more than 25 % over the size recorded in `CHANGELOG.md` for the last release. Google Play allows 200 MB per app bundle before asset packs are needed; the release check warns above 150 MB.
 
 ### 5.4 Ground
 
@@ -147,7 +147,7 @@ Players build these piece by piece. They are predrawn as parts:
 
 ## 6. Stage 0b: the test
 
-A throwaway worktree, as stage 0. It answers one question: with predrawn pictures, predrawn shadows and k = 3 for phones, does the game meet the speed and memory limits on the slow phone, and how long does the first visit take?
+A throwaway worktree, as stage 0. It answers one question: with predrawn pictures, predrawn shadows and k = 3 for phones, does the game meet the speed and memory limits on the slow phone, and how long does the app take to start a park?
 
 **What the owner will see:** the stage 0 pictures with their faults (one flat purple haunted house, yellow grass, 17 rides in today's shapes, colours no person checked), plus the new ground (5.4) and the new dithered shadows (5.5). The test does not judge the look.
 
@@ -155,10 +155,11 @@ A throwaway worktree, as stage 0. It answers one question: with predrawn picture
 - The three speed-test parks with every object and ground case in them (four flat ride types, two show sites, the mini railway on three piece kinds, a pond and raised ground in `build2`).
 - One new test park for the hard cases: all 18 flat rides, a steel coaster with lift, drop, curves, a corkscrew, supports at several heights and non-default colours, an elevated path, sloped ground, cliffs and water.
 - Placement ghosts and the colour swap.
+- The test runs in Chromium (the engine of the Android WebView). The iPhone WebView uses WebKit; the report runs the speed scenes once in WebKit (Playwright's WebKit) and says what that run cannot show.
 
 **Measures.** Phone profile at CPU throttle 4, and desktop. Each timing run waits for the load gate. Each value is the median of 3 runs, reported next to today's look (quality `auto`, today's default) in the same session, with work p95 and render p95.
 
-**Before the timing runs:** the tool prints the core pack size and the total size. The controller tells the owner the likely B5 result from these numbers.
+**Before the timing runs:** the tool prints the art size per kind and in total, the projected app size, and the projected decoded memory.
 
 **Kill rules (fixed before the test).** The two "today" forms (B2b, B3b) apply only if the owner chooses them (D7); otherwise the strict form applies.
 
@@ -170,14 +171,14 @@ A throwaway worktree, as stage 0. It answers one question: with predrawn picture
 | B3 | Phone: a cold ground chunk assembly above 12 ms; a palette swap and decode of one sheet above 12 ms; or, in `scene phone` and `build2`, the longest frame in the first second after a view turn (the unrounded maximum of 2 turns) above 6 frame steps (100 ms); or more than 30 incomplete frames (5.3 item 10) after a turn; or, in the new test park, the longest frame while 20 scenery items are placed in a row above 100 ms. Frames are compared in whole steps: `round(ms / 16.67)`. | Stop. This turn limit stopped nothing in stage 0; it becomes a stop rule only if the owner agrees (D6). |
 | B3b (D7) | As B3, but the turn limit is "not more than today's turn frame + 1 step" (today is 6 steps on `scene phone`). | Stop. |
 | B4 | Desktop `scene build1` or `scene build2`: frame p95 above 20 ms. | Try once with pre-enlarged desktop sheets (section 3); if it still fires: Stop. |
-| B5 | First visit, phone profile, CPU throttle 4, network 1.6 Mbit/s down, 750 kbit/s up, 150 ms latency (browser network emulation on the page; every art fetch is made by the page, 5.3 item 6): time from page start to the first park frame with no missing picture, with New park pressed as soon as it is enabled, above `ART_LOAD_MAX_S` (8 s, provisional). | The owner decides (a smaller core pack, a longer limit, or core art at a lower detail). |
+| B5 | App start on the phone profile at CPU throttle 4: time from page start to the first park frame with no missing picture (sheets read from local files), with New park pressed as soon as it is enabled, above `ART_START_MAX_S` (4 s, provisional). | The owner decides (fewer frames decoded at start, or a longer limit). |
 | B6 | Phone, the maximum over the whole run including the turns: decoded sheets + swapped sheets + chunk images + the static layer above 64 MB (the phone sprite budget, `src/data/tuning/perf.ts:4`). | Stop, or fewer frames for phones (owner decision). |
 | B7 | Today's look changes (the recorder tests and the `classic-ops` compare). | Repair, then repeat. B7 holds until the owner approves the removal of today's look. |
-| B8 | A code-only rebuild downloads any art bytes on update; or the art cache is gone after an update or after Offline play is turned off. | Repair, then repeat. |
+| B8 | The website demo changes (it must stay today's look with today's size and offline rules), or the app build includes the service worker. | Repair, then repeat. |
 
-**Also reported:** total size of all packs, unique picture count per kind, decode time, the drawing path the test browser used (graphics chip or software), and how many first visits per month the projected package allows within GitHub Pages' soft bandwidth limit (100 GB per month). Headless Chromium cannot show phone graphics-chip limits; the report says so. If possible, one run on a real mid-range Android phone.
+**Also reported:** total size of all packs, unique picture count per kind, decode time, the drawing path the test browser used (graphics chip or software), and one Android emulator run of the app shell, to show that the sheets load from inside the app. Headless Chromium cannot show phone graphics-chip limits; the report says so. If possible, one run on a real mid-range Android phone.
 
-**Owner gate:** the owner sees the numbers, the loading on the title, the phone at k = 3 (the picture phones will really get), the new ground and the new shadows. The full build starts only after the owner says yes.
+**Owner gate:** the owner sees the numbers, the app start, the phone at k = 3 (the picture phones will really get), the new ground and the new shadows. The full build starts only after the owner says yes.
 
 ## 7. After stage 0b (outline)
 
@@ -198,24 +199,24 @@ A throwaway worktree, as stage 0. It answers one question: with predrawn picture
 |---|---|---|---|
 | D1 | Who makes the final art? | (a) Drawing code only: no rule change; "much better" must come from better drawing code, slower to improve. (b) Also by hand, by a person (you, or a paid artist: needs a licence and a written grant first): changes master rule §1.3; best quality, costs time or money. | (b), with the provenance rule of section 8 |
 | D2 | May AI image tools make art? | (a) No. (b) Yes, with the tool named in the provenance file; risk that a tool copies other games' art. (c) Decide later; until then no. | (c) |
-| D3 | What happens to today's look? | (a) Kept as a permanent option in Settings: two looks to maintain forever. (b) Default and fallback until you approve the pixel look for every object, then removed. (c) Removed at once when the full build starts: no fallback while art is weak. | (b) |
-| D4 | What does the first visit show? | (a) The title at once, the download on the title; Settings work at once. (b) A loading screen before the title. | (a) |
-| D5 | Download size and mobile data | (a) Show the sizes first, and a setting "Download all pictures now / Only when needed". (b) Download everything without asking. | (a) |
-| D6 | Does the view-turn limit (100 ms) become a stop rule? | (a) Yes: a stutter longer than today's stops the approach. (b) No: it is reported only, as in stage 0. | (a) |
-| D7 | Strict speed limits, or "not worse than today"? Today's game is itself above 40 ms on the `phone` scene. | (a) Strict (B2, B3): the pixel look must meet 40 ms where today does not. (b) "Not worse than today" for the `phone` scene and the turn (B2b, B3b); the crowded `build2` keeps 40 ms. With (b), the `phone` scene of stage 0 at k = 2 would have failed, and the crowded `build2` failure of stage 0 would still fail. | (b) |
+| D3 | What happens to today's look? | (a) Kept as a permanent option in the app's Settings: two looks to maintain forever. (b) Default and fallback in the app until you approve the pixel look for every object, then removed from the app; the website demo keeps it. (c) Removed from the app at once when the full build starts. | (b) |
+| D6 | Does the view-turn limit (100 ms) become a stop rule? | (a) Yes: a stutter longer than that stops the approach. (b) No: reported only, as in stage 0. | (a) |
+| D7 | Strict speed limits, or "not worse than today"? Today's game is itself above 40 ms on the `phone` scene. | (a) Strict (B2, B3). (b) "Not worse than today" for the `phone` scene and the turn (B2b, B3b); the crowded `build2` keeps 40 ms. With (b), the `phone` scene of stage 0 at k = 2 would still have failed, and so would the crowded `build2` result. | (b) |
 | D8 | Shadows at night | (a) Object shadows hidden at night, guest shadows stay. (b) All shadows stay at night. | (a) |
 | D9 | How do approved art batches ship? | (a) Each approved batch ships at once: for a while the park mixes the two looks. (b) Batches are approved one by one, but ship together when all are approved. | (b) |
 | D10 | May stage 0b start before you accept Build 4? | (a) Yes: it runs in a separate copy and changes nothing in the game. (b) No: Build 4 first. | (a) |
-| D11 | The values and the core pack | `ART_LOAD_MAX_S` 8 s; growth warning 25 %; core pack: everything the tutorial and any scenario places or offers at month 0. | As written; changed after the test if B5 fires |
+| D11 | Start time and memory values | `ART_START_MAX_S` 4 s; decoded memory 64 MB on phones; growth warning 25 %. | As written; changed after the test if a rule fires |
+| D12 | App identity and store accounts | App ID (for example `com.thrillschills.park`) and the store name; your Google Play and Apple Developer accounts (Orange Day may already use them); iPhone builds need a Mac or a cloud build service. | Same accounts as Orange Day; app ID proposed by you |
+
+(D4 and D5 of revision 3, the website loading questions, are gone: the art is inside the app.)
 
 ## 10. Rules and documents that change
 
 | Rule today | New rule |
 |---|---|
-| First load ≤ 400 KB gzip of JS and CSS (`scripts/check-release.ts:29`) | Stays for JS and CSS. The core index and core pack count in B5. A release that grows the art by more than 25 % over the art size recorded in `CHANGELOG.md` for the last release prints a warning. |
+| First load ≤ 400 KB gzip of JS and CSS (`scripts/check-release.ts:29`) | Stays for the website demo. The app build checks the art size (5.3 item 7) and B5 instead. |
 | Image files only for icons and screenshots (tracked files, `check-release.ts:37-39`) | Generated sheets are not tracked, so they need no change. New check: every file under `dist/art/` is in an index, and every index entry has its file. Tracked hand-made art only after D1 (section 8). |
-| Hosting: GitHub Pages, whole `dist` | Pages limits a site to about 1 GB and has a soft bandwidth limit of 100 GB per month. The release check warns above 500 MB of art; a larger package needs another host (owner decision when it comes). |
-| Accessibility | The progress line has `role="progressbar"` and a name; the end of loading and errors use a polite live region; nothing animates with reduced motion; the layout holds at 175 % text and in `en-XA`; Retry is at least 44 × 44 px; a card that is not ready has `aria-disabled` and says why; every text comes from `src/data/strings/`. These states join the axe, 175 % and reduced-motion e2e checks. |
-| `index.html` "Loading…" text | Replaced by the title-screen progress line (if D4 is (a)). |
+| Hosting: GitHub Pages, whole `dist` | The website demo stays on Pages, with no pixel sheets. The app ships through Google Play and the App Store. |
+| Accessibility | The start progress line has `role="progressbar"` and a name; the end of loading and errors use a polite live region; nothing animates with reduced motion; the layout holds at 175 % text and in `en-XA`; Retry is at least 44 × 44 px; a card that is not ready has `aria-disabled` and says why; every text comes from `src/data/strings/`. These states join the axe, 175 % and reduced-motion e2e checks. |
 
-Documents to update when the full build starts: the master build table (§3), the README originality statement (after D1), its "Offline play" section and the iPhone advice, the CHANGELOG (art size per release), `tsconfig.json` `include` (adds `tools/`). Prototype shortcuts to fix before the full build (stage 0 report §6): ghosts untinted, slopes and water untested, 115 colours checked by no person, guest items and the sit frame missing, staff anchors not snapped.
+Documents to update when the full build starts: the master build table (§3) and its platform line (the game becomes an app with a website demo), a store and packaging guide copied from Orange Day's `docs/MOBILE-STORE.md`, the README originality statement (after D1), its install section (app stores, website demo), the CHANGELOG (art size per release), `tsconfig.json` `include` (adds `tools/`). Prototype shortcuts to fix before the full build (stage 0 report §6): ghosts untinted, slopes and water untested, 115 colours checked by no person, guest items and the sit frame missing, staff anchors not snapped.
