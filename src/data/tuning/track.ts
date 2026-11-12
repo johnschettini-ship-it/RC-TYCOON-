@@ -211,15 +211,21 @@ export const PROJECTION_MAX_TICKS = 2_400;
  * Owner 2026-11-12 ("Allow brakes + 3 s limit"): the search may lay the ride's plain brake piece, at the speeds of
  * `brakeSpeeds` (m/s, tried in this order): 17 and 7 are the fastest whole speeds the plain medium (radius 10 m) and
  * small (radius 2 m) turns take within the 3.0 G lateral limit (v² / (r·g) ≤ 3), 12 sits between them for the slopes
- * after a brake. A brake adds `brakeExtraMm` to the path's length, so a path without one comes first. `nodeLimit` is a
- * node budget of about 3 s of search on the reference desktop (counting nodes, not time, keeps the answer deterministic):
- * the cases that spend it took a median 0.164 ms per node on the development container, about 1.8× slower than the
- * reference desktop, so 3 s × 1.8 / 0.164 ms ≈ 33,000 (was 20,000).
+ * after a brake. A brake adds `brakeExtraMm` to the path's length, so a path without one comes first.
+ *
+ * Owner 2026-11-12 (the 3 s stop on the player's device): the builder stops the search after `timeLimitMs` of wall-clock
+ * time since it started, measured by the clock the UI hands the search (the sim has no clock), so a phone waits about
+ * 3 s too, not the 12–23 s a desktop-calibrated node count meant there. `nodeLimit` stays as an upper safety bound (and
+ * the only bound of a search run without a clock): about 3 s of search on the reference desktop (the cases that spend
+ * it took a median 0.164 ms per node on the development container, about 1.8× slower than the reference desktop, so
+ * 3 s × 1.8 / 0.164 ms ≈ 33,000). Where the search stops can depend on the device; the world does not: the search only
+ * proposes a path, and the `autoFinishTrack` command (a fixed piece list) re-checks it before it changes anything.
  * Provisional (tuning-log.md).
  */
 export const AUTO_FINISH = {
   maxPieces: 40,
   nodeLimit: 33_000,
+  timeLimitMs: 3_000,
   lapTries: 8,
   nodesPerSlice: 16,
   frameBudgetMs: 10,

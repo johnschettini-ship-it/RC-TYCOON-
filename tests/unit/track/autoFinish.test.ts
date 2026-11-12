@@ -25,7 +25,7 @@ import {
 import { trackEnd } from '../../../src/sim/rides/track/build';
 import { jointsEqual, pieceEntryJoint, pieceExitJoint, pieceWorldTiles } from '../../../src/sim/rides/track/geometry';
 import { checkPieceTiles } from '../../../src/sim/rides/track/placement';
-import { projectPrefix } from '../../../src/sim/rides/track/projection';
+import { firstUnsafeSection, projectPrefix } from '../../../src/sim/rides/track/projection';
 import { safetyBreachOf } from '../../../src/sim/rides/track/safety';
 import { runTestLapDetailed } from '../../../src/sim/rides/track/testRun';
 import type { World } from '../../../src/sim/types';
@@ -40,6 +40,7 @@ import {
   place,
   R1_PIECES,
   rideOf,
+  SHARP_TURN_PIECES,
   times,
   UNSAFE_DROP_PIECES,
   writePieces,
@@ -107,19 +108,23 @@ describe('Auto-finish search (R1, R8)', () => {
     expect(d.circuitClosed).toBe(false);
   });
 
-  it('is deterministic and independent of how it is sliced', () => {
+  it('is deterministic and independent of how it is sliced (a run that finishes within the time limit)', () => {
     const a = findClosingPath(r1Open().w, r1Open().id);
+    // Fake clocks (1 ms per reading), so the run is the same on every machine; it ends long before the time limit.
+    let ta = 0;
+    let tb = 0;
     const b = r1Open();
-    const s = startAutoFinish(b.w, b.id);
+    const s = startAutoFinish(b.w, b.id, {}, () => ta++);
     let o: AutoFinishOutcome | null = null;
     while (!(o = s.step(1)));
     const c = r1Open();
-    const t = startAutoFinish(c.w, c.id);
+    const t = startAutoFinish(c.w, c.id, {}, () => tb++);
     let p: AutoFinishOutcome | null = null;
     while (!(p = t.step(100)));
     expect(o).toEqual(a);
     expect(p).toEqual(a);
     expect(s.nodes).toBe(t.nodes);
+    expect(Math.max(ta, tb)).toBeLessThan(AUTO_FINISH.timeLimitMs);
     // Once finished, further steps return the same outcome.
     expect(t.step(100)).toEqual(a);
   });
@@ -251,6 +256,61 @@ describe('Auto-finish search (R1, R8)', () => {
     expect(s.nodes).toBe(AUTO_FINISH.nodeLimit);
     expect(TRACK_ERR.autoFinishGaveUp).toBe('No safe way back found: build closer to the station or lower the track');
   }, 60_000);
+
+  it('stops after 3,000 ms of waiting on the player\'s device (fake clock) and says what to change', () => {
+    // Owner 2026-11-12: the time limit, not the node budget, ends a long search. UNSAFE_DROP_PIECES cut high on its
+    // lift spends the whole node budget without a clock; with one it stops when 3,000 ms have passed since the start.
+    expect(AUTO_FINISH.timeLimitMs).toBe(3_000);
+    const w = makeTestWorld();
+    const id = place(w, 'steel_coaster', 4, 2, EAST);
+    writePieces(w, id, UNSAFE_DROP_PIECES.slice(0, 12));
+    // Frames 10 ms apart, the clock still within a frame: the frame at 2,990 ms searches, the one at 3,000 ms stops.
+    let t = 50_000;
+    const s = startAutoFinish(w, id, {}, () => t);
+    let o: AutoFinishOutcome | null = null;
+    let frames = 0;
+    let nodesBefore = 0;
+    while (!o && frames < 1_000) {
+      nodesBefore = s.nodes;
+      o = s.step(AUTO_FINISH.nodesPerSlice);
+      frames++;
+      if (!o) t += 10;
+    }
+    expect(o).toEqual({ kind: 'none', reason: TRACK_ERR.autoFinishGaveUp });
+    expect(t - 50_000).toBe(AUTO_FINISH.timeLimitMs);
+    expect(frames).toBe(301);
+    expect(s.nodes).toBe(nodesBefore);
+    expect(s.nodes).toBeGreaterThan(0);
+    expect(s.nodes).toBeLessThan(AUTO_FINISH.nodeLimit);
+    // A clock that moves within a slice stops the search within that slice.
+    let u = 0;
+    const r = startAutoFinish(w, id, {}, () => (u += 1));
+    expect(r.step(Number.POSITIVE_INFINITY)).toEqual({ kind: 'none', reason: TRACK_ERR.autoFinishGaveUp });
+    expect(r.nodes).toBeLessThan(AUTO_FINISH.timeLimitMs);
+    expect(u).toBeGreaterThanOrEqual(AUTO_FINISH.timeLimitMs);
+  });
+
+  it('a track that already holds a piece over a hard safety limit is answered at once, naming the piece Open names', () => {
+    expect(TRACK_ERR.autoFinishUnsafeFirst).toBe('Piece {n} is over the safety limit: fix it first');
+    for (const [pieces, cut] of [
+      [SHARP_TURN_PIECES, 30],
+      [UNSAFE_DROP_PIECES, 40],
+    ] as const) {
+      const w = makeTestWorld();
+      const id = place(w, 'steel_coaster', 4, 2, EAST);
+      writePieces(w, id, pieces.slice(0, cut));
+      const d = dataOf(w, id);
+      const unsafe = firstUnsafeSection(d.pieces, steel, d.trainConfig.carsPerTrain);
+      expect(unsafe).not.toBeNull();
+      const reason = fillTrackString(TRACK_ERR.autoFinishUnsafeFirst, { n: unsafe!.pieceIndex + 1 });
+      let readings = 0;
+      const s = startAutoFinish(w, id, {}, () => readings++);
+      expect(s.step(1)).toEqual({ kind: 'none', reason });
+      expect(s.nodes).toBe(0);
+      // The command refuses the same way, before it looks at the pieces.
+      expect(planPath(w, rideOf(w, id), d, steel, [{ defId: 'straight', chain: false }], { setup: true })).toEqual({ ok: false, reason, index: null });
+    }
+  });
 
   it('a closed circuit and an empty track are refused at once', () => {
     const { w, id } = r1Open(0);

@@ -674,7 +674,7 @@ interface AutoFinishRun {
 
 const autoRuns = new WeakMap<TrackToolState, AutoFinishRun>();
 
-/** The clock of the frame budget (the UI's, never the sim's). */
+/** The clock of the frame budget and of the search's 3 s stop (the UI's, never the sim's: the search is handed it). */
 const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /** Auto-finish is searching or shows a path: Build and the meter step aside. */
@@ -696,7 +696,7 @@ export function startAutoFinishUi(host: BuilderHost): void {
   if (!autoFinishAvailable(host) || st.rideId === null) return;
   const data = trackData(host.world, st.rideId);
   if (!data) return;
-  autoRuns.set(st, { search: startAutoFinish(host.world, st.rideId), rideId: st.rideId, pieces: data.pieces, n: data.pieces.length, last: data.pieces[data.pieces.length - 1] });
+  autoRuns.set(st, { search: startAutoFinish(host.world, st.rideId, {}, now), rideId: st.rideId, pieces: data.pieces, n: data.pieces.length, last: data.pieces[data.pieces.length - 1] });
   st.autoFinish = { state: 'searching', pieces: [], cost: 0, reason: null, affordable: false };
   st.hovered = null;
   bump(st);

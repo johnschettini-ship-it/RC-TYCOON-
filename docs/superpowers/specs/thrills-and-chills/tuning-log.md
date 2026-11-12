@@ -12,6 +12,27 @@ TC_BALANCE_SEEDS=12345,777,2024,1,42,9001,7,99,31337,500 npx vitest run tests/in
 
 ---
 
+## 2026-11-12 — Auto-finish stops after 3 s on the player's device (owner, R1)
+
+| Constant | Old | New | Meaning | Status |
+|---|---|---|---|---|
+| `AUTO_FINISH.timeLimitMs` | (none) | 3,000 | Wall-clock time since the search started after which it stops, read from the clock the builder hands the search (the sim has none) | provisional |
+| `AUTO_FINISH.nodeLimit` | 33,000 | 33,000 (unchanged) | Now an upper safety bound only, and the only bound of a search run without a clock (tests, the bench) | provisional |
+
+Why: the owner asked that Auto-finish stop after about 3 s. The node budget below was calibrated to the reference
+desktop, so on a phone (about 4× slower) it meant about 12 s at the median and 23 s at worst. A time limit measures
+the player's own wait on the player's own device. The search runs at most 10 ms per frame (`frameBudgetMs`), so
+3,000 ms since the start is about 3 s of waiting. The world stays deterministic: the search only proposes a path, and
+the confirmed `autoFinishTrack` command (a fixed piece list) is re-checked by the sim on Confirm. A search that
+finishes within the time limit gives the same answer however it is sliced (unit test with a fake clock).
+
+Also new (no constant): a track that already holds a piece over a hard safety limit is answered at once, without a
+search, with "Piece {n} is over the safety limit: fix it first" (the piece Open names). In the sweep below this covers
+57 of the "none" cases: SHARP_TURN cuts 18–36 and UNSAFE_DROP cuts 31–68. They took up to 6.5 s of search on the
+development container (UNSAFE_DROP cut 68: 9.0 s, at the node budget) and now answer within 27 ms (first call; most
+within 12 ms). The 33 remaining budget stops (NEAR_LIMIT_DROP and UNSAFE_DROP cuts 7–23, ends high on the big lifts)
+are now ended by the time limit on any device slower than about 0.09 ms per node.
+
 ## 2026-11-12 — Safety limits, the meter, the projection and Auto-finish (ride work 1, Tasks 3–9; owner decisions R5, R7, R1, R8)
 
 New constants in `src/data/tuning/track.ts`, all new with this work (no old value):

@@ -55,9 +55,12 @@ export const TRACK_ERR = {
   pieceUnsafeLat: 'Over the safety limit: {g} G sideways (max {limit} G)',
   // R1/R8 (owner 2026-11-12): Auto-finish (the search's answer and the `autoFinishTrack` command's refusals).
   autoFinishNone: 'No safe way back to the station was found',
-  // Owner 2026-11-12 ("Allow brakes + 3 s limit"): the search spent its node budget (about 3 s on the reference desktop).
+  // Owner 2026-11-12: the search stopped after 3 s of waiting on the player's device (or spent its node budget).
   autoFinishGaveUp: 'No safe way back found: build closer to the station or lower the track',
   autoFinishStallsFirst: 'The train stops on piece {n}. Fix that first',
+  // Owner 2026-11-12: the track already holds a piece over a hard safety limit (the piece Open names), so no closing
+  // lap can pass; answered at once, without a search.
+  autoFinishUnsafeFirst: 'Piece {n} is over the safety limit: fix it first',
   autoFinishNotClosing: 'These pieces do not reach the station',
   autoFinishLapFails: 'The finished ride would not pass its test',
 } as const;

@@ -3,7 +3,7 @@
  * (`stepAutoFinishUi`), the found path shows with its piece count and price, Confirm sends one `autoFinishTrack`
  * command with the shown pieces, and a track change or leaving the builder cancels it. Pure: a real `Game`, no DOM.
  */
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Game } from '../../../../src/game';
 import { TRACK_ERR, TRACK_WARN } from '../../../../src/data/strings/track';
 import { trackToolOf } from '../../../../src/render/track/toolState';
@@ -26,7 +26,10 @@ import {
   undoPiece,
 } from '../../../../src/ui/track/builder';
 import { makeTestWorld } from '../../../helpers/world';
-import { addAll, dataOf, EAST, NEAR_LIMIT_DROP_PIECES, place, R1_PIECES, rideOf } from '../../track/helpers';
+import { addAll, dataOf, EAST, NEAR_LIMIT_DROP_PIECES, place, R1_PIECES, rideOf, SHARP_TURN_PIECES, UNSAFE_DROP_PIECES, writePieces, type PieceSpec } from '../../track/helpers';
+import { getTrackTypeDef } from '../../../../src/data/track';
+import { fillTrackString } from '../../../../src/data/strings/track';
+import { firstUnsafeSection } from '../../../../src/sim/rides/track/projection';
 
 /** A game in the piece step of R1 without its last five pieces. */
 function setup(): { game: Game; id: number; cmds: Command[] } {
@@ -44,7 +47,20 @@ function runSearch(game: Game): void {
   for (let i = 0; i < 500 && st.autoFinish?.state === 'searching'; i++) stepAutoFinishUi(game);
 }
 
+/** A game in the piece step of a Steel Coaster laid from `pieces` (written as they are, unsafe pieces included). */
+function setupWritten(pieces: PieceSpec[]): { game: Game; id: number } {
+  const game = new Game(makeTestWorld());
+  const id = place(game.world, 'steel_coaster', 4, 2, EAST);
+  writePieces(game.world, id, pieces);
+  enterPieces(game, id);
+  return { game, id };
+}
+
 describe('Auto-finish in the builder (R1)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('searches over frames, then shows the path, its piece count and price', () => {
     const { game, id } = setup();
     const st = trackToolOf(game.tool);
@@ -188,5 +204,30 @@ describe('Auto-finish in the builder (R1)', () => {
     expect(st.autoFinish).toMatchObject({ state: 'none', reason: TRACK_ERR.autoFinishNone });
     // The button is back.
     expect(autoFinishAvailable(game)).toBe(true);
+  });
+  it('stops after 3 s of waiting on the device and shows what to change (fake clock)', () => {
+    // Owner 2026-11-12: the builder hands the search its clock; 1 ms passes per reading here.
+    let t = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => (t += 1));
+    const { game } = setupWritten(UNSAFE_DROP_PIECES.slice(0, 12));
+    const st = trackToolOf(game.tool);
+    startAutoFinishUi(game);
+    const t0 = t;
+    for (let i = 0; i < 2_000 && st.autoFinish?.state === 'searching'; i++) stepAutoFinishUi(game);
+    expect(st.autoFinish).toMatchObject({ state: 'none', reason: TRACK_ERR.autoFinishGaveUp });
+    expect(t - t0).toBeGreaterThanOrEqual(3_000);
+    expect(t - t0).toBeLessThan(3_100);
+    expect(autoFinishAvailable(game)).toBe(true);
+  });
+
+  it('a track with a piece over a hard limit is answered on the first frame, naming that piece', () => {
+    const { game, id } = setupWritten(SHARP_TURN_PIECES.slice(0, 30));
+    const st = trackToolOf(game.tool);
+    const d = dataOf(game.world, id);
+    const unsafe = firstUnsafeSection(d.pieces, getTrackTypeDef('steel_coaster')!, d.trainConfig.carsPerTrain);
+    expect(unsafe).not.toBeNull();
+    startAutoFinishUi(game);
+    stepAutoFinishUi(game);
+    expect(st.autoFinish).toMatchObject({ state: 'none', reason: fillTrackString(TRACK_ERR.autoFinishUnsafeFirst, { n: unsafe!.pieceIndex + 1 }) });
   });
 });

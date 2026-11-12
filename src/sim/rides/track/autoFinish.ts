@@ -12,10 +12,15 @@
  *
  * Deterministic: priority `f = g + weight·h` (g: track length added, mm; h: a tile-distance estimate, mm), ties by
  * lower h, then insertion order; children in piece-table order; one visit per joint.
- * Bounded: `AUTO_FINISH` limits the pieces, the expanded nodes (the node budget: about 3 s of search on the reference
- * desktop, owner 2026-11-12) and the closed laps. Time-sliced: `step(n)` takes at
- * most n nodes off the open list, and the answer never depends on how the search is sliced. Pure: reads the world,
- * changes nothing.
+ * Bounded: `AUTO_FINISH` limits the pieces, the expanded nodes (an upper safety bound) and the closed laps; with a
+ * clock (`now`, handed in by the UI: the sim has none) the search also stops after `timeLimitMs` (3,000 ms) of
+ * wall-clock time since it started (owner 2026-11-12: about 3 s of waiting on the player's own device). Time-sliced:
+ * `step(n)` takes at most n nodes off the open list, and the answer of a run that finishes within the time limit never
+ * depends on how the search is sliced. Where the clock stops a search can depend on the device; the world cannot: the
+ * search only proposes a path, and the command re-checks the fixed piece list. Pure: reads the world, changes nothing.
+ *
+ * A track that already holds a piece over a hard safety limit (`firstUnsafeSection`, the piece Open names) is answered
+ * at once, without a search: no closing lap could pass.
  *
  * `planPath` re-checks a given list in the same way (the `autoFinishTrack` command), so the command refuses a path
  * the world no longer allows (a path laid across it, or cash spent) and changes nothing.
@@ -32,7 +37,7 @@ import { trackEnd, type PiecePlan } from './build';
 import { trackContext } from './common';
 import { jointsEqual, pieceEntryJoint, pieceExitJoint, piecesForEnd, type Joint } from './geometry';
 import { buildOccupancy, checkPieceTiles, pieceCost, trailingUnsupported, type Occupancy, type TilePlan } from './placement';
-import { continueProjection, projectPrefix, type ProjectionSnapshot, type SectionProjection } from './projection';
+import { continueProjection, firstUnsafeSection, projectPrefix, type ProjectionSnapshot, type SectionProjection } from './projection';
 import { unsafePieceReason } from './safety';
 import { runTestLapDetailed } from './testRun';
 import type { TestResult, TrackPieceInstance, TrackRideData } from './types';
@@ -62,6 +67,8 @@ export interface AutoFinishSearch {
 export interface AutoFinishLimits {
   maxPieces: number;
   nodeLimit: number;
+  /** Wall-clock time (ms) from the start after which the search stops; only with a clock (`startAutoFinish`'s `now`). */
+  timeLimitMs: number;
   lapTries: number;
 }
 
@@ -79,10 +86,16 @@ export function isPlainPiece(type: TrackTypeDef, def: TrackPieceDef): boolean {
   );
 }
 
-/** Why Auto-finish cannot start on this track (closed, empty, or the train already stops on it), or null. */
+/**
+ * Why Auto-finish cannot start on this track (closed, empty, a piece over a hard safety limit, or the train already
+ * stops on it), or null. The unsafe piece is the one Build would refuse and Open names (`firstUnsafeSection`); it is
+ * null when the train stops before any piece passes a limit, so the earlier of the two troubles is named.
+ */
 function startBlock(data: TrackRideData, type: TrackTypeDef): string | null {
   if (data.circuitClosed) return TRACK_ERR.circuitAlreadyComplete;
   if (data.pieces.length === 0) return TRACK_ERR.mustStartWithStation;
+  const unsafe = firstUnsafeSection(data.pieces, type, data.trainConfig.carsPerTrain);
+  if (unsafe) return fillTrackString(TRACK_ERR.autoFinishUnsafeFirst, { n: unsafe.pieceIndex + 1 });
   const stall = projectPrefix(data, type).stall;
   if (stall) return fillTrackString(TRACK_ERR.autoFinishStallsFirst, { n: stall.piece + 1 });
   return null;
@@ -288,9 +301,19 @@ function pathOf(n: SearchNode): PathSoFar {
  * when the piece and type allow one, so a chain is laid only where the train needs it. A joint counts as visited once
  * a child reaching it passed its projection. The station's entry joint is never visited: each child reaching it is a
  * closing path whose finished lap is tested (at most `lapTries`). Expanded nodes count toward `nodeLimit`.
+ *
+ * `now` (ms; the UI's clock, tests' fake one) is read once here and before each node is taken off the open list: once
+ * `timeLimitMs` have passed since the start, the search stops with the same answer as a spent node budget. Without it
+ * only the node budget bounds the search.
  */
-export function startAutoFinish(world: World, rideId: number, limits: Partial<AutoFinishLimits> = {}): AutoFinishSearch {
-  const lim: AutoFinishLimits = { maxPieces: AUTO_FINISH.maxPieces, nodeLimit: AUTO_FINISH.nodeLimit, lapTries: AUTO_FINISH.lapTries, ...limits };
+export function startAutoFinish(world: World, rideId: number, limits: Partial<AutoFinishLimits> = {}, now?: () => number): AutoFinishSearch {
+  const lim: AutoFinishLimits = {
+    maxPieces: AUTO_FINISH.maxPieces,
+    nodeLimit: AUTO_FINISH.nodeLimit,
+    timeLimitMs: AUTO_FINISH.timeLimitMs,
+    lapTries: AUTO_FINISH.lapTries,
+    ...limits,
+  };
   const tc = trackContext(world, rideId);
   const block = tc ? startBlock(tc.data, tc.type) : TRACK_ERR.noRide;
   if (!tc || block) {
@@ -298,6 +321,8 @@ export function startAutoFinish(world: World, rideId: number, limits: Partial<Au
     return { step: () => done, nodes: 0 };
   }
   const { ride, data, type } = tc;
+  const startedAt = now ? now() : 0;
+  const outOfTime = (): boolean => !!now && now() - startedAt >= lim.timeLimitMs;
   const cars = data.trainConfig.carsPerTrain;
   const goal = pieceEntryJoint(data.pieces[0] as TrackPieceInstance);
   const goalKey = jointKey(goal);
@@ -415,8 +440,8 @@ export function startAutoFinish(world: World, rideId: number, limits: Partial<Au
       if (outcome) return outcome;
       let budget = maxNodes;
       while (budget > 0) {
-        if (open.size === 0 || nodes >= lim.nodeLimit) {
-          // The node budget spent (about 3 s of search on the reference desktop): say what the player can change.
+        if (open.size === 0 || nodes >= lim.nodeLimit || outOfTime()) {
+          // 3 s of waiting passed, or the node budget is spent: say what the player can change.
           const reason = open.size === 0 ? TRACK_ERR.autoFinishNone : TRACK_ERR.autoFinishGaveUp;
           outcome = rootAnswer() ?? { kind: 'none', reason };
           return outcome;
