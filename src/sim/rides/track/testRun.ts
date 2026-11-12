@@ -20,6 +20,7 @@ import { getLayout, type CircuitLayout } from './layout';
 import { newTrain, stepTrain, stopCentreMm, trainG, type StepContext } from './physics';
 import { climbAboveStationM, highestAboveGround } from './placement';
 import { addWaterExtras, computeRatings, heightIntensityStep, ratingInputsOf, waterRatingExtras } from './ratings';
+import { CarGWindow, safetyBreachOf, overLimit, type SafetyBreach, type SafetyKind, type SafetyValues } from './safety';
 import { stepWithStops, usesStops } from './stops';
 import type { TestResult, TrackRideData, TrainState } from './types';
 
@@ -106,8 +107,50 @@ function emptyResult(): TestResult {
   };
 }
 
+/**
+ * A test lap with its safety findings (R7). `worst`: the strongest car's G (each car's own 5-tick window, then the
+ * extremes over the cars; review I-2), hundredths, over the part of the lap that ran. `breach`: the first hard limit
+ * those values pass (posG, negG, lat), and `breachPiece` the piece under the centre at the first tick where that kind
+ * passed it. `troublePiece`/`troubleKind`: the stall piece (0-based) when the lap failed, else the breach, else null.
+ */
+export interface TestLapDetail {
+  result: TestResult;
+  troublePiece: number | null;
+  troubleKind: SafetyKind | 'stall' | null;
+  worst: SafetyValues;
+  breach: SafetyBreach | null;
+  breachPiece: number | null;
+}
+
 /** Simulate the test lap of a closed circuit. Pure: reads the ride data and the map, changes nothing. */
 export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDef): TestResult {
+  return runTestLapDetailed(map, data, type).result;
+}
+
+const details = new WeakMap<TestResult, TestLapDetail>();
+
+/**
+ * The detail of a stored test result (`data.test` or a pending `testRun.result`), cached by the result object (never
+ * saved). A result loaded from a save is re-run once; the pieces cannot have changed since (any change clears the test).
+ */
+export function testLapDetail(map: MapState, data: TrackRideData, type: TrackTypeDef, test: TestResult): TestLapDetail {
+  let d = details.get(test);
+  if (!d) {
+    d = runTestLapDetailed(map, data, type);
+    details.set(test, d);
+  }
+  return d;
+}
+
+/** Remember a lap's detail under its result (the test command, so the published result needs no re-run). */
+export function rememberTestLapDetail(d: TestLapDetail): void {
+  details.set(d.result, d);
+}
+
+const PIECE_NONE = -1;
+
+/** Simulate the test lap and its safety findings (see `TestLapDetail`). Pure. */
+export function runTestLapDetailed(map: MapState, data: TrackRideData, type: TrackTypeDef): TestLapDetail {
   const layout = getLayout(data);
   const cars = data.trainConfig.carsPerTrain;
   const res = emptyResult();
@@ -140,6 +183,24 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
   // Phase 6 Monorail: the test train dwells at each stop too, so the ride time includes the stops.
   const stops = usesStops(layout, type);
   const win: { gv: number; gl: number }[] = [];
+  // R7 (owner change and review I-2): each car's own window; the first piece where each kind passed its hard limit.
+  const carWin = new CarGWindow(cars);
+  const ext = { posG: 0, negG: 0, lat: 0 };
+  let wPos = -Infinity;
+  let wNeg = Infinity;
+  let wLat = 0;
+  const firstOver = { posG: PIECE_NONE, negG: PIECE_NONE, lat: PIECE_NONE };
+  const finish = (failed: boolean): TestLapDetail => {
+    const worst: SafetyValues = {
+      posGMax: wPos === -Infinity ? 100 : Math.round(wPos * 100),
+      vertGMin: wNeg === Infinity ? 100 : Math.round(wNeg * 100),
+      latMax: Math.round(wLat * 100),
+    };
+    const breach = safetyBreachOf(worst);
+    const breachPiece = breach ? firstOver[breach.kind] : null;
+    if (failed) return { result: res, troublePiece: (res.failPiece ?? 1) - 1, troubleKind: 'stall', worst, breach, breachPiece };
+    return { result: res, troublePiece: breachPiece, troubleKind: breach ? breach.kind : null, worst, breach, breachPiece };
+  };
   let posG = -Infinity;
   let negG = Infinity;
   let lat = 0;
@@ -162,14 +223,22 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
       res.failPiece = r.pieceIndex + 1;
       res.failKind = r.stall;
       res.ticks = ticks;
-      return res;
+      return finish(true);
     }
     if (train.v > vMax) vMax = train.v;
     const onStation = layout.statics[r.pieceIndex]?.def.special === 'station';
     if (!onStation) {
       // R6 (owner 2026-11-12): the G of the train averaged over its cars (ratings).
-      const g = trainG(layout, train, cars, type.vehicle.carLengthMm);
+      const g = trainG(layout, train, cars, type.vehicle.carLengthMm, carWin.sample);
       win.push({ gv: g.gv, gl: g.gl });
+      carWin.push();
+      carWin.extremes(ext);
+      if (ext.posG > wPos) wPos = ext.posG;
+      if (ext.negG < wNeg) wNeg = ext.negG;
+      if (ext.lat > wLat) wLat = ext.lat;
+      if (firstOver.posG === PIECE_NONE && overLimit('posG', Math.round(ext.posG * 100))) firstOver.posG = r.pieceIndex;
+      if (firstOver.negG === PIECE_NONE && overLimit('negG', Math.round(ext.negG * 100))) firstOver.negG = r.pieceIndex;
+      if (firstOver.lat === PIECE_NONE && overLimit('lat', Math.round(ext.lat * 100))) firstOver.lat = r.pieceIndex;
       if (win.length > G_AVERAGE_TICKS) win.shift();
       let gv = 0;
       let gl = 0;
@@ -198,7 +267,7 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
       res.failPiece = r.pieceIndex + 1;
       res.failKind = 'stop';
       res.ticks = ticks;
-      return res;
+      return finish(true);
     }
   }
   res.passed = true;
@@ -217,5 +286,5 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
   res.intensity = Math.min(1000, r.intensity + heightIntensityStep(climbAboveStationM(data.pieces), type));
   res.nausea = r.nausea;
   res.penalty = r.penalty;
-  return res;
+  return finish(false);
 }

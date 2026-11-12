@@ -44,6 +44,10 @@ export const TRACK_ERR = {
   colourRange: 'Unknown colour',
   // Phase 6 (W4-D): the Monorail takes up to 4 stations (master R26: the extra ones are stops).
   tooManyStations: 'This ride takes at most {n} stations',
+  // R7 (owner 2026-11-12): a passed test whose strongest car passed a hard safety limit (open refusal and warning).
+  unsafePosG: 'Too strong for riders: {g} G on piece {n} (limit {limit} G)',
+  unsafeNegG: 'Lifts riders too hard: {g} G on piece {n} (limit {limit} G)',
+  unsafeLat: 'Too hard sideways: {g} G on piece {n} (limit {limit} G)',
 } as const;
 
 /** Command warnings (Phase 1 §4.1 strings, reused for track gates). */
@@ -75,6 +79,8 @@ export const trackStrings: Record<string, string> = {
   'track.testFailedLoop': TRACK_RATING_WARN.testFailedLoop,
   'track.testFailedCorkscrew': TRACK_RATING_WARN.testFailedCorkscrew,
   'track.fault': 'Ride closed after a fault. Run a new test',
+  // R7: `{text}` is the filled unsafe reason (`TRACK_ERR.unsafe*`).
+  'track.testUnsafe': 'Test: {text}',
 };
 
 /** Fill `{key}` placeholders. */

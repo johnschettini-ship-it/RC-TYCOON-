@@ -200,3 +200,62 @@ export function buildOneCar(world: World, c: (typeof ONE_CAR_CIRCUITS)[number]):
   expectOk(executeCommand(world, { type: 'setTrainConfig', rideId: id, trains: 1, carsPerTrain: 1 }, { setup: true }));
   return id;
 }
+
+/**
+ * R7 (owner 2026-11-12): a Steel Coaster (station at (4, 2), heading +x) with a chained climb of `steep` steep pieces
+ * (16 + 6 × steep m above the station), the same steep drop into a steep-to-gentle valley, two brakes at `brakeSpeed`,
+ * and closed back on the ground. Pieces after the first station.
+ */
+export function dropCircuit(steep: number, brakeSpeed: number): PieceSpec[] {
+  return [
+    'station',
+    'station',
+    chain('flat_to_gentle_up'),
+    chain('gentle_to_steep_up'),
+    ...times(steep, chain('steep_up')),
+    chain('steep_to_gentle_up'),
+    chain('gentle_up_to_flat'),
+    'straight',
+    'straight',
+    'turn_medium_right',
+    'flat_to_gentle_down',
+    'gentle_to_steep_down',
+    ...times(steep, 'steep_down'),
+    'steep_to_gentle_down',
+    'gentle_down_to_flat',
+    { id: 'brakes', brakeSpeed },
+    { id: 'brakes', brakeSpeed },
+    'turn_medium_right',
+    ...times(9 + steep, 'straight'),
+    'turn_medium_right',
+    ...times(6 + steep, 'straight'),
+    'turn_medium_right',
+  ];
+}
+
+/**
+ * R7: climbs 70 m and drops into the valley at about 34 m/s. With the default 4 cars the train's average stays under
+ * 6.0 G (about 4.85 G, ratings) while the rear car's own 5-tick window passes it (about 6.2 G, safety).
+ */
+export const UNSAFE_DROP_PIECES: PieceSpec[] = dropCircuit(9, 10);
+
+/**
+ * R7 (review I-2): climbs 64 m. With 4 cars each car's own 5-tick window stays at or under 6.0 G (about 5.96 G), while a
+ * window of the per-tick strongest car (a different car each tick) would pass it (about 6.14 G).
+ */
+export const NEAR_LIMIT_DROP_PIECES: PieceSpec[] = dropCircuit(8, 8);
+
+/**
+ * R7: R1 with a straight and a small turn after its brakes (station at (4, 2), heading +x). Each car takes the small turn
+ * at about 8 m/s and passes 3.0 G sideways in its own window while the train's average stays near 1.1 G.
+ */
+export const SHARP_TURN_PIECES: PieceSpec[] = [
+  ...R1_PIECES.slice(0, 15),
+  { id: 'brakes', brakeSpeed: 8 },
+  'straight',
+  'turn_small_right',
+  ...times(12, 'straight'),
+  'turn_medium_right',
+  ...times(5, 'straight'),
+  'turn_medium_right',
+];

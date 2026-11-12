@@ -7,7 +7,8 @@
 import { getTrackPieceDef } from '../../data/track';
 import { inBounds, tileIndex } from '../../sim/map';
 import { pieceWorldTiles } from '../../sim/rides/track/geometry';
-import type { TrackPieceInstance, TrackRideData } from '../../sim/rides/track/types';
+import { troublePlaceOf, type TroublePlace } from '../../sim/rides/track/trouble';
+import type { TestResult, TrackPieceInstance, TrackRideData } from '../../sim/rides/track/types';
 import type { Ride } from '../../sim/rides/types';
 import type { World } from '../../sim/types';
 
@@ -54,5 +55,32 @@ export function trackRideTiles(world: World, ride: Ride): readonly number[] {
   if (exit >= 0 && exit < n) seen.add(exit);
   const tiles = Object.freeze([...seen]);
   cache.set(data, { pieces: data.pieces, count: data.pieces.length, last, entrance, exit, width: map.width, tiles });
+  return tiles;
+}
+
+const troubleCache = new WeakMap<TestResult, { place: TroublePlace | null; tiles: readonly number[] }>();
+
+/**
+ * R7 (owner 2026-11-12): the in-map tiles of the trouble piece of the ride's last test (the stall piece, or where the
+ * strongest car passed a hard safety limit), for the danger outline while the ride is selected. Cached per stored
+ * test result; `[]` when there is none.
+ */
+export function trackTroubleTiles(world: World, ride: Ride): readonly number[] {
+  if (ride.kind !== 'track') return NONE;
+  const data = world.state.track.rides[String(ride.id)];
+  const test = data?.test;
+  if (!data || !test) return NONE;
+  const place = troublePlaceOf(world, data);
+  const hit = troubleCache.get(test);
+  if (hit && hit.place === place) return hit.tiles;
+  let tiles: readonly number[] = NONE;
+  const piece = place ? data.pieces[place.pieceIndex] : undefined;
+  if (piece && getTrackPieceDef(piece.defId)) {
+    const map = world.state.map;
+    const seen = new Set<number>();
+    for (const t of pieceWorldTiles(piece)) if (inBounds(map, t.x, t.y)) seen.add(tileIndex(map, t.x, t.y));
+    tiles = Object.freeze([...seen]);
+  }
+  troubleCache.set(test, { place, tiles });
   return tiles;
 }

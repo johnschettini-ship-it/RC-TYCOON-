@@ -12,6 +12,8 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.maxHeight': 'Climbs up to {n} m above its station',
   'ui.track.seats': '{n} seats per car',
   'ui.track.intensityFrom': 'More intense above {n} m',
+  // R7: the ride panel button that centres the map on the trouble place of the last test.
+  'ui.track.showPlace': 'Show on map',
 
   // Builder (§7.1–7.3)
   'ui.track.builder': 'Track builder',

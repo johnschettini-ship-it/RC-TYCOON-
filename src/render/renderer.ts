@@ -31,7 +31,7 @@ import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
-import { KIND_TRACK, TrackLayer, trackRideTiles } from './track';
+import { KIND_TRACK, TrackLayer, trackRideTiles, trackTroubleTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
@@ -832,6 +832,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         // Station, track, and gate tiles (elevated pieces outline the ground under them).
         const tiles = trackRideTiles(world, r);
         if (tiles.length > 0) outlineTiles(map, tiles, 'rgba(255,255,255,0.12)', '#ffffff', Math.max(1, 1.5 * scale));
+        // R7 (owner 2026-11-12): the trouble piece of the last test (stall or safety limit) in the blocked colours,
+        // with the cross icon so the place is not shown by colour alone.
+        const trouble = trackTroubleTiles(world, r);
+        if (trouble.length > 0) {
+          outlineTiles(map, trouble, BAD_FILL, GHOST_INVALID, Math.max(1.5, 2 * scale));
+          const t0 = trouble[0] as number;
+          const tx = t0 % map.width;
+          const ty = (t0 - tx) / map.width;
+          drawGhostIcon(c, devX(viewTileSX(va, tx, ty)), devY(viewTileSY(va, tx, ty, map.heights[t0] as number) - 6), false, Math.max(8, 10 * Math.min(1.5, scale)));
+        }
         return;
       }
       const def = getFlatRideDef(r.defId);

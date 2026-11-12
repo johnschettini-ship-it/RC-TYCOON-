@@ -32,7 +32,7 @@ import { clearTest, editBlock, enterBuilding, isRunningStatus, refundShare, trac
 import { TRACK_DX, TRACK_DY, trackDirFromMapDir } from './geometry';
 import { getLayout } from './layout';
 import { checkPieceTiles, pieceCost } from './placement';
-import { dispatchedTestTrain, runTestLap } from './testRun';
+import { dispatchedTestTrain, rememberTestLapDetail, runTestLapDetailed } from './testRun';
 import type { TrackPieceInstance, TrackRideData } from './types';
 
 type Cmd<K extends TrackCommand['type']> = Extract<TrackCommand, { type: K }>;
@@ -326,7 +326,10 @@ function startTestRun(world: World, cmd: Cmd<'startTestRun'>, _ctx: CommandConte
   if (!data.circuitClosed) return fail(TRACK_ERR.circuitNotComplete);
   const tb = trainCountBlock(data, type.id);
   if (tb) return fail(tb);
-  const result = runTestLap(world.state.map, data, type);
+  // R7: the lap's safety findings are kept with its result (derived, never saved), so publishing needs no re-run.
+  const detail = runTestLapDetailed(world.state.map, data, type);
+  rememberTestLapDetail(detail);
+  const result = detail.result;
   ride.status = 'testing';
   ride.stats = null;
   data.test = null;

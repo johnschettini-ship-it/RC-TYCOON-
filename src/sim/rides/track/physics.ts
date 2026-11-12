@@ -164,8 +164,21 @@ export interface TrainG {
   glMax: number;
 }
 
-/** G of a train whose centre is at `sMid`, moving at `v` m/s (see `TrainG`). */
-export function trainGAt(layout: CircuitLayout, sMid: number, v: number, cars: number, carLenMm: number): TrainG {
+/**
+ * Each car's own G (review I-2: safety windows every car on its own): `gv[k]` vertical, `gl[k]` absolute lateral, car 0
+ * at the front. Arrays of at least `cars` entries, written by `trainGAt` when given.
+ */
+export interface CarG {
+  gv: Float64Array;
+  gl: Float64Array;
+}
+
+export function newCarG(cars: number): CarG {
+  return { gv: new Float64Array(cars), gl: new Float64Array(cars) };
+}
+
+/** G of a train whose centre is at `sMid`, moving at `v` m/s (see `TrainG`); with `perCar`, each car's G too. */
+export function trainGAt(layout: CircuitLayout, sMid: number, v: number, cars: number, carLenMm: number, perCar?: CarG): TrainG {
   const v2 = v * v;
   let gvSum = 0;
   let glSum = 0;
@@ -183,6 +196,10 @@ export function trainGAt(layout: CircuitLayout, sMid: number, v: number, cars: n
     if (gv > gvMax) gvMax = gv;
     if (gv < gvMin) gvMin = gv;
     if (glAbs > glMax) glMax = glAbs;
+    if (perCar) {
+      perCar.gv[k] = gv;
+      perCar.gl[k] = glAbs;
+    }
   }
   const gl = glSum / cars;
   return { gv: gvSum / cars, gl: gl < 0 ? -gl : gl, gvMax, gvMin, glMax };
@@ -394,6 +411,6 @@ export function trainSample(layout: CircuitLayout, t: TrainState, out: SamplePoi
 }
 
 /** G of a train now (R6: mean over its cars, and the strongest car; see `TrainG`). */
-export function trainG(layout: CircuitLayout, t: TrainState, cars: number, carLenMm: number): TrainG {
-  return trainGAt(layout, t.s, t.v / 1000, cars, carLenMm);
+export function trainG(layout: CircuitLayout, t: TrainState, cars: number, carLenMm: number, perCar?: CarG): TrainG {
+  return trainGAt(layout, t.s, t.v / 1000, cars, carLenMm, perCar);
 }

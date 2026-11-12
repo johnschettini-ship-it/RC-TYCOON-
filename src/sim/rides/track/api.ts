@@ -28,7 +28,9 @@ import { jointsEqual, localToWorld, pieceEntryJoint, pieceExitJoint, piecesForEn
 import { buildLayout, getLayout, newSamplePoint, poseAt, type TrackPose } from './layout';
 import { buildOccupancy, groundOwner, highestAboveGround, refreshGroundTiles } from './placement';
 import { ratingWarnings } from './ratings';
+import { unsafeOpenReason } from './safety';
 import { stationAppendBlock } from './stops';
+import { troublePlaceOf, type TroublePlace } from './trouble';
 import type { TrackPieceInstance, TrackRideData, TrainState } from './types';
 
 /** Null when the track ride may open, else the reason (phase-2 §4.6 strings). */
@@ -39,7 +41,26 @@ export function canOpenTrackRide(world: World, ride: Ride): string | null {
   if (!data.circuitClosed) return TRACK_ERR.circuitNotComplete;
   if (!ride.entrance || !ride.exit) return TRACK_ERR.needGates;
   if (!data.test || !data.test.passed || !ride.stats) return TRACK_ERR.runTestFirst;
+  // R7 (owner 2026-11-12): a passed test whose strongest car passed a hard limit cannot open.
+  const unsafe = unsafeReason(world, data);
+  if (unsafe) return unsafe;
   return trainCountBlock(data, data.typeId);
+}
+
+/** The unsafe reason of a passed stored test, or null. */
+function unsafeReason(world: World, data: TrackRideData): string | null {
+  const place = troublePlaceOf(world, data);
+  if (!place || place.kind === 'stall' || place.value === null) return null;
+  return unsafeOpenReason({ kind: place.kind, value: place.value }, place.pieceIndex + 1);
+}
+
+/**
+ * Where the last test went wrong (R7): the stall piece of a failed test, or the piece where the strongest car first
+ * passed a hard safety limit; null without a test or when it passed within the limits. Derived, cached, never saved.
+ */
+export function trackTroublePlace(world: World, rideId: number): TroublePlace | null {
+  const data = trackData(world, rideId);
+  return data ? troublePlaceOf(world, data) : null;
 }
 
 /** Remove a whole track ride: pieces, gates, trains, riders (refund rule master R15). */
@@ -146,7 +167,8 @@ export function trackWarnings(world: World, rideId: number): string[] {
     const name = getTrackPieceDef(data.pieces[piece - 1]?.defId ?? '')?.name ?? '';
     return [fillTrackString(TRACK_RATING_WARN.testFailedStop, { n: piece, name })];
   }
-  return ratingWarnings(t);
+  const unsafe = unsafeReason(world, data);
+  return unsafe ? [unsafe, ...ratingWarnings(t)] : ratingWarnings(t);
 }
 
 /** Builder palette: pieces that fit the track end and the ride type (§7.1). */

@@ -183,3 +183,14 @@ export const TRAIN_DROP_CUE_M = 10;
  * `capHundredths`. Added after the §4.10 formula and the water extras, clamped to 10.00. Provisional (tuning-log.md).
  */
 export const HEIGHT_INTENSITY = { perMHundredths: 10, capHundredths: 200 } as const;
+
+/**
+ * R7 (owner 2026-11-12): hard safety limits (G). A test lap, a projected section or a piece whose strongest car passes
+ * one cannot open or be built. Compared as integer hundredths of the strongest car's own 5-tick window (review I-2):
+ * `> 600`, `< −200`, `> 300` are over; exactly 6.00, −2.00 and 3.00 are allowed. The rating penalty limits
+ * (`RATING.penalty`: 5.0, −1.5, 2.5) stay as they are.
+ */
+export const SAFETY_LIMIT = { posGMax: 6.0, vertGMin: -2.0, latMax: 3.0 } as const;
+
+/** R5/R7: the meter warns from this far (G) before the rating penalty limit up to the hard limit. Provisional. */
+export const METER_WARN_MARGIN_G = 0.5;

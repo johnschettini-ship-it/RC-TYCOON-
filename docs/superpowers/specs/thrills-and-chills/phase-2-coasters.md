@@ -210,10 +210,13 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
 | `highest` | Highest rail above ground (m) |
 | `turnPieces` | Count of turn pieces of any kind |
 
-- **G of a train (R6, owner 2026-11-12):** the measured `Gv` is the mean of the cars' `Gv`; `Gl` is the absolute value of the mean signed lateral term (the formulas below, at each car centre). Ratings use these averages. The strongest car (the most positive and most negative `Gv`, the largest `Gl` of any car) is also computed for the safety limits (owner change 2026-11-12, ride work 1 Task 3).
+- **G of a train (R6, owner 2026-11-12):** the measured `Gv` is the mean of the cars' `Gv`; `Gl` is the absolute value of the mean signed lateral term (the formulas below, at each car centre). Ratings use these averages. The strongest car (the most positive and most negative `Gv`, the largest `Gl` of any car) is also computed for the safety limits (owner change 2026-11-12; each car windowed on its own, see the hard limits below).
 - **G formulas** at a sample with pitch θ, bank β, speed v:
   - `Gv = ((g·cosθ + v²·κv)·cosβ + v²·κh·sinβ) / g`
   - `Gl = |v²·κh·cosβ − g·cosθ·sinβ| / g`
+- **Hard safety limits (R7, owner 2026-11-12; ride work 1 Task 3):** a test lap whose **strongest car** passes vertical G above **6.0**, below **−2.0**, or lateral G above **3.0** cannot open (the rating penalty limits 5.0 / −1.5 / 2.5 stay). The strongest car is each car's own 5-tick moving average (station ticks excluded, as above), then the largest (or, for −G, the smallest) over the cars (controller decision 2026-11-12, review I-2: not a window of the per-tick strongest car, which mixes cars and refuses circuits no seat feels). Compared as integer hundredths, strictly: exactly 6.00, −2.00 and 3.00 are allowed. Nothing is saved: the values are derived from a deterministic re-run of the lap, cached by the stored test result.
+  - **Open rule:** after "Run a test first", a passed test over a limit refuses with `Too strong for riders: {g} G on piece {n} (limit 6.0 G)`, `Lifts riders too hard: {g} G on piece {n} (limit −2.0 G)` or `Too hard sideways: {g} G on piece {n} (limit 3.0 G)` (checked posG, negG, lat; `{n}` is the piece under the train's centre at the first tick where that limit was passed). The same text is the first ride warning and the test message (`Test: …`). An open ride is never closed by this rule; it is checked when it next opens.
+  - **Place on the map:** the trouble piece (a failed test's stall piece, or the piece above) is outlined in the blocked colours with the cross icon while the ride is selected; the test message points at its tile, and the ride panel's Overview has **Show on map** (shown only when there is a place).
 
 ### 4.10 Ratings
 Raw terms (all `min` caps shown):
@@ -264,6 +267,7 @@ Steps in order:
 | E < 2.00 | `This ride is dull` |
 | Any penalty applied | `G-forces are too strong. Guests enjoy this ride less` |
 | Test failed | `Test failed: train stops on piece {n} ({name})` or `Test failed: train is too slow for the loop on piece {n}` |
+| Passed, but over a hard safety limit (R7, §4.9) | `Too strong for riders: {g} G on piece {n} (limit 6.0 G)` (or the −G / sideways text), listed first |
 
 ### 4.11 Guests on track rides
 - Ride choice uses the Phase 1 score and hard rejects, including max intensity `2.0 + 0.08 × T`. A ride without a passed test has no stats and is never chosen.

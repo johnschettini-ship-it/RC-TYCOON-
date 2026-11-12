@@ -10,7 +10,7 @@ import { getTrackTypeDef } from '../../data/track';
 import { LAPS_RANGE, MAX_DWELL_RANGE_S, MIN_DWELL_RANGE_S, TICKS_PER_S } from '../../data/tuning/track';
 import { TRACK_PALETTE } from '../../render/track/colours';
 import type { Command } from '../../sim/commands/types';
-import { canOpenTrackRide, trackHighestPointM, trackRunningCostMonthly, trackThroughputPerHour, trackWarnings } from '../../sim/rides/track/api';
+import { canOpenTrackRide, trackHighestPointM, trackRunningCostMonthly, trackThroughputPerHour, trackTroublePlace, trackWarnings } from '../../sim/rides/track/api';
 import { findRide, refundShare, trackData } from '../../sim/rides/track/common';
 import { getLayout } from '../../sim/rides/track/layout';
 import type { Ride } from '../../sim/rides/types';
@@ -22,6 +22,7 @@ import { icon } from '../icons';
 import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
+import { centreOnTile } from '../management/widgets';
 import { editTrackRide } from './builder';
 import { createTestChart } from './chart';
 import { takeTrackTab, type TrackTab } from './tabRequest';
@@ -99,6 +100,11 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   // ---------- overview
   const warnings = warningList();
   const nextStep = h('p', { class: 'next-step muted', 'data-testid': 'track-next-step' });
+  // R7 (owner 2026-11-12): centre the map on the trouble place of the last test (stall or safety limit).
+  const showPlace = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-trouble-show', hidden: true, onclick: () => {
+    const place = trackTroublePlace(game.world, rideId);
+    if (place) centreOnTile(ctx, place.tile);
+  } }, text('ui.track.showPlace'));
   const status = h('span', { class: 'chip', 'data-testid': 'ride-status' });
   const openBtn = toggleButton(() => {
     const r = find();
@@ -123,6 +129,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   panels.get('overview')!.append(
     warnings.el,
     nextStep,
+    showPlace,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
     section(null, price.el),
     maintenance.el,
@@ -247,6 +254,8 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
         warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
         nextStep.hidden = block === null || r.status === 'testing';
         if (block) setText(nextStep, `${text('ui.track.nextStep')}: ${localizeReason(block)}`);
+        const noPlace = r.status === 'testing' || trackTroublePlace(game.world, rideId) === null;
+        if (showPlace.hidden !== noPlace) showPlace.hidden = noPlace;
         queue.set(text('ui.ride.queueValue', { count: r.queue.length }));
         riding.set(String(r.riders.length));
         riders.set(String(r.totals.ridersThisMonth));
