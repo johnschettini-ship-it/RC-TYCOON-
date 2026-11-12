@@ -25,6 +25,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # The owner's view of the pixel art test (stage 0b, branch phase8b-stage0b-proto, never merged):
+      # built in app mode with the pixel look and the Bench buttons, served at /pixel-test/ beside the game.
+      - uses: actions/checkout@v4
+        with:
+          ref: phase8b-stage0b-proto
+          path: pixel-test-src
+      - name: Build the pixel art test
+        working-directory: pixel-test-src
+        env:
+          VITE_ART: pixel
+          VITE_BENCH: '1'
+        run: |
+          npm ci
+          npx vite build --mode app --outDir ../dist/pixel-test
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

@@ -59,4 +59,8 @@ Rating rule: for each metre above the old limit, the ride's intensity rises by a
 | T2 | Gameplay effects | Yes: the mascot is the performer costume (with a Chill or Thrill bonus that follows the mascot's mood), a statue in the Scenery deck (park happiness as other statues), and the entrance sign. |
 | T3 | When | Together with the pixel art full build (Phase 8b), so the mascot parts are drawn once in the final style. |
 | T4 | Saves | Each park saves its own theme and mascot; older parks get a default theme and mascot. |
-| T5 | Costumes until then | Boo stays the only costume; the full build adds the player mascot and a "no costume" choice. |
+| T5 | Costumes | Every mascot the player creates becomes a costume (owner, 2026-11-12: "Costumes can be for all avatars created since we changed the concept"); a player may create several. Until the full build Boo stays the only costume; the full build also adds a "no costume" choice. |
+
+## Tablets (owner, 2026-11-12)
+
+Tablets get the same as phones: the pixel look with the phone frame set and the phone memory budget. The real-tablet run of the device checklist confirms speed; B4 is judged there.
