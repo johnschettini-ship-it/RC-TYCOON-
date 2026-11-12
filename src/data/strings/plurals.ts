@@ -10,4 +10,6 @@ export const enPlurals: PluralTable = {
   'hud.guests': { one: '{n} guest', other: '{n} guests' },
   // Task 24: the name of the upright phone's Menu button while messages are unread (its dot).
   'ui.tool.menuUnread': { one: 'Menu, {n} unread message', other: 'Menu, {n} unread messages' },
+  // R1 (ride work 1 Task 8): the Auto-finish path the builder shows.
+  'ui.track.autoFinishFound': { one: 'Adds {n} piece · {cost}', other: 'Adds {n} pieces · {cost}' },
 };

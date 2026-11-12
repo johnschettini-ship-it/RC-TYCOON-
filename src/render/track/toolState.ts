@@ -60,6 +60,19 @@ export interface GateGhost {
   reason: string | null;
 }
 
+/**
+ * R1 (ride work 1 Task 8): the Auto-finish view. Plain data; the search itself lives in the builder (`builder.ts`).
+ * `searching`: the search runs over frames. `found`: `pieces` is the path (its ghost on the map), `cost` its price.
+ * `none`: `reason` says why no path is offered.
+ */
+export interface AutoFinishView {
+  state: 'searching' | 'found' | 'none';
+  pieces: TrackPieceInstance[];
+  cost: number;
+  reason: string | null;
+  affordable: boolean;
+}
+
 export interface TrackToolState {
   phase: TrackPhase;
   typeId: string | null;
@@ -86,6 +99,8 @@ export interface TrackToolState {
   gateGhost: GateGhost | null;
   /** Free tiles beside the station where a gate fits. */
   gateCandidates: number[];
+  /** R1: the Auto-finish search or its answer, or null. */
+  autoFinish: AutoFinishView | null;
   /** Bumped on every change the UI should show. */
   rev: number;
 }
@@ -108,6 +123,7 @@ export function newTrackToolState(): TrackToolState {
     stationGhost: null,
     gateGhost: null,
     gateCandidates: [],
+    autoFinish: null,
     rev: 0,
   };
 }

@@ -181,6 +181,16 @@ export function mountUI(root: HTMLElement, game: Game): void {
     closePanel() {
       panels.close();
     },
+    showMapPlace(tile: number) {
+      const map = game.world.state.map;
+      if (tile < 0 || tile >= map.width * map.height) return;
+      panels.lower();
+      const r = visibleMapRect();
+      const cam = game.camera;
+      const p = tileCentreWorld(map, tile, cam.rotation);
+      cam.centerX = p.sx - ((r.left + r.right) / 2 - window.innerWidth / 2) / cam.zoom;
+      cam.centerY = p.sy - ((r.top + r.bottom) / 2 - window.innerHeight / 2) / cam.zoom;
+    },
     activePanel() {
       const v = panels.current();
       return v ? { kind: v.kind, id: v.id } : null;
@@ -258,6 +268,28 @@ export function mountUI(root: HTMLElement, game: Game): void {
       tall = panels.el.getBoundingClientRect().top + panels.fullHeight() > limit;
     }
     setAttr(root, 'data-details', tall ? 'tall' : null);
+  };
+  /**
+   * The part of the screen where the map is not covered (CSS px): below the top region, above the hand and the deck
+   * chips row, and beside or above the open panel (a sheet as wide as most of the screen covers the bottom, a side
+   * panel the right).
+   */
+  const visibleMapRect = (): { left: number; top: number; right: number; bottom: number } => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const r = { left: 0, top: Math.max(0, hud.el.getBoundingClientRect().bottom), right: vw, bottom: vh };
+    if (!decks.hand.hidden) r.bottom = Math.min(r.bottom, decks.hand.getBoundingClientRect().top);
+    if (!decks.list.hidden) {
+      const chips = decks.list.getBoundingClientRect();
+      if (chips.width >= vw * 0.6 && chips.top > vh / 2) r.bottom = Math.min(r.bottom, chips.top);
+    }
+    if (!panels.el.hidden) {
+      const pr = panels.el.getBoundingClientRect();
+      if (pr.width >= vw * 0.6) r.bottom = Math.min(r.bottom, pr.top);
+      else if (pr.left > vw / 2) r.right = Math.min(r.right, pr.left);
+    }
+    if (r.bottom <= r.top) r.bottom = r.top + 1;
+    return r;
   };
   // The top region wraps on narrow screens: panels, toasts, and the deck list sit below its real height. The bottom
   // region is the hand on desktop (0 when closed) and the chip row with the hand on the phone.

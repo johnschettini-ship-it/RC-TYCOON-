@@ -75,6 +75,12 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.meter.level.ok': 'Within the limits',
   'ui.track.meter.level.warn': 'Near the limit',
   'ui.track.meter.level.over': 'Over the safety limit',
+  // R1 (owner 2026-11-12; ride work 1 Task 8): Auto-finish. The found line (`ui.track.autoFinishFound`) is a plural
+  // (plurals.ts).
+  'ui.track.autoFinish': 'Auto-finish',
+  'ui.track.autoFinishLong': 'Find a way back to the station',
+  'ui.track.autoFinishSearching': 'Looking for a way back to the station',
+  'ui.track.autoFinishConfirm': 'Confirm · {cost}',
 
   // Ride panel tabs (§7.4)
   'ui.track.tablist': 'Ride panel sections',

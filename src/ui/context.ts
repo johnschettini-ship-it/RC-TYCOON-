@@ -33,6 +33,12 @@ export interface UiContext {
   toast(message: string, kind?: ToastKind): void;
   openPanel(kind: PanelKind, id?: number): void;
   closePanel(): void;
+  /**
+   * Show a map tile (ride work 1 Task 8, "Show on map"): on the phone the open panel's sheet lowers to its header, then
+   * the camera puts the tile at the centre of the map area no panel, hand or top region covers. Optional: a context
+   * without it centres the tile on the screen.
+   */
+  showMapPlace?(tile: number): void;
   activePanel(): { kind: PanelKind; id: number | null } | null;
   /** Guest the camera follows, or null. */
   follow: { guestId: number | null };

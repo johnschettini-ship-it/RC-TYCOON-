@@ -952,6 +952,12 @@ export class TrackLayer {
       }
       return;
     }
+    // R1 (Task 8): a found Auto-finish path shows as valid ghosts of all its pieces, in place of the piece ghost.
+    const af = st.autoFinish;
+    if (st.phase === 'pieces' && af?.state === 'found') {
+      for (const p of af.pieces) this.ghostRails(ctx, samplesOf(p), true);
+      return;
+    }
     if (st.phase === 'pieces' && st.pieceGhost) {
       this.drawPieceGhost(ctx, world, st.pieceGhost, k);
       return;
@@ -972,16 +978,12 @@ export class TrackLayer {
     }
   }
 
-  private drawPieceGhost(ctx: CanvasRenderingContext2D, world: World, g: TrackPieceGhost, k: number): void {
-    const map = world.state.map;
-    if (!this.ghostSamples || this.ghostSamples.ghost !== g) this.ghostSamples = { ghost: g, s: pieceWorldSamples(g.piece) };
-    const s = this.ghostSamples.s;
+  /** Two rails and the centre line of a ghost piece, in the light tints of the safe pair (valid or invalid). */
+  private ghostRails(ctx: CanvasRenderingContext2D, s: WorldSamples, ok: boolean): void {
     const f = this.frameRef;
     const fr = this.fr;
-    for (const t of g.conflictTiles) this.tileOutline(ctx, map.width, t, map.heights[t] as number, GHOST_FILL_INVALID, GHOST_INVALID);
     // Light tints of the safe pair: the rails stay readable over dark terrain and track art.
-    const colour = g.ok ? GHOST_LIGHT_VALID : GHOST_LIGHT_INVALID;
-    // Two rails and the centre line.
+    const colour = ok ? GHOST_LIGHT_VALID : GHOST_LIGHT_INVALID;
     for (const side of [-0.6, 0, 0.6]) {
       ctx.beginPath();
       for (let i = 0; i < s.n; i++) {
@@ -1000,6 +1002,16 @@ export class TrackLayer {
       ctx.lineJoin = 'round';
       ctx.stroke();
     }
+  }
+
+  private drawPieceGhost(ctx: CanvasRenderingContext2D, world: World, g: TrackPieceGhost, k: number): void {
+    const map = world.state.map;
+    if (!this.ghostSamples || this.ghostSamples.ghost !== g) this.ghostSamples = { ghost: g, s: pieceWorldSamples(g.piece) };
+    const s = this.ghostSamples.s;
+    const f = this.frameRef;
+    const fr = this.fr;
+    for (const t of g.conflictTiles) this.tileOutline(ctx, map.width, t, map.heights[t] as number, GHOST_FILL_INVALID, GHOST_INVALID);
+    this.ghostRails(ctx, s, g.ok);
     // Dashed line from the highest point down to the ground, and the labels there.
     let top = 0;
     for (let i = 1; i < s.n; i++) if ((s.z[i] as number) > (s.z[top] as number)) top = i;

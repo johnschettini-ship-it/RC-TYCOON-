@@ -103,7 +103,10 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   // R7 (owner 2026-11-12): centre the map on the trouble place of the last test (stall or safety limit).
   const showPlace = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-trouble-show', hidden: true, onclick: () => {
     const place = trackTroublePlace(game.world, rideId);
-    if (place) centreOnTile(ctx, place.tile);
+    if (!place) return;
+    // Task 8: on the phone the sheet lowers to its header so the outline shows above it.
+    if (ctx.showMapPlace) ctx.showMapPlace(place.tile);
+    else centreOnTile(ctx, place.tile);
   } }, text('ui.track.showPlace'));
   const status = h('span', { class: 'chip', 'data-testid': 'ride-status' });
   const openBtn = toggleButton(() => {

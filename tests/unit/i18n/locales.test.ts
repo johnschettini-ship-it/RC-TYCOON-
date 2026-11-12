@@ -62,7 +62,9 @@ describe('shipped locales (Phase 6 §4.8)', () => {
     const strings: Record<string, string> = { ...base.strings, 'zz.extra': 'x', 'ui.slot.label': 'Slot' };
     delete strings['ui.hud.cash'];
     const broken: LocaleDef = { ...base, code: 'xx', strings, plurals: {} };
-    expect(problems(broken)).toEqual(['xx: missing ui.hud.cash', 'xx: placeholders differ at ui.slot.label', 'xx: unknown key zz.extra', 'xx: missing plural hud.guests', 'xx: missing plural ui.tool.menuUnread']);
+    expect(problems(broken)).toEqual(['xx: missing ui.hud.cash', 'xx: placeholders differ at ui.slot.label', 'xx: unknown key zz.extra', 'xx: missing plural hud.guests', 'xx: missing plural ui.tool.menuUnread',
+      // R1 (ride work 1 Task 8): the Auto-finish line "Adds {n} pieces · {cost}" is a plural.
+      'xx: missing plural ui.track.autoFinishFound']);
   });
 
   it('plural keys never repeat a string id', () => {

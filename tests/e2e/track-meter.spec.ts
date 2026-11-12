@@ -6,7 +6,7 @@
  * builds nothing. Also checks the Task 3 ride panel "Show on map" button and the danger outline in the browser.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, scan, showTile, watchErrors } from './helpers';
+import { isPhone, newPark, pickCard, scan, showTile, tilePoint, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Box {
@@ -258,68 +258,88 @@ test('390 × 844 at 175% text in en-XA: no meter text is clipped', async ({ page
   }
 });
 
-test('an unsafe test: Open is refused, the ride panel shows the place on the map, and Show on map centres it', async ({ page }, info) => {
-  const touch = isPhone(info);
-  const watch = watchErrors(page);
-  await page.setViewportSize(touch ? { width: 390, height: 844 } : { width: 1280, height: 800 });
-  await newPark(page);
-  // Built with real commands: a 52 m drop and two brakes, safe for the default 4 cars; then 7 cars, whose rear cars take
-  // the turn after the brakes over 3.00 G sideways (each car's own window). Build checks the train it has at the time.
-  const res = await page.evaluate(() => {
-    const g = (window as unknown as { __tc: MeterTc }).__tc;
-    g.setSpeed(0);
-    const st = g.world.state;
-    st.park.cash = 50_000_000;
-    const placed = g.dispatch({ type: 'placeStation', typeId: 'steel_coaster', x: 30, y: 30, dir: 1 }) as { ok: boolean; id?: number; reason?: string };
-    if (!placed.ok) return { error: placed.reason };
-    const id = placed.id!;
-    const c = (p: string): [string, boolean, number?] => [p, true];
-    const s = (p: string): [string, boolean, number?] => [p, false];
-    const t = (k: number, p: [string, boolean, number?]): Array<[string, boolean, number?]> => Array.from({ length: k }, () => p);
-    const specs: Array<[string, boolean, number?]> = [
-      ...t(4, s('station')), c('flat_to_gentle_up'), c('gentle_to_steep_up'), ...t(7, c('steep_up')), c('steep_to_gentle_up'),
-      c('gentle_up_to_flat'), s('straight'), s('straight'), s('turn_medium_right'), s('flat_to_gentle_down'), s('gentle_to_steep_down'),
-      ...t(7, s('steep_down')), s('steep_to_gentle_down'), s('gentle_down_to_flat'), ['brakes', false, 8], ['brakes', false, 8],
-      s('turn_medium_right'), ...t(18, s('straight')), s('turn_medium_right'), ...t(13, s('straight')), s('turn_medium_right'),
-    ];
-    for (const [defId, chain, brakeSpeed] of specs) {
-      const r = g.dispatch({ type: 'addTrackPiece', rideId: id, defId, chain, ...(brakeSpeed ? { brakeSpeed } : {}) });
-      if (!r.ok) return { error: `${defId}: ${r.reason}` };
-    }
-    const steps = [
-      g.dispatch({ type: 'placeTrackGate', rideId: id, kind: 'entrance', x: 30, y: 31 }),
-      g.dispatch({ type: 'placeTrackGate', rideId: id, kind: 'exit', x: 31, y: 31 }),
-      g.dispatch({ type: 'setTrainConfig', rideId: id, trains: 1, carsPerTrain: 7 }),
-      g.dispatch({ type: 'startTestRun', rideId: id }),
-    ];
-    if (steps.some((x) => !x.ok)) return { error: steps.map((x) => x.reason ?? 'ok').join(' / ') };
-    g.step(2400);
-    const open = g.dispatch({ type: 'setRideOpen', rideId: id, open: true });
-    return { id, open: open.ok ? null : (open.reason ?? '') };
-  });
-  expect(res).not.toHaveProperty('error');
-  expect(res.open).toMatch(/^Too hard sideways: \d+\.\d\d G on piece 33 \(limit 3\.00 G\)$/);
-  // Open the ride panel from the map: the station.
-  const p = await showTile(page, 31, 30);
-  await frames(page);
-  if (touch) await page.touchscreen.tap(p.x, p.y);
-  else await page.mouse.click(p.x, p.y);
-  const show = page.getByTestId('track-trouble-show');
-  await expect(show).toBeVisible();
-  await expect(show).toHaveText('Show on map');
-  const box = (await show.boundingBox())!;
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  expect(box.height).toBeGreaterThanOrEqual(44);
-  await shot(page, `${touch ? 'phone' : 'desktop'}-show-on-map-panel`);
-  const camera = (): Promise<number[]> =>
-    page.evaluate(() => {
-      const g = (window as unknown as { __tc: { camera: { centerX: number; centerY: number } } }).__tc;
-      return [g.camera.centerX, g.camera.centerY];
+for (const size of SIZES) {
+  test(`${size.w} × ${size.h}: an unsafe test: Open is refused, the ride panel shows the place, and Show on map shows it`, async ({ page }, info) => {
+    test.skip(isPhone(info) !== size.phone, size.phone ? 'phone sizes' : 'desktop');
+    const touch = size.phone;
+    const watch = watchErrors(page);
+    await page.setViewportSize({ width: size.w, height: size.h });
+    await newPark(page);
+    // Built with real commands: a 52 m drop and two brakes, safe for the default 4 cars; then 7 cars, whose rear cars take
+    // the turn after the brakes over 3.00 G sideways (each car's own window). Build checks the train it has at the time.
+    const res = await page.evaluate(() => {
+      const g = (window as unknown as { __tc: MeterTc }).__tc;
+      g.setSpeed(0);
+      const st = g.world.state;
+      st.park.cash = 50_000_000;
+      const placed = g.dispatch({ type: 'placeStation', typeId: 'steel_coaster', x: 30, y: 30, dir: 1 }) as { ok: boolean; id?: number; reason?: string };
+      if (!placed.ok) return { error: placed.reason };
+      const id = placed.id!;
+      const c = (p: string): [string, boolean, number?] => [p, true];
+      const s = (p: string): [string, boolean, number?] => [p, false];
+      const t = (k: number, p: [string, boolean, number?]): Array<[string, boolean, number?]> => Array.from({ length: k }, () => p);
+      const specs: Array<[string, boolean, number?]> = [
+        ...t(4, s('station')), c('flat_to_gentle_up'), c('gentle_to_steep_up'), ...t(7, c('steep_up')), c('steep_to_gentle_up'),
+        c('gentle_up_to_flat'), s('straight'), s('straight'), s('turn_medium_right'), s('flat_to_gentle_down'), s('gentle_to_steep_down'),
+        ...t(7, s('steep_down')), s('steep_to_gentle_down'), s('gentle_down_to_flat'), ['brakes', false, 8], ['brakes', false, 8],
+        s('turn_medium_right'), ...t(18, s('straight')), s('turn_medium_right'), ...t(13, s('straight')), s('turn_medium_right'),
+      ];
+      for (const [defId, chain, brakeSpeed] of specs) {
+        const r = g.dispatch({ type: 'addTrackPiece', rideId: id, defId, chain, ...(brakeSpeed ? { brakeSpeed } : {}) });
+        if (!r.ok) return { error: `${defId}: ${r.reason}` };
+      }
+      const steps = [
+        g.dispatch({ type: 'placeTrackGate', rideId: id, kind: 'entrance', x: 30, y: 31 }),
+        g.dispatch({ type: 'placeTrackGate', rideId: id, kind: 'exit', x: 31, y: 31 }),
+        g.dispatch({ type: 'setTrainConfig', rideId: id, trains: 1, carsPerTrain: 7 }),
+        g.dispatch({ type: 'startTestRun', rideId: id }),
+      ];
+      if (steps.some((x) => !x.ok)) return { error: steps.map((x) => x.reason ?? 'ok').join(' / ') };
+      g.step(2400);
+      const open = g.dispatch({ type: 'setRideOpen', rideId: id, open: true });
+      return { id, open: open.ok ? null : (open.reason ?? '') };
     });
-  const before = await camera();
-  await press(page, touch, 'track-trouble-show');
-  await frames(page, 4);
-  expect(await camera()).not.toEqual(before);
-  await shot(page, `${touch ? 'phone' : 'desktop'}-show-on-map-outline`);
-  watch.expectNoErrors();
-});
+    expect(res).not.toHaveProperty('error');
+    expect(res.open).toMatch(/^Too hard sideways: \d+\.\d\d G on piece 33 \(limit 3\.00 G\)$/);
+    // Open the ride panel from the map: the station.
+    const p = await showTile(page, 31, 30);
+    await frames(page);
+    if (touch) await page.touchscreen.tap(p.x, p.y);
+    else await page.mouse.click(p.x, p.y);
+    const show = page.getByTestId('track-trouble-show');
+    await expect(show).toBeVisible();
+    await expect(show).toHaveText('Show on map');
+    const box = (await show.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    await shot(page, `${size.w}x${size.h}-show-on-map-panel`);
+    const camera = (): Promise<number[]> =>
+      page.evaluate(() => {
+        const g = (window as unknown as { __tc: { camera: { centerX: number; centerY: number } } }).__tc;
+        return [g.camera.centerX, g.camera.centerY];
+      });
+    const before = await camera();
+    await press(page, touch, 'track-trouble-show');
+    await frames(page, 4);
+    expect(await camera()).not.toEqual(before);
+    // Task 8: the outlined tile (the trouble piece's first tile) is on the map where nothing covers it: on the phone the
+    // ride panel's sheet lowers to its header; elsewhere the tile is centred in the free map area beside the panel.
+    const tile = await tc(page, (g) => {
+      const r = g.world.state.rides.find((x) => x.kind === 'track')!;
+      const pc = g.world.state.track.rides[String(r.id)]!.pieces[32] as { x: number; y: number };
+      return { x: pc.x, y: pc.y };
+    });
+    const at = await tilePoint(page, tile.x, tile.y);
+    expect(at.x).toBeGreaterThan(0);
+    expect(at.x).toBeLessThan(size.w);
+    expect(at.y).toBeGreaterThan(0);
+    expect(at.y).toBeLessThan(size.h);
+    const top = await page.evaluate(([x, y]) => {
+      const e = document.elementFromPoint(x, y);
+      return e ? (e.id || e.className.toString()) : null;
+    }, [at.x, at.y] as const);
+    expect(top).toBe('game');
+    await shot(page, `${size.w}x${size.h}-show-on-map-outline`);
+    watch.expectNoErrors();
+  });
+}

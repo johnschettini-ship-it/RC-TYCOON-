@@ -28,6 +28,9 @@ export class PanelHost {
   private readonly titleEl: HTMLElement;
   private readonly bodyEl: HTMLElement;
   private readonly handle: HTMLElement;
+  private readonly headerEl: HTMLElement;
+  /** Phone: the sheet is lowered to its handle and header (`lower`), so the map shows above it. */
+  private lowered = false;
   private view: PanelView | null = null;
   private lastUpdate = 0;
   private sheet: SheetHeight = 'half';
@@ -44,11 +47,12 @@ export class PanelHost {
       'aria-label': text('ui.panel.resize'),
     });
     const close = h('button', { type: 'button', class: 'icon-btn panel-close', 'aria-label': text('ui.panel.close'), onclick: () => this.close() }, icon('cross'));
+    this.headerEl = h('header', { class: 'panel-header' }, this.titleEl, close);
     this.el = h(
       'aside',
       { class: 'panel', role: 'region', 'aria-labelledby': titleId, hidden: true },
       this.handle,
-      h('header', { class: 'panel-header' }, this.titleEl, close),
+      this.headerEl,
       this.bodyEl,
     );
     this.wireHandle();
@@ -71,6 +75,7 @@ export class PanelHost {
     this.bodyEl.replaceChildren(view.body);
     this.el.dataset.kind = view.kind;
     this.el.hidden = false;
+    this.lowered = false;
     this.bodyEl.scrollTop = 0;
     if (prev) this.onClosed(prev);
     view.update();
@@ -97,6 +102,21 @@ export class PanelHost {
     this.applySheet();
   }
 
+  /**
+   * Phone (ride work 1 Task 8): lower the sheet to its handle and header, so the map above it shows a place ("Show on
+   * map"). A tap or drag on the handle (or Enter on it) raises it again; opening a panel does too. Elsewhere: nothing.
+   */
+  lower(): void {
+    if (this.layout !== 'bottom' || !this.view || this.lowered) return;
+    this.lowered = true;
+    this.applySheet();
+  }
+
+  /** The sheet is lowered to its header. */
+  isLowered(): boolean {
+    return this.lowered;
+  }
+
   /** Refresh the open panel a few times per second. */
   tick(now: number): void {
     const v = this.view;
@@ -110,13 +130,26 @@ export class PanelHost {
   }
 
   private applySheet(): void {
-    if (this.layout === 'bottom') {
+    if (this.layout !== 'bottom') this.lowered = false;
+    if (this.bodyEl.hidden !== this.lowered) this.bodyEl.hidden = this.lowered;
+    if (this.layout === 'bottom' && this.lowered) {
+      this.el.dataset.sheet = 'lowered';
+      const border = parseFloat(getComputedStyle(this.el).borderBottomWidth) || 0;
+      this.el.style.height = `${Math.ceil(this.headerEl.offsetTop + this.headerEl.offsetHeight + border)}px`;
+    } else if (this.layout === 'bottom') {
       this.el.dataset.sheet = this.sheet;
       this.el.style.height = `${Math.round(SHEET_FRACTIONS[this.sheet] * 100)}vh`;
     } else {
       delete this.el.dataset.sheet;
       this.el.style.height = '';
     }
+  }
+
+  /** A tap on the handle: a lowered sheet comes back at its height, else the next height. */
+  private raiseOrCycle(): void {
+    if (this.lowered) this.lowered = false;
+    else this.sheet = nextSheetHeight(this.sheet);
+    this.applySheet();
   }
 
   private wireHandle(): void {
@@ -143,10 +176,10 @@ export class PanelHost {
       if (e.pointerId !== active) return;
       active = -1;
       if (!moved) {
-        this.sheet = nextSheetHeight(this.sheet);
-        this.applySheet();
+        this.raiseOrCycle();
         return;
       }
+      this.lowered = false;
       const snap = snapSheet(this.el.getBoundingClientRect().height, window.innerHeight);
       if (snap === 'closed') {
         this.close();
@@ -164,8 +197,7 @@ export class PanelHost {
     this.handle.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        this.sheet = nextSheetHeight(this.sheet);
-        this.applySheet();
+        this.raiseOrCycle();
       }
     });
   }

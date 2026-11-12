@@ -7,6 +7,8 @@
 import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, type TrackPieceDef } from '../../data/track';
 import { getTrackRideDef } from '../../data/catalog/trackRides';
 import { text } from '../../data/strings/en';
+import { t as plural } from '../../data/strings/index';
+import { TRACK_ERR } from '../../data/strings/track';
 import { contentName } from '../contentName';
 import { localizeReason } from '../../i18n';
 import { trackToolOf, type PaletteGroupId, type TrackToolState } from '../../render/track/toolState';
@@ -18,7 +20,13 @@ import { h, setAttr, setText, toggleClass } from '../dom';
 import { formatMoney } from '../format';
 import { icon } from '../icons';
 import {
+  autoFinishAvailable,
+  autoFinishShown,
   blockedReason,
+  cancelAutoFinish,
+  confirmAutoFinish,
+  startAutoFinishUi,
+  stepAutoFinishUi,
   buildSelected,
   chainAllowed,
   chooseGate,
@@ -305,7 +313,14 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const brakeLess = h('button', { type: 'button', class: 'btn step', 'aria-label': text('ui.track.brakeLess'), 'data-testid': 'track-brake-less', onclick: () => stepBrakeSpeed(game, -1) }, '−');
   const brakeMore = h('button', { type: 'button', class: 'btn step', 'aria-label': text('ui.track.brakeMore'), 'data-testid': 'track-brake-more', onclick: () => stepBrakeSpeed(game, 1) }, '+');
   const brake = h('div', { class: 'stepper', role: 'group', 'aria-label': text('ui.track.brake') }, h('span', { class: 'row-label', text: text('ui.track.brake') }), brakeLess, brakeValue, brakeMore);
-  const options = h('div', { class: 'tb-row tb-options' }, chain, brake);
+  // R1 (Task 8): Auto-finish looks for a way back to the station; the path shows on the map with Confirm and Cancel.
+  const autoFinish = h(
+    'button',
+    { type: 'button', class: 'btn tb-autofinish', title: text('ui.track.autoFinishLong'), 'data-testid': 'track-autofinish', onclick: () => startAutoFinishUi(game) },
+    icon('check'),
+    h('span', { text: text('ui.track.autoFinish') }),
+  );
+  const options = h('div', { class: 'tb-row tb-options' }, chain, brake, autoFinish);
   const moveEntrance = h('button', { type: 'button', class: 'btn', onclick: () => chooseGate(game, 'entrance') }, text('ui.track.moveEntrance'));
   const moveExit = h('button', { type: 'button', class: 'btn', onclick: () => chooseGate(game, 'exit') }, text('ui.track.moveExit'));
   const closedBox = h('div', { class: 'tb-row' }, moveEntrance, moveExit);
@@ -324,8 +339,12 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const confirm = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-confirm', onclick: () => confirmAction(game) }, icon('check'), confirmLabel);
   const done = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-done', onclick: () => leaveBuilder(game) }, h('span', { text: text('ui.track.done') }));
   const cancel = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-cancel', onclick: () => leaveBuilder(game, false) }, h('span', { text: text('ui.track.cancel') }));
+  const afConfirmLabel = h('span');
+  const afNoCash = h('span', { class: 'sr-only', id: 'tb-af-nocash', text: localizeReason(TRACK_ERR.notEnoughCash) });
+  const afConfirm = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-autofinish-confirm', hidden: true, onclick: () => confirmAutoFinish(game) }, icon('check'), afConfirmLabel);
+  const afCancel = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-autofinish-cancel', hidden: true, onclick: () => cancelAutoFinish(game) }, h('span', { text: text('ui.track.cancel') }));
   const keys = h('p', { class: 'tb-keys muted', text: text('ui.track.keys') });
-  const actions = h('div', { class: 'tb-actions' }, undo, cancel, confirm, build, done);
+  const actions = h('div', { class: 'tb-actions' }, undo, cancel, confirm, build, afCancel, afConfirm, done, afNoCash);
 
   // ---------- Task 20: the slim station row of the phone and the low layout. Details and Cancel move into a small menu
   // that the "⋯" button opens; they go back to their places when the row is not slim.
@@ -384,6 +403,10 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
     // meter adds no row of its own; elsewhere it is its own row under the status line.
     if (compact) options.append(meterRow);
     else status.after(meterRow);
+    // Task 8: the condensed panel shows Auto-finish as the first tile of the pieces row (that row scrolls and has room),
+    // so it adds no row and leaves the option row to the meter; elsewhere it is in the option row.
+    if (compact) palette.prepend(autoFinish);
+    else options.insertBefore(autoFinish, options.contains(meterRow) ? meterRow : null);
     const name = text(compact ? 'ui.track.follow' : 'ui.track.followLong');
     setAttr(follow, 'aria-label', name);
     if (!compact) setText(buildLabel, text('ui.track.build'));
@@ -485,14 +508,17 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       // Desktop opens the card details panel by itself; the phone opens it from the station controls.
       if (details.hidden === (layout === 'bottom')) details.hidden = layout !== 'bottom';
       undo.hidden = s.phase === 'station';
-      done.hidden = s.phase === 'station';
-      build.hidden = s.phase !== 'pieces' || !!data?.circuitClosed;
+      // Task 8: while Auto-finish searches or shows a path, Cancel and Confirm take Done's place in the action row.
+      done.hidden = s.phase === 'station' || autoFinishShown(s);
+      build.hidden = s.phase !== 'pieces' || !!data?.circuitClosed || autoFinishShown(s);
       confirm.hidden = s.phase === 'pieces';
       follow.hidden = s.phase === 'station';
       setAttr(follow, 'aria-pressed', s.follow ? 'true' : 'false');
       keys.hidden = touch || s.phase !== 'pieces';
 
       if (s.phase !== 'pieces') {
+        if (!afConfirm.hidden) afConfirm.hidden = true;
+        if (!afCancel.hidden) afCancel.hidden = true;
         showMeter([]);
         toggleClass(status, 'sr-only', false);
       }
@@ -519,8 +545,21 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       }
 
       if (s.phase === 'pieces') {
+        stepAutoFinishUi(game);
         refreshPalette(s);
         const closed = !!data?.circuitClosed;
+        const af = s.autoFinish;
+        const afOn = autoFinishShown(s);
+        const afFound = af?.state === 'found';
+        const afShow = autoFinishAvailable(game);
+        if (autoFinish.hidden === afShow) autoFinish.hidden = !afShow;
+        if (afCancel.hidden === afOn) afCancel.hidden = !afOn;
+        if (afConfirm.hidden === afFound) afConfirm.hidden = !afFound;
+        if (afFound && af) {
+          setText(afConfirmLabel, text('ui.track.autoFinishConfirm', { cost: formatMoney(af.cost) }));
+          if (afConfirm.disabled === af.affordable) afConfirm.toggleAttribute('disabled', !af.affordable);
+          setAttr(afConfirm, 'aria-describedby', af.affordable ? null : 'tb-af-nocash');
+        }
         const available = new Set<string>();
         for (const g of palView) for (const p of g.pieces) available.add(p.id);
         for (const [id, b] of groupButtons) {
@@ -556,7 +595,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
         const price = compact && !off && g0 && g0.ok && g0.defId === s.selected ? text('ui.track.buildPrice', { cost: formatMoney(g0.cost) }) : text('ui.track.build');
         setText(buildLabel, price);
         const g = s.pieceGhost;
-        const items = !closed && g && pv !== null ? meterView(g.meter) : [];
+        const items = !closed && !afOn && g && pv !== null ? meterView(g.meter) : [];
         showMeter(items);
         // Compact (Task 6): while the piece can be built the meter row takes the small line's place; the line's text
         // (name, price, height; the height also tags the ghost on the map) stays for screen readers (`sr-only`). A piece
@@ -564,6 +603,19 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
         toggleClass(status, 'sr-only', compact && items.length > 0 && !!g?.ok);
         if (closed) {
           setStatus(true, text('ui.track.complete'), '');
+          return;
+        }
+        if (af?.state === 'searching') {
+          setStatus(null, text('ui.track.autoFinishSearching'), '');
+          return;
+        }
+        if (afFound && af) {
+          const found = plural('ui.track.autoFinishFound', { n: af.pieces.length, cost: formatMoney(af.cost) });
+          setStatus(af.affordable, found, af.affordable ? '' : localizeReason(TRACK_ERR.notEnoughCash));
+          return;
+        }
+        if (af?.state === 'none') {
+          setStatus(false, text('ui.track.autoFinish'), localizeReason(af.reason ?? ''));
           return;
         }
         if (!g || pv === null) {

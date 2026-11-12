@@ -1231,6 +1231,9 @@ button { font: inherit; color: inherit; }
 #ui .track-builder.tb-compact .tb-palette::-webkit-scrollbar { display: none; }
 #ui .track-builder.tb-compact .tb-piece { flex: none; min-width: 72px; min-height: 56px; padding: 2px 4px; gap: 1px; }
 #ui .track-builder.tb-compact .tb-piece-name { max-width: 7.5em; line-height: 1.1; overflow-wrap: break-word; }
+/* Task 8: Auto-finish as the first tile of the pieces row (its icon over its name, the tile's size). */
+#ui .track-builder.tb-compact .tb-palette > .tb-autofinish { flex: none; flex-direction: column; justify-content: center; min-width: 72px; min-height: 56px; padding: 2px 6px; gap: 1px; font-size: calc(11px * var(--ts, 1)); line-height: 1.1; }
+#ui .track-builder.tb-compact .tb-palette > .tb-autofinish .icon { width: 20px; height: 20px; }
 #ui .track-builder.tb-compact .piece-icon { width: 36px; height: 23px; }
 #ui .track-builder.tb-compact .tb-status { min-height: 0; padding: 0 4px; border: none; gap: 4px; }
 #ui .track-builder.tb-compact .tb-status .state-icon { display: none; }

@@ -9,11 +9,13 @@ import { TERRAIN_ERR } from '../../data/strings/terrain';
 import { TRACK_ERR, TRACK_WARN } from '../../data/strings/track';
 import { groundOwnershipBlock } from '../../sim/land/api';
 import { maxCorner } from '../../sim/terrain/corners';
-import { BRAKE_SPEED, STATION_MAX_TILES, TILE_MM } from '../../data/tuning/track';
+import { AUTO_FINISH, BRAKE_SPEED, STATION_MAX_TILES, TILE_MM } from '../../data/tuning/track';
 import type { Command, CommandResult } from '../../sim/commands/types';
 import { Content, inBounds, isOwned, tileIndex, type Dir, type MapState } from '../../sim/map';
 import { isUnlocked } from '../../sim/research/api';
 import { nextTrackPieces, previewTrackPiece } from '../../sim/rides/track/api';
+import { startAutoFinish, type AutoFinishSearch } from '../../sim/rides/track/autoFinish';
+import { canAfford } from '../../sim/economy/ledger';
 import { stationPieces, trackEnd } from '../../sim/rides/track/build';
 import { findRide, trackData } from '../../sim/rides/track/common';
 import { pieceWorldTiles, TRACK_DX, TRACK_DY, trackDirFromMapDir } from '../../sim/rides/track/geometry';
@@ -479,6 +481,7 @@ export function buildSelected(host: BuilderHost): CommandResult | null {
   const st = trackToolOf(host.tool);
   if (st.phase !== 'pieces' || st.rideId === null || st.selected === null) return null;
   if (blockedReason(st) !== null) return null;
+  if (autoFinishShown(st)) return null;
   const def = getTrackPieceDef(st.selected);
   if (!def) return null;
   const cmd: Extract<Command, { type: 'addTrackPiece' }> = { type: 'addTrackPiece', rideId: st.rideId, defId: def.id };
@@ -493,6 +496,7 @@ export function buildSelected(host: BuilderHost): CommandResult | null {
 export function undoPiece(host: BuilderHost): CommandResult | null {
   const st = trackToolOf(host.tool);
   if (st.rideId === null || (st.phase !== 'pieces' && st.phase !== 'entrance' && st.phase !== 'exit')) return null;
+  cancelAutoFinish(host);
   const r = host.dispatch({ type: 'removeLastTrackPiece', rideId: st.rideId });
   if (r.ok) {
     st.phase = 'pieces';
@@ -599,6 +603,7 @@ export function leaveBuilder(host: BuilderHost, showRide = true): void {
 export function confirmAction(host: BuilderHost): void {
   const st = trackToolOf(host.tool);
   if (st.phase === 'station') placeStationNow(host);
+  else if (st.phase === 'pieces' && st.autoFinish && st.autoFinish.state !== 'none') confirmAutoFinish(host);
   else if (st.phase === 'pieces') buildSelected(host);
   else if (st.phase === 'entrance' || st.phase === 'exit') placeGateNow(host);
 }
@@ -654,4 +659,108 @@ export function builderStillValid(host: BuilderHost): boolean {
   const st = trackToolOf(host.tool);
   if (st.phase === 'idle' || st.phase === 'station') return true;
   return st.rideId !== null && !!trackData(host.world, st.rideId);
+}
+
+// ------------------------------------------------------------------ Auto-finish (R1, ride work 1 Task 8)
+
+/** The search of a builder and the track it was started on (a change of the track cancels it). */
+interface AutoFinishRun {
+  search: AutoFinishSearch;
+  rideId: number;
+  pieces: readonly TrackPieceInstance[];
+  n: number;
+  last: TrackPieceInstance | undefined;
+}
+
+const autoRuns = new WeakMap<TrackToolState, AutoFinishRun>();
+
+/** The clock of the frame budget (the UI's, never the sim's). */
+const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+
+/** Auto-finish is searching or shows a path: Build and the meter step aside. */
+export function autoFinishShown(st: TrackToolState): boolean {
+  return st.autoFinish !== null && st.autoFinish.state !== 'none';
+}
+
+/** Auto-finish can start: the piece step of a ride whose circuit is open. */
+export function autoFinishAvailable(host: BuilderHost): boolean {
+  const st = trackToolOf(host.tool);
+  if (st.phase !== 'pieces' || st.rideId === null || autoFinishShown(st)) return false;
+  const data = trackData(host.world, st.rideId);
+  return !!data && !data.circuitClosed && data.pieces.length > 0;
+}
+
+/** Start the search (the Auto-finish button). It runs over frames in `stepAutoFinishUi`. */
+export function startAutoFinishUi(host: BuilderHost): void {
+  const st = trackToolOf(host.tool);
+  if (!autoFinishAvailable(host) || st.rideId === null) return;
+  const data = trackData(host.world, st.rideId);
+  if (!data) return;
+  autoRuns.set(st, { search: startAutoFinish(host.world, st.rideId), rideId: st.rideId, pieces: data.pieces, n: data.pieces.length, last: data.pieces[data.pieces.length - 1] });
+  st.autoFinish = { state: 'searching', pieces: [], cost: 0, reason: null, affordable: false };
+  st.hovered = null;
+  bump(st);
+}
+
+function runStillValid(host: BuilderHost, st: TrackToolState, run: AutoFinishRun | undefined): run is AutoFinishRun {
+  if (!run || st.phase !== 'pieces' || st.rideId !== run.rideId) return false;
+  const data = trackData(host.world, run.rideId);
+  if (!data || data.circuitClosed) return false;
+  return data.pieces === run.pieces && data.pieces.length === run.n && data.pieces[run.n - 1] === run.last;
+}
+
+/**
+ * Once per frame while the builder shows: run the search for up to `AUTO_FINISH.frameBudgetMs`, or keep a shown path's
+ * price check current. A change of the ride's track (or leaving the piece step) cancels the search and clears the view.
+ */
+export function stepAutoFinishUi(host: BuilderHost): void {
+  const st = trackToolOf(host.tool);
+  const v = st.autoFinish;
+  if (!v) return;
+  const run = autoRuns.get(st);
+  if (!runStillValid(host, st, run)) {
+    cancelAutoFinish(host);
+    return;
+  }
+  if (v.state === 'found') {
+    const affordable = canAfford(host.world, v.cost, { setup: false });
+    if (affordable !== v.affordable) {
+      v.affordable = affordable;
+      bump(st);
+    }
+    return;
+  }
+  if (v.state !== 'searching') return;
+  // Slices of `nodesPerSlice` nodes until the frame's budget is spent; the answer does not depend on the slicing.
+  const t0 = now();
+  let o = run.search.step(AUTO_FINISH.nodesPerSlice);
+  while (!o && now() - t0 < AUTO_FINISH.frameBudgetMs) o = run.search.step(AUTO_FINISH.nodesPerSlice);
+  if (!o) return;
+  st.autoFinish =
+    o.kind === 'found'
+      ? { state: 'found', pieces: o.pieces, cost: o.cost, reason: null, affordable: canAfford(host.world, o.cost, { setup: false }) }
+      : { state: 'none', pieces: [], cost: 0, reason: o.reason, affordable: false };
+  bump(st);
+}
+
+/** Confirm the shown path: one `autoFinishTrack` command with its pieces. Null when no affordable path is shown. */
+export function confirmAutoFinish(host: BuilderHost): CommandResult | null {
+  const st = trackToolOf(host.tool);
+  const v = st.autoFinish;
+  if (st.rideId === null || !v || v.state !== 'found' || !v.affordable) return null;
+  const r = host.dispatch({ type: 'autoFinishTrack', rideId: st.rideId, pieces: v.pieces.map((p) => ({ defId: p.defId, chain: p.chain })) });
+  autoRuns.delete(st);
+  st.autoFinish = null;
+  if (r.ok) afterTrackChange(host, r.warnings.includes(TRACK_WARN.circuitComplete));
+  else bump(st);
+  return r;
+}
+
+/** Stop the search or drop the shown path (Cancel, Esc, a track change). */
+export function cancelAutoFinish(host: BuilderHost): void {
+  const st = trackToolOf(host.tool);
+  autoRuns.delete(st);
+  if (st.autoFinish === null) return;
+  st.autoFinish = null;
+  bump(st);
 }

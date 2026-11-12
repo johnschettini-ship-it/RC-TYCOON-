@@ -1,8 +1,9 @@
 /**
  * Input routing for the track tool (phase-2 §7.2–7.3). Owner: W2-A. No DOM: the controller feeds it.
  * Map hover and taps go to the track builder; pans and pinches stay with the camera, so two-finger pan and
- * zoom keep working while the builder is open. Keys: `Enter` build or confirm, `Backspace` undo,
- * `C` chain, `1`–`5` palette groups, `R` rotate the station, `Esc` leave the builder.
+ * zoom keep working while the builder is open. Keys: `Enter` build or confirm (an Auto-finish path too),
+ * `Backspace` undo, `C` chain, `1`–`5` palette groups, `R` rotate the station, `Esc` cancel Auto-finish or leave
+ * the builder.
  */
 import type { Game } from '../../game';
 import { worldToScreen } from '../../render/camera';
@@ -11,7 +12,9 @@ import { trackEnd } from '../../sim/rides/track/build';
 import { findRide, trackData } from '../../sim/rides/track/common';
 import type { TrackPieceInstance } from '../../sim/rides/track/types';
 import {
+  autoFinishShown,
   builderStillValid,
+  cancelAutoFinish,
   confirmAction,
   gateCandidates,
   leaveBuilder,
@@ -73,7 +76,9 @@ export function trackKeyDown(game: Game, key: string): boolean {
       return true;
     case 'Escape':
     case 'Esc':
-      leaveBuilder(game);
+      // R1: Esc first drops an Auto-finish search or path; the next Esc leaves the builder.
+      if (autoFinishShown(st)) cancelAutoFinish(game);
+      else leaveBuilder(game);
       return true;
     case 'r':
     case 'R':
