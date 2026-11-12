@@ -33,7 +33,7 @@
 | Recorder tests, `classic-ops` | Tests that record every drawing call of today's look and compare it with the last release, so today's look cannot change by accident. |
 | Palette swap | Changing the colours of a picture by changing its colour table before it is decoded. Every colour stays on the palette. |
 | Decoded memory | A compressed picture file must be unpacked (decoded) before it can be drawn. Decoded pictures take width × height × 4 bytes. |
-| Speed-test parks | `phone`: 800 guests, flat grass, the four start flat rides, 10 mini-railway loops. `build1`: 2 000 guests, the same kind of park. `build2`: 3 000 guests on a 128 × 128 map with 24 rides, 24 stalls, 60 scenery items, 2 show sites, a pond and raised ground. (`tests/perf/scenes.ts`) |
+| Speed-test parks | `phone`: 800 guests, flat grass, 14 flat rides (four ride types), 10 mini-railway loops. `build1`: 2 000 guests, the same kind of park. `build2`: 3 000 guests on a 128 × 128 map with 24 rides, 24 stalls, 60 scenery items, 2 show sites, a pond and raised ground. (`tests/perf/scenes.ts`) |
 
 ## 2. Goals
 
