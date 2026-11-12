@@ -35,6 +35,7 @@ export const trackUiStrings: Record<string, string> = {
   'ui.track.group.banking': 'Banking',
   'ui.track.group.special': 'Special',
   'ui.track.build': 'Build',
+  'ui.track.buildPrice': 'Build · {cost}',
   'ui.track.undo': 'Undo',
   'ui.track.done': 'Done',
   'ui.track.chain': 'Chain lift',

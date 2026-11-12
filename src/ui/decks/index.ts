@@ -5,7 +5,8 @@
  * Phone tuck: when a card (a tool card, or a held ride or stall card) becomes pressed, the hand tucks away (hidden;
  * `--toolbar-space` shrinks to the chip row) and comes back with the same deck when no card is pressed any more. A deck
  * chip pressed while tucked shows the hand, which then stays until a card next becomes pressed. Desktop never tucks; a layout change ends a tuck.
- * The low layout (Task 19) keeps the hand tucked while the track builder is open.
+ * Build mode (Task 22): while the track builder is open the deck list (the chips row on the phone) and the hand are hidden
+ * on every layout, and the hand cannot open; both come back when the builder closes.
  */
 import { CARD_LIFT_PX } from '../../data/tuning/interface';
 import type { UiContext } from '../context';
@@ -15,7 +16,7 @@ import { createDeckList } from './deckList';
 import { createHand } from './hand';
 import { heldCardId, type DeckId } from './model';
 import { allToolCards } from './toolCards';
-import { trackToolOf } from '../../render/track/toolState';
+import { buildModeOn } from '../track/builder';
 
 export { holdCard } from './toolCards';
 
@@ -42,6 +43,8 @@ export function createDecks(ctx: UiContext): DecksUi {
   const syncList = (): void => list.setOpen(hand.visible() ? hand.deck() : null);
   function open(deck: DeckId, zone?: string): void {
     hand.show(deck, zone);
+    // Build mode: the deck is chosen, but the hand stays away until the builder closes.
+    if (buildModeOn(ctx.game.tool)) hand.setTucked(true);
     syncList();
   }
   function close(): void {
@@ -72,9 +75,15 @@ export function createDecks(ctx: UiContext): DecksUi {
     wasHeld = held;
     any ||= held !== null;
     anyPressed = any;
-    // Task 19: in the low layout the track builder is a right-side panel; the hand stays tucked while it is open.
-    if (ctx.root.dataset.low === '1' && ctx.game.tool.tool === 'track' && trackToolOf(ctx.game.tool).phase !== 'idle') any = true;
-    if (!phone || layoutChanged) hand.setTucked(false);
+    // Task 22: build mode hides the deck list and the hand on every layout.
+    const building = buildModeOn(ctx.game.tool);
+    if (list.el.hidden !== building) list.el.hidden = building;
+    if (building) {
+      // A focus inside the hand that goes away would fall to the page body: it goes to the builder.
+      const hadFocus = !hand.el.hidden && hand.el.contains(document.activeElement);
+      hand.setTucked(true);
+      if (hadFocus) ctx.root.querySelector<HTMLElement>('[data-testid="track-builder"]:not([hidden])')?.focus();
+    } else if (!phone || layoutChanged) hand.setTucked(false);
     else if (turnedOn) {
       // A focus inside the hand that tucks away would fall to the page body: it goes to the open deck's chip.
       const hadFocus = hand.el.contains(document.activeElement);

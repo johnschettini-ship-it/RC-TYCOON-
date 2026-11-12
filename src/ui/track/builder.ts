@@ -417,10 +417,32 @@ export function refreshPieceGhost(host: BuilderHost): void {
   st.pieceGhost = id !== null && st.rideId !== null ? pieceGhostFor(host.world, st.rideId, id, st.chain, st.brakeSpeed) : null;
 }
 
-/** Build the selected piece (Build button, `Enter`, a click on the ghost, a double-click). */
+/**
+ * Build mode (Task 22): the track builder is open, in its station step or a piece step. The interface hides the deck
+ * list and the hand while it is on.
+ */
+export function buildModeOn(tool: ToolState): boolean {
+  return tool.tool === 'track' && trackToolOf(tool).phase !== 'idle';
+}
+
+/**
+ * Why the selected piece cannot be built (Task 22): the reason of its ghost when the map shows it with ✕, else null.
+ * A ghost of another piece (the desktop hover preview) says nothing about the selected one.
+ */
+export function blockedReason(st: TrackToolState): string | null {
+  const g = st.pieceGhost;
+  if (st.phase !== 'pieces' || st.selected === null || !g || g.defId !== st.selected || g.ok) return null;
+  return g.reason ?? '';
+}
+
+/**
+ * Build the selected piece (Build button, `Enter`, a click on the ghost, a double-click). A piece whose ghost shows ✕
+ * is not tried (Task 22): the builder already shows the reason, so nothing is built and no toast repeats it.
+ */
 export function buildSelected(host: BuilderHost): CommandResult | null {
   const st = trackToolOf(host.tool);
   if (st.phase !== 'pieces' || st.rideId === null || st.selected === null) return null;
+  if (blockedReason(st) !== null) return null;
   const def = getTrackPieceDef(st.selected);
   if (!def) return null;
   const cmd: Extract<Command, { type: 'addTrackPiece' }> = { type: 'addTrackPiece', rideId: st.rideId, defId: def.id };

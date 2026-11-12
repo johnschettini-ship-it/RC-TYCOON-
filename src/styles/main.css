@@ -1179,6 +1179,43 @@ button { font: inherit; color: inherit; }
 }
 #ui[data-low='1'] .track-builder.tb-slim .tb-title { flex: 0 1 auto; }
 #ui[data-low='1'] .track-builder.tb-slim .tb-more-menu { right: 12px; }
+/* Task 22, build mode: while the track builder is open the deck list and the hand are hidden (decks/index.ts). On the
+   phone and in the low layout the top region also leaves out Messages and the objectives flag; the builder then sits at
+   the bottom of the window, so it keeps the safe area below its controls. */
+#ui[data-build-mode='1'][data-layout='bottom'] :is([data-testid='tool-messages'], [data-testid='hud-objectives']) { display: none; }
+/* Desktop: with the deck list gone, the station builder of a held track card moves to the left edge. */
+#ui[data-build-mode='1'][data-layout='side']:has(.panel[data-kind='cardDetails']:not([hidden])) .track-builder {
+  left: calc(10px + var(--safe-left));
+  max-width: calc(100% - 400px - var(--safe-left) - var(--safe-right));
+}
+#ui[data-build-mode='1'] .track-builder[data-layout='bottom']:not(.tb-slim, .tb-compact) { padding-bottom: calc(10px + var(--safe-bottom)); }
+#ui[data-build-mode='1']:not([data-low='1']) .track-builder.tb-slim { padding-bottom: calc(6px + var(--safe-bottom)); }
+/* The condensed piece panel (phone and low layout): a header row (name, count, round Follow, close), one tab row and one
+   row of small piece tiles that scroll sideways, a small status line (the price is on Build; the extra or the reason is
+   the line, the reason in the warning colour), then Undo (round), Build and Done. Focus rings sit on the inner edge, as
+   the rows and the panel scroll. */
+.tb-undo .icon { display: none; }
+#ui .track-builder.tb-compact { gap: 8px; padding-top: 4px; }
+#ui[data-build-mode='1'] .track-builder.tb-compact { padding-bottom: calc(4px + var(--safe-bottom)); }
+#ui .track-builder.tb-compact :focus-visible { outline-offset: -3px; box-shadow: var(--focus-ring-inset); }
+#ui .track-builder.tb-compact .tb-body { gap: 2px; }
+#ui .track-builder.tb-compact .tb-options:not(:has(> :not([hidden]))) { display: none; }
+#ui .track-builder.tb-compact .tb-actions { margin-top: -4px; }
+#ui .track-builder.tb-compact .tb-pieces { display: flex; flex-direction: column; gap: 8px; }
+#ui .track-builder.tb-compact :is(.tb-follow, .tb-undo) { width: var(--touch); min-width: var(--touch); min-height: var(--touch); padding: 0; border-radius: 999px; }
+#ui .track-builder.tb-compact :is(.tb-follow, .tb-undo) > span { display: none; }
+#ui .track-builder.tb-compact :is(.tb-follow, .tb-undo) .icon { display: inline; width: 22px; height: 22px; }
+#ui .track-builder.tb-compact .tb-groups { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding: 0; }
+#ui .track-builder.tb-compact .tb-palette { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; overscroll-behavior-x: contain; }
+#ui .track-builder.tb-compact .tb-palette::-webkit-scrollbar { display: none; }
+#ui .track-builder.tb-compact .tb-piece { flex: none; min-width: 72px; min-height: 56px; padding: 2px 4px; gap: 1px; }
+#ui .track-builder.tb-compact .tb-piece-name { max-width: 7.5em; line-height: 1.1; overflow-wrap: break-word; }
+#ui .track-builder.tb-compact .piece-icon { width: 36px; height: 23px; }
+#ui .track-builder.tb-compact .tb-status { min-height: 0; padding: 0 4px; border: none; gap: 4px; }
+#ui .track-builder.tb-compact .tb-status .state-icon { display: none; }
+#ui .track-builder.tb-compact .tb-status:not(.no-detail) .status-text { display: none; }
+#ui .track-builder.tb-compact .tb-status :is(.status-text, .status-detail) { font-size: calc(12px * var(--ts, 1)); line-height: 1.2; font-weight: 600; }
+#ui .track-builder.tb-compact .tb-actions .big-action { min-height: var(--touch); flex: 1 1 120px; font-variant-numeric: tabular-nums; }
 
 .tabs { display: flex; gap: 8px; flex-wrap: wrap; padding: 4px 0; }
 .tab {

@@ -35,6 +35,8 @@ import { createPathItemBar, createPatrolBar } from './management/toolBars';
 import { TOAST_MS } from './toasts';
 import { toolOptions } from '../render/management/toolOptions';
 import { mountTrackUi } from './track';
+import { blockedReason, buildModeOn } from './track/builder';
+import { trackToolOf } from '../render/track/toolState';
 import { extensionPanel, UI_EXTENSIONS } from './extensions';
 import { tileCentreWorld } from '../input/camera';
 import { bindScenarioSettings, titleOpen } from './scenario/shared';
@@ -263,12 +265,13 @@ export function mountUI(root: HTMLElement, game: Game): void {
     root.style.setProperty('--hud-bottom', `${Math.ceil(hud.el.getBoundingClientRect().bottom)}px`);
     const tops: number[] = [];
     if (!decks.hand.hidden) tops.push(decks.hand.getBoundingClientRect().top);
-    if (root.dataset.layout === 'bottom') tops.push(decks.list.getBoundingClientRect().top);
+    if (root.dataset.layout === 'bottom' && !decks.list.hidden) tops.push(decks.list.getBoundingClientRect().top);
     const space = tops.length > 0 ? Math.ceil(window.innerHeight - Math.min(...tops)) : 0;
     root.style.setProperty('--toolbar-space', `${Math.max(0, space)}px`);
     // The low layout's right-side panels run from below the top region to above the deck chips row.
     if (root.dataset.low === '1') {
-      root.style.setProperty('--chips-space', `${Math.max(0, Math.ceil(window.innerHeight - decks.list.getBoundingClientRect().top))}px`);
+      const chips = decks.list.hidden ? 0 : Math.ceil(window.innerHeight - decks.list.getBoundingClientRect().top);
+      root.style.setProperty('--chips-space', `${Math.max(0, chips)}px`);
     }
     fitDetails();
   };
@@ -290,9 +293,13 @@ export function mountUI(root: HTMLElement, game: Game): void {
   measure();
 
   // Every failed command shows its reason; warnings show too.
+  // Task 22: a reason the track builder shows in its line is not said again by a toast.
   game.onCommand((_cmd, result) => {
     const t = toastForResult(result);
-    if (t) toast(t.message, t.kind);
+    if (!t) return;
+    const shown = blockedReason(trackToolOf(game.tool));
+    if (!result.ok && shown !== null && localizeReason(shown) === t.message) return;
+    toast(t.message, t.kind);
   });
   game.onEvents((events) => {
     // The world behind the title is not the player's park: it never overwrites the autosave.
@@ -435,6 +442,8 @@ export function mountUI(root: HTMLElement, game: Game): void {
       } else if (open || root.dataset.layout === 'side') ctx.openPanel('cardDetails');
     }
     follow();
+    // Task 22: build mode while the track builder is open (main.css hides parts of the top region on the phone).
+    setAttr(root, 'data-build-mode', buildModeOn(game.tool) ? '1' : null);
     hud.update(now);
     decks.update(now);
     status.update();

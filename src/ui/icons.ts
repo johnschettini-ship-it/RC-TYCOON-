@@ -26,6 +26,7 @@ const ICONS = {
   guests: { d: 'M5 21 C5 15.5 19 15.5 19 21', circles: [[12, 8, 4]] },
   star: { d: 'M12 3.5 L14.6 9 L20.5 9.6 L16 13.5 L17.3 19.4 L12 16.3 L6.7 19.4 L8 13.5 L3.5 9.6 L9.4 9 Z' },
   warning: { d: 'M12 3.5 L21.5 20 H2.5 Z M12 10 V14.5 M12 17 V17.6' },
+  undo: { d: 'M9 13.5 L4.5 9 L9 4.5 M4.5 9 H14.5 A5.5 5.5 0 0 1 14.5 20 H9' },
   follow: { d: 'M12 2.5 V6 M12 18 V21.5 M2.5 12 H6 M18 12 H21.5', circles: [[12, 12, 6], [12, 12, 1.5]] },
 } satisfies Record<string, IconDef>;
 

@@ -18,6 +18,7 @@ import { h, setAttr, setText, toggleClass } from '../dom';
 import { formatMoney } from '../format';
 import { icon } from '../icons';
 import {
+  blockedReason,
   buildSelected,
   chainAllowed,
   chooseGate,
@@ -185,7 +186,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
     'button',
     {
       type: 'button',
-      class: 'btn toggle small',
+      class: 'btn toggle small tb-follow',
       'aria-pressed': 'true',
       title: text('ui.track.followLong'),
       'aria-label': text('ui.track.followLong'),
@@ -205,7 +206,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const okIcon = icon('check', 'icon state-icon ok');
   const badIcon = icon('cross', 'icon state-icon bad');
   const statusMain = h('span', { class: 'status-text', 'data-testid': 'track-status' });
-  const statusDetail = h('span', { class: 'status-detail', 'data-testid': 'track-reason' });
+  const statusDetail = h('span', { class: 'status-detail', id: 'tb-reason', 'data-testid': 'track-reason' });
   const status = h('div', { class: 'tb-status', 'aria-live': 'polite' }, okIcon, badIcon, h('span', { class: 'status-texts' }, statusMain, statusDetail));
 
   // ---------- station phase
@@ -284,8 +285,10 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const gatesBox = h('div', { class: 'tb-gates' }, gateHint);
 
   // ---------- actions
-  const undo = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-undo', onclick: () => undoPiece(game) }, h('span', { text: text('ui.track.undo') }));
-  const build = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-build', onclick: () => buildSelected(game) }, icon('check'), h('span', { text: text('ui.track.build') }));
+  // Task 22: the condensed panel shows Undo as a round icon button (its icon is hidden elsewhere).
+  const undo = h('button', { type: 'button', class: 'btn tb-undo', 'aria-label': text('ui.track.undo'), 'data-testid': 'track-undo', onclick: () => undoPiece(game) }, icon('undo'), h('span', { text: text('ui.track.undo') }));
+  const buildLabel = h('span', { text: text('ui.track.build') });
+  const build = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-build', onclick: () => buildSelected(game) }, icon('check'), buildLabel);
   const confirmLabel = h('span', { text: text('ui.track.confirm') });
   const confirm = h('button', { type: 'button', class: 'btn primary big-action', 'data-testid': 'track-confirm', onclick: () => confirmAction(game) }, icon('check'), confirmLabel);
   const done = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-done', onclick: () => leaveBuilder(game) }, h('span', { text: text('ui.track.done') }));
@@ -338,6 +341,18 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
     }
     more.hidden = !slim;
   };
+  // Task 22: the piece step on the phone and in the low layout is condensed: one header row (Follow a round icon button
+  // named "Follow"), one tab row and one row of small piece tiles that scroll sideways, a small status line, and Undo
+  // (round), Build with the price, and Done.
+  let compactNow = false;
+  const setCompact = (compact: boolean): void => {
+    if (compact === compactNow) return;
+    compactNow = compact;
+    toggleClass(el, 'tb-compact', compact);
+    const name = text(compact ? 'ui.track.follow' : 'ui.track.followLong');
+    setAttr(follow, 'aria-label', name);
+    if (!compact) setText(buildLabel, text('ui.track.build'));
+  };
   // A press outside the menu and its button closes the menu.
   document.addEventListener('pointerdown', (e) => {
     if (moreMenu.hidden) return;
@@ -349,7 +364,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
 
   const el = h(
     'section',
-    { class: 'track-builder', role: 'region', 'aria-label': text('ui.track.builder'), 'data-testid': 'track-builder', hidden: true },
+    { class: 'track-builder', role: 'region', 'aria-label': text('ui.track.builder'), 'data-testid': 'track-builder', tabindex: -1, hidden: true },
     header,
     h('div', { class: 'tb-body' }, stationBox, piecesBox, gatesBox, status),
     actions,
@@ -379,6 +394,8 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
   const setStatus = (valid: boolean | null, main: string, detail: string): void => {
     setText(statusMain, main);
     setText(statusDetail, detail);
+    // The condensed panel's line shows the detail, or the main text when there is no detail.
+    toggleClass(status, 'no-detail', detail === '');
     okIcon.style.display = valid === true ? '' : 'none';
     badIcon.style.display = valid === false ? '' : 'none';
     toggleClass(status, 'valid', valid === true);
@@ -400,6 +417,7 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       if (!visible) {
         palKey = null;
         setSlim(false);
+        setCompact(false);
         return;
       }
       // Another panel (finance, park) takes over: leave the builder, the track stays as it is.
@@ -414,6 +432,8 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
       // Task 20: the station step on the phone and in the low layout is one slim row at the bottom.
       const slim = s.phase === 'station' && layout === 'bottom';
       setSlim(slim);
+      const compact = s.phase === 'pieces' && layout === 'bottom';
+      setCompact(compact);
       // Task 19: the low layout (a phone held sideways) shows the builder as a right-side panel.
       setAttr(el, 'data-layout', ctx.root.dataset.low === '1' && !slim ? 'side' : layout);
       const touch = s.touch || layout === 'bottom';
@@ -488,7 +508,14 @@ export function createTrackBuilder(ctx: UiContext): TrackBuilderView {
         brake.hidden = !isBrakePiece(pv ?? s.selected);
         setText(brakeValue, text('ui.track.brakeValue', { n: s.brakeSpeed }));
         options.hidden = closed;
-        build.toggleAttribute('disabled', s.selected === null);
+        // Task 22: a piece that cannot be built (its ghost shows ✕) cannot be pressed; the reason is Build's description.
+        const blocked = blockedReason(s);
+        const off = s.selected === null || blocked !== null;
+        if (build.disabled !== off) build.toggleAttribute('disabled', off);
+        setAttr(build, 'aria-describedby', blocked !== null ? 'tb-reason' : null);
+        const g0 = s.pieceGhost;
+        const price = compact && !off && g0 && g0.ok && g0.defId === s.selected ? text('ui.track.buildPrice', { cost: formatMoney(g0.cost) }) : text('ui.track.build');
+        setText(buildLabel, price);
         if (closed) {
           setStatus(true, text('ui.track.complete'), '');
           return;

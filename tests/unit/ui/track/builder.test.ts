@@ -11,6 +11,8 @@ import type { Command } from '../../../../src/sim/commands/types';
 import { Content, tileIndex } from '../../../../src/sim/map';
 import {
   aimGate,
+  blockedReason,
+  buildModeOn,
   buildSelected,
   confirmAction,
   editTrackRide,
@@ -229,6 +231,31 @@ describe('confirm flow (§7.2 desktop, §7.3 touch)', () => {
     expect(cmds).toEqual([{ type: 'addTrackPiece', rideId: id, defId: 'straight' }]);
     // The selection stays while it still fits, so Build can add the same piece again.
     expect(st.selected).toBe('straight');
+  });
+
+  it('Task 22: a selected piece whose ghost shows ✕ is not tried by Build, Enter or a click on the ghost; build mode is on', () => {
+    const { game, cmds } = setup();
+    const id = place(game.world, 'steel_coaster', 10, 10, EAST);
+    placeFootpath(game.world, 11, 10);
+    enterPieces(game, id);
+    const st = trackToolOf(game.tool);
+    expect(buildModeOn(game.tool)).toBe(true);
+    selectPiece(game, 'straight');
+    refreshPieceGhost(game);
+    expect(st.pieceGhost).toMatchObject({ defId: 'straight', ok: false });
+    expect(blockedReason(st)).toBe(TRACK_ERR.hitsPath);
+    expect(buildSelected(game)).toBeNull();
+    confirmAction(game);
+    mapTap(game, st.pieceGhost!.tiles[0]!, true);
+    expect(cmds).toEqual([]);
+    expect(dataOf(game.world, id).pieces.length).toBe(1);
+    // The hover ghost of another piece says nothing about the selected one.
+    selectPiece(game, 'turn_small_right');
+    hoverPiece(game, 'straight');
+    refreshPieceGhost(game);
+    expect(blockedReason(st)).toBeNull();
+    leaveBuilder(game, false);
+    expect(buildModeOn(game.tool)).toBe(false);
   });
 
   it('desktop: hover previews, a click on the ghost builds the selected piece', () => {
