@@ -207,7 +207,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     },
   };
 
-  const hud = createHud(ctx, () => openMenu(ctx));
+  const hud = createHud(ctx, (extra) => openMenu(ctx, extra));
   const decks: DecksUi = createDecks(ctx);
   // Phase 7 §4.4: the Rides deck is open when a park starts. The low layout (Task 19) starts with the hand closed.
   const startDeck = (): void => {

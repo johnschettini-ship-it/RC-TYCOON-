@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { en } from '../../../src/data/strings/en';
 import { setLocale } from '../../../src/data/strings/index';
 import { setActiveStrings } from '../../../src/data/strings/resolve';
-import { formatMoney, formatPrice, formatRating, sharePercents, temperamentShares } from '../../../src/ui/format';
+import { formatMoney, formatMoneyShort, formatPrice, formatRating, sharePercents, temperamentShares } from '../../../src/ui/format';
 
 afterEach(() => {
   setActiveStrings(null);
@@ -70,5 +70,20 @@ describe('Thrill/Chill balance (master R6 groups)', () => {
 
   it('no guests gives all zeros', () => {
     expect(sharePercents(temperamentShares([]))).toEqual({ chill: 0, family: 0, thrill: 0 });
+  });
+});
+
+describe('formatMoneyShort (Task 24, the phone pill: one top row at 390 px)', () => {
+  it('shows whole dollars below $100,000, never rounding up', () => {
+    expect(formatMoneyShort(1_998_345, 'en')).toBe('$19,983');
+    expect(formatMoneyShort(9_999_999, 'en')).toBe('$99,999');
+    expect(formatMoneyShort(0, 'en')).toBe('$0');
+    expect(formatMoneyShort(-1_234_599, 'en')).toBe('−$12,345');
+  });
+  it('shows three significant digits with K or M from $100,000 (cut, not rounded up)', () => {
+    expect(formatMoneyShort(10_000_000, 'en')).toBe('$100K');
+    expect(formatMoneyShort(19_998_300, 'en')).toBe('$199K');
+    expect(formatMoneyShort(123_456_789, 'en')).toBe('$1.23M');
+    expect(formatMoneyShort(-99_999_999_00, 'en')).toBe('−$99.9M');
   });
 });

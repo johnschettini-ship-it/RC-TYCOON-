@@ -212,20 +212,34 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .hud-day { justify-self: stretch; justify-content: flex-start; }
 #ui[data-layout='bottom'] .view-controls { margin-left: auto; }
 /*
- * Upright phone, compact top row (Task 21; not the low layout): one row with the status pill (cash and guests), the
- * mood circle, the day chip and Menu; under it at the right, with no plate, the Speed button, Messages and the view
- * controls (the chip row; the flag of a scenario at its left). `hud.ts` moves the parts into this order when the mode
- * changes. With large text (above 100%) the chip leads the row under it, so Menu stays in the top row; the row under it
- * wraps when it is full (its buttons stay at the right).
+ * Upright phone, one top row (Task 21, Task 24; not the low layout): the status pill (cash and guests), the mood circle,
+ * the time chip (weather icon and the hour), then the controls: the Speed button, the one turn-view button and Menu.
+ * `hud.ts` moves the parts into this order when the mode changes and hides the chip row (Messages and the objectives
+ * flag are Menu items here). With large text the row wraps: the controls stay together at the right.
  */
-#ui[data-layout='bottom']:not([data-low='1']) .hud { display: flex; flex-wrap: wrap; align-items: center; }
-#ui[data-layout='bottom']:not([data-low='1']) .status-pill { flex: 0 1 auto; min-width: 0; min-height: var(--touch); padding: 2px 12px; }
+#ui[data-layout='bottom']:not([data-low='1']) .hud { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+/* The pill holds the cash over the guests (Task 24): as narrow as the cash, so the six parts fit one line at 390 px. */
+#ui[data-layout='bottom']:not([data-low='1']) .status-pill {
+  flex: 0 1 auto; min-width: 0; min-height: var(--touch); flex-direction: column; flex-wrap: nowrap; align-items: flex-start;
+  justify-content: center; gap: 0; padding: 1px 8px;
+}
+#ui[data-layout='bottom']:not([data-low='1']) .hud-field-guests .hud-value { font-size: calc(13px * var(--ts, 1)); }
+#ui[data-layout='bottom']:not([data-low='1']) .hud-field-guests .icon { width: 14px; height: 14px; }
 #ui[data-layout='bottom']:not([data-low='1']) .hud-mood { flex: none; }
 #ui[data-layout='bottom']:not([data-low='1']) .hud-controls { flex: none; margin-left: auto; }
-#ui[data-layout='bottom']:not([data-low='1']) .hud-day { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-end; }
-/* The chip (large text) and the objectives flag keep to the left; the buttons stay at the right, also on a wrapped line. */
-#ui[data-layout='bottom']:not([data-low='1']) .hud-day > :not([hidden]):is(:has(+ .speed-wrap), :has(+ [hidden] + .speed-wrap)) { margin-right: auto; }
 #ui[data-layout='bottom']:not([data-low='1']) .view-controls { margin-left: 0; }
+#ui[data-layout='bottom']:not([data-low='1']) .speed-toggle { padding: 0 8px; }
+/* The chip shows one weather icon and the hour (the forecast is in the weather button's name, title and press). The
+   weather button covers the whole chip and is at least 44 px high (it reaches past the 36 px plate at the top and
+   bottom): the chip is one target as narrow as its icon and hour. */
+#ui[data-layout='bottom']:not([data-low='1']) .day-pill { position: relative; min-height: 36px; padding: 0 9px 0 34px; }
+#ui[data-layout='bottom']:not([data-low='1']) .day-pill .weather-next { display: none; }
+#ui[data-layout='bottom']:not([data-low='1']) .day-pill > .hud-weather {
+  position: absolute; top: 50%; left: 0; right: 0; height: max(var(--touch), calc(100% + 8px)); min-height: 0; margin: 0;
+  transform: translateY(-50%); padding: 0 0 0 8px; align-items: center; justify-content: flex-start;
+}
+/* The unread dot on Menu (Task 24): a small gold dot with an ink ring at the button's top right. */
+.menu-dot { position: absolute; top: 3px; right: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--ink); pointer-events: none; }
 /* The mood circle (Task 21, Task 23): a plain 44 × 44 round button in the leading group's colour with its share as large
    text; with no guests, the Temperament icon on the plate colour. Large text makes the circle larger, and a longer text
    (a long locale) widens it into a pill: the share is never clipped. */

@@ -122,10 +122,14 @@ test.describe('build mode (Task 22): phone and low layout', () => {
       const ui = page.locator('#ui');
       const chips = page.locator('.deck-list');
       const hand = page.getByTestId('hand');
+      // Task 24: the upright phone has Messages in the Menu (never in the top row), so there is nothing to hide there.
+      const upright = h > w;
       const messages = page.getByTestId('tool-messages');
+      const messagesShown = async (): Promise<void> => (upright ? expect(messages).toBeHidden() : expect(messages).toBeVisible());
+      const turn = upright ? ['view-turn'] : ['view-rotate-left', 'view-rotate-right'];
       await expect(ui).not.toHaveAttribute('data-build-mode', /.*/);
       await expect(chips).toBeVisible();
-      await expect(messages).toBeVisible();
+      await messagesShown();
       const handOpen = await hand.isVisible();
 
       await station(page, true);
@@ -134,7 +138,7 @@ test.describe('build mode (Task 22): phone and low layout', () => {
       await expect(chips).toBeHidden();
       await expect(hand).toBeHidden();
       await expect(messages).toBeHidden();
-      for (const id of ['speed-toggle', 'view-rotate-left', 'view-rotate-right', 'tool-menu']) await expect(page.getByTestId(id), id).toBeVisible();
+      for (const id of ['speed-toggle', ...turn, 'tool-menu']) await expect(page.getByTestId(id), id).toBeVisible();
       // The hand cannot open while building: a deck chip pressed by code leaves it hidden.
       await page.evaluate(() => (document.querySelector('[data-testid="deck-stalls"]') as HTMLElement).click());
       await frames(page);
@@ -149,7 +153,7 @@ test.describe('build mode (Task 22): phone and low layout', () => {
       await expect(page.getByTestId('track-builder')).toBeHidden();
       await expect(ui).not.toHaveAttribute('data-build-mode', /.*/);
       await expect(chips).toBeVisible();
-      await expect(messages).toBeVisible();
+      await messagesShown();
 
       // Station, then the pieces: still build mode; Done brings everything back.
       await pieces(page, true);
@@ -163,7 +167,7 @@ test.describe('build mode (Task 22): phone and low layout', () => {
       await expect(page.getByTestId('track-builder')).toBeHidden();
       await expect(ui).not.toHaveAttribute('data-build-mode', /.*/);
       await expect(chips).toBeVisible();
-      await expect(messages).toBeVisible();
+      await messagesShown();
       if (handOpen) {
         // The ride panel opens on the phone after Done; closing it shows the hand again.
         const panel = page.locator('.panel');

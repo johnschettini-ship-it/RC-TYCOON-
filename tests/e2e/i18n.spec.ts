@@ -48,7 +48,7 @@ async function plainEnglish(page: Page): Promise<string[]> {
 }
 
 test('switching to en-XA changes the HUD text at once', async ({ page }, info) => {
-  // The upright phone's chip shows the month and clock; the whole date with the year is its name (Task 21).
+  // The upright phone's chip shows the hour (Task 24); the whole date with the month and year is its name (Task 21).
   const phone = info.project.name === 'phone';
   await page.goto('/');
   await page.getByTestId('title-new').click();
@@ -61,14 +61,14 @@ test('switching to en-XA changes the HUD text at once', async ({ page }, info) =
     else await (not ? expect(date).not.toHaveAttribute(dateText, re) : expect(date).toHaveAttribute(dateText, re));
   };
   await expectDate(/^(Mar|Apr) · Year \d+ · \d\d:\d\d$/);
-  if (phone) await expect(page.getByTestId('hud-date')).toHaveText(/^(Mar|Apr) \d\d:\d\d$/);
+  if (phone) await expect(page.getByTestId('hud-date')).toHaveText(/^\d\d:\d\d$/);
   await expect(page.getByTestId('hud-cash')).toHaveText(/^\$/);
 
   await page.evaluate(() => (window as unknown as { __tc: TcHook }).__tc.settings.set('locale', 'en-XA'));
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
   await expectDate(/Ýéåŕ \d+/);
   await expectDate(/Year/, true);
-  if (phone) await expect(page.getByTestId('hud-date')).toHaveText(/Ṁåŕ|Åþŕ/);
+  if (phone) await expect(page.getByTestId('day-pill')).toHaveAttribute('aria-label', /Ṁåŕ|Åþŕ/);
   await expect(page.getByTestId('hud-cash')).toHaveText(/^\[\$[\d,.]+ .+\]$/u);
 
   await page.evaluate(() => (window as unknown as { __tc: TcHook }).__tc.settings.set('locale', 'en'));
@@ -143,8 +143,19 @@ test.describe('hard-coded text', () => {
     expect(unexpectedEnglish(await plainEnglish(page))).toEqual([]);
     for (const tool of ['park', 'finance', 'rides', 'stalls', 'staff', 'research', 'marketing', 'messages']) {
       await openTool(page, tool);
-      await expect(await toolControl(page, tool)).toHaveAttribute('aria-pressed', 'true');
+      // Task 24: on the upright phone Messages is a Menu item; its panel is open.
+      const inMenu = tool === 'messages' && !(await page.locator('[data-tool="messages"]').isVisible());
+      if (inMenu) await expect(page.locator('.panel[data-kind=messages]')).toBeVisible();
+      else await expect(await toolControl(page, tool)).toHaveAttribute('aria-pressed', 'true');
       expect(unexpectedEnglish(await plainEnglish(page)), tool).toEqual([]);
+      if (inMenu) {
+        // The Menu with its Messages item shows only string-table text too.
+        await page.getByTestId('tool-menu').click();
+        await expect(page.getByTestId('menu-messages')).toBeVisible();
+        expect(unexpectedEnglish(await plainEnglish(page)), 'menu').toEqual([]);
+        await page.getByTestId('menu-resume').click();
+        continue;
+      }
       if (tool === 'rides' || tool === 'stalls') {
         // The ride and stall cards in the hand: zone, name, and cost come from the string table.
         await expect(page.getByTestId('hand').locator('.content-card').first()).toBeVisible();

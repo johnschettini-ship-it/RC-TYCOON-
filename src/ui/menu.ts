@@ -1,16 +1,19 @@
 /**
  * In-game menu (Phase 1 §4.7): Save (3 slots), Load, Export, Import, Quit to title
  * (confirm when the game has unsaved changes), and Settings (Phase 6 §4.9). The game pauses while the menu is open.
+ * Task 24: on the upright phone the HUD passes `extra` items (Messages with its unread count, the objectives of a
+ * scenario) for the controls its one top row has no room for; they follow Resume, and the menu closes before they run.
  * Owner: W1-B (Build 3: W4-F).
  */
 import { text } from '../data/strings/en';
 import { exportFile } from '../save';
 import type { UiContext } from './context';
+import type { MenuItem } from './extensions';
 import { confirmDialog, openDialog, type DialogAction, type DialogHandle } from './dialogs';
 import { openSettingsScreen } from './settings';
 import { localizeReason } from '../i18n';
 
-export function openMenu(ctx: UiContext): void {
+export function openMenu(ctx: UiContext, extra: readonly MenuItem[] = []): void {
   const { game, saves, root } = ctx;
   const speedBefore = game.speed;
   let resume = true;
@@ -71,6 +74,15 @@ export function openMenu(ctx: UiContext): void {
     },
     actions: [
       { label: text('ui.menu.resume'), kind: 'primary', testId: 'menu-resume', onClick: () => closeAll(false) },
+      ...extra.map((item): DialogAction => ({
+        label: item.label,
+        detail: item.detail,
+        testId: item.testId,
+        onClick: () => {
+          closeAll(false);
+          item.onClick();
+        },
+      })),
       { label: text('ui.menu.save'), testId: 'menu-save', onClick: () => slotDialog('save') },
       { label: text('ui.menu.load'), testId: 'menu-load', onClick: () => slotDialog('load') },
       {

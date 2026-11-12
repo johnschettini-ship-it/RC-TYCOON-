@@ -8,4 +8,6 @@ import type { PluralTable } from './types';
 export const enPlurals: PluralTable = {
   // Phase 6 §4.8 example.
   'hud.guests': { one: '{n} guest', other: '{n} guests' },
+  // Task 24: the name of the upright phone's Menu button while messages are unread (its dot).
+  'ui.tool.menuUnread': { one: 'Menu, {n} unread message', other: 'Menu, {n} unread messages' },
 };

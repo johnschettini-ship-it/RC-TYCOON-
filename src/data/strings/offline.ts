@@ -114,7 +114,6 @@ export const offlineStrings: Record<string, string> = {
   'money.format': '${amount}',
   // Phase 6 §4.8: month names and the clock format come from the string table (the game calendar is not a real one).
   'date.full': '{month} · Year {year} · {time}',
-  'date.short': '{month} {time}',
   'date.clock': '24',
   'date.time24': '{hh}:{mm}',
   'date.time12': '{h}:{mm} {ampm}',

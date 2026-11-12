@@ -129,6 +129,8 @@ export function createObjectives(ctx: UiContext): { button: UiPart; panel: UiPar
         toggleClass(button, 'won', run?.status === 'won');
         toggleClass(button, 'lost', run?.status === 'lost');
       },
+      // Task 24: on the upright phone the flag is a Menu item.
+      menuItem: () => (runOf(ctx) ? { label: text('prog.objectives.button'), testId: 'menu-objectives', onClick: () => setOpen(true) } : null),
     },
     panel: {
       el: panel,

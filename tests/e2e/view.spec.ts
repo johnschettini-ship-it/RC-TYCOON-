@@ -157,7 +157,7 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.beforeEach(() => test.skip(!isPhone(test.info()), 'phone flow'));
 
-  test('tap both view rotate buttons; buy land by drag and Confirm', async ({ page }) => {
+  test('tap and hold the turn-view button; buy land by drag and Confirm', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Thumb Park');
     await setSpeed(page, 'Pause');
@@ -166,11 +166,16 @@ test.describe('phone', () => {
     expect(Number(await canvas.getAttribute('data-pixel-ratio'))).toBeLessThanOrEqual(2);
     await landForSale(page, 20, 30, 22, 31);
     const start = await centreTile(page);
-    await page.getByTestId('view-rotate-right').tap();
+    // Task 24: the upright phone has one turn button: a tap turns right, a hold turns left.
+    const one = page.getByTestId('view-turn');
+    await one.tap();
     await expect(canvas).toHaveAttribute('data-rotation', '1');
     expect(await centreTile(page)).toBe(start);
-    await page.getByTestId('view-rotate-left').tap();
+    const ob = (await one.boundingBox())!;
+    const hold = await page.context().newCDPSession(page);
+    await touch(hold, 'touchStart', [{ x: ob.x + ob.width / 2, y: ob.y + ob.height / 2, id: 1 }]);
     await expect(canvas).toHaveAttribute('data-rotation', '0');
+    await touch(hold, 'touchEnd', []);
     expect(await centreTile(page)).toBe(start);
 
     await openTool(page, 'buyLand', { tap: true });

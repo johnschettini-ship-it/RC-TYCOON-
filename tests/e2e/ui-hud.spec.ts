@@ -30,8 +30,8 @@ test.describe('HUD and deck list', () => {
   test('the HUD shows the park name, cash, and a date with the clock', async ({ page }, info) => {
     const full = /^(Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Jan|Feb) · Year \d+ · \d\d:\d\d$/;
     if (info.project.name === 'phone') {
-      // The upright phone's chip shows the month and clock; the whole date is the chip's name and title (Task 21).
-      await expect(page.getByTestId('hud-date')).toHaveText(/^(Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Jan|Feb) \d\d:\d\d$/);
+      // The upright phone's chip shows the hour (Task 24); the whole date is the chip's name and title (Task 21).
+      await expect(page.getByTestId('hud-date')).toHaveText(/^\d\d:\d\d$/);
       await expect(page.getByTestId('day-pill')).toHaveAttribute('aria-label', full);
       await expect(page.getByTestId('day-pill')).toHaveAttribute('title', full);
     } else {
@@ -140,11 +140,16 @@ test.describe('HUD and deck list', () => {
       park.cash = 999_999_999_900;
     });
     // The HUD writes the values on its next frame (the clock runs, so the cash moves a little): the boxes are measured with the long values in place.
-    await expect(page.getByTestId('hud-cash')).toHaveText(/^\$9,999,99\d,\d{3}/);
+    // Task 24: the upright phone's pill shows three significant digits with K, M or B from $100,000 (full value in its name).
+    const upright = info.project.name === 'phone' && (await page.locator('#ui').getAttribute('data-low')) === null;
+    if (upright) await expect(page.getByTestId('hud-cash')).toHaveText('$9.99B');
+    else await expect(page.getByTestId('hud-cash')).toHaveText(/^\$9,999,99\d,\d{3}/);
+    if (upright) await expect(page.getByTestId('status-pill')).toHaveAccessibleName(/\$9,999,99\d,\d{3}/);
     if (info.project.name === 'desktop') await expect(page.getByTestId('hud-name')).toHaveText('W'.repeat(32));
     const vp = page.viewportSize();
     if (!vp) throw new Error('no viewport');
-    for (const id of ['status-pill', 'tool-messages', 'tool-menu']) {
+    // Task 24: on the upright phone Messages is in the Menu; the one turn button is in the row instead.
+    for (const id of ['status-pill', upright ? 'view-turn' : 'tool-messages', 'tool-menu']) {
       const box = await page.getByTestId(id).boundingBox();
       expect(box, id).not.toBeNull();
       expect(box!.x, id).toBeGreaterThanOrEqual(0);

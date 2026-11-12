@@ -48,6 +48,29 @@ export function formatMoney(cents: Cents, locale: string = currentLocale()): str
   return money(cents, false, locale);
 }
 
+/** From this many whole dollars the phone pill shows three significant digits with K or M (Task 24). */
+const SHORT_FROM = 100_000;
+const compact = new Map<string, Intl.NumberFormat>();
+
+/**
+ * The upright phone's pill (Task 24): whole dollars below $100,000 ("$19,983"), three significant digits with K or M
+ * from there ("$199K", "$1.23M"). Cut, not rounded: the pill never shows more cash than the park has. The full value
+ * is in the pill's name and title.
+ */
+export function formatMoneyShort(cents: Cents, locale: string = currentLocale()): string {
+  const neg = cents < 0;
+  const dollars = Math.trunc(Math.abs(cents) / 100);
+  if (dollars < SHORT_FROM) return money(neg ? -dollars * 100 : dollars * 100, false, locale);
+  const step = 10 ** (String(dollars).length - 3);
+  let f = compact.get(locale);
+  if (!f) {
+    f = new Intl.NumberFormat(locale, { notation: 'compact', maximumSignificantDigits: 3 });
+    compact.set(locale, f);
+  }
+  const body = text('money.format', { amount: f.format(Math.trunc(dollars / step) * step) });
+  return neg ? `${MINUS}${body}` : body;
+}
+
 /** Prices always show cents: "$2.00". */
 export function formatPrice(cents: Cents, locale: string = currentLocale()): string {
   return money(cents, true, locale);

@@ -11,6 +11,8 @@ export const landStrings: Record<string, string> = {
   'land.view.rotateLeft': 'Rotate view counter-clockwise',
   'land.view.rotateRight': 'Rotate view clockwise',
   'land.view.group': 'View rotation',
+  /** Task 24: the upright phone's one turn button (a tap turns right, a hold turns left). */
+  'land.view.turn': 'Turn view; hold to turn the other way',
   'land.tool.buyLand': 'Buy Land',
   'land.buy.hint': 'Drag over land for sale',
   'land.buy.hintTouch': 'Drag over land for sale, then Confirm',

@@ -23,6 +23,19 @@ import { offlineUi } from './offline';
 export interface UiPart {
   el: HTMLElement;
   update(now: number): void;
+  /**
+   * Task 24: a HUD part that the upright phone's one top row has no room for (the objectives flag) gives the Menu an
+   * item instead; null while it has nothing to show.
+   */
+  menuItem?(): MenuItem | null;
+}
+
+/** An item a HUD part adds to the upright phone's Menu (Task 24). The Menu closes before `onClick` runs. */
+export interface MenuItem {
+  label: string;
+  detail?: string;
+  testId: string;
+  onClick(): void;
 }
 
 /** A tool card (Phase 7 §4.4): in the deck that `deck` names, after the base cards, in registry order. */

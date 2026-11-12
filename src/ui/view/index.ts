@@ -1,12 +1,14 @@
 /**
  * View rotation and Buy Land (Phase 4 §4.8–4.9, §7). Owner: W3-G. Registered in `../extensions.ts`.
  * - HUD: the view controls, two round 44 × 44 rotate buttons (counter-clockwise, clockwise) at the right end of the chip
- *   row on all devices; keys `[` and `]` do the same.
+ *   row on the desktop and in the low layout; keys `[` and `]` do the same. The upright phone (Task 24) shows ONE turn
+ *   button instead (`view-turn`): a tap turns the view clockwise, a hold of `TURN_HOLD_MS` turns it counter-clockwise.
  * - Toolbar: the Buy Land tool button.
  * - Bar: while Buy Land is active, the hint or the total chip (tiles of land and rights, price, the reason when the
  *   rectangle cannot be bought), a legend of the ownership tints, and Confirm (touch rectangles) and Cancel.
  */
 import { LAND_ERR } from '../../data/strings/land';
+import { TURN_HOLD_MS } from '../../data/tuning/interface';
 import { text } from '../../data/strings/en';
 import { localizeReason } from '../../i18n';
 import { rotateView } from '../../input/camera';
@@ -14,6 +16,7 @@ import { buyLandSelection, cancelBuyLand, confirmBuyLand } from '../../input/lan
 import { buyLandQuote } from '../../sim/land/commands';
 import type { UiContext } from '../context';
 import { h, setText, toggleClass } from '../dom';
+import { compactTop } from '../mood/moodBar';
 import type { ToolbarEntry, UiExtension, UiPart } from '../extensions';
 import { formatMoney } from '../format';
 
@@ -43,6 +46,50 @@ const ROTATE_D = 'M19.5 12 A7.5 7.5 0 1 1 17 6.4 M19.5 3.5 V8.5 H14.5 M12 9 L15 
 /** A plot of land with a price tag. */
 const BUY_LAND_D = 'M3 15 L12 10.5 L21 15 L12 19.5 Z M12 3.5 H18 V8.5 L15 11 L12 8.5 Z M15 6 V6.2';
 
+/**
+ * The upright phone's one turn button (Task 24): a click (tap, Enter, Space) turns the view clockwise; a pointer held
+ * for `TURN_HOLD_MS` turns it counter-clockwise at once, and the click that may follow the release is ignored.
+ */
+function turnButton(turn: (dir: 1 | -1) => void): HTMLButtonElement {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let held = false;
+  const stop = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const label = text('land.view.turn');
+  const el = h(
+    'button',
+    {
+      type: 'button',
+      class: 'hud-btn view-rotate view-turn',
+      'data-testid': 'view-turn',
+      'aria-label': label,
+      title: label,
+      hidden: true,
+      onclick: () => {
+        if (held) held = false;
+        else turn(1);
+      },
+    },
+    lineIcon(ROTATE_D),
+  );
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    held = false;
+    stop();
+    timer = setTimeout(() => {
+      timer = null;
+      held = true;
+      turn(-1);
+    }, TURN_HOLD_MS);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'pointerleave'] as const) el.addEventListener(type, stop);
+  // A long press on a touch screen opens no context menu over the button.
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  return el;
+}
+
 function hud(ctx: UiContext): UiPart {
   const { game } = ctx;
   const turn = (dir: 1 | -1): void => rotateView(game.camera, game.world.state.map, dir);
@@ -56,8 +103,20 @@ function hud(ctx: UiContext): UiPart {
     { type: 'button', class: 'hud-btn view-rotate', 'data-testid': 'view-rotate-right', 'aria-label': text('land.view.rotateRight'), title: text('land.view.rotateRight'), onclick: () => turn(1) },
     lineIcon(ROTATE_D),
   );
-  const el = h('div', { class: 'view-controls', role: 'group', 'aria-label': text('land.view.group') }, left, right);
-  return { el, update() {} };
+  const one = turnButton(turn);
+  const el = h('div', { class: 'view-controls', role: 'group', 'aria-label': text('land.view.group') }, left, right, one);
+  let lastCompact: boolean | null = null;
+  return {
+    el,
+    update() {
+      const compact = compactTop(ctx.root);
+      if (compact === lastCompact) return;
+      lastCompact = compact;
+      left.hidden = compact;
+      right.hidden = compact;
+      one.hidden = !compact;
+    },
+  };
 }
 
 const buyLandEntry: ToolbarEntry = {

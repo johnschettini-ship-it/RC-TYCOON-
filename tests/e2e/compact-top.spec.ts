@@ -1,8 +1,8 @@
 /**
  * One compact top row on the phone (Phase 7 §4.1–4.3, Task 21): after the owner's test play the upright phone's top
- * region is one row (a slim status pill with cash and guests, the mood circle, the date chip, Menu) with Pause or the
- * Speed toggle, Messages and the two turn-view buttons as small round buttons under it at the right. Base (before this
- * task, new park at 100%, 390 × 844): `--hud-bottom` 162 px.
+ * region is one row (a slim status pill with cash and guests, the mood circle, the date chip, Menu). Base (before Task
+ * 21, new park at 100%, 390 × 844): `--hud-bottom` 162 px. Task 24 put Pause or the Speed toggle and ONE turn-view
+ * button into that row too (Messages moved into the Menu): `tests/e2e/single-top-row.spec.ts`.
  */
 import { expect, test, type Page } from '@playwright/test';
 import { TICKS_PER_HOUR } from '../../src/data/tuning/core';
@@ -95,10 +95,10 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     await expect
       .poll(() => page.evaluate(() => parseFloat(getComputedStyle(document.getElementById('ui') as HTMLElement).getPropertyValue('--hud-bottom'))))
       .toBeLessThanOrEqual(HUD_BOTTOM_MAX);
-    // `--hud-bottom` is the bottom of the buttons under the row: the legend strip and panels start below them.
+    // `--hud-bottom` is the bottom of the row (Task 24: one row): the legend strip and panels start below it.
     const hb = await page.evaluate(() => parseFloat(getComputedStyle(document.getElementById('ui') as HTMLElement).getPropertyValue('--hud-bottom')));
-    const rot = await boxOf(page, '[data-testid="view-rotate-right"]');
-    expect(Math.abs(hb - Math.ceil(rot.bottom))).toBeLessThanOrEqual(1);
+    const menu = await boxOf(page, '[data-testid="tool-menu"]');
+    expect(Math.abs(hb - Math.ceil(menu.bottom))).toBeLessThanOrEqual(1);
   });
 
   test('the mood circle is a 44 × 44 round button in the leading colour with its share as text (no face since Task 23)', async ({ page }) => {
@@ -139,23 +139,24 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     await circle.tap();
     await expect(circle).toHaveAttribute('aria-pressed', 'true');
     expect(await overlay()).toBe('temperament');
-    // The legend strip sits under the region (below the buttons under the row).
+    // The legend strip sits under the region (below the row).
     const strip = await boxOf(page, '[data-testid="overlay-legend"]');
-    const rot = await boxOf(page, '[data-testid="view-rotate-right"]');
-    expect(strip.top).toBeGreaterThanOrEqual(rot.bottom);
+    const menu = await boxOf(page, '[data-testid="tool-menu"]');
+    expect(strip.top).toBeGreaterThanOrEqual(menu.bottom);
     await circle.tap();
     await expect(circle).toHaveAttribute('aria-pressed', 'false');
     expect(await overlay()).toBe('none');
   });
 
-  test('the date chip shows the month and clock without the year; its name holds the year; the weather press shows the forecast', async ({ page }) => {
+  test('the date chip shows the hour without the month and year (Task 24); its name holds them; the weather press shows the forecast', async ({ page }) => {
     await park(page);
     await setSpeed(page, 'Pause', { tap: true });
     await page.evaluate((tick) => {
       (window as unknown as { __tc: { world: { state: { tick: number } } } }).__tc.world.state.tick = tick;
     }, 9 * TICKS_PER_HOUR + 4);
-    await expect(page.getByTestId('hud-date')).toHaveText('Mar 09:00');
+    await expect(page.getByTestId('hud-date')).toHaveText('09:00');
     await expect(page.getByTestId('day-pill')).not.toContainText('Year');
+    await expect(page.getByTestId('day-pill')).not.toContainText('Mar');
     await expect(page.getByTestId('day-pill')).toHaveAttribute('aria-label', 'Mar · Year 1 · 09:00');
     await expect(page.getByTestId('day-pill')).toHaveAttribute('title', 'Mar · Year 1 · 09:00');
     const weather = page.getByTestId('hud-weather');
@@ -163,17 +164,16 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     await expect(page.getByTestId('toast')).toHaveText((await weather.getAttribute('title')) ?? 'missing');
   });
 
-  test('Pause, Messages and the turn-view buttons are under the row at the right, 44 × 44 and 8 px apart; a press between them reaches the map', async ({ page }) => {
+  test('Pause, the turn-view button and Menu are at the right end of the row (Task 24), 44 × 44 and 8 px apart; a press between them reaches the map', async ({ page }) => {
     await park(page);
     const row = await boxOf(page, '[data-testid="status-pill"]');
-    const ids = ['speed-toggle', 'tool-messages', 'view-rotate-left', 'view-rotate-right'];
+    const ids = ['speed-toggle', 'view-turn', 'tool-menu'];
     const boxes = await Promise.all(ids.map((id) => boxOf(page, `[data-testid="${id}"]`)));
     boxes.forEach((b, i) => {
       expect(Math.abs(b.height - 44), ids[i]).toBeLessThanOrEqual(0.5);
       expect(b.width, ids[i]).toBeGreaterThanOrEqual(43.5);
       if (i > 0) expect(Math.abs(b.width - 44), ids[i]).toBeLessThanOrEqual(0.5);
-      expect(b.top, `${ids[i]} under the row`).toBeGreaterThanOrEqual(row.bottom);
-      expect(oneRow(b, boxes[0]!), `${ids[i]} on one line`).toBe(true);
+      expect(oneRow(b, row), `${ids[i]} on the row`).toBe(true);
       if (i > 0) {
         const gap = b.left - boxes[i - 1]!.right;
         expect(gap, `gap before ${ids[i]}`).toBeGreaterThanOrEqual(7.9);
@@ -181,15 +181,17 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
       }
     });
     // At the right edge (8 px side gutter).
-    expect(Math.abs(boxes[3]!.right - (390 - 8))).toBeLessThanOrEqual(1);
-    // No plate: a press in each gap between them, and left of them, reaches the canvas.
+    expect(Math.abs(boxes[2]!.right - (390 - 8))).toBeLessThanOrEqual(1);
+    // No plate: a press in each gap between them, and left of them (after the chip), reaches the canvas.
+    const chip = await boxOf(page, '[data-testid="day-pill"]');
     const points = boxes.slice(1).map((b, i) => ({ x: (boxes[i]!.right + b.left) / 2, y: (b.top + b.bottom) / 2 }));
-    points.push({ x: boxes[0]!.left - 30, y: (boxes[0]!.top + boxes[0]!.bottom) / 2 });
+    points.push({ x: (chip.right + boxes[0]!.left) / 2, y: (boxes[0]!.top + boxes[0]!.bottom) / 2 });
     for (const p of points) {
       expect(await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.id, p), `${p.x},${p.y}`).toBe('game');
     }
-    // Messages opens its panel; the turn-view button turns the view.
-    await page.getByTestId('tool-messages').tap();
+    // Messages (a Menu item since Task 24) opens its panel.
+    await page.getByTestId('tool-menu').tap();
+    await page.getByTestId('menu-messages').tap();
     await expect(page.locator('.panel[data-kind=messages]')).toBeVisible();
   });
 
@@ -226,7 +228,7 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
       return out;
     });
     expect(problems).toEqual([]);
-    for (const id of ['status-pill', 'hud-balance', 'hud-weather', 'tool-menu', 'speed-toggle', 'tool-messages', 'view-rotate-left', 'view-rotate-right']) {
+    for (const id of ['status-pill', 'hud-balance', 'hud-weather', 'tool-menu', 'speed-toggle', 'view-turn']) {
       await expect(page.getByTestId(id), id).toBeInViewport();
     }
   });

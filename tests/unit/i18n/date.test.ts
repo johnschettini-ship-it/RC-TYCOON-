@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { en } from '../../../src/data/strings/en';
 import { setLocale } from '../../../src/data/strings/index';
 import { setActiveStrings } from '../../../src/data/strings/resolve';
-import { formatGameDate, formatGameDateShort, monthName } from '../../../src/i18n';
+import { formatClock, formatGameDate, monthName } from '../../../src/i18n';
 import { TICKS_PER_HOUR, TICKS_PER_MONTH } from '../../../src/data/tuning/core';
 import { MONTH_NAMES, formatDate } from '../../../src/sim/time';
 
@@ -14,13 +14,13 @@ afterEach(() => {
   setLocale('en');
 });
 
-describe('formatGameDateShort (Task 21, the phone date chip)', () => {
-  it('is the month and the clock, without the year', () => {
-    expect(formatGameDateShort(450)).toBe('Mar 09:00');
-    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 09:00'); // the hour only (owner: the minutes raced)
-    expect(formatGameDateShort(13 * TICKS_PER_MONTH + 450)).toBe('Apr 09:00');
+describe('the phone time chip (Task 21, Task 24: the hour only, `formatClock(tick, true)`)', () => {
+  it('is the hour, without the month and the year', () => {
+    expect(formatClock(450, true)).toBe('09:00');
+    expect(formatClock(9 * TICKS_PER_HOUR + 4, true)).toBe('09:00'); // the hour only (owner: the minutes raced)
+    expect(formatClock(13 * TICKS_PER_MONTH + 450, true)).toBe('09:00');
     setActiveStrings({ ...en, 'date.clock': '12' });
-    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 9:00 AM');
+    expect(formatClock(9 * TICKS_PER_HOUR + 4, true)).toBe('9:00 AM');
   });
 });
 

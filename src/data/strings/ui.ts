@@ -180,6 +180,9 @@ export const uiStrings: Record<string, string> = {
   'ui.menu.import': 'Import',
   'ui.menu.quit': 'Quit to title',
   'ui.menu.settings': 'Settings',
+  // Task 24: the upright phone's Menu holds Messages (with the unread count) and the objectives of a scenario.
+  'ui.menu.messages': 'Messages',
+  'ui.menu.messagesUnread': '{count} unread',
   'ui.slot.label': 'Slot {n}',
   'ui.slot.auto': 'Autosave',
   'ui.slot.empty': 'Empty',

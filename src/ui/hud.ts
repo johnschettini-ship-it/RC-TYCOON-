@@ -3,35 +3,36 @@
  * chip (weather, date and clock), the extension parts (the objectives flag right of the chip, the view controls at the
  * row's right end). The container and the chip row have no background; only their pills and buttons take pointer events.
  *
- * The upright phone (Task 21, not the low layout) has one compact row: the status pill (cash and guests), the mood
- * circle, the day chip (month and clock) and Menu; under it at the right, with no plate, the Speed button, Messages and
- * the view controls. The parts move between the containers only when that mode changes, so the focus order follows the
- * rows.
+ * The upright phone (Task 24, not the low layout) has ONE row: the status pill (cash and guests), the mood circle, the
+ * time chip (weather icon and the hour), the Speed button, the one turn-view button and Menu. Messages and the objectives
+ * flag are Menu items there (the chip row is hidden), and a dot on Menu shows unread messages. The parts move between
+ * the containers only when that mode changes, so the focus order follows the row.
  */
 import { text } from '../data/strings/en';
 import type { Speed } from '../loop';
-import { formatGameDate, formatGameDateShort } from '../i18n';
+import { formatClock, formatGameDate } from '../i18n';
+import { t } from '../data/strings/index';
 import { unreadCount } from '../sim/notifications';
 import type { TextScale } from '../settings/types';
 import type { UiContext } from './context';
 import { h, newId, setAttr, setText, toggleClass } from './dom';
-import { formatMoney } from './format';
+import { formatMoney, formatMoneyShort } from './format';
 import { icon } from './icons';
 import { pillFields, type PillField, type ToolbarPlacement } from './layout';
 import { compactTop, createMoodBar } from './mood/moodBar';
 import { mgmtIcon } from './management/icons';
 import { createWeatherBadge } from './management/weatherBadge';
-import { UI_EXTENSIONS } from './extensions';
+import { UI_EXTENSIONS, type MenuItem } from './extensions';
 
 const SPEEDS: readonly Speed[] = [0, 1, 2, 4];
 
-export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLElement; moodSlot: HTMLElement; update(now: number): void } {
+export function createHud(ctx: UiContext, openMenu: (extra: readonly MenuItem[]) => void): { el: HTMLElement; moodSlot: HTMLElement; update(now: number): void } {
   const { game } = ctx;
 
   // Status pill: one button that opens the Park panel. A hidden field is `hidden`, not removed.
   const name = h('span', { class: 'hud-name', 'data-testid': 'hud-name' });
   const cash = h('span', { class: 'hud-value', 'data-testid': 'hud-cash' });
-  // Task 21: the compact row shows whole dollars; screen readers get the full value from this span instead.
+  // Task 21, 24: the compact row shows whole dollars (K or M from $100,000); screen readers get the full value here.
   const cashFull = h('span', { class: 'sr-only', hidden: true });
   const guests = h('span', { class: 'hud-value', 'data-testid': 'hud-guests' });
   const rating = h('span', { class: 'hud-value', 'data-testid': 'hud-rating' });
@@ -84,10 +85,25 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     mgmtIcon('messages'),
     messagesBadge,
   );
+  // Task 24: on the upright phone a small dot on Menu shows unread messages (Messages is a Menu item there).
+  const menuDot = h('span', { class: 'menu-dot', 'data-testid': 'menu-dot', 'aria-hidden': 'true', hidden: true });
   const menu = h(
     'button',
-    { type: 'button', class: 'hud-btn', 'data-tool': 'menu', 'data-testid': 'tool-menu', 'aria-label': text('ui.tool.menu'), title: text('ui.tool.menu'), 'aria-haspopup': 'dialog', onclick: openMenu },
+    {
+      type: 'button',
+      class: 'hud-btn',
+      'data-tool': 'menu',
+      'data-testid': 'tool-menu',
+      'aria-label': text('ui.tool.menu'),
+      title: text('ui.tool.menu'),
+      'aria-haspopup': 'dialog',
+      onclick: (e: Event) => {
+        menuByPointer = (e as MouseEvent).detail !== 0;
+        openMenu(compactTop(ctx.root) ? menuItems() : []);
+      },
+    },
     icon('menu'),
+    menuDot,
   );
   const speedWrap = h('div', { class: 'speed-wrap' }, speedToggle, speedGroup);
   const controls = h('div', { class: 'hud-controls' }, speedWrap, messages, menu);
@@ -104,6 +120,36 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
   const dayRow = h('div', { class: 'hud-day' }, chip, ...chipParts, ...endParts);
 
   const el = h('header', { class: 'hud', role: 'region', 'aria-label': text('ui.hud.label') }, statusPill, moodSlot, controls, dayRow);
+
+  /**
+   * The upright phone's Menu items (Task 24): Messages with the unread count, then the parts' items (objectives). The
+   * dialog gives the focus back to Menu when it closes; after a pointer press an item leaves no focus there, as a pointer
+   * press on any top-region button does (`index.ts`), so Space pauses the game instead of opening the Menu again.
+   */
+  let menuByPointer = false;
+  const pointerBlur = (item: MenuItem): MenuItem => ({
+    ...item,
+    onClick: () => {
+      if (menuByPointer && document.activeElement === menu) menu.blur();
+      item.onClick();
+    },
+  });
+  const menuItems = (): MenuItem[] => {
+    const count = unreadCount(game.world);
+    const items: MenuItem[] = [
+      {
+        label: text('ui.menu.messages'),
+        detail: count > 0 ? text('ui.menu.messagesUnread', { count }) : undefined,
+        testId: 'menu-messages',
+        onClick: () => ctx.openPanel('messages'),
+      },
+    ];
+    for (const p of placed) {
+      const item = p.part.menuItem?.();
+      if (item) items.push(item);
+    }
+    return items.map(pointerBlur);
+  };
 
   // The phone's speed menu: a choice, Esc, or a press outside closes it; a layout change resets it.
   let speedOpen = false;
@@ -137,22 +183,20 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     if (speedOpen && !(e.target instanceof Node && speedGroup.parentElement?.contains(e.target))) setSpeedOpen(false);
   });
 
-  // Task 21: the compact row puts the chip between the mood circle and Menu, and the Speed button and Messages in the row
-  // under it, before the view controls. With large text (above 100%) the chip leads the row under it instead, so Menu
-  // stays in the top row. Called only when the mode or the text scale changes.
-  let lastArrange = '';
-  const arrange = (compact: boolean, large: boolean): void => {
-    if (compact && !large) {
+  // Task 24: the upright phone's one row is the pill, the mood circle, the chip, then the Speed button, the view controls
+  // (one turn button there) and Menu; the chip row (the objectives flag and Messages, both Menu items there) is hidden.
+  // At large text the row wraps (the controls stay together at the right). Called only when the mode changes.
+  let lastArrange: boolean | null = null;
+  const arrange = (compact: boolean): void => {
+    if (compact) {
       el.insertBefore(chip, controls);
-      controls.replaceChildren(menu);
-      dayRow.replaceChildren(...chipParts, speedWrap, messages, ...endParts);
-    } else if (compact) {
-      controls.replaceChildren(menu);
-      dayRow.replaceChildren(chip, ...chipParts, speedWrap, messages, ...endParts);
+      controls.replaceChildren(speedWrap, ...endParts, menu);
+      dayRow.replaceChildren(...chipParts, messages);
     } else {
       controls.replaceChildren(speedWrap, messages, menu);
       dayRow.replaceChildren(chip, ...chipParts, ...endParts);
     }
+    dayRow.hidden = compact;
     cashFull.hidden = !compact;
     setAttr(cash, 'aria-hidden', compact ? 'true' : null);
     if (!compact) {
@@ -181,10 +225,10 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
       }
       const compact = compactTop(ctx.root);
       const textScale = game.settings.get('textScale') as TextScale;
-      const arrangeKey = `${compact}:${textScale > 100}`;
-      if (arrangeKey !== lastArrange) {
-        lastArrange = arrangeKey;
-        arrange(compact, textScale > 100);
+      if (compact !== lastArrange) {
+        lastArrange = compact;
+        arrange(compact);
+        lastUnread = -1;
       }
       const shown = pillFields(layout, textScale, compact);
       const key = shown.join();
@@ -199,12 +243,12 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
       setText(rating, String(s.park.rating));
       const dateText = formatGameDate(s.tick, true);
       if (compact) {
-        // Whole dollars in the pill; the full value is in its name and title. The year is in the chip's name and title.
-        const whole = Math.trunc(s.park.cash / 100) * 100 || 0;
-        setText(cash, formatMoney(whole));
+        // Whole dollars in the pill; the full value is in its name and title. The chip shows the hour; the month and year
+        // are in its name and title (Task 24).
+        setText(cash, formatMoneyShort(s.park.cash));
         setText(cashFull, cashText);
         setAttr(statusPill, 'title', text('ui.hud.pillCompact', { cash: cashText, guests: s.guests.length }));
-        setText(date, formatGameDateShort(s.tick));
+        setText(date, formatClock(s.tick, true));
         setAttr(chip, 'aria-label', dateText);
         setAttr(chip, 'title', dateText);
       } else {
@@ -233,6 +277,11 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
         const label = unread > 0 ? text('ui.tool.messagesUnread', { count: unread }) : text('ui.tool.messages');
         setAttr(messages, 'aria-label', label);
         setAttr(messages, 'title', label);
+        const dot = compact && unread > 0;
+        menuDot.hidden = !dot;
+        const menuLabel = dot ? t('ui.tool.menuUnread', { n: unread }) : text('ui.tool.menu');
+        setAttr(menu, 'aria-label', menuLabel);
+        setAttr(menu, 'title', menuLabel);
       }
       mood.update(now);
     },

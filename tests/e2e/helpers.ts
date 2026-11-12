@@ -98,7 +98,8 @@ async function nextFrames(page: Page): Promise<void> {
 
 /**
  * Press the control of an old toolbar id. `inspect` has no control: Put back (or Esc) selects it. `rides` and `stalls`
- * open their deck when the hand does not show it (they never close an open deck).
+ * open their deck when the hand does not show it (they never close an open deck). `messages` on the upright phone is
+ * the Menu's Messages item (Task 24).
  */
 export async function openTool(page: Page, id: string, opts: PressOptions = {}): Promise<void> {
   if (id === 'rides' || id === 'stalls') {
@@ -119,6 +120,13 @@ export async function openTool(page: Page, id: string, opts: PressOptions = {}):
     if ((await back.count()) === 1 && (await back.isVisible())) await press(back, opts);
     else await page.keyboard.press('Escape');
     await expect.poll(() => page.evaluate(() => (window as unknown as { __tc: { tool: { tool: string } } }).__tc.tool.tool)).toBe('inspect');
+    return;
+  }
+  if (id === 'messages' && !(await page.locator('[data-tool="messages"]').isVisible())) {
+    // Task 24: the upright phone has Messages in the Menu (same input kind for both presses).
+    await press(page.getByTestId('tool-menu'), opts);
+    await press(page.getByTestId('menu-messages'), opts);
+    await nextFrames(page);
     return;
   }
   await press(await toolControl(page, id, opts), opts);

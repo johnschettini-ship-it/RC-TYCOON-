@@ -1,7 +1,7 @@
 # Phase 7 — Interface ("Frost and Spark")
 
 - **Build:** 4. No save schema change. Settings document version 2.
-- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.10, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft; 4.1 and 4.2 also describe the day chip and the view controls that replaced the day pill after the owner's test play; 4.1, 4.2 and 4.3 also describe the upright phone's compact top row with the mood circle and the date chip (Task 21, after the owner's test play).
+- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.10, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft; 4.1 and 4.2 also describe the day chip and the view controls that replaced the day pill after the owner's test play; 4.1, 4.2 and 4.3 also describe the upright phone's compact top row with the mood circle and the date chip (Task 21, after the owner's test play), made a single row with one turn-view button and Messages in the Menu (Task 24).
 - **Master spec:** `../2026-11-09-thrills-and-chills-design.md`.
 - **Approved draft pictures:** `../../../screenshots/phase-7-draft-desktop.png` (1280 × 800) and `../../../screenshots/phase-7-draft-phone.png` (390 × 844).
 
@@ -74,6 +74,25 @@ Rules:
 #### Compact top row on the upright phone
 Added after the owner's test play (Task 21; the owner chose the design "One row, compact"). It holds on the upright phone (`data-layout="bottom"` without `data-low`); the desktop and the low layout keep their top region.
 
+> **One top row (owner decision, 2026-11-12, Task 24).** The owner said "have single row top card" and chose "Merge turn buttons". The upright phone's top region is now ONE row, and items 1–5 below are history where they differ:
+>
+> ```
+> │ $19,983  (◐)  [☀ 11:00]  (1×)  (⟳)  (≡•) │
+> │ 👤0                                      │   ← inside the pill, under the cash
+> ```
+>
+> 1. **One row**, left to right, 8 px apart: the status pill (the cash over the guests, so the pill is as narrow as the cash), the mood circle, the time chip, the Speed button (Pause / `1×` …, its menu as before), ONE turn-view button and Menu. Every control is 44 × 44 px (the pill and the chip are 44 px high targets); the plate is at most 52 px. Nothing is under the row: `--hud-bottom` is the bottom of the row, **52 px** at 390 × 844 and 100% text (104 px before, 162 px before Task 21).
+> 2. **Time chip:** the weather icon and the hour only ("11:00"; the forecast icon is not shown, the forecast stays in the weather button's name, title and press); the month and year are in the chip's accessible name and title ("Mar · Year 1 · 11:00"). The weather button covers the whole chip, so the chip is one 44 px high target as narrow as its icon and hour. Test ids `day-pill`, `hud-weather`, `hud-date` stay.
+> 3. **Cash:** whole dollars below $100,000 ("$19,983"); from $100,000 three significant digits with K, M or B, cut and never rounded up ("$199K", "$1.23M"; `formatMoneyShort`). The full value stays in the pill's accessible name and title. At 390 px the six parts fit one line with any cash.
+> 4. **One turn-view button** (`view-turn`): a tap (or Enter, Space) turns the view clockwise, as the right rotate button did; a press held for 500 ms (`TURN_HOLD_MS`) turns it counter-clockwise at once (the click after the release is ignored; no context menu). Its accessible name and title: "Turn view; hold to turn the other way". The keys `[` and `]` stay. The two rotate buttons (`view-rotate-left`, `view-rotate-right`) stay on the desktop and in the low layout and are hidden on the upright phone.
+> 5. **Messages in the Menu:** the Menu dialog starts with Resume, then **Messages** with the unread count as its second line ("3 unread"), which opens the Messages panel as before. While messages are unread a small dot (`menu-dot`, gold with an ink ring) sits on the Menu button, and its name is "Menu, 3 unread messages" (one: "Menu, 1 unread message"). The Messages button (`tool-messages`, with `messages-badge`) stays on the desktop and in the low layout.
+> 6. **Objectives flag:** a scenario's flag moved into the Menu too (an **Objectives** item after Messages, `menu-objectives`), so a scenario keeps the single row; it opens the objectives panel as the flag does. The flag (`hud-objectives`) stays on the desktop and in the low layout.
+> 7. **Large text:** at 150% and 175% the row wraps (the controls stay together at the right); at 175% with `en-XA` nothing is clipped and every control can be reached.
+> 8. **Build mode** (Task 22) needs nothing more here: Messages and the flag are not in the row.
+> 9. **Order:** `hud.ts` moves the parts when the mode changes (not per frame): pill, mood circle, chip, Speed, the turn button, Menu. The chip row (`.hud-day`, holding the flag and Messages there) is hidden.
+>
+> The desktop and the low layout do not change.
+
 ```
 ┌────────────────────────────────────────┐
 │ $14,994 👤0  (😊48)  [☀ Mar 9:04]   (≡) │
@@ -105,7 +124,7 @@ Added after the owner's test play (Task 20; the owner chose these designs). They
 Added after the owner's test play (Task 22; the owner asked for this). **Build mode** is the state of the interface while the track builder is open: its station step and its piece and gate steps, on every layout (`buildModeOn`, `src/ui/track/builder.ts`). The UI root then has `data-build-mode="1"` (no such attribute otherwise).
 
 1. **No cards:** build mode hides the deck list (the chips row on the phone and in the low layout) and the hand, on every layout. While it is on the hand cannot open (a deck chosen by code stays tucked). Both come back when the builder closes (Done, close, Cancel, a finished ride, Esc). `--toolbar-space` (and `--chips-space` in the low layout) is then 0, so the builder sits at the bottom of the window with the safe area below its controls. A keyboard focus in the hand moves to the builder.
-2. **Top region:** on the phone and in the low layout the top row, the Speed or Pause button and the view rotate buttons stay; Messages and a scenario's objectives flag are hidden while building and come back after. The desktop keeps its whole top region; its station builder beside the card details panel moves to the left edge, where the deck list was.
+2. **Top region:** on the phone and in the low layout the top row, the Speed or Pause button and the view rotate buttons stay; Messages and a scenario's objectives flag are hidden while building and come back after. (Task 24: on the upright phone they are Menu items, so the single row stays as it is while building.) The desktop keeps its whole top region; its station builder beside the card details panel moves to the left edge, where the deck list was.
 3. **Builder:** the station step is the slim row (below, item 1); the piece step is the condensed panel (below, item 3) on the phone and in the low layout; the desktop panel is as before.
 4. **A piece that cannot be built:** while the selected piece's ghost shows ✕, Build is disabled and the reason is its accessible description (`aria-describedby` to the reason line, `track-reason`). Build, Enter and a click on the ghost do nothing then (`blockedReason`, `buildSelected`): no command is sent, so no toast repeats the reason. A failed command whose reason the builder already shows is not toasted either; other toasts still show. The "can it be built" answer is the piece ghost of the sim's preview; the rules do not change.
 
@@ -130,15 +149,15 @@ Added after the owner's test play (Task 19; the owner chose this design). A wind
 **Day chip** (`data-testid="day-pill"`; after the owner's test play the wide day pill became this chip). A slim pill that holds only the weather badge and the date and clock (`hud-date`).
 - At text scale 100% the visible plate is at most 36 px high and as wide as its content (at most 200 px with `Mar · Year 1 · 17:00`); font `calc(13px * var(--ts, 1))`; weather icon 20 px, forecast icon 12 px; surface, ink outline, full radius.
 - The weather badge (`hud-weather`) is a 44 × 44 px button that reaches past the plate's edges (transparent there). Its name is the weather text only, not the date. A press shows the forecast as a toast.
-- Upright phone (compact top row, Task 21): the chip shows the month and the clock, "Mar 09:04" (`date.short`); the year is in the chip's accessible name and title (the chip is a group named with the whole date, "Mar · Year 1 · 09:04").
+- Upright phone (compact top row, Task 21): the chip shows the month and the clock, "Mar 09:04" (`date.short`); the year is in the chip's accessible name and title (the chip is a group named with the whole date, "Mar · Year 1 · 09:04"). Task 24: the chip shows the hour only, "09:00", with one weather icon; the month is in the name and title too (section 4.1).
 
-**Objectives flag** (scenario, `hud-objectives`): directly right of the day chip, 8 px from it.
+**Objectives flag** (scenario, `hud-objectives`): directly right of the day chip, 8 px from it. On the upright phone it is the Menu's Objectives item (Task 24).
 
-**View controls** (`.view-controls`): the two view rotate buttons, round 44 × 44 px buttons 8 px apart with the look of the other round buttons of the top region. The view module builds them; `createHud` places them at the right end of the chip row (`UiExtension.hudSlot: 'end'`). Every other `UiExtension.hud` part sits in the `chip` slot, right of the day chip.
+**View controls** (`.view-controls`): the two view rotate buttons, round 44 × 44 px buttons 8 px apart with the look of the other round buttons of the top region; on the upright phone one turn-view button instead (tap: clockwise, hold: counter-clockwise; Task 24, section 4.1). The view module builds them; `createHud` places them at the right end of the chip row (`UiExtension.hudSlot: 'end'`). Every other `UiExtension.hud` part sits in the `chip` slot, right of the day chip.
 
 **Controls.**
 - Speed: the same 4 buttons in the same group named "Game speed". On a phone, one Speed button shows the current speed (pause icon, `1×`, `2×`, or `4×`); its name is the name of that speed ("Pause", "Speed 2×"). It opens the group as a small menu. A choice or `Esc` closes the menu; when the focus was in the menu, it goes back to the Speed button.
-- Messages: a button with the unread badge (`messages-badge`). It opens the Messages panel.
+- Messages: a button with the unread badge (`messages-badge`). It opens the Messages panel. On the upright phone it is a Menu item with the unread count, and a dot on Menu shows unread messages (Task 24).
 - Menu: opens the existing menu dialog.
 
 ### 4.3 Mood bar
@@ -368,7 +387,7 @@ None added. None changed. The UI sends the same commands as today.
 | Mood bar | `src/ui/mood/moodBar.ts` | The bar, the faces, the overlay toggle; the mood circle of the upright phone (Task 21). |
 | Tip model | `src/ui/tips/model.ts` | Pure. The 3 rules and the closed-tip rule. |
 | Tip bubble | `src/ui/tips/bubble.ts` | The bubble with a small face, its button, and its hide rules. |
-| Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, chip row (day chip; places the extension parts by `hudSlot`); the compact top row of the upright phone (Task 21). |
+| Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, chip row (day chip; places the extension parts by `hudSlot`); the compact top row of the upright phone (Task 21), a single row with Messages and the objectives in the Menu (Task 24). |
 | Tuning | `src/data/tuning/interface.ts` | The constants of section 8. |
 | Strings | `src/data/strings/interface.ts` | The texts of section 9. |
 
