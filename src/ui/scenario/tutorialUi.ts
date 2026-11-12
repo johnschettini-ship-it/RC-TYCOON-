@@ -1,5 +1,6 @@
 /**
- * Tutorial bubbles (Phase 5 §4.11, §7; Phase 7 §4.11): Frost and Spark speak in a bubble near the HUD; a ring
+ * Tutorial bubbles (Phase 5 §4.11, §7; Phase 7 §4.11): each step shows in a bubble near the HUD (no mascot face or
+ * speaker name since Task 23; the steps' `guide` field is not shown); a ring
  * highlights the target element (`data-tutorial-target`); text says "click" or "tap" after the last pointer type; the
  * bubble moves to the half of the screen away from the target so it never covers it. The `ui` checks (Next, camera, zoom, guest panel,
  * finance panel) are measured here and sent as `tutorialAdvance`. Owner: W3-I. Browser only.
@@ -12,7 +13,6 @@ import type { UiContext } from '../context';
 import { confirmDialog } from '../dialogs';
 import type { UiPart } from '../extensions';
 import { h, setAttr, setText } from '../dom';
-import { mascotCanvas } from './mascotArt';
 import { actVerb, cameraTiles } from './model';
 import { lastPointer, modalOpen } from './shared';
 
@@ -51,11 +51,9 @@ const runOf = (world: World): TutorialRun | null => (world.state.scenario.kind =
 
 export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; ring: HTMLElement } {
   const { game, root } = ctx;
-  const who = h('span', { class: 'tc-bubble-who', 'data-testid': 'tutorial-guide' });
   const title = h('span', { class: 'tc-bubble-title', 'data-testid': 'tutorial-title' });
   const hint = h('span', { class: 'tc-bubble-hint', 'data-testid': 'tutorial-hint' });
-  const counter = h('span', { class: 'tc-bubble-who', 'data-testid': 'tutorial-step' });
-  const art = h('div', { class: 'tc-bubble-art' });
+  const counter = h('span', { class: 'tc-bubble-step', 'data-testid': 'tutorial-step' });
   const next = h('button', { type: 'button', class: 'btn primary', 'data-testid': 'tutorial-next', text: text('prog.tutorial.next'), onclick: () => advance('welcome') });
   const skipStep = h('button', { type: 'button', class: 'btn', 'data-testid': 'tutorial-skip-step', text: text('prog.tutorial.skipStep'), onclick: () => game.dispatch({ type: 'tutorialSkipStep' }) });
   const skipAll = h('button', {
@@ -69,15 +67,13 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
   const el = h(
     'aside',
     { class: 'tc-bubble', role: 'dialog', 'aria-live': 'polite', 'aria-label': text('prog.tutorial.label'), 'data-testid': 'tutorial-bubble', hidden: true },
-    art,
-    h('div', { class: 'tc-bubble-text' }, h('div', { class: 'tc-row' }, who, counter), title, hint),
+    h('div', { class: 'tc-bubble-text' }, counter, title, hint),
     h('div', { class: 'tc-bubble-actions' }, skipAll, skipStep, next, close),
   );
   const ring = h('div', { class: 'tc-ring', 'aria-hidden': 'true', hidden: true });
 
   let shownWorld: World | null = null;
   let shownStep = -1;
-  let shownGuide = '';
   /** The world whose tutorial just finished: its finale bubble shows until Close. */
   let finaleWorld: World | null = null;
   let target: Element | null = null;
@@ -117,15 +113,6 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
     current = TUTORIAL_STEPS[run.stepIndex] ?? null;
     cam0 = { x: game.camera.centerX, y: game.camera.centerY, zoom: game.camera.zoom };
     setTarget(null);
-  }
-
-  function setGuide(guide: 'frost' | 'spark' | 'both', mood: 'happy' | 'sad'): void {
-    const key = `${guide}:${mood}`;
-    if (key === shownGuide) return;
-    shownGuide = key;
-    art.replaceChildren(mascotCanvas(guide, mood, 56, text(`prog.tutorial.${guide}`)));
-    setAttr(el, 'data-guide', guide);
-    setText(who, text(`prog.tutorial.${guide}`));
   }
 
   /** The `ui` checks of the current step. */
@@ -172,7 +159,6 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
         // Finale after step 16.
         current = null;
         setTarget(null);
-        setGuide('both', 'happy');
         setText(title, text('prog.tutorial.doneTitle'));
         setText(hint, text('prog.tutorial.doneText'));
         setText(counter, '');
@@ -187,7 +173,6 @@ export function createTutorialUi(ctx: UiContext): UiPart & { finished(): void; r
       const step = current;
       if (!step) return;
       setTarget(resolveTarget());
-      setGuide(step.guide, 'happy');
       setText(title, text(`prog.tutorial.step.${step.id}`));
       setText(hint, hintOf(step, pointer));
       setText(counter, text('prog.tutorial.stepOf', { n: run.stepIndex + 1, total: TUTORIAL_STEP_COUNT }));

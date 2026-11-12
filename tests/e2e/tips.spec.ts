@@ -1,6 +1,6 @@
 /**
- * Mascot tips (Phase 7 §4.8): one tip at a time in a bubble with a small face; its button opens the place the tip
- * names; Close hides it; the Mascot tips setting, an open menu, the Tutorial, and a held card hide it.
+ * Tips (Phase 7 §4.8): one tip at a time in a bubble (no mascot face since Task 23); its button opens the place the tip
+ * names; Close hides it; the Tips setting, an open menu, the Tutorial, and a held card hide it.
  */
 import { expect, test } from '@playwright/test';
 import { newPark, openTool, pickCard } from './helpers';
@@ -28,7 +28,7 @@ test('negative cash shows cashLow first; Open Finance opens the Finance panel', 
   await expect(page.locator('.panel-title')).toHaveText(/Finance/);
 });
 
-test('the Mascot tips setting turns the tips off', async ({ page }) => {
+test('the Tips setting turns the tips off', async ({ page }) => {
   await newPark(page, 'Tip Park');
   await expect(page.getByTestId('tip')).toBeVisible({ timeout: 4000 });
   await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: boolean): boolean } } }).__tc.settings.set('mascotTips', false));
@@ -62,7 +62,7 @@ test('a held card hides the tip; putting it back shows the tip again', async ({ 
   await expect(tip).toHaveAttribute('data-tip', 'noRide');
 });
 
-test('underServed: Spark asks for Thrill rides; Show Thrill rides opens the Rides deck at the Thrill zone', async ({ page }) => {
+test('underServed: the tip asks for Thrill rides; Show Thrill rides opens the Rides deck at the Thrill zone', async ({ page }) => {
   await newPark(page, 'Tip Park');
   // One open Chill ride and 25 Thrill guests: the Thrill share is 100%, its share of open rides 0% (rule 3).
   await page.evaluate(() => {
@@ -93,8 +93,8 @@ test('underServed: Spark asks for Thrill rides; Show Thrill rides opens the Ride
   const tip = page.getByTestId('tip');
   await expect(tip).toHaveAttribute('data-tip', 'underServed.thrill', { timeout: 6000 });
   await expect(tip).toBeVisible();
-  await expect(tip).toHaveAttribute('data-speaker', 'spark');
-  await expect(page.getByTestId('tip-text')).toHaveText('My Thrill guests need a wild ride');
+  await expect(tip).not.toHaveAttribute('data-speaker', /./);
+  await expect(page.getByTestId('tip-text')).toHaveText('Thrill guests need a wild ride');
   const action = page.getByTestId('tip-action');
   await expect(action).toHaveText('Show Thrill rides');
   // Another deck is open: the button opens the Rides deck, which starts at its first card, then goes to the zone.

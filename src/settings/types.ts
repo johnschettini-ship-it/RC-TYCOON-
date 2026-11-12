@@ -40,7 +40,7 @@ export interface SettingsValues {
   // ---- Gameplay ----
   autosave: boolean;
   confirmDemolish: boolean;
-  /** Frost and Spark give short tips (Phase 7). Added in version 2. */
+  /** Short tips (Phase 7; labelled "Tips" since the mascots were removed in Task 23, key kept). Added in version 2. */
   mascotTips: boolean;
   unlockAllScenarios: boolean;
   // ---- Offline (Phase 6 §4.10, W4-G) ----

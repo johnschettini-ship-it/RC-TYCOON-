@@ -213,7 +213,6 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     { class: 'tc-view' },
     h('h2', { class: 'dialog-title', text: text('prog.credits.title') }),
     h('p', { text: text('prog.credits.text') }),
-    h('p', { class: 'tc-muted', text: text('prog.credits.mascots') }),
     h('button', { type: 'button', class: 'btn big', text: text('ui.title.back'), onclick: () => showView('main') }),
   );
 

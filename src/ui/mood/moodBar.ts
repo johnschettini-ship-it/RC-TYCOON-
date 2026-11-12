@@ -1,10 +1,12 @@
 /**
- * Mood bar (Phase 7 §4.3): one button with Frost, three segments (Chill, Family, Thrill), a knot for the lean, and Spark.
- * It turns the Temperament overlay on and off. The portraits are decoration; the accessible name carries the data, and
- * the title the lean text. The percentages show in the segments on the desktop only.
+ * Mood bar (Phase 7 §4.3): one button with three segments (Chill, Family, Thrill) and a knot for the lean. It turns the
+ * Temperament overlay on and off. The accessible name carries the data, and the title the lean text. The percentages
+ * show in the segments on the desktop only. The two mascot faces at its ends were removed by the owner (Task 23): the
+ * track takes their width.
  *
- * The upright phone (Task 21, not the low layout) shows the same button as a 44 × 44 mood circle: the face of the group
- * that leads now and a counter with its share. Its name and title also hold the park rating.
+ * The upright phone (Task 21, not the low layout) shows the same button as a 44 × 44 mood circle: a plain round button
+ * in the colour of the group that leads now, with its share as large text (the Temperament icon with no guests). Its
+ * name and title also hold the park rating.
  */
 import { MOOD_UPDATE_MS } from '../../data/tuning/interface';
 import { text } from '../../data/strings/en';
@@ -12,15 +14,8 @@ import type { UiContext } from '../context';
 import { h, setAttr, setText, toggleClass } from '../dom';
 import type { UiPart } from '../extensions';
 import { sharePercents, temperamentShares } from '../format';
-import { mascotCanvas } from '../scenario/mascotArt';
-import { tipInput, underServedGroup } from '../tips/model';
-import { faceMoods, knotPercent, leadFace, leanTextId, segmentLabel, type LeadFace } from './model';
-
-/** Height of the two faces in CSS px, on both layouts (the plate is 44 px high at 100%). */
-const FACE_PX = 30;
-/** Height of the mood circle's face (one mascot), and of the pair shown when both lead together. */
-const LEAD_PX = 30;
-const LEAD_BOTH_PX = 20;
+import { icon } from '../icons';
+import { knotPercent, leadShare, leanTextId, segmentLabel } from './model';
 
 /** The upright phone's compact top row (Task 21): the phone layout, not the low one. */
 export function compactTop(root: HTMLElement): boolean {
@@ -34,10 +29,8 @@ export function createMoodBar(ctx: UiContext): UiPart {
   const segThrill = h('i', { class: 'seg seg-thrill' });
   const knot = h('i', { class: 'mood-knot', 'aria-hidden': 'true' });
   const track = h('span', { class: 'mood-track' }, segChill, segFamily, segThrill, knot);
-  const frostSlot = h('span', { class: 'mood-face', 'aria-hidden': 'true' });
-  const sparkSlot = h('span', { class: 'mood-face', 'aria-hidden': 'true' });
-  // The mood circle's parts (shown on the upright phone only, by CSS).
-  const leadSlot = h('span', { class: 'mood-lead', 'aria-hidden': 'true' });
+  // The mood circle's parts (shown on the upright phone only, by CSS): the leading share, or the icon with no guests.
+  const emptyIcon = icon('temperament', 'icon mood-empty');
   const count = h('span', { class: 'mood-count', 'data-testid': 'mood-count', 'aria-hidden': 'true', hidden: true });
   const el = h(
     'button',
@@ -51,10 +44,8 @@ export function createMoodBar(ctx: UiContext): UiPart {
         game.tool.overlay = game.tool.overlay === 'temperament' ? 'none' : 'temperament';
       },
     },
-    frostSlot,
     track,
-    sparkSlot,
-    leadSlot,
+    emptyIcon,
     count,
   );
 
@@ -67,36 +58,6 @@ export function createMoodBar(ctx: UiContext): UiPart {
   for (const s of segs) s.el.append(s.num);
   /** The shift each percentage has now (written only when it changes). */
   const shifts = ['', '', ''];
-
-  // A portrait is drawn again only when its mood or its size changes.
-  const drawn = { frost: '', spark: '' };
-  const portrait = (who: 'frost' | 'spark', slot: HTMLElement, mood: 'happy' | 'sad', px: number): void => {
-    const key = `${mood}@${px}`;
-    if (drawn[who] === key) return;
-    drawn[who] = key;
-    slot.replaceChildren(mascotCanvas(who, mood, px, ''));
-    const c = slot.firstElementChild;
-    if (c) {
-      c.removeAttribute('role');
-      c.removeAttribute('aria-label');
-    }
-  };
-
-  // The circle's face is drawn again only when the leading mascot, its mood, or its size changes.
-  let leadKey = '';
-  const drawLead = (f: LeadFace): void => {
-    const px = f.who === 'both' ? LEAD_BOTH_PX : LEAD_PX;
-    const key = `${f.who}:${f.mood}@${px}`;
-    if (leadKey === key) return;
-    leadKey = key;
-    leadSlot.dataset.face = f.who;
-    leadSlot.replaceChildren(mascotCanvas(f.who, f.mood, px, ''));
-    const c = leadSlot.firstElementChild;
-    if (c) {
-      c.removeAttribute('role');
-      c.removeAttribute('aria-label');
-    }
-  };
 
   /** The accessible name: the guest mix and the lean text (and the park rating on the upright phone). */
   const nameOf = (shares: ReturnType<typeof temperamentShares>, p: ReturnType<typeof sharePercents>, lean: string, rating: number | null = null): string => {
@@ -127,8 +88,6 @@ export function createMoodBar(ctx: UiContext): UiPart {
       if (now - last < MOOD_UPDATE_MS) return;
       last = now;
       const phone = ctx.root.dataset.layout === 'bottom';
-      // The faces follow the rule of section 4.8, not the tip bubble: the tips setting does not matter.
-      const moods = faceMoods(underServedGroup(tipInput(game.world, true)));
       const shares = temperamentShares(game.world.state.guests);
       const p = sharePercents(shares);
       const lean = text(leanTextId(p, shares.total));
@@ -137,11 +96,10 @@ export function createMoodBar(ctx: UiContext): UiPart {
         const name = nameOf(shares, p, lean, game.world.state.park.rating);
         setAttr(el, 'aria-label', name);
         setAttr(el, 'title', name);
-        const f = leadFace(p, shares.total, moods);
-        drawLead(f);
+        const f = leadShare(p, shares.total);
         if (count.hidden !== (f.group === null)) count.hidden = f.group === null;
-        setText(count, f.group === null ? '' : String(f.share));
-        setAttr(count, 'data-group', f.group);
+        setText(count, f.group === null ? '' : text('ui.mood.percent', { n: f.share }));
+        setAttr(el, 'data-group', f.group);
         toggleClass(el, 'empty', shares.total === 0);
         return;
       }
@@ -169,8 +127,6 @@ export function createMoodBar(ctx: UiContext): UiPart {
       toggleClass(el, 'empty', shares.total === 0);
       const left = `${knotPercent(p)}%`;
       if (knot.style.left !== left) knot.style.left = left;
-      portrait('frost', frostSlot, moods.frost, FACE_PX);
-      portrait('spark', sparkSlot, moods.spark, FACE_PX);
     },
   };
 }

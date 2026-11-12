@@ -55,8 +55,8 @@ export const settingsStrings: Record<string, string> = {
   'settings.gameplay.autosaveDetail': 'Saves at the start of each game month',
   'settings.gameplay.confirmDemolish': 'Confirm demolish',
   'settings.gameplay.confirmDemolishDetail': 'Ask before removing anything',
-  'settings.gameplay.mascotTips': 'Mascot tips',
-  'settings.gameplay.mascotTipsDetail': 'Frost and Spark give short tips',
+  'settings.gameplay.mascotTips': 'Tips',
+  'settings.gameplay.mascotTipsDetail': 'Short tips when the park needs something',
   'settings.gameplay.offline': 'Offline play',
   'settings.gameplay.offlineDetail': 'Keep the game on this device so it starts without a connection',
 

@@ -1,5 +1,5 @@
 /**
- * Award toasts at month end with the fitting mascot (Phase 5 §4.10, §7) and the park panel awards section (active
+ * Award toasts at month end with a Chill or Thrill accent (Phase 5 §4.10, §7; no mascot face since Task 23) and the park panel awards section (active
  * awards and the whole history). Owner: W3-I. Browser only.
  */
 import { text } from '../../data/strings/en';
@@ -9,8 +9,7 @@ import type { UiContext } from '../context';
 import type { UiPart } from '../extensions';
 import { h, setText } from '../dom';
 import { section } from '../widgets';
-import { mascotCanvas } from './mascotArt';
-import { AWARD_MASCOT, monthLabel } from './model';
+import { AWARD_ACCENT, monthLabel } from './model';
 import { modalOpen } from './shared';
 
 const TOAST_MS = 4500;
@@ -31,12 +30,11 @@ export function createAwardToasts(): UiPart & { push(id: AwardId): void; clear()
     const id = showing;
     const positive = isPositiveAward(id);
     const name = text(`prog.award.${id}`);
-    const who = AWARD_MASCOT[id];
-    el.className = `tc-award-toast ${positive ? 'positive' : 'negative'} ${who}`;
+    const accent = AWARD_ACCENT[id];
+    el.className = `tc-award-toast ${positive ? 'positive' : 'negative'} ${accent}`;
     void el.offsetWidth; // restart the entry animation for each toast
     el.classList.add('enter');
     el.replaceChildren(
-      mascotCanvas(who, positive ? 'happy' : 'sad', 48, text(`prog.tutorial.${who}`)),
       h(
         'div',
         {},

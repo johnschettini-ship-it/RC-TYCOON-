@@ -22,7 +22,6 @@ import { confirmDialog, openDialog, type DialogHandle } from '../dialogs';
 import { h, newId, setText } from '../dom';
 import { formatMoney } from '../format';
 import { chipGroup } from './controls';
-import { mascotCanvas } from './mascotArt';
 import { deadlineText, endFacts, goalText, scenarioCards, startConditions, type ScenarioCard } from './model';
 import { downloadText, openTitle, progressStore, randomSeed, settings } from './shared';
 
@@ -385,7 +384,6 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
       const body = h(
         'div',
         { class: 'tc-view' },
-        h('div', { class: 'tc-end-art' }, mascotCanvas('both', won ? 'happy' : 'sad', 96, text(won ? 'prog.end.mascotsHappy' : 'prog.end.mascotsSad'))),
         result.endReason ? h('p', { class: 'tc-end-reason', text: text(`prog.end.reason.${result.endReason}`) }) : null,
         h('dl', { class: 'tc-facts', 'data-testid': 'end-facts' }, ...facts.flatMap((f) => [h('dt', { text: f.label }), h('dd', { text: f.value })])),
       );

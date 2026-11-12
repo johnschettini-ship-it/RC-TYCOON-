@@ -1,4 +1,4 @@
-/** Phase 7 interface strings: card decks, hand, mood, details, mascot tips. No final period. */
+/** Phase 7 interface strings: card decks, hand, mood, details, tips. No final period. */
 export const interfaceStrings: Record<string, string> = {
   'ui.deck.label': 'Card decks',
   'ui.deck.rides': 'Rides',
@@ -29,14 +29,14 @@ export const interfaceStrings: Record<string, string> = {
   'ui.details.hintDesktopTrack': 'Click the map to place the station, then build the track piece by piece',
   'ui.details.hintPhone': 'Tap the map, then press Confirm',
   'ui.details.hintPhoneTrack': 'Tap the map to move the station, then press Confirm',
-  'ui.tip.label': 'Mascot tip',
+  'ui.tip.label': 'Tip',
   'ui.tip.close': 'Close',
   'ui.tip.cashLow': 'Cash is below zero. Look at Finance',
   'ui.tip.cashLow.button': 'Open Finance',
   'ui.tip.noRide': 'Build a ride and open it. Guests come for rides',
   'ui.tip.noRide.button': 'Show rides',
-  'ui.tip.underServed.chill': 'My Chill guests need a calm ride',
+  'ui.tip.underServed.chill': 'Chill guests need a calm ride',
   'ui.tip.underServed.family': 'Family guests need a family ride',
-  'ui.tip.underServed.thrill': 'My Thrill guests need a wild ride',
+  'ui.tip.underServed.thrill': 'Thrill guests need a wild ride',
   'ui.tip.showZone': 'Show {zone} rides',
 };

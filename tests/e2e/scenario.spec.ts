@@ -177,7 +177,7 @@ test.describe('Scenario flow: desktop', () => {
     watch.expectNoErrors();
   });
 
-  test('award toasts with a mascot and the end screen pause the game', async ({ page }) => {
+  test('award toasts with a Chill or Thrill accent and the end screen pause the game', async ({ page }) => {
     const watch = watchErrors(page);
     await page.goto('/');
     await page.getByTestId('title-new').click();
@@ -189,10 +189,13 @@ test.describe('Scenario flow: desktop', () => {
     });
     const toast = page.getByTestId('award-toast');
     await expect(toast).toContainText('Award: Chill Haven!');
-    await expect(toast.locator('canvas[role=img]')).toHaveAttribute('aria-label', 'Frost');
+    // No mascot face since Task 23: the accent shows the group.
+    await expect(toast.locator('canvas')).toHaveCount(0);
+    await expect(toast).toHaveClass(/\bchill\b/);
     await toast.click();
     await expect(toast).toContainText('Bad award: Queue Nightmare');
-    await expect(toast.locator('canvas[role=img]')).toHaveAttribute('aria-label', 'Spark');
+    await expect(toast.locator('canvas')).toHaveCount(0);
+    await expect(toast).toHaveClass(/\bthrill\b/);
 
     // A scenario run that ends (state written through the debug hook; the sim sends the same event).
     await page.evaluate(() => {

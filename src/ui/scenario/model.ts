@@ -1,6 +1,6 @@
 /**
  * Pure view models for the scenario front end (Phase 5 §4.4, §4.7, §4.13, §7): goal texts and progress, deadlines,
- * scenario cards, start conditions, end-screen facts, award mascots, newest save. Owner: W3-I. No DOM.
+ * scenario cards, start conditions, end-screen facts, award accents, newest save. Owner: W3-I. No DOM.
  */
 import { text } from '../../data/strings/en';
 import { scenarioName } from '../contentName';
@@ -168,20 +168,20 @@ export function scenarioCards(defs: readonly ScenarioDef[], progress: Progress |
   });
 }
 
-/** Frost for Chill awards, Spark for Thrill awards (Phase 5 §7). */
-export const AWARD_MASCOT: Readonly<Record<AwardId, 'frost' | 'spark' | 'both'>> = {
-  spotlessPark: 'frost',
-  bestValue: 'spark',
-  thrillSeekersChoice: 'spark',
-  chillHaven: 'frost',
-  perfectBalance: 'both',
-  nightOwlsFavourite: 'frost',
-  litterbugPark: 'frost',
-  ripOffPark: 'spark',
-  queueNightmare: 'spark',
-  breakdownCentral: 'spark',
-  lostAndConfused: 'frost',
-  darkAndDreary: 'frost',
+/** The accent colour of an award toast: Chill or Thrill (Phase 5 §7; the mascot faces were removed in Task 23). */
+export const AWARD_ACCENT: Readonly<Record<AwardId, 'chill' | 'thrill' | 'family'>> = {
+  spotlessPark: 'chill',
+  bestValue: 'thrill',
+  thrillSeekersChoice: 'thrill',
+  chillHaven: 'chill',
+  perfectBalance: 'family',
+  nightOwlsFavourite: 'chill',
+  litterbugPark: 'chill',
+  ripOffPark: 'thrill',
+  queueNightmare: 'thrill',
+  breakdownCentral: 'thrill',
+  lostAndConfused: 'chill',
+  darkAndDreary: 'chill',
 };
 
 export interface EndFact {

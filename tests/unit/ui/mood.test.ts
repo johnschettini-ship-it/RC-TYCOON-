@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { faceMoods, knotPercent, lean, leadFace, leanTextId, segmentLabel } from '../../../src/ui/mood/model';
+import { knotPercent, lean, leadShare, leanTextId, segmentLabel } from '../../../src/ui/mood/model';
 
 const p = (chill: number, family: number, thrill: number) => ({ chill, family, thrill });
 
@@ -21,12 +21,6 @@ describe('mood model (Phase 7 §4.3)', () => {
     [p(0, 0, 100), 'ui.mood.thrill'],
   ])('%j gives %s', (shares, id) => expect(leanTextId(shares, 50)).toBe(id));
   it('no guests gives the no-guests text', () => expect(leanTextId(p(0, 0, 0), 0)).toBe('ui.mood.none'));
-  it('Frost is sad for Chill, Spark for Thrill; both are happy for Family and for no group', () => {
-    expect(faceMoods('chill')).toEqual({ frost: 'sad', spark: 'happy' });
-    expect(faceMoods('thrill')).toEqual({ frost: 'happy', spark: 'sad' });
-    expect(faceMoods('family')).toEqual({ frost: 'happy', spark: 'happy' });
-    expect(faceMoods(null)).toEqual({ frost: 'happy', spark: 'happy' });
-  });
   // A 300 px track: a percentage needs a 44 px room that the knot (6 px, and 2 px on each side) does not cover.
   it('a segment percentage sits in the middle of its segment when the knot is away from it', () => {
     expect(segmentLabel(p(30, 40, 30), 'chill', 300)).toEqual({ show: true, padStart: 0, padEnd: 0 });
@@ -48,21 +42,15 @@ describe('mood model (Phase 7 §4.3)', () => {
   });
 });
 
-describe('mood circle face (Task 21)', () => {
-  const happy = { frost: 'happy', spark: 'happy' } as const;
-  it('shows the leading group: Frost for Chill, Spark for Thrill, with the face rule mood', () => {
-    expect(leadFace(p(40, 30, 30), 10, happy)).toEqual({ who: 'frost', mood: 'happy', group: 'chill', share: 40 });
-    expect(leadFace(p(40, 30, 30), 10, { frost: 'sad', spark: 'happy' })).toEqual({ who: 'frost', mood: 'sad', group: 'chill', share: 40 });
-    expect(leadFace(p(20, 38, 42), 12, { frost: 'happy', spark: 'sad' })).toEqual({ who: 'spark', mood: 'sad', group: 'thrill', share: 42 });
+describe('mood circle share (Task 21; no face since Task 23)', () => {
+  it('shows the leading group and its share', () => {
+    expect(leadShare(p(40, 30, 30), 10)).toEqual({ group: 'chill', share: 40 });
+    expect(leadShare(p(20, 38, 42), 12)).toEqual({ group: 'thrill', share: 42 });
+    expect(leadShare(p(30, 40, 30), 10)).toEqual({ group: 'family', share: 40 });
   });
-  it('for Family shows the mascot the face rule makes sad, or both happy', () => {
-    expect(leadFace(p(30, 40, 30), 10, happy)).toEqual({ who: 'both', mood: 'happy', group: 'family', share: 40 });
-    expect(leadFace(p(30, 40, 30), 10, { frost: 'sad', spark: 'happy' })).toEqual({ who: 'frost', mood: 'sad', group: 'family', share: 40 });
-    expect(leadFace(p(30, 40, 30), 10, { frost: 'happy', spark: 'sad' })).toEqual({ who: 'spark', mood: 'sad', group: 'family', share: 40 });
-  });
-  it('ties go Chill, Family, Thrill; no guests shows both, happy, with no group', () => {
-    expect(leadFace(p(40, 40, 20), 5, happy).group).toBe('chill');
-    expect(leadFace(p(20, 40, 40), 5, happy).group).toBe('family');
-    expect(leadFace(p(0, 0, 0), 0, happy)).toEqual({ who: 'both', mood: 'happy', group: null, share: 0 });
+  it('ties go Chill, Family, Thrill; no guests has no group', () => {
+    expect(leadShare(p(40, 40, 20), 5).group).toBe('chill');
+    expect(leadShare(p(20, 40, 40), 5).group).toBe('family');
+    expect(leadShare(p(0, 0, 0), 0)).toEqual({ group: null, share: 0 });
   });
 });

@@ -24,11 +24,6 @@ export function leanTextId(p: SharePercents, totalGuests: number): LeanTextId {
   return 'ui.mood.balance';
 }
 
-/** Frost is sad while Chill is the under-served group, Spark while Thrill is; otherwise both are happy. */
-export function faceMoods(group: Group | null): { frost: 'happy' | 'sad'; spark: 'happy' | 'sad' } {
-  return { frost: group === 'chill' ? 'sad' : 'happy', spark: group === 'thrill' ? 'sad' : 'happy' };
-}
-
 /** A segment shows its percentage as text from this width on, and the text needs this much room (CSS px). */
 export const SEG_LABEL_PX = 44;
 /** Half the knot width (6 px) and 2 px of air on each side (CSS px). */
@@ -56,25 +51,17 @@ export function segmentLabel(p: SharePercents, group: Group, trackPx: number): {
   return hidden;
 }
 
-/** The face and counter of the phone's mood circle (Task 21): the group that leads now and its share. */
-export interface LeadFace {
-  /** Frost for Chill, Spark for Thrill; for Family the mascot the face rule makes sad, or both when neither is. */
-  who: 'frost' | 'spark' | 'both';
-  mood: 'happy' | 'sad';
+/** What the phone's mood circle shows (Task 21, Task 23): the group that leads now and its share. */
+export interface LeadShare {
   /** The leading group (ties go Chill, Family, Thrill); null with no guests. */
   group: Group | null;
   /** The leading group's share in percent (0 with no guests). */
   share: number;
 }
 
-export function leadFace(p: SharePercents, totalGuests: number, moods: { frost: 'happy' | 'sad'; spark: 'happy' | 'sad' }): LeadFace {
-  if (totalGuests <= 0) return { who: 'both', mood: 'happy', group: null, share: 0 };
+export function leadShare(p: SharePercents, totalGuests: number): LeadShare {
+  if (totalGuests <= 0) return { group: null, share: 0 };
   let group: Group = 'chill';
   for (const g of ['family', 'thrill'] as const) if (p[g] > p[group]) group = g;
-  const share = p[group];
-  if (group === 'chill') return { who: 'frost', mood: moods.frost, group, share };
-  if (group === 'thrill') return { who: 'spark', mood: moods.spark, group, share };
-  if (moods.frost === 'sad') return { who: 'frost', mood: 'sad', group, share };
-  if (moods.spark === 'sad') return { who: 'spark', mood: 'sad', group, share };
-  return { who: 'both', mood: 'happy', group, share };
+  return { group, share: p[group] };
 }

@@ -5,6 +5,8 @@
 - **Master spec:** `../2026-11-09-thrills-and-chills-design.md`.
 - **Approved draft pictures:** `../../../screenshots/phase-7-draft-desktop.png` (1280 × 800) and `../../../screenshots/phase-7-draft-phone.png` (390 × 844).
 
+> **Mascots removed (owner decision, 2026-11-12, Task 23).** The owner said: "No need for the icons of the characters hot/cold; we will be scrapping those mascots." The interface shows no Frost or Spark face and names no speaker. What replaced them: the desktop and low-layout mood bar is the track alone (it takes the faces' width); the phone mood circle is a plain round button in the leading group's colour with its share as large text ("40%"; the Temperament icon with no guests); the tip bubble and the tutorial bubble show their text and buttons with no face or speaker name; award toasts keep a Chill or Thrill accent stripe; the end screen has no picture. `src/ui/scenario/mascotArt.ts`, `faceMoods` and `leadFace` are gone. The setting key `mascotTips` stays (no settings migration) with the label "Tips". In-park things are not interface and stay: the Frost and Spark performer costumes, their guest thoughts, the Frost and Spark statues, Frost Peaks and Frostbite Falls. Older text below that describes faces is history; sections 4.3, 4.8 and 4.11 say what is built now.
+
 > **Read this first.** The draft pictures show a pixel-art park. Phase 7 changes the **interface** only. The park, the rides, the card pictures, and the mascots keep the art that the game draws today. Pixel art for the park is a different, larger project (proposed Phase 8, with its own spec).
 
 ---
@@ -142,6 +144,7 @@ Added after the owner's test play (Task 19; the owner chose this design). A wind
 ### 4.3 Mood bar
 The mood bar shows the guest mix, the same data as today (`temperamentShares` and `sharePercents` in `src/ui/format.ts`). It updates every 500 ms.
 
+- **Mascots removed (2026-11-12, Task 23):** the owner scrapped the mascots. The bar has no end faces: the track takes their width (the plate keeps its size); the face rule (`faceMoods`) is gone. The bullets on parts, size and faces below describe the bar before that, except where they say otherwise.
 - **Parts:** Frost head at the left end. Spark head at the right end. Between them, three segments: Chill, Family, Thrill. A knot marks the lean. There is no line of text below the bar: the lean text is in the accessible name and in the `title`.
 - **Size (after the owner's test play):** the plate is 44 px high at 100% text on both layouts (it may grow with large text; nothing is clipped). The faces are 30 px high. The track is 16 px high on the desktop (times the text scale) and 14 px on the phone. On the desktop the bar is at most 400 px wide and centred in the top region.
 - **Lean:** `L = thrill% − chill%`. The knot is at `50% + L / 2` of the bar width.
@@ -160,6 +163,7 @@ The mood bar shows the guest mix, the same data as today (`temperamentShares` an
 - **Colour is not the only signal:** on the desktop each segment shows its percentage as text (`calc(11px * var(--ts, 1))`, bold) when the segment is at least 44 px wide (times the text scale); the phone segments show no numbers. When the knot would cover the percentage, the text moves to the larger part of its segment beside the knot; it is hidden when that part is under 44 px times the text scale (`segmentLabel`, `src/ui/mood/model.ts`). The accessible name (on both layouts) gives the same data.
 - **Reduced motion:** the knot moves with no transition.
 - **Mood circle (upright phone, Task 21):** on the compact top row the same button (`hud-balance`, `data-tool="temperament"`, the same press and `aria-pressed`) is a 44 × 44 px circle. It shows the face of the group that leads now (Frost for Chill, Spark for Thrill, with the mood of the face rule above; for Family the mascot that the face rule makes sad, or both happy faces when neither is sad; ties go Chill, Family, Thrill) and a small counter (`mood-count`) with that group's share in percent, on the group's accent colour. With no guests it shows both happy faces and no counter. Its accessible name and its title hold the three percentages, the lean text and the park rating: "Thrill/Chill balance: 40% Chill, 30% Family, 30% Thrill, The park leans to Chill, Park rating 538" (`ui.mood.nameRating`). The track and the two end faces are not shown there (`leadFace`, `src/ui/mood/model.ts`).
+- **Mood circle since Task 23 (mascots removed):** a plain round button with no face: its background is the leading group's accent token (`--accent-chill`, `--accent-family`, `--accent-thrill`; `data-group` on the button) and its main content is that group's share as large text (`mood-count`, "40%", `ui.mood.percent`, `calc(14px * var(--ts, 1))` bold, no badge). With no guests it shows the Temperament icon on the plate colour and no share. It is 44 × 44 px at 100% text; larger text makes it larger, and a longer text (a long locale) widens it into a pill, so the share is never clipped. The name, title, press and `aria-pressed` do not change (`leadShare`, `src/ui/mood/model.ts`).
 
 ### 4.4 Decks
 The deck list is a toolbar named "Card decks" with 5 toggle buttons and the Demolish button.
@@ -259,7 +263,9 @@ Rules:
 - The panel closes when no content card is held. Closing the panel does not put the card back.
 - This panel replaces the stat bars of the old picker cards. No ride or stall data that the picker shows today is lost.
 
-### 4.8 Mascot tips
+### 4.8 Mascot tips (now "Tips")
+**Mascots removed (2026-11-12, Task 23):** the bubble shows its sentence, its button and Close, with no face and no speaker name (`data-speaker` is gone; a tip is its id and group). Its name is "Tip". The underServed texts lost their first-person voice: "Chill guests need a calm ride", "Thrill guests need a wild ride". The setting is labelled "Tips" ("Short tips when the park needs something"); its key `mascotTips` and saved value stay. The rules (when a tip shows) do not change. The Speaker column below is history.
+
 A tip is one short sentence from Frost, Spark, or both, with at most one button. Tips read the game state. They never change it.
 
 The UI checks the rules every 2 s and shows the first rule that matches:
@@ -327,6 +333,7 @@ Phase 6 §4.7 applies in full. For the new parts:
 - **Pseudo-locale:** `en-XA` at 175% shows no element outside the screen.
 
 ### 4.11 Tutorial
+- **Mascots removed (2026-11-12, Task 23):** the tutorial bubble has no face and no speaker name (`tutorial-guide` and `data-guide` are gone; the steps' `guide` field in the sim is not shown). It shows the step counter, title, hint and buttons. The welcome hint reads "Let us build a park for Thrill and Chill guests together"; the title screen's Tutorial detail reads "Learn the basics step by step". Award toasts keep their Chill or Thrill accent stripe without a face; the end screen has no picture; the credits drop the line naming the mascots.
 - A tutorial step points at the control that replaces its toolbar button. When that control is a card in a closed deck, the ring is on the deck button until the player opens the deck.
 - The steps `openRide` and `inspectGuest` pointed at the Inspect button. They now point at no control; the hint tells the player to click or tap the map.
 - Hint texts keep their words where the names stay the same (Footpath, Rides, Stalls, Park, Staff, Finance). The hints for Footpath, Park, Staff, and Finance name the deck first, for example "{act} Paths, then Footpath, …".

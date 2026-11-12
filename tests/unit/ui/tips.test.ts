@@ -29,12 +29,12 @@ describe('tip rules (Phase 7 §4.8)', () => {
     expect(underServedGroup({ ...base, guestPercents: { chill: 50, family: 0, thrill: 50 }, openRides: { chill: 0, family: 1, thrill: 0 } })).toBe('chill');
     expect(underServedGroup({ ...base, guestPercents: { chill: 0, family: 50, thrill: 50 }, openRides: { chill: 1, family: 0, thrill: 0 } })).toBe('family');
   });
-  it('speakers and moods', () => {
+  it('each tip is its id and group, with no speaker or mood (Task 23)', () => {
     const thrill = matchingTips({ ...base, guestPercents: { chill: 10, family: 20, thrill: 70 }, openRides: { chill: 1, family: 1, thrill: 0 } })[0];
-    expect(thrill).toEqual({ id: 'underServed.thrill', speaker: 'spark', mood: 'sad', group: 'thrill' });
-    expect(matchingTips(base)[0]).toEqual({ id: 'underServed.chill', speaker: 'frost', mood: 'sad', group: 'chill' });
-    expect(matchingTips({ ...base, openRides: none })[0]).toEqual({ id: 'noRide', speaker: 'both', mood: 'happy', group: null });
-    expect(matchingTips({ ...base, cash: -1 })[0]).toEqual({ id: 'cashLow', speaker: 'both', mood: 'sad', group: null });
+    expect(thrill).toEqual({ id: 'underServed.thrill', group: 'thrill' });
+    expect(matchingTips(base)[0]).toEqual({ id: 'underServed.chill', group: 'chill' });
+    expect(matchingTips({ ...base, openRides: none })[0]).toEqual({ id: 'noRide', group: null });
+    expect(matchingTips({ ...base, cash: -1 })[0]).toEqual({ id: 'cashLow', group: null });
   });
   it('the Tutorial and the setting hide the tips, not the under-served group', () => {
     expect(ids({ ...base, tutorial: true })).toEqual([]);

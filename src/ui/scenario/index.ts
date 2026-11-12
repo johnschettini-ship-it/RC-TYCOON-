@@ -1,6 +1,6 @@
 /**
  * Scenario front end (Phase 5 §4.4, §4.10–4.13, §7): the objectives panel behind a HUD flag icon, the end screen on
- * `scenarioEnded` (the loop pauses: `game.setSpeed(0)`), award toasts with the fitting mascot, the park panel awards
+ * `scenarioEnded` (the loop pauses: `game.setSpeed(0)`), award toasts with a Chill or Thrill accent, the park panel awards
  * section, and tutorial bubbles with the `data-tutorial-target` ring. Progress is written here: a won run on its
  * `scenarioEnded` event (once: a save loaded after the win sends no event) and `tutorialDone` when step 16 finishes.
  * The title screen flow is `./flow.ts` plus `../title.ts`. Owner: W3-I. Registered in `../extensions.ts`.

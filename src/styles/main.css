@@ -127,19 +127,19 @@ button { font: inherit; color: inherit; }
 .hud-field-rating .icon { color: var(--ink); }
 .hud-name { font-weight: 700; font-size: calc(15px * var(--ts, 1)); max-width: calc(220px * var(--ts, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud-mood { grid-area: mood; justify-self: stretch; min-width: 0; }
-/* Mood bar (Phase 7 §4.3): a 44 px plate (100% text) with Frost, three segments with a knot, and Spark. The lean text is
-   in the name and the title; the percentages show on the desktop only and grow with the text, as does the track. */
+/* Mood bar (Phase 7 §4.3): a 44 px plate (100% text) with three segments and a knot. The lean text is in the name and
+   the title; the percentages show on the desktop only and grow with the text, as does the track. The mascot faces at
+   its ends were removed (Task 23): the track takes their width. */
 .mood-bar { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 2px 10px; color: var(--ink); background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); font: inherit; font-size: calc(12px * var(--ts, 1)); font-variant-numeric: tabular-nums; cursor: pointer; }
 .mood-bar:hover { background: var(--surface-3); }
 .mood-bar[aria-pressed='true'] { outline: 3px solid var(--ink); outline-offset: 1px; }
-.mood-face { display: inline-flex; flex: none; line-height: 0; }
 .mood-track { position: relative; display: flex; flex: 1 1 0; min-width: 0; height: calc(16px * var(--ts, 1)); border-radius: 999px; overflow: hidden; background: var(--surface-2); border: var(--control-outline); }
 .mood-track .seg { display: flex; align-items: center; justify-content: center; flex-basis: 0; flex-grow: 0; min-width: 0; overflow: hidden; font-style: normal; font-weight: 700; font-size: calc(11px * var(--ts, 1)); line-height: 1; color: var(--ink); white-space: nowrap; }
 .mood-track .seg-num { display: inline-block; flex: none; }
 .mood-knot { position: absolute; top: -1px; bottom: -1px; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--surface); border: 2px solid var(--ink); box-sizing: border-box; transition: left 0.4s ease; pointer-events: none; }
 .tc-rm .mood-knot { transition: none; }
 /* The mood circle's parts (Task 21) show on the upright phone only. */
-.mood-lead, .mood-count { display: none; }
+.mood-empty, .mood-count { display: none; }
 .seg-chill { background: var(--accent-chill); }
 .seg-family { background: var(--accent-family); }
 .seg-thrill { background: var(--accent-thrill); }
@@ -226,19 +226,22 @@ button { font: inherit; color: inherit; }
 /* The chip (large text) and the objectives flag keep to the left; the buttons stay at the right, also on a wrapped line. */
 #ui[data-layout='bottom']:not([data-low='1']) .hud-day > :not([hidden]):is(:has(+ .speed-wrap), :has(+ [hidden] + .speed-wrap)) { margin-right: auto; }
 #ui[data-layout='bottom']:not([data-low='1']) .view-controls { margin-left: 0; }
-/* The mood circle: a 44 × 44 round button with the leading face and a counter of its share in the group's colour. */
-#ui[data-layout='bottom']:not([data-low='1']) .mood-bar { position: relative; width: var(--touch); height: var(--touch); min-height: 0; padding: 0; justify-content: center; border-radius: 50%; }
-#ui[data-layout='bottom']:not([data-low='1']) .mood-bar :is(.mood-face, .mood-track) { display: none; }
-#ui[data-layout='bottom']:not([data-low='1']) .mood-lead { display: inline-flex; line-height: 0; }
-#ui[data-layout='bottom']:not([data-low='1']) .mood-count:not([hidden]) {
-  display: inline-grid; place-items: center; position: absolute; right: -6px; bottom: -5px;
-  min-width: calc(18px * var(--ts, 1)); height: calc(18px * var(--ts, 1)); padding: 0 3px; box-sizing: border-box;
-  border: 2px solid var(--ink); border-radius: 999px; background: var(--surface); color: var(--ink);
-  font-size: calc(11px * var(--ts, 1)); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; pointer-events: none;
+/* The mood circle (Task 21, Task 23): a plain 44 × 44 round button in the leading group's colour with its share as large
+   text; with no guests, the Temperament icon on the plate colour. Large text makes the circle larger, and a longer text
+   (a long locale) widens it into a pill: the share is never clipped. */
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar {
+  position: relative; width: auto; min-width: max(var(--touch), calc(38px * var(--ts, 1))); height: max(var(--touch), calc(38px * var(--ts, 1)));
+  min-height: 0; padding: 0 4px; justify-content: center; border-radius: 999px;
 }
-#ui[data-layout='bottom']:not([data-low='1']) .mood-count[data-group='chill'] { background: var(--accent-chill); }
-#ui[data-layout='bottom']:not([data-low='1']) .mood-count[data-group='family'] { background: var(--accent-family); }
-#ui[data-layout='bottom']:not([data-low='1']) .mood-count[data-group='thrill'] { background: var(--accent-thrill); }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-track { display: none; }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar.empty .mood-empty { display: block; width: 24px; height: 24px; color: var(--ink); }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-count:not([hidden]) {
+  display: block; font-size: calc(14px * var(--ts, 1)); font-weight: 700; line-height: 1.3; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); pointer-events: none;
+}
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar[data-group='chill']:not(.empty) { background: var(--accent-chill); }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar[data-group='family']:not(.empty) { background: var(--accent-family); }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar[data-group='thrill']:not(.empty) { background: var(--accent-thrill); }
 
 /* Decks (Phase 7 §4.4, §4.5): the deck list, the hand, and tool cards. */
 .decks { display: contents; }
@@ -504,7 +507,7 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='side'] .path-height-bar { bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px + var(--tool-status-h, 60px) + 8px); }
 #ui[data-layout='bottom'] .path-height-bar { bottom: calc(var(--toolbar-space) + 8px + var(--tool-status-h, 60px) + 8px); }
 
-/* Mascot tip (Phase 7 §4.8): the small face, one sentence with its button, and Close. Desktop: centred above the hand,
+/* Tip (Phase 7 §4.8): one sentence with its button, and Close (no mascot face since Task 23). Desktop: centred above the hand,
    where the tool status bar shows while a tool is active (the bubble hides then). Phone: below the chip row. */
 .tip-bubble {
   position: absolute;
@@ -518,7 +521,6 @@ button { font: inherit; color: inherit; }
   border-radius: var(--radius-surface);
   box-shadow: var(--shadow);
 }
-.tip-art { flex: none; line-height: 0; padding-top: 2px; }
 .tip-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; flex: 1 1 auto; }
 .tip-text { margin: 0; font-weight: 600; font-size: calc(14px * var(--ts, 1)); line-height: 1.3; overflow-wrap: break-word; }
 .tip-action { max-width: 100%; padding: 6px 14px; overflow-wrap: break-word; }

@@ -43,13 +43,15 @@ test.describe('Tutorial: desktop', () => {
     expect(s).toEqual({ kind: 'tutorial', stepIndex: 0, skipped: false, done: false });
     await expect(stepTitle(page)).toHaveText('Welcome to Thrills & Chills');
     await expect(page.getByTestId('tutorial-step')).toHaveText('Step 1 of 16');
-    await expect(page.getByTestId('tutorial-guide')).toHaveText('Frost and Spark');
+    // No speaker name since Task 23 (the owner scrapped the mascots).
+    await expect(page.getByTestId('tutorial-guide')).toHaveCount(0);
+    await expect(page.getByTestId('tutorial-hint')).toHaveText('Let us build a park for Thrill and Chill guests together');
 
     // 1: Next.
     await page.getByTestId('tutorial-next').click();
     await expect(stepTitle(page)).toHaveText('Move the view');
     await expect(page.getByTestId('tutorial-hint')).toHaveText('Drag the map with the mouse, or use the arrow keys');
-    await expect(page.getByTestId('tutorial-guide')).toHaveText('Frost');
+    await expect(page.getByTestId('tutorial-guide')).toHaveCount(0);
 
     // 2: drag the map.
     const box = await page.locator('#game').boundingBox();

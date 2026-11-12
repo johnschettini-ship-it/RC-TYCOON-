@@ -6,7 +6,7 @@ export const progressionStrings: Record<string, string> = {
   'prog.title.credits': 'Credits',
   'prog.newGame.title': 'New game',
   'prog.newGame.tutorial': 'Tutorial',
-  'prog.newGame.tutorialDetail': 'Learn the basics with Frost and Spark',
+  'prog.newGame.tutorialDetail': 'Learn the basics step by step',
   'prog.newGame.tutorialDone': 'Completed. Play it again any time',
   'prog.newGame.scenarios': 'Scenarios',
   'prog.newGame.scenariosDetail': 'Goals, deadlines, and stars to win',
@@ -21,7 +21,6 @@ export const progressionStrings: Record<string, string> = {
   'prog.settings.unlockAllDetail': 'Every scenario card opens, whatever your wins',
   'prog.credits.title': 'Credits',
   'prog.credits.text': 'Thrills & Chills is an original game. Every picture, name, and sound is made in code',
-  'prog.credits.mascots': 'Starring Frost the yeti and Spark the fire fox',
 
   // Scenario select and detail
   'prog.select.title': 'Scenarios',
@@ -127,8 +126,6 @@ export const progressionStrings: Record<string, string> = {
   'prog.end.scenarioSelect': 'Scenario select',
   'prog.end.mainMenu': 'Main menu',
   'prog.end.tryAgain': 'Try again',
-  'prog.end.mascotsHappy': 'Frost and Spark cheer',
-  'prog.end.mascotsSad': 'Frost and Spark look sad',
 
   // Awards (Phase 5 §4.10)
   'prog.award.spotlessPark': 'Spotless Park',
@@ -208,9 +205,6 @@ export const progressionStrings: Record<string, string> = {
   'prog.tutorial.label': 'Tutorial',
   'prog.tutorial.notRunning': 'The tutorial is not running',
   'prog.tutorial.wrongStep': 'That is not the current tutorial step',
-  'prog.tutorial.frost': 'Frost',
-  'prog.tutorial.spark': 'Spark',
-  'prog.tutorial.both': 'Frost and Spark',
   'prog.tutorial.stepOf': 'Step {n} of {total}',
   'prog.tutorial.next': 'Next',
   'prog.tutorial.skipStep': 'Skip step',
@@ -239,7 +233,7 @@ export const progressionStrings: Record<string, string> = {
   'prog.tutorial.step.groundskeeper': 'Hire a Groundskeeper',
   'prog.tutorial.step.financePanel': 'Open the finance panel',
   'prog.tutorial.step.guests100': 'Reach 100 guests',
-  'prog.tutorial.hint.welcome': 'I am Frost, and this is Spark. Let us build a park for Thrill and Chill guests together',
+  'prog.tutorial.hint.welcome': 'Let us build a park for Thrill and Chill guests together',
   'prog.tutorial.hint.moveView.mouse': 'Drag the map with the mouse, or use the arrow keys',
   'prog.tutorial.hint.moveView.touch': 'Drag the map with one finger',
   'prog.tutorial.hint.zoom.mouse': 'Roll the mouse wheel to zoom in and out',

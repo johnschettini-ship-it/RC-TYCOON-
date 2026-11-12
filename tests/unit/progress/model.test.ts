@@ -8,7 +8,7 @@ import { text } from '../../../src/data/strings/en';
 import { emptyProgress, type Progress } from '../../../src/progress';
 import {
   actVerb,
-  AWARD_MASCOT,
+  AWARD_ACCENT,
   cameraTiles,
   deadlineText,
   endFacts,
@@ -180,10 +180,10 @@ describe('end screen, mascots, pointer words, newest save', () => {
     ]);
   });
 
-  it('every award has a mascot: Frost for Chill, Spark for Thrill', () => {
-    for (const id of AWARD_IDS) expect(['frost', 'spark', 'both']).toContain(AWARD_MASCOT[id]);
-    expect(AWARD_MASCOT.chillHaven).toBe('frost');
-    expect(AWARD_MASCOT.thrillSeekersChoice).toBe('spark');
+  it('every award has an accent: Chill, Thrill, or Family (no mascot since Task 23)', () => {
+    for (const id of AWARD_IDS) expect(['chill', 'thrill', 'family']).toContain(AWARD_ACCENT[id]);
+    expect(AWARD_ACCENT.chillHaven).toBe('chill');
+    expect(AWARD_ACCENT.thrillSeekersChoice).toBe('thrill');
   });
 
   it('click for a mouse, tap for touch', () => {

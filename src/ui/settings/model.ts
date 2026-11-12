@@ -105,7 +105,7 @@ export function settingsSections(opts: SectionOptions): SectionSpec[] {
     ]),
     s('about', [
       { kind: 'info', id: 'version', label: text('settings.about.version'), value: opts.version },
-      { kind: 'info', id: 'credits', label: text('settings.about.credits'), value: `${text('prog.credits.text')}. ${text('prog.credits.mascots')}` },
+      { kind: 'info', id: 'credits', label: text('settings.about.credits'), value: text('prog.credits.text') },
       { kind: 'info', id: 'originality', label: text('settings.about.originality'), value: text('settings.about.originalityText') },
       { kind: 'info', id: 'license', label: text('settings.about.license'), value: text('settings.about.licenseText') },
     ]),

@@ -101,9 +101,9 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     expect(Math.abs(hb - Math.ceil(rot.bottom))).toBeLessThanOrEqual(1);
   });
 
-  test('the mood circle is a 44 × 44 round button with the leading face and a counter of its share', async ({ page }) => {
+  test('the mood circle is a 44 × 44 round button in the leading colour with its share as text (no face since Task 23)', async ({ page }) => {
     await park(page);
-    // 4 Chill, 3 Family, 3 Thrill: Chill leads with 40%; Frost's face.
+    // 4 Chill, 3 Family, 3 Thrill: Chill leads with 40%.
     await addGuests(page, [20, 20, 20, 20, 50, 50, 50, 80, 80, 80]);
     const circle = page.getByTestId('hud-balance');
     await expect(circle).toHaveAttribute('aria-label', /40% Chill/);
@@ -112,22 +112,19 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     expect(Math.abs(b.height - 44), `height ${b.height}`).toBeLessThanOrEqual(0.5);
     const look = await circle.evaluate((el) => {
       const cs = getComputedStyle(el);
-      const lead = el.querySelector('.mood-lead') as HTMLElement;
-      const canvases = [...el.querySelectorAll('canvas')].filter((c) => c.getBoundingClientRect().width > 0);
-      return { radius: parseFloat(cs.borderTopLeftRadius), face: lead.dataset.face, shown: canvases.length, inLead: canvases.every((c) => lead.contains(c)) };
+      return { radius: parseFloat(cs.borderTopLeftRadius), canvases: el.querySelectorAll('canvas').length };
     });
     expect(look.radius, 'round').toBeGreaterThanOrEqual(22);
-    expect(look.face).toBe('frost');
-    expect(look.shown, 'one face shows').toBe(1);
-    expect(look.inLead).toBe(true);
-    await expect(page.getByTestId('mood-count')).toHaveText('40');
+    expect(look.canvases, 'no face').toBe(0);
+    await expect(circle).toHaveAttribute('data-group', 'chill');
+    await expect(page.getByTestId('mood-count')).toHaveText('40%');
     await expect(page.getByTestId('mood-count')).toBeVisible();
     // The bar's track is not shown on the phone.
     await expect(page.locator('.mood-track')).toBeHidden();
-    // 2 more Thrill (5 of 12): Thrill leads with 42%; Spark's face.
+    // 2 more Thrill (5 of 12): Thrill leads with 42%.
     await addGuests(page, [80, 80]);
-    await expect(page.getByTestId('mood-count')).toHaveText('42');
-    await expect(circle.locator('.mood-lead')).toHaveAttribute('data-face', 'spark');
+    await expect(page.getByTestId('mood-count')).toHaveText('42%');
+    await expect(circle).toHaveAttribute('data-group', 'thrill');
   });
 
   test('a press on the mood circle toggles the Temperament overlay; its name holds the three percents, the lean and the rating', async ({ page }) => {

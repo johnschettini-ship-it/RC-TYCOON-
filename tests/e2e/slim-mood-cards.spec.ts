@@ -46,29 +46,27 @@ async function mix304030(page: Page): Promise<void> {
   await expect(page.getByTestId('hud-balance')).toHaveAttribute('aria-label', /30% Chill/);
 }
 
-test('the mood bar is a 44 px plate with 30 px faces; on the desktop it is at most 400 px wide and centred on the window', async ({ page }, info) => {
+test('the mood bar is a 44 px plate with no faces (Task 23); on the desktop it is at most 400 px wide and centred on the window', async ({ page }, info) => {
   if (isPhone(info)) await page.setViewportSize({ width: 390, height: 844 });
   await newPark(page);
   const bar = await boxOf(page, '[data-testid="hud-balance"]');
   expect(Math.abs(bar.height - 44), `mood bar height ${bar.height}`).toBeLessThanOrEqual(1);
   if (isPhone(info)) {
-    // The upright phone shows the mood circle instead (Task 21): 44 × 44, one 30 px face per mascot (both with no guests).
+    // The upright phone shows the mood circle instead (Task 21): 44 × 44, no face (Task 23).
     expect(Math.abs(bar.width - 44), `mood circle width ${bar.width}`).toBeLessThanOrEqual(1);
     await expect(page.locator('.mood-track')).toBeHidden();
-    await expect(page.locator('.mood-face').first()).toBeHidden();
+    await expect(page.locator('[data-testid="hud-balance"] canvas')).toHaveCount(0);
     await mix304030(page);
     await page.evaluate(() => {
       const g = (window as unknown as { __tc: { world: { state: { guests: Array<{ temperament: number }> } } } }).__tc;
       for (const x of g.world.state.guests) if (x.temperament === 50) x.temperament = 20;
     });
-    await expect(page.getByTestId('mood-count')).toHaveText('70');
-    const face = await page.evaluate(() => (document.querySelector('.mood-lead canvas') as HTMLElement).getBoundingClientRect().height);
-    expect(face).toBe(30);
+    await expect(page.getByTestId('mood-count')).toHaveText('70%');
     await expect(page.locator('.mood-text')).toHaveCount(0);
     return;
   }
-  const faces = await page.evaluate(() => [...document.querySelectorAll('.mood-face canvas')].map((c) => c.getBoundingClientRect().height));
-  expect(faces).toEqual([30, 30]);
+  // No mascot faces at the ends (Task 23).
+  await expect(page.locator('[data-testid="hud-balance"] canvas')).toHaveCount(0);
   const track = await boxOf(page, '.mood-track');
   expect(track.height).toBe(isPhone(info) ? 14 : 16);
   // The lean line under the track is gone (its text is in the name and the title).
@@ -94,7 +92,7 @@ test('at 30/40/30 the segments are in proportion; the desktop numbers fit their 
   await mix304030(page);
   if (isPhone(info)) {
     // The upright phone shows the mood circle (Task 21): the counter has the leading share (Family, 40%), no segments.
-    await expect(page.getByTestId('mood-count')).toHaveText('40');
+    await expect(page.getByTestId('mood-count')).toHaveText('40%');
     await expect(page.locator('.mood-track')).toBeHidden();
     // The phone's bar is in the low layout now: its segments are checked there.
     await page.setViewportSize({ width: 844, height: 390 });

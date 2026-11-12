@@ -1,5 +1,5 @@
 /**
- * Mascot tip bubble (Phase 7 §4.8): one short sentence with the small face of the speaker and at most one button.
+ * Tip bubble (Phase 7 §4.8): one short sentence and at most one button (no mascot face or speaker since Task 23).
  * The rules (`./model`) run every `TIP_CHECK_MS`. Desktop: centred above the hand, where the tool status bar shows
  * while a tool is active. Phone: below the day pill. Hidden while a dialog or the title is open, while a tool other
  * than Inspect is active, while an overlay is on or the overlay chip row is open (the overlay legend takes its place on
@@ -15,17 +15,12 @@ import type { UiContext } from '../context';
 import { h, setAttr, setText } from '../dom';
 import type { UiPart } from '../extensions';
 import { icon } from '../icons';
-import { mascotCanvas } from '../scenario/mascotArt';
 import { overlayChipsOpen } from '../overlays';
 import { modalOpen, titleOpen } from '../scenario/shared';
 import { dropStale, matchingTips, shownTip, tipInput, type Tip, type TipId } from './model';
 
-/** Face height (CSS px) per layout. */
-const FACE_PX = { side: 48, bottom: 40 } as const;
-
 export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } {
   const { game, root } = ctx;
-  const art = h('div', { class: 'tip-art', 'aria-hidden': 'true' });
   const say = h('p', { class: 'tip-text', 'data-testid': 'tip-text' });
   const action = h('button', { type: 'button', class: 'btn primary tip-action', 'data-testid': 'tip-action', onclick: () => act() });
   const close = h(
@@ -36,7 +31,6 @@ export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } 
   const el = h(
     'aside',
     { class: 'tip-bubble', 'data-testid': 'tip', 'aria-label': text('ui.tip.label'), hidden: true },
-    art,
     h('div', { class: 'tip-body' }, say, action),
     close,
   );
@@ -47,7 +41,6 @@ export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } 
   let closed = new Set<TipId>();
   let tip: Tip | null = null;
   let shownId: TipId | null = null;
-  let face = '';
   let lastCheck = -Infinity;
   // The low layout (Task 19) has no room for the tip between the top region and an open hand: it hides then.
   let hand: HTMLElement | null = null;
@@ -83,22 +76,14 @@ export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } 
   });
   game.settings.onChange(() => {
     lastCheck = -Infinity;
+    // A new locale shows the tip's text in it at once.
+    shownId = null;
   });
 
   function show(t: Tip): void {
-    const layout = root.dataset.layout === 'bottom' ? 'bottom' : 'side';
-    const key = `${t.speaker}:${t.mood}@${FACE_PX[layout]}`;
-    if (key !== face) {
-      face = key;
-      const c = mascotCanvas(t.speaker, t.mood, FACE_PX[layout], '');
-      c.removeAttribute('role');
-      c.removeAttribute('aria-label');
-      art.replaceChildren(c);
-    }
     if (t.id === shownId) return;
     shownId = t.id;
     setAttr(el, 'data-tip', t.id);
-    setAttr(el, 'data-speaker', t.speaker);
     setText(say, text(`ui.tip.${t.id}`));
     setText(action, t.group ? text('ui.tip.showZone', { zone: text(`ui.tag.${t.group}`) }) : text(`ui.tip.${t.id}.button`));
   }

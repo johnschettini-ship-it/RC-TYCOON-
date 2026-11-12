@@ -18,17 +18,15 @@ export interface TipInput {
 
 export interface Tip {
   id: TipId;
-  speaker: 'frost' | 'spark' | 'both';
-  mood: 'happy' | 'sad';
   group: Group | null;
 }
 
 const GROUPS: readonly Group[] = ['chill', 'family', 'thrill'];
 
 const UNDER_SERVED: Record<Group, Tip> = {
-  chill: { id: 'underServed.chill', speaker: 'frost', mood: 'sad', group: 'chill' },
-  family: { id: 'underServed.family', speaker: 'both', mood: 'happy', group: 'family' },
-  thrill: { id: 'underServed.thrill', speaker: 'spark', mood: 'sad', group: 'thrill' },
+  chill: { id: 'underServed.chill', group: 'chill' },
+  family: { id: 'underServed.family', group: 'family' },
+  thrill: { id: 'underServed.thrill', group: 'thrill' },
 };
 
 /** The group whose guest share most exceeds its share of open rides, by at least the gap; null if none. */
@@ -51,8 +49,8 @@ export function underServedGroup(i: TipInput): Group | null {
 export function matchingTips(i: TipInput): Tip[] {
   if (i.tutorial || !i.tipsOn) return [];
   const out: Tip[] = [];
-  if (i.cash < 0) out.push({ id: 'cashLow', speaker: 'both', mood: 'sad', group: null });
-  if (GROUPS.every((g) => i.openRides[g] === 0)) out.push({ id: 'noRide', speaker: 'both', mood: 'happy', group: null });
+  if (i.cash < 0) out.push({ id: 'cashLow', group: null });
+  if (GROUPS.every((g) => i.openRides[g] === 0)) out.push({ id: 'noRide', group: null });
   const g = underServedGroup(i);
   if (g) out.push(UNDER_SERVED[g]);
   return out;

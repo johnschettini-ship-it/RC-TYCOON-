@@ -222,7 +222,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
     plainHiddenUntil = 0;
   });
   const title = createTitleScreen(ctx);
-  // Phase 7 §4.8: one mascot tip at a time.
+  // Phase 7 §4.8: one tip at a time.
   const tip = createTipBubble(ctx);
   // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).
   const extraBars = UI_EXTENSIONS.flatMap((x) => (x.bars ? [x.bars(ctx)] : []));

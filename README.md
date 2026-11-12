@@ -1,6 +1,6 @@
 # Thrills & Chills
 
-An original isometric theme-park management game for the browser. Build rides, paths, and shops. Serve two kinds of guests: **Thrill** seekers who want speed and height, and **Chill** seekers who want calm gardens and gentle rides. Frost the friendly yeti and Spark the fire fox show you around.
+An original isometric theme-park management game for the browser. Build rides, paths, and shops. Serve two kinds of guests: **Thrill** seekers who want speed and height, and **Chill** seekers who want calm gardens and gentle rides. Short tips show you around.
 
 > **Originality statement.** Thrills & Chills is an original fan-made game in the theme-park management genre. It has no affiliation with any company or other game. It uses genre mechanics only: no names, art, music, sounds, characters, scenarios, maps, UI layouts, or data files from any existing game. All graphics are drawn in code and all audio is generated in code.
 
@@ -38,8 +38,8 @@ The complete core tycoon game on one flat 64 × 64 map.
 - **Performance:** profiling overlay (`F3`) and render quality settings.
 
 ### Build 4 — "Frost and Spark"
-- **New interface:** a light look with one bundled font (Fredoka). The top bar and the 21-button toolbar are gone: a status pill, a mood bar with Frost and Spark, five card decks, and a hand of cards replace them (see [Controls](#controls)).
-- **Mascot tips:** short tips from Frost and Spark when the park needs something; close each one, or turn them all off in the settings.
+- **New interface:** a light look with one bundled font (Fredoka). The top bar and the 21-button toolbar are gone: a status pill, a mood bar, five card decks, and a hand of cards replace them (see [Controls](#controls)).
+- **Tips:** short tips when the park needs something; close each one, or turn them all off in the settings.
 - **Title screen:** a pixel-art skyline park with Continue for your last park.
 - Saves do not change (schema 3); the settings document moves to version 2 and upgrades by itself.
 
@@ -58,11 +58,11 @@ The complete core tycoon game on one flat 64 × 64 map.
 
 **Title screen.** **Continue** opens your newest save or autosave (its park name and date show on the button). **New game**, **Load**, **Import**, **Settings**, and **Credits** are below it.
 
-**Top of the screen.** The **status pill** (park name, cash, guests, rating) opens the Park panel. The **mood bar** shows the guest mix: Chill, Family, and Thrill, with Frost (Chill) at the left and Spark (Thrill) at the right; the knot shows where the park leans, and a face turns sad when its guests lack rides. Press the mood bar to turn the Temperament overlay on and off. On the right: the speed buttons (one **Speed** button that opens them on a phone), **Messages**, and **Menu**; below them a small day chip with the weather and the date, and the two buttons that turn the view.
+**Top of the screen.** The **status pill** (park name, cash, guests, rating) opens the Park panel. The **mood bar** shows the guest mix: Chill, Family, and Thrill; the knot shows where the park leans (on an upright phone a round button in the leading group's colour shows its share). Press the mood bar to turn the Temperament overlay on and off. On the right: the speed buttons (one **Speed** button that opens them on a phone), **Messages**, and **Menu**; below them a small day chip with the weather and the date, and the two buttons that turn the view.
 
 **Decks and the hand.** The deck list (a column on the left on desktop, a row of chips on a phone) has five decks: **Rides**, **Stalls**, **Paths** (Footpath, Queue, Path items), **Scenery** (Scenery, Land, Water, Buy land), and **Manage** (Staff, Research, Marketing, Finance, Park, Overlays), and the **Demolish** button. A deck opens the **hand** at the bottom: ride and stall cards show the zone, a picture, the name, and the cost; a press on the open deck closes the hand. Press a card to hold it (it rises, with **Put back** on it), then press the map to place it; with a mouse you can also drag the card to the map. On desktop the card details panel shows the held card's data; on a phone press **Details**. Put back, `Esc`, or Cancel return to Inspect (no card held). On a phone the hand tucks away while a card is held; a deck chip brings it back. On a phone held sideways the game uses a low layout: one slim top row, the hand closed until you press a deck chip, and panels at the right side.
 
-**Tips.** Frost and Spark show one short tip at a time (above the hand on desktop, below the day chip on a phone), for example "Build a ride and open it". Its button takes you to the place it names; **Close** hides it until its reason comes back. Tips hide while you build, while an overlay or a dialog is open, and on a phone while a panel is open. Turn them off with **Settings → Gameplay → Mascot tips**.
+**Tips.** One short tip shows at a time (above the hand on desktop, below the day chip on a phone), for example "Build a ride and open it". Its button takes you to the place it names; **Close** hides it until its reason comes back. Tips hide while you build, while an overlay or a dialog is open, and on a phone while a panel is open. Turn them off with **Settings → Gameplay → Tips**.
 
 | Action | Desktop | Touch |
 |---|---|---|

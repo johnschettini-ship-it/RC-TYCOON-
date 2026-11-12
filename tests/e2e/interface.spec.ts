@@ -83,8 +83,8 @@ test('at 30/40/30 the mood bar segments keep the guest mix in proportion while a
   if (info.project.name === 'phone') {
     // The upright phone shows the mood circle (Task 21): Family leads with 40%; the track is not shown. The phone's bar
     // is in the low layout now: its segments are checked there.
-    await expect(page.getByTestId('mood-count')).toHaveText('40');
-    await expect(bar.locator('.mood-lead')).toHaveAttribute('data-face', /^(both|frost|spark)$/);
+    await expect(page.getByTestId('mood-count')).toHaveText('40%');
+    await expect(bar).toHaveAttribute('data-group', 'family');
     await expect(page.locator('.mood-track')).toBeHidden();
     await page.setViewportSize({ width: 844, height: 390 });
     await expect(page.locator('#ui')).toHaveAttribute('data-low', '1');
