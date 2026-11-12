@@ -157,10 +157,10 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     await page.evaluate((tick) => {
       (window as unknown as { __tc: { world: { state: { tick: number } } } }).__tc.world.state.tick = tick;
     }, 9 * TICKS_PER_HOUR + 4);
-    await expect(page.getByTestId('hud-date')).toHaveText('Mar 09:04');
+    await expect(page.getByTestId('hud-date')).toHaveText('Mar 09:00');
     await expect(page.getByTestId('day-pill')).not.toContainText('Year');
-    await expect(page.getByTestId('day-pill')).toHaveAttribute('aria-label', 'Mar · Year 1 · 09:04');
-    await expect(page.getByTestId('day-pill')).toHaveAttribute('title', 'Mar · Year 1 · 09:04');
+    await expect(page.getByTestId('day-pill')).toHaveAttribute('aria-label', 'Mar · Year 1 · 09:00');
+    await expect(page.getByTestId('day-pill')).toHaveAttribute('title', 'Mar · Year 1 · 09:00');
     const weather = page.getByTestId('hud-weather');
     await weather.tap();
     await expect(page.getByTestId('toast')).toHaveText((await weather.getAttribute('title')) ?? 'missing');

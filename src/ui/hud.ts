@@ -197,7 +197,7 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
       toggleClass(cash, 'neg', s.park.cash < 0);
       setText(guests, String(s.guests.length));
       setText(rating, String(s.park.rating));
-      const dateText = formatGameDate(s.tick);
+      const dateText = formatGameDate(s.tick, true);
       if (compact) {
         // Whole dollars in the pill; the full value is in its name and title. The year is in the chip's name and title.
         const whole = Math.trunc(s.park.cash / 100) * 100 || 0;

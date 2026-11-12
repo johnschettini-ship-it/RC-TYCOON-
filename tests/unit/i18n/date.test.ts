@@ -17,10 +17,10 @@ afterEach(() => {
 describe('formatGameDateShort (Task 21, the phone date chip)', () => {
   it('is the month and the clock, without the year', () => {
     expect(formatGameDateShort(450)).toBe('Mar 09:00');
-    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 09:04');
+    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 09:00'); // the hour only (owner: the minutes raced)
     expect(formatGameDateShort(13 * TICKS_PER_MONTH + 450)).toBe('Apr 09:00');
     setActiveStrings({ ...en, 'date.clock': '12' });
-    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 9:04 AM');
+    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 9:00 AM');
   });
 });
 
@@ -49,5 +49,12 @@ describe('formatGameDate', () => {
     expect(s).toContain('09:00');
     expect(s).toContain('Ṁåŕ');
     expect(s).toContain('Ýéåŕ 1');
+  });
+});
+
+describe('the top region clock shows the hour only', () => {
+  it('formatGameDate with wholeHour drops the minutes; without it keeps them', () => {
+    expect(formatGameDate(9 * TICKS_PER_HOUR + 4, true)).toBe('Mar · Year 1 · 09:00');
+    expect(formatGameDate(9 * TICKS_PER_HOUR + 4)).toBe('Mar · Year 1 · 09:04');
   });
 });

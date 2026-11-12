@@ -52,8 +52,10 @@ export function monthName(month: number): string {
 }
 
 /** The clock in the table's format: "21:30" (24 h) or "9:30 PM" (12 h). */
-export function formatClock(tick: number): string {
-  const { hour, minute } = clockOf(tick);
+export function formatClock(tick: number, wholeHour = false): string {
+  const { hour, minute: m } = clockOf(tick);
+  // The top region shows the hour only (owner: the minutes raced, a game hour passes every 2.5 s at 1×).
+  const minute = wholeHour ? 0 : m;
   if (t('date.clock') === '12') {
     const h = hour % 12 === 0 ? 12 : hour % 12;
     return t('date.time12', { h, mm: pad2(minute), ampm: t(hour < 12 ? 'date.am' : 'date.pm') });
@@ -61,13 +63,13 @@ export function formatClock(tick: number): string {
   return t('date.time24', { hh: pad2(hour), mm: pad2(minute) });
 }
 
-export function formatGameDate(tick: number): string {
-  return t('date.full', { month: monthName(monthOfYear(tick)), year: yearOf(tick), time: formatClock(tick) });
+export function formatGameDate(tick: number, wholeHour = false): string {
+  return t('date.full', { month: monthName(monthOfYear(tick)), year: yearOf(tick), time: formatClock(tick, wholeHour) });
 }
 
-/** The phone's date chip (Task 21): month and clock, "Mar 09:04" (the year is in the chip's name and title). */
+/** The phone's date chip (Task 21): month and the hour, "Mar 09:00" (the year is in the chip's name and title). */
 export function formatGameDateShort(tick: number): string {
-  return t('date.short', { month: monthName(monthOfYear(tick)), time: formatClock(tick) });
+  return t('date.short', { month: monthName(monthOfYear(tick)), time: formatClock(tick, true) });
 }
 
 export function localizeReason(reason: string): string {
