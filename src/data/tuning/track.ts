@@ -194,3 +194,9 @@ export const SAFETY_LIMIT = { posGMax: 6.0, vertGMin: -2.0, latMax: 3.0 } as con
 
 /** R5/R7: the meter warns from this far (G) before the rating penalty limit up to the hard limit. Provisional. */
 export const METER_WARN_MARGIN_G = 0.5;
+
+/**
+ * R5 (plan ride-work-1 Task 4): the section projection follows the train at most this many ticks past its cached
+ * prefix (120 s); a train still on the candidate piece then counts as not reached. Provisional.
+ */
+export const PROJECTION_MAX_TICKS = 2_400;

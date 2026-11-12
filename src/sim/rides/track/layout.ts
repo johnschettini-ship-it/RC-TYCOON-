@@ -3,6 +3,7 @@
  * Derived, never saved: rebuilt on demand from the pieces (cache keyed by the ride data object).
  */
 import { STATION_STOP_MARGIN_MM } from '../../../data/tuning/track';
+import { tcos, tsin } from '../../trig';
 import { localToWorld, pieceStatic, worldYaw, type PieceStatic } from './geometry';
 import type { TrackPieceInstance, TrackRideData } from './types';
 
@@ -26,6 +27,12 @@ export interface CircuitLayout {
    */
   stopRuns: Array<{ start: number; end: number }>;
   stops: number[];
+  /**
+   * An open layout (R5 section projection, plan ride-work-1 Task 4): positions do not wrap. Before the start and after
+   * the end the track runs on straight (a virtual run-out) at the first and last sample's pitch and bank with no
+   * curvature, so a whole train can cross the last piece. Ride layouts (`getLayout`) are closed.
+   */
+  open: boolean;
 }
 
 interface CacheEntry {
@@ -44,7 +51,7 @@ function defsKey(pieces: TrackPieceInstance[]): string {
   return k;
 }
 
-export function buildLayout(pieces: TrackPieceInstance[]): CircuitLayout {
+export function buildLayout(pieces: TrackPieceInstance[], open = false): CircuitLayout {
   const statics = pieces.map((p) => pieceStatic(p.defId));
   const startMm: number[] = [0];
   let total = 0;
@@ -73,7 +80,7 @@ export function buildLayout(pieces: TrackPieceInstance[]): CircuitLayout {
     stopRuns.push({ start, end: i });
     stops.push((startMm[i] as number) - STATION_STOP_MARGIN_MM);
   }
-  return { pieces, statics, startMm, lengthMm: total, stationCount, stationEndMm, stopFrontMm, blockPoints, blockBrakeCount, stopRuns, stops };
+  return { pieces, statics, startMm, lengthMm: total, stationCount, stationEndMm, stopFrontMm, blockPoints, blockBrakeCount, stopRuns, stops, open };
 }
 
 /** Layout of a ride's current pieces (cached until the piece list changes). */
@@ -101,8 +108,9 @@ export function invalidateLayout(data: TrackRideData): void {
   cache.delete(data);
 }
 
-/** Wrap a position into [0, length). */
+/** Wrap a position into [0, length) (an open layout: unchanged). */
 export function wrapMm(layout: CircuitLayout, s: number): number {
+  if (layout.open) return s;
   const L = layout.lengthMm;
   if (L <= 0) return 0;
   let r = s % L;
@@ -147,6 +155,7 @@ export function newSamplePoint(): SamplePoint {
 
 /** Interpolated sample at circuit position `s` (mm). Writes into `out`. */
 export function sampleAt(layout: CircuitLayout, s: number, out: SamplePoint = newSamplePoint()): SamplePoint {
+  if (layout.open && (s < 0 || s >= layout.lengthMm)) return runOutSample(layout, s, out);
   const ws = wrapMm(layout, s);
   const pi = pieceIndexAt(layout, ws);
   const st = layout.statics[pi] as PieceStatic;
@@ -174,6 +183,32 @@ export function sampleAt(layout: CircuitLayout, s: number, out: SamplePoint = ne
   out.y = lerpAt(sm.y, k, f);
   out.h = lerpAt(sm.h, k, f);
   out.yaw = lerpAt(sm.yaw, k, f);
+  return out;
+}
+
+/**
+ * The virtual run-out of an open layout (review M-6: car offsets never wrap to the far end): the first or last sample's
+ * pitch and bank, no curvature, and the position continued along the end's heading.
+ */
+function runOutSample(layout: CircuitLayout, s: number, out: SamplePoint): SamplePoint {
+  const after = s >= layout.lengthMm;
+  const pi = after ? layout.statics.length - 1 : 0;
+  const sm = (layout.statics[pi] as PieceStatic).samples;
+  const k = after ? sm.n - 1 : 0;
+  const d = (after ? s - layout.lengthMm : s) / 1000;
+  out.pieceIndex = pi;
+  out.u = s - (layout.startMm[pi] as number);
+  out.sinT = sm.sinT[k] as number;
+  out.cosT = sm.cosT[k] as number;
+  out.theta = sm.theta[k] as number;
+  out.sinB = sm.sinB[k] as number;
+  out.cosB = sm.cosB[k] as number;
+  out.kv = 0;
+  out.kh = 0;
+  out.yaw = sm.yaw[k] as number;
+  out.x = (sm.x[k] as number) + d * out.cosT * tcos(out.yaw);
+  out.y = (sm.y[k] as number) + d * out.cosT * tsin(out.yaw);
+  out.h = (sm.h[k] as number) + d * out.sinT;
   return out;
 }
 

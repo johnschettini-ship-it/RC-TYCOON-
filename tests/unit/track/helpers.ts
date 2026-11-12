@@ -4,7 +4,8 @@ import type { CommandResult } from '../../../src/sim/commands/types';
 import type { Dir } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
-import type { TrackRideData } from '../../../src/sim/rides/track/types';
+import { pieceExitJoint } from '../../../src/sim/rides/track/geometry';
+import type { TrackDir, TrackPieceInstance, TrackRideData } from '../../../src/sim/rides/track/types';
 
 export type PieceSpec = string | { id: string; chain?: boolean; brakeSpeed?: number };
 
@@ -259,3 +260,45 @@ export const SHARP_TURN_PIECES: PieceSpec[] = [
   ...times(5, 'straight'),
   'turn_medium_right',
 ];
+
+/**
+ * Lay pieces end to end from (x, y) heading +x at height z, with no world checks (layouts and projections only).
+ * `chain` pieces get the chain.
+ */
+export function layPieces(specs: PieceSpec[], x0 = 10, y0 = 10, z0 = 8): TrackPieceInstance[] {
+  const out: TrackPieceInstance[] = [];
+  let x = x0;
+  let y = y0;
+  let z = z0;
+  let dir: TrackDir = 0;
+  for (const spec of specs) {
+    const p = typeof spec === 'string' ? { id: spec } : spec;
+    const piece: TrackPieceInstance = { defId: p.id, x, y, z, dir, chain: !!p.chain, brakeSpeed: p.brakeSpeed ?? null, cost: 0 };
+    out.push(piece);
+    const j = pieceExitJoint(piece);
+    x = j.x;
+    y = j.y;
+    z = j.z;
+    dir = j.dir;
+  }
+  return out;
+}
+
+/** 25 repeats of a 16 m chained hill and its drop: a 300-piece Steel Coaster track for the projection budget. */
+export const HILLS_300: PieceSpec[] = [
+  'station',
+  ...Array.from({ length: 25 }, (): PieceSpec[] => [
+    chain('flat_to_gentle_up'),
+    chain('gentle_to_steep_up'),
+    chain('steep_up'),
+    chain('steep_to_gentle_up'),
+    chain('gentle_up_to_flat'),
+    'straight',
+    'flat_to_gentle_down',
+    'gentle_to_steep_down',
+    'steep_down',
+    'steep_to_gentle_down',
+    'gentle_down_to_flat',
+    'straight',
+  ]).flat(),
+].slice(0, 300);

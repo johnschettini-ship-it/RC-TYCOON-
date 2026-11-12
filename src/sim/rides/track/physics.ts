@@ -135,10 +135,13 @@ export function trainAccel(type: TrackTypeDef, layout: CircuitLayout, sMid: numb
   return a;
 }
 
-/** R6: any car's centre is on a chain piece. */
+/** R6: any car's centre is on a chain piece (an open layout's run-out has no chain: review M-6). */
 function trainOnChain(ctx: StepContext, sMid: number): boolean {
+  const layout = ctx.layout;
   for (let k = 0; k < ctx.cars; k++) {
-    const pi = pieceIndexAt(ctx.layout, wrapMm(ctx.layout, sMid + carOffsetMm(k, ctx.cars, ctx.carLenMm)));
+    const s = wrapMm(layout, sMid + carOffsetMm(k, ctx.cars, ctx.carLenMm));
+    if (layout.open && (s < 0 || s >= layout.lengthMm)) continue;
+    const pi = pieceIndexAt(layout, s);
     if (ctx.pieces[pi]?.chain) return true;
   }
   return false;
