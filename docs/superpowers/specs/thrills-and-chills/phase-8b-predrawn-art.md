@@ -163,7 +163,11 @@ The owner's project Orange Day: Pocket Republic paints all its pixel art with a 
 4. **One declared shadow colour** (5.5), drawn into pictures, never code-drawn ellipses.
 5. **Night pictures** as separate frames where lights matter (lamps, ride lights).
 6. **A written rule table** (scale, palette, outlines, shadows, light) kept in this project, as Orange Day keeps one.
-Orange Day's newest art is on the owner's computer, not on GitHub (its `main` branch is from 2026-11-11); the rules are checked again when the owner shares it.
+Orange Day's newest art is on its live site (`main.pocket-republic.pages.dev`; the owner shared a phone screenshot on 2026-11-12), newer than its GitHub `main`. It adds:
+7. **Large, detailed objects:** buildings and props are drawn big (a giant coffee cup on the café, a giant mailbox), so each has room for detail; people stay small.
+8. **Textured ground:** a soft muted grass with a repeating pattern, stone and brick paving, worn path edges; no flat fills.
+9. **A muted, cozy palette** with one warm accent colour (orange) for the important things.
+Item 7 has a cost here: a larger art scale per object means more pixels per picture and more memory. Stage 0b measures the current scale; the art scale for the full build is set after it, against the 64 MB budget.
 
 ## 6. Stage 0b: the test
 
