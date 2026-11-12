@@ -36,3 +36,12 @@ Rating rule: for each metre above the old limit, the ride's intensity rises by a
 2. Thrill flat rides.
 3. Family flat rides.
 4. Water rides.
+
+## Physics and safety (owner, 2026-11-12: "Yes please and if we have to restrict again for safety")
+
+| # | Topic | Decision |
+|---|---|---|
+| R5 | Live meter in the builder | While a track ride is built, the builder shows the projected top speed and the strongest vertical and lateral G of the last piece's section, from a short simulation with the same physics as the test run. Colours: normal, warning (near a penalty limit), over the limit. |
+| R6 | Train length | Trains are simulated with their length: the forces are averaged over every car, so a long train is pulled over a crest by its front cars and held back by its rear cars, as real trains are. Mass still cancels (guest load does not change motion). |
+| R7 | Safety limits | Looser height limits (R2) come with hard safety limits. A piece whose projected section passes a hard limit cannot be built (Build disabled, with the reason), and a ride whose test lap passes a hard limit cannot open. Proposal: vertical G above 6.0 or below −2.0, lateral G above 3.0 (today's penalty limits 5.0, −1.5 and 2.5 stay as rating penalties). A train that cannot finish the circuit (stalls on a hill) also blocks opening, with the place shown on the map. |
+| R8 | Auto-finish and safety | Auto-finish (R1) only offers a closing path whose test lap passes the safety limits and does not stall. |
