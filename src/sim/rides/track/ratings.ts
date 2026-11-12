@@ -144,7 +144,6 @@ export function addWaterExtras(r: Ratings, x: WaterExtras): Ratings {
   return { excitement: clamp(r.excitement + x.e), intensity: clamp(r.intensity + x.i), nausea: clamp(r.nausea + x.n), penalty: r.penalty };
 }
 
-/** Measured values of a stored test in natural units. */
 /**
  * R2 (owner 2026-11-12): the intensity added for a circuit that climbs `climbM` above its station (hundredths):
  * `perMHundredths` per metre above the type's old limit (`intensityHeightM`), at most `capHundredths`.
@@ -155,6 +154,7 @@ export function heightIntensityStep(climbM: number, type: TrackTypeDef): number 
   return Math.min(HEIGHT_INTENSITY.capHundredths, over * HEIGHT_INTENSITY.perMHundredths);
 }
 
+/** Measured values of a stored test in natural units. */
 export function ratingInputsOf(t: TestResult): RatingInputs {
   return {
     vMax: t.vMaxMms / 1000,

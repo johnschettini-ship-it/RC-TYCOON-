@@ -161,21 +161,25 @@ export function sampleAt(layout: CircuitLayout, s: number, out: SamplePoint = ne
   let f = s1 > s0 ? (um - s0) / (s1 - s0) : 0;
   if (f < 0) f = 0;
   else if (f > 1) f = 1;
-  const lerp = (a: Float64Array): number => (a[k] as number) + ((a[k + 1] as number) - (a[k] as number)) * f;
   out.pieceIndex = pi;
   out.u = u;
-  out.sinT = lerp(sm.sinT);
-  out.cosT = lerp(sm.cosT);
-  out.theta = lerp(sm.theta);
-  out.sinB = lerp(sm.sinB);
-  out.cosB = lerp(sm.cosB);
+  out.sinT = lerpAt(sm.sinT, k, f);
+  out.cosT = lerpAt(sm.cosT, k, f);
+  out.theta = lerpAt(sm.theta, k, f);
+  out.sinB = lerpAt(sm.sinB, k, f);
+  out.cosB = lerpAt(sm.cosB, k, f);
   out.kv = f < 0.5 ? (sm.kv[k] as number) : (sm.kv[k + 1] as number);
-  out.kh = lerp(sm.kh);
-  out.x = lerp(sm.x);
-  out.y = lerp(sm.y);
-  out.h = lerp(sm.h);
-  out.yaw = lerp(sm.yaw);
+  out.kh = lerpAt(sm.kh, k, f);
+  out.x = lerpAt(sm.x, k, f);
+  out.y = lerpAt(sm.y, k, f);
+  out.h = lerpAt(sm.h, k, f);
+  out.yaw = lerpAt(sm.yaw, k, f);
   return out;
+}
+
+/** Linear interpolation between samples `k` and `k + 1` (no closure: `sampleAt` runs per car per tick). */
+function lerpAt(a: Float64Array, k: number, f: number): number {
+  return (a[k] as number) + ((a[k + 1] as number) - (a[k] as number)) * f;
 }
 
 /** World pose at circuit position `s` (mm), for rendering: metres (tile x spans [4x, 4x + 4]), absolute height. */

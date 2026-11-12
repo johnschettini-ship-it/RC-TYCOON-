@@ -30,13 +30,16 @@ describe('test run (phase-2 §4.9)', () => {
     const r = runTestLap(w.state.map, dataOf(w, id), steel);
     expect(r.passed).toBe(true);
     expect(r.lengthMm).toBe(204_374);
-    expect(r.vMaxMms / 1000).toBeCloseTo(17.4, 0);
+    // R6 (owner 2026-11-12): forces averaged over 4 cars (17.41 → 17.35 m/s with the review I-1 chain rule).
+    expect(r.vMaxMms / 1000).toBeCloseTo(17.3, 1);
     expect(r.drops).toBe(1);
     expect(r.dropMaxMm).toBe(16_000);
-    // R6 (owner 2026-11-12): forces averaged over 4 cars; the valley peak is shared by the train (2.25 → 2.06 G), and the
-    // chain pulls until the last car leaves the lift (controller decision 2026-11-12).
-    expect(r.posGMax / 100).toBeCloseTo(2.06, 1);
-    expect(r.latMax / 100).toBeCloseTo(0.66, 1);
+    // R6 (owner 2026-11-12): forces averaged over 4 cars; the valley peak is shared by the train (2.25 → 1.99 G), the
+    // chain pulls until the last car leaves the lift (controller decision 2026-11-12), and the station departure keeps
+    // control of the train while its centre is in the station (review I-1).
+    expect(r.posGMax / 100).toBeCloseTo(1.99, 2);
+    // R6 (owner 2026-11-12): forces averaged over 4 cars (0.65 → 0.63).
+    expect(r.latMax / 100).toBeCloseTo(0.63, 2);
     expect(r.airtimeTicks).toBe(0);
     expect(r.inversions).toBe(0);
     expect(r.turnPieces).toBe(4);

@@ -49,6 +49,8 @@ describe('height limits and the intensity step (R2, owner 2026-11-12)', () => {
     const junior = getTrackTypeDef('junior_coaster')!;
     const steel = getTrackTypeDef('steel_coaster')!;
     expect([12, 13, 20].map((m) => heightIntensityStep(m, junior))).toEqual([0, 10, 80]);
+    // Whole metres above the old limit (review M-5): 0.9 m over counts nothing, 1.5 m over counts one metre.
+    expect([12.9, 13.5].map((m) => heightIntensityStep(m, junior))).toEqual([0, 10]);
     expect([50, 70, 75].map((m) => heightIntensityStep(m, steel))).toEqual([0, 200, 200]);
   });
 

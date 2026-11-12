@@ -20,10 +20,10 @@ import {
   trainGAt,
   type StepContext,
 } from '../../../src/sim/rides/track/physics';
-import { runTestLap } from '../../../src/sim/rides/track/testRun';
+import { dispatchedTestTrain, runTestLap } from '../../../src/sim/rides/track/testRun';
 import type { TrackPieceInstance } from '../../../src/sim/rides/track/types';
 import { makeTestWorld } from '../../helpers/world';
-import { buildOneCar, buildR1, dataOf, ONE_CAR_CIRCUITS } from './helpers';
+import { addAll, buildOneCar, buildR1, dataOf, EAST, ONE_CAR_CIRCUITS, place, R1_BLOCKS } from './helpers';
 import baseline from './fixtures/one-car-baseline.json';
 
 const steel = getTrackTypeDef('steel_coaster') as TrackTypeDef;
@@ -115,6 +115,38 @@ describe('trains simulated with their length (R6, owner 2026-11-12)', () => {
       expect([full.s, full.v, b.stall], `tick ${i}`).toEqual([empty.s, empty.v, a.stall]);
     }
     expect(empty.dist).toBeGreaterThan(0);
+  });
+
+  it('the chain never overrides a block brake: a 4-car train settles at station speed on every block brake (review I-1)', () => {
+    const w = makeTestWorld();
+    const id = place(w, 'steel_coaster', 4, 2, EAST);
+    addAll(w, id, R1_BLOCKS);
+    const d = dataOf(w, id);
+    expect(d.trainConfig.carsPerTrain).toBe(4);
+    const layout = getLayout(d);
+    const cars = 4;
+    const ctx: StepContext = {
+      layout, type: steel, pieces: d.pieces, trainLenMm: cars * steel.vehicle.carLengthMm, laps: 1,
+      holdFrontMm: null, leader: null, slowFactor: 1, cars, carLenMm: steel.vehicle.carLengthMm,
+    };
+    const t = dispatchedTestTrain(layout, steel, cars);
+    let onBrake = 0;
+    let checked = 0;
+    for (let i = 0; i < 6000; i++) {
+      const r = stepTrain(ctx, t);
+      expect(r.stall, `tick ${i}`).toBeNull();
+      if (layout.statics[r.pieceIndex]?.def.special === 'blockBrake') {
+        // Settled: after 20 ticks (1 s) on the block brake the train runs at station speed (2 m/s) or slower.
+        if (++onBrake > 20) {
+          expect(t.v, `tick ${i}, piece ${r.pieceIndex + 1}`).toBeLessThanOrEqual(2000);
+          checked++;
+        }
+      } else {
+        onBrake = 0;
+      }
+      if (r.arrived) break;
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
   it('G of a train is the mean over its cars', () => {

@@ -47,9 +47,9 @@ describe('Test tab (R1 reference circuit)', () => {
     expect(rows.map((r) => r.key)).toEqual(['vMax', 'vAvg', 'rideTime', 'length', 'drops', 'dropMax', 'posG', 'negG', 'airtime', 'latG', 'inversions', 'highest', 'turns']);
     const v = Object.fromEntries(rows.map((r) => [r.key, r.value]));
     // R6 (owner 2026-11-12): forces averaged over R1's 4 cars, the chain pulls while any car is on it (17.4 → 17.3 m/s,
-    // 48.3 → 45.2 s).
+    // 48.3 → 45.9 s; the station departure keeps control of the train while its centre is in the station: review I-1).
     expect(v.vMax).toBe('17.3 m/s (62 km/h)');
-    expect(v.rideTime).toBe('45.2 s');
+    expect(v.rideTime).toBe('45.9 s');
     expect(v.length).toBe('204 m');
     expect(v.drops).toBe('1');
     expect(v.dropMax).toBe('16 m');
@@ -72,7 +72,8 @@ describe('Test tab (R1 reference circuit)', () => {
     expect(dashes.size).toBe(3);
     expect(g.speedMax).toBe(20);
     expect(g.gMin).toBe(0);
-    expect(g.gMax).toBe(4);
+    // R6 (owner 2026-11-12) and review I-1: R1's peak is now 1.99 G, so the G axis tops out at 2 (4 while the peak was above 2 G).
+    expect(g.gMax).toBe(2);
     expect(g.seconds).toBeCloseTo(((t.chart.speedCms.length - 1) * t.chart.every) / 20, 6);
     for (const s of g.series) {
       expect(s.points.length).toBe(t.chart.speedCms.length * 2);

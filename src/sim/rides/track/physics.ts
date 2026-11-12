@@ -264,7 +264,8 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
     controlled = def?.water?.drive === 'conveyor';
   } else if (type.drive === 'gravity') {
     v1 = v + trainAccel(type, layout, t.s + v * DT * 500, v, ctx.cars, ctx.carLenMm) * DT;
-    if (def?.special === 'blockBrake' || departing) {
+    const pieceControlled = def?.special === 'blockBrake' || departing;
+    if (pieceControlled) {
       v1 = toward(v, STATION_SPEED, pieceEndM, RELEASE_ACCEL);
       controlled = true;
     } else if (t.release) {
@@ -273,7 +274,8 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
     }
     // R6 (controller decision 2026-11-12): the chain pulls while any car of the train is on a chain piece, as real
     // chain lifts do (a one-car train: its centre, as before). With the centre only, R1's 4-car train stalled after the lift.
-    if (trainOnChain(ctx, t.s) && v1 < type.physics.chainSpeedMms / 1000) {
+    // A block brake or the station departure under the centre keeps control (review I-1): the chain never overrides them.
+    if (!pieceControlled && v1 < type.physics.chainSpeedMms / 1000 && trainOnChain(ctx, t.s)) {
       v1 = Math.min(type.physics.chainSpeedMms / 1000, v + CHAIN_ACCEL * DT);
     }
     if (def?.special === 'brakes') {
