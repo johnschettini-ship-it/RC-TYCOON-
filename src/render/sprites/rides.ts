@@ -8,6 +8,7 @@ import { getTrackRideDef } from '../../data/catalog/trackRides';
 import type { RideTag } from '../../data/catalog/types';
 import { extent, footprintTile, frontDir } from '../../sim/footprint';
 import type { Dir } from '../../sim/map';
+import { surfaceArt } from '../artHook';
 import { TAG_COLOURS, mix32, shade } from '../palette';
 import { box, circlePt, cone, cylinder, disc, head, line3, nearness, poly3, rrect, sx, sy, HAIR_COLOURS, SKIN_TONES, type Ctx } from './shapes';
 import { CONTENT_RIDE_ART } from './content';
@@ -472,6 +473,9 @@ export function drawRideArt(ctx: Ctx, defId: string, w: number, d: number, st: R
   const { ex, ey } = extent(w, d, st.rotation);
   const tag = tagOf(defId);
   withGates(ctx, w, d, st, ex, ey, tag, () => {
+    // Phase 8b tool hook: on a surface, the stage 0 twin when the ride has one.
+    const sa = __TC_APP__ ? surfaceArt.on : null;
+    if (__TC_APP__ && sa?.is(ctx) && sa.ride(ctx, defId, ex, ey, st)) return;
     switch (defId) {
       case 'carousel':
         drawCarousel(ctx, ex, ey, st);
@@ -488,7 +492,7 @@ export function drawRideArt(ctx: Ctx, defId: string, w: number, d: number, st: R
       default: {
         // Phase 3 research rides have their own art (W2-C, ./content); anything else gets the fallback.
         const art = CONTENT_RIDE_ART[defId];
-        if (art) art.draw(ctx, ex, ey, st);
+        if (__TC_APP__ && art) art.draw(ctx, ex, ey, st);
         else drawGenericRide(ctx, defId, ex, ey, st);
       }
     }

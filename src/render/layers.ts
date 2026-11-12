@@ -15,6 +15,7 @@
 import type { Dir } from '../sim/map';
 import type { World } from '../sim/types';
 import type { ZoomBucket } from './camera';
+import type { PixelFrame } from './artHook';
 import type { ToolState } from './types';
 
 /** Frame facts every layer gets. */
@@ -33,6 +34,8 @@ export interface LayerFrame {
   /** Canvas size in device px. */
   width: number;
   height: number;
+  /** Phase 8b stage 0b test: the art frame of a Pixel frame (absent or `null` in Classic). `PixelFrame` extends the stage 0 `ArtFrame`. */
+  art?: PixelFrame | null;
 }
 
 /** The renderer's depth-sorted draw list. `depth`, `z`, `layer` as in `./depth.ts` (`packDepth`). */

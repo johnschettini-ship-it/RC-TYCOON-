@@ -36,6 +36,7 @@ import { litterSlot, messSlot, type DecalSlot } from './litter';
 import { pathItemPlacement, type ItemPlacement } from './pathItemPos';
 import { staffPosition, type StaffPos } from './staffPos';
 import { patrolOverlayStaffId, pathItemAction, toolOptions } from './toolOptions';
+import { pixel } from '../artHook';
 
 const HW = TILE_W / 2;
 const HH = TILE_H / 2;
@@ -115,7 +116,7 @@ export class ManagementLayer {
 
   constructor(
     private readonly bank: SpriteBank,
-    private readonly blit: (sp: Sprite, wx: number, wy: number) => void,
+    private readonly blit: (sp: Sprite | null, wx: number, wy: number) => void,
   ) {
     for (let k = 0; k < RAIN_MAX; k++) {
       const h = mix32(k * 2654435761 + 97);
@@ -168,14 +169,14 @@ export class ManagementLayer {
         const fy = y + slot.v;
         const frame = DECAL_MESS + slot.variant;
         const sp = this.bank.decal(decalSpriteKey(frame, slot.flip, bucket), frame, slot.flip, bucket);
-        this.blit(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
+        this.blitDecal(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
       }
       for (let k = 0; k < nl; k++) {
         litterSlot(i, k, slot);
         const fx = x + slot.u;
         const fy = y + slot.v;
         const sp = this.bank.decal(decalSpriteKey(slot.variant, slot.flip, bucket), slot.variant, slot.flip, bucket);
-        this.blit(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
+        this.blitDecal(sp, viewPointSX(this.va, fx, fy), viewPointSY(this.va, fx, fy, surfaceZ(map, i, slot.u, slot.v)));
       }
     }
   }
@@ -224,6 +225,13 @@ export class ManagementLayer {
       const fill = code === PathItem.Bin ? binFillLevel(map.binFill[i] as number, BIN_CAPACITY) : 0;
       const frame = pathItemFrame(code, viewDir(p.side, this.va.r), fill, broken);
       const va = this.va;
+      const rt = __TC_APP__ ? pixel.rt : null;
+      if (__TC_APP__ && rt) {
+        // Phase 8b stage 0b (stage 0 §5.5 stage 1b): Pixel anchors on the art grid.
+        rt.snapWalker(viewPointSX(va, fx, fy), viewPointSY(va, fx, fy, z), 0, this.snap);
+        sink.push(KIND_PATH_ITEM, i, frame, this.snap.x, this.snap.y, pathItemSpriteKey(frame, this.bucket), viewPointDepth(fx, fy, va), z, Layer.Object);
+        continue;
+      }
       sink.push(KIND_PATH_ITEM, i, frame, viewPointSX(va, fx, fy), viewPointSY(va, fx, fy, z), pathItemSpriteKey(frame, this.bucket), viewPointDepth(fx, fy, va), z, Layer.Object);
     }
   }
@@ -289,6 +297,20 @@ export class ManagementLayer {
       this.sz[gi] = surfaceZ(map, t, Math.min(1, Math.max(0, u)), Math.min(1, Math.max(0, v)));
       this.sdir[gi] = (p.side + 2) & 3;
     }
+  }
+
+  /** Phase 8b stage 0b: snapped anchor scratch. */
+  private readonly snap = { x: 0, y: 0 };
+
+  /** A decal copy; Pixel anchors it on the art grid (stage 0 §5.5 stage 1b). */
+  private blitDecal(sp: Sprite | null, ax: number, ay: number): void {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) {
+      rt.snapWalker(ax, ay, 0, this.snap);
+      this.blit(sp, this.snap.x, this.snap.y);
+      return;
+    }
+    this.blit(sp, ax, ay);
   }
 
   /** If guest `gi` sits on a bench this frame, write its seat into `out` and return its facing; else −1. */

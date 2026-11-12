@@ -25,6 +25,7 @@ import { ART_HEADROOM_PX } from './art';
 import { sceneryGhostOf } from './ghost';
 import { itemView, newItemView, viewU, viewV } from './place';
 import { sceneryFrame, scenerySpriteKey, ScenerySprites, viewExtent } from './sprites';
+import { pixel } from '../artHook';
 
 const HW = 32;
 const HH = 16;
@@ -39,6 +40,9 @@ export function createSceneryLayer(): WorldLayer {
   const sprites = new ScenerySprites();
   const iv = newItemView();
   const columnsMemo = new Map<number, ColumnTile[]>();
+  // Phase 8b stage 0b keep-last (Test decision 11): the last picture per (item index, part), with the item id.
+  const last: Array<Sprite | null> = [];
+  const lastId: number[] = [];
 
   function columns(ex: number, ey: number): ColumnTile[] {
     const k = ex * 64 + ey;
@@ -58,6 +62,11 @@ export function createSceneryLayer(): WorldLayer {
   }
 
   function blit(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number): void {
+    // Phase 8b stage 0b: whole copies on the art grid in Pixel.
+    if (__TC_APP__ && f.art && pixel.rt) {
+      pixel.rt.blit(ctx, sp, ax, ay);
+      return;
+    }
     const s = f.scale / sp.scale;
     const x0 = Math.round(devX(f, ax) - sp.ox * s);
     const y0 = Math.round(devY(f, ay) - sp.oy * s);
@@ -66,8 +75,15 @@ export function createSceneryLayer(): WorldLayer {
     ctx.drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
   }
 
-  /** The vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
-  function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
+  /**
+   * The vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). `ends` (Pixel only): bit 1 extends the
+   * strip to the left edge of the image, bit 2 to the right edge (stage 0 §7.7).
+   */
+  function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number, ends = 0): void {
+    if (__TC_APP__ && f.art && pixel.rt) {
+      pixel.rt.blitColumn(ctx, sp, ax, ay, colL, colR, ends);
+      return;
+    }
     const s = f.scale / sp.scale;
     const dx0 = Math.round(devX(f, colL));
     const dx1 = Math.round(devX(f, colR));
@@ -143,14 +159,24 @@ export function createSceneryLayer(): WorldLayer {
       itemView(iv, item, def, f.rotation, map.width, map.height);
       const wilted = !def.edge && def.needsWater && item.waterLevel < GARDEN_WILT_BELOW;
       const part = sub === SUB_ARCH_BACK ? 1 : sub === SUB_ARCH_FRONT ? 2 : 0;
-      const sp = sprites.get(skey, def.id, iv.f, kind === LAYER_KIND.sceneryEdge ? 0 : sceneryFrame(wilted, part, null), f.bucket);
+      let sp = sprites.get(skey, def.id, iv.f, kind === LAYER_KIND.sceneryEdge ? 0 : sceneryFrame(wilted, part, null), f.bucket);
+      if (__TC_APP__ && f.art) {
+        // Stage 0b keep-last per (item, part) while the sheet decodes.
+        const slot = ref * 3 + part;
+        if (sp) {
+          last[slot] = sp;
+          lastId[slot] = item.id;
+        } else if (lastId[slot] === item.id) sp = pixel.rt?.keep(last[slot] ?? null) ?? null;
+      }
       if (!sp) return;
       if (sub < 0) {
         blit(ctx, f, sp, ax, ay);
         return;
       }
       const colL = ax - iv.ey * HW + sub * HW;
-      blitColumn(ctx, f, sp, ax, ay, colL, colL + HW);
+      // Pixel: the first and last column reach the image edges, as for rides (stage 0).
+      const ends = f.art ? (sub === 0 ? 1 : 0) | (sub === columns(iv.ex, iv.ey).length - 1 ? 2 : 0) : 0;
+      blitColumn(ctx, f, sp, ax, ay, colL, colL + HW, ends);
     },
 
     drawOverlay(ctx, world, tool, f): void {

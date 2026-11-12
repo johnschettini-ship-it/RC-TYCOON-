@@ -33,6 +33,7 @@ import { viewAffine, viewPointSX, viewPointSY, viewTileU, viewTileV, type ViewAf
 import { drawShowSiteArt, LAUNCHER_MOUTH_PX, showArtBounds, TOWER_TOP_PX } from './art';
 import { BEAM_LENGTH, drawFireworks, drawLightshow, emptyFxStats, GLOW_IN, GLOW_OUT, resetFxStats, rgba, type FxCtx, type FxStats } from './fx';
 import { showGhostOf } from './ghost';
+import { K_GHOST, K_SHOW, pixel } from '../artHook';
 import { SHOW_PALETTES, showTheme } from './palette';
 import { showPlan } from './timeline';
 
@@ -78,6 +79,9 @@ export function createShowLayer(): ShowLayer {
   const sprites = new SpriteCache(SHOW_SPRITE_BUDGET_PX);
   const affine: ViewAffine = viewAffine(0, 1, 1);
   const columnsMemo = new Map<number, ColumnTile[]>();
+  // Phase 8b stage 0b keep-last per show index (Test decision 11), with the site id.
+  const lastShow: Array<Sprite | null> = [];
+  const lastShowId: number[] = [];
   const frame = emptyFxStats();
   const totals: ShowLayerTotals = { ...emptyFxStats(), frames: 0, reduced: false };
   const palettes = new Map<string, readonly string[]>();
@@ -93,7 +97,14 @@ export function createShowLayer(): ShowLayer {
     return c;
   }
 
-  function sprite(defId: string, facing: Dir, ghost: number, bucket: LayerFrame['bucket']): Sprite {
+  function sprite(defId: string, facing: Dir, ghost: number, bucket: LayerFrame['bucket']): Sprite | null {
+    // Phase 8b stage 0b: predrawn pictures; a ghost is the site picture with the ghost swap
+    // (`ghostKey(K_SHOW, defId, facing)` = `spriteKey(defId, facing, K_SHOW, 0.5)`).
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) {
+      if (ghost === FRAME_GHOST_VALID || ghost === FRAME_GHOST_INVALID) return rt.picture(K_GHOST, spriteKey(defId, facing, K_SHOW, 0.5), ghost === FRAME_GHOST_VALID ? 0 : 1) ?? null;
+      return rt.picture(K_SHOW, spriteKey(defId, facing, 0, 0.5)) ?? null;
+    }
     const key = spriteKey(defId, facing, ghost, bucket);
     const hit = sprites.get(key);
     if (hit) return hit;
@@ -110,7 +121,13 @@ export function createShowLayer(): ShowLayer {
     return wy * f.scale + f.offY;
   }
 
-  function blit(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number): void {
+  function blit(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite | null, ax: number, ay: number): void {
+    if (!sp) return;
+    // Phase 8b stage 0b: whole copies on the art grid in Pixel.
+    if (__TC_APP__ && f.art && pixel.rt) {
+      pixel.rt.blit(ctx, sp, ax, ay);
+      return;
+    }
     const s = f.scale / sp.scale;
     const x0 = Math.round(devX(f, ax) - sp.ox * s);
     const y0 = Math.round(devY(f, ay) - sp.oy * s);
@@ -119,7 +136,11 @@ export function createShowLayer(): ShowLayer {
     ctx.drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
   }
 
-  function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
+  function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number, ends = 0): void {
+    if (__TC_APP__ && f.art && pixel.rt) {
+      pixel.rt.blitColumn(ctx, sp, ax, ay, colL, colR, ends);
+      return;
+    }
     const s = f.scale / sp.scale;
     const dx0 = Math.round(devX(f, colL));
     const dx1 = Math.round(devX(f, colR));
@@ -243,13 +264,22 @@ export function createShowLayer(): ShowLayer {
       const def = getShowSiteDef(site.defId);
       if (!def) return;
       const facing = ((site.rotation + f.rotation) % 4) as Dir;
-      const sp = sprite(def.id, facing, 0, f.bucket);
+      let sp = sprite(def.id, facing, 0, f.bucket);
+      if (__TC_APP__ && f.art) {
+        // Stage 0b keep-last per show index while the sheet decodes.
+        if (sp) {
+          lastShow[ref] = sp;
+          lastShowId[ref] = site.id;
+        } else if (lastShowId[ref] === site.id) sp = pixel.rt?.keep(lastShow[ref] ?? null) ?? null;
+      }
+      if (!sp) return;
       if (sub < 0) {
         blit(ctx, f, sp, ax, ay);
         return;
       }
       const colL = ax - def.w * HW + sub * HW;
-      blitColumn(ctx, f, sp, ax, ay, colL, colL + HW);
+      const ends = f.art ? (sub === 0 ? 1 : 0) | (sub === columns(def.w).length - 1 ? 2 : 0) : 0;
+      blitColumn(ctx, f, sp, ax, ay, colL, colL + HW, ends);
     },
 
     drawAfterObjects(ctx, world, _tool, f): void {

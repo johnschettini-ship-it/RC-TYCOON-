@@ -95,7 +95,8 @@ export function settingsSections(opts: SectionOptions): SectionSpec[] {
       toggle('confirmDemolish', 'settings.gameplay.confirmDemolish', { detail: text('settings.gameplay.confirmDemolishDetail') }),
       toggle('mascotTips', 'settings.gameplay.mascotTips', { detail: text('settings.gameplay.mascotTipsDetail') }),
       toggle('unlockAllScenarios', 'prog.settings.unlockAll', { detail: text('prog.settings.unlockAllDetail'), testId: 'title-unlock-all' }),
-      toggle('offlinePlay', 'settings.gameplay.offline', { detail: text('settings.gameplay.offlineDetail') }),
+      // Phase 8b stage 0b test (never merged): no offline row in the app output (no service worker there).
+      ...(import.meta.env.MODE === 'app' ? [] : [toggle('offlinePlay', 'settings.gameplay.offline', { detail: text('settings.gameplay.offlineDetail') })]),
     ]),
     s('data', [
       { kind: 'action', id: 'exportSaves', label: text('settings.data.exportSaves'), detail: text('settings.data.exportSavesDetail') },

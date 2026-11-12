@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">T&amp;C 0b test</string>
+    <string name="title_activity_main">T&amp;C 0b test</string>
+    <string name="package_name">dev.thrillsandchills.stage0b</string>
+    <string name="custom_url_scheme">dev.thrillsandchills.stage0b</string>
+</resources>

@@ -20,6 +20,9 @@ import { pieceWorldSamples, trackTileSlices, trainSpinFrame } from '../../sim/ri
 import { getLayout, newSamplePoint, type CircuitLayout } from '../../sim/rides/track/layout';
 import type { TrackPieceInstance, TrackRideData } from '../../sim/rides/track/types';
 import type { World } from '../../sim/types';
+import { pixel, surfaceArt } from '../artHook';
+import type { LayerFrame } from '../layers';
+import type { TrackCarRec, TrackGateRec, TrackSliceRec } from '../pixel/app/track';
 import type { ZoomBucket } from '../camera';
 import { buildSprite } from '../canvas';
 import { Layer } from '../depth';
@@ -107,7 +110,7 @@ export interface ViewBox {
 }
 
 /** Car shapes by cache index (Phase 6 shapes appended, so older indices stay). */
-const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft', 'inverted', 'bobsled', 'monorail'];
+export const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft', 'inverted', 'bobsled', 'monorail'];
 
 export interface SliceRec {
   rideId: number;
@@ -224,6 +227,9 @@ function coloursOf(data: TrackRideData): TrackColours {
 
 /** Bounds (world px around the anchor) of a slice: rails, deck, tunnel box, and the support down to the ground. */
 function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], ground: number, special: PieceSpecial, lift = 0): ArtBounds {
+  // Phase 8b tool hook (stage 4a track rule 2): each run grows by one sample on each cut side before the bounds are measured.
+  const sa = __TC_APP__ ? surfaceArt.on : null;
+  if (__TC_APP__ && sa) runs = sa.widenRuns(s, runs);
   let l = Infinity;
   let r = -Infinity;
   let t = Infinity;
@@ -317,8 +323,16 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
   return out;
 }
 
-/** Paint one slice around its anchor (world px). */
-export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame): void {
+/**
+ * Paint one slice around its anchor (world px). With the tool hook on a surface, `extras` on also paints the one extra
+ * sample on each cut side as cut pixels (stage 4a track rules 1 and 3); `extras` false paints the bare runs only.
+ */
+export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame, extras = true): void {
+  const sa = __TC_APP__ ? surfaceArt.on : null;
+  if (__TC_APP__ && sa?.is(ctx)) {
+    sa.slice(ctx, sl, f, extras);
+    return;
+  }
   const P = new Projector(f, sl.ax, sl.ay);
   if (sl.support) paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, sl.support.wx, sl.support.wy, sl.support.yaw, sl.ground, sl.support.top);
   for (let i = 0; i < sl.runs.length; i += 2) {
@@ -646,8 +660,15 @@ export class TrackLayer {
     sink.push(KIND_TRACK, i, SUB_CAR, ax, ay, 0, Math.max(d1, d2), p.z, Layer.Guest);
   }
 
-  /** Draw one collected track drawable. */
-  drawItem(ctx: CanvasRenderingContext2D, ref: number, sub: number): void {
+  // Phase 8b stage 0b test: the layer frame of a Pixel draw and reused drawables for the runtime.
+  private lf: LayerFrame | null = null;
+  private readonly artSlice: TrackSliceRec = { sl: null as unknown as SliceRec, vf: this.frameRef };
+  private readonly artCar: TrackCarRec = { shape: 0, yaw: 0, pitch: 0, roll: 0, front: 0, colour: 0, ax: 0, ay: 0 };
+  private readonly artGate: TrackGateRec = { kind: 0, roof: '', ax: 0, ay: 0 };
+
+  /** Draw one collected track drawable. `f`: the renderer's layer frame (the Pixel runtime reads its art frame). */
+  drawItem(ctx: CanvasRenderingContext2D, ref: number, sub: number, f?: LayerFrame): void {
+    this.lf = f ?? null;
     switch (sub) {
       case SUB_SLICE:
         this.drawSlice(ctx, ref);
@@ -679,6 +700,12 @@ export class TrackLayer {
   private drawSlice(ctx: CanvasRenderingContext2D, i: number): void {
     const sl = this.slices[i];
     if (!sl) return;
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt && this.lf) {
+      this.artSlice.sl = sl;
+      this.artSlice.vf = this.frameRef;
+      if (__TC_APP__ && rt.drawTrack(ctx, 'slice', this.artSlice, this.lf)) return;
+    }
     const bi = bucketIndex(this.bucket);
     let sp = sl.sprites[bi] ?? null;
     if (!sp) {
@@ -819,6 +846,15 @@ export class TrackLayer {
   private drawGate(ctx: CanvasRenderingContext2D, gi: number): void {
     const kind = this.gateKind[gi] === 0 ? 'entrance' : 'exit';
     const colour = this.gateColour[gi] ?? '#8a96a3';
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt && this.lf) {
+      const g = this.artGate;
+      g.kind = this.gateKind[gi] as number;
+      g.roof = colour;
+      g.ax = this.gateAx[gi] as number;
+      g.ay = this.gateAy[gi] as number;
+      if (__TC_APP__ && rt.drawTrack(ctx, 'gate', g, this.lf)) return;
+    }
     let set = this.gateCache.get(colour);
     if (!set) {
       set = [null, null, null, null, null, null];
@@ -842,6 +878,24 @@ export class TrackLayer {
     const rs = rollStep(c.bankSin[i] as number, c.bankCos[i] as number);
     const colour = c.colour[i] as number;
     const front = c.front[i] as number;
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt && this.lf) {
+      // Stage 0b: the car body from a picture; riders and spray stay drawn live (§5.7 item 5).
+      const a = this.artCar;
+      a.shape = shape;
+      a.yaw = ys;
+      a.pitch = ps;
+      a.roll = rs;
+      a.front = front;
+      a.colour = colour;
+      a.ax = projectX(c.x[i] as number, c.y[i] as number, f);
+      a.ay = projectY(c.x[i] as number, c.y[i] as number, c.z[i] as number, f);
+      if (__TC_APP__ && rt.drawTrack(ctx, 'car', a, this.lf)) {
+        this.drawRiders(ctx, i);
+        if (c.spray[i] === 1) this.drawSpray(ctx, i);
+        return;
+      }
+    }
     const bi = bucketIndex(this.bucket);
     const key = (((((shape * 16 + ys) * 24 + ps) * 16 + rs) * 12 + (colour % 12)) * 2 + front) * 3 + bi;
     let sp = this.carCache.get(key);

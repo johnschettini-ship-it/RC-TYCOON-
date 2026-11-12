@@ -40,6 +40,8 @@ import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
 import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
 import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM } from '../data/tuning/perf';
+// Phase 8b stage 0b test (never merged): the app runtime is reached only through the hook (B8).
+import { pixel, type PixelFrame } from './artHook';
 import {
   rotateCameraView,
   viewAffine,
@@ -291,6 +293,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   /** Phase 6 §4.6: 64 MB devices animate rides with fewer frames (`render/anim.ts` `coarseRideFrame`). */
   let coarseRides = false;
   let rideEy = new Int32Array(64);
+  // Phase 8b stage 0b test: the column count of each ride (Pixel `ends` bits), and the last picture of each ride,
+  // stall, by index (keep-last, Test decision 11; the id guards against a shifted index).
+  let rideCols = new Int32Array(64);
+  const lastRide: Array<Sprite | null> = [];
+  const lastRideId: number[] = [];
+  const lastStall: Array<Sprite | null> = [];
+  const lastStallId: number[] = [];
+  const snap = { x: 0, y: 0 };
   const corners: [number, number, number, number] = [0, 0, 0, 0];
 
   let fence: FenceSegment[] = [];
@@ -310,6 +320,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   let offX = 0;
   let offY = 0;
   let bucket: ZoomBucket = 1;
+  /** Phase 8b stage 0b test: the art frame of a Pixel frame (null in Classic). */
+  let art: PixelFrame | null = null;
+  let lastArtScale = '';
+  let lastArtComplete = '';
+  /** The shared budget of the Pixel plan (`PixelPlan.budgetBytes`). */
+  let pixelBudget = 0;
   let rot: ViewRotation = 0;
   const va: ViewAffine = viewAffine(0, 1, 1);
   const view: ViewRect = { x0: 0, y0: 0, x1: 0, y1: 0 };
@@ -335,7 +351,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     return c;
   }
 
-  function blit(sp: Sprite, wx: number, wy: number): void {
+  function blit(sp: Sprite | null, wx: number, wy: number): void {
+    // Stage 0b: a picture still decoding is null (Classic never gives null).
+    if (!sp) return;
+    if (__TC_APP__ && art) {
+      (pixel.rt as NonNullable<typeof pixel.rt>).blit(ctx as CanvasRenderingContext2D, sp, wx, wy);
+      return;
+    }
     const f = scale / sp.scale;
     const x0 = Math.round(devX(wx) - sp.ox * f);
     const y0 = Math.round(devY(wy) - sp.oy * f);
@@ -346,8 +368,15 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
   mgmt = new ManagementLayer(bank, blit);
 
-  /** Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
-  function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
+  /**
+   * Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). `ends` (Pixel only): bit 1 extends
+   * the strip to the left edge of the image, bit 2 to the right edge (stage 0 §7.7).
+   */
+  function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number, ends = 0): void {
+    if (__TC_APP__ && art) {
+      (pixel.rt as NonNullable<typeof pixel.rt>).blitColumn(ctx as CanvasRenderingContext2D, sp, ax, ay, colL, colR, ends);
+      return;
+    }
     const f = scale / sp.scale;
     const dx0 = Math.round(devX(colL));
     const dx1 = Math.round(devX(colR));
@@ -427,6 +456,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (rideSprites.length < rides.length) {
       rideSprites = new Array<Sprite | null>(rides.length * 2).fill(null);
       rideEy = new Int32Array(rides.length * 2);
+      rideCols = new Int32Array(rides.length * 2);
     }
     for (let ri = 0; ri < rides.length; ri++) {
       rideSprites[ri] = null;
@@ -452,6 +482,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
       const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
       rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
+      if (__TC_APP__ && art) {
+        // Stage 0b keep-last (Test decision 11): the last picture while the new sheet decodes (the frame still counts
+        // as incomplete: the store counted the miss).
+        rideCols[ri] = columnsFor(eu, ev).length;
+        const sp = rideSprites[ri];
+        if (sp) {
+          lastRide[ri] = sp;
+          lastRideId[ri] = r.id;
+        } else if (lastRideId[ri] === r.id) rideSprites[ri] = pixel.rt?.keep(lastRide[ri] ?? null) ?? null;
+      }
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
       for (let k = 0; k < cols.length; k++) {
@@ -550,12 +590,23 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           facing = g.dir;
         }
       }
-      const ax = viewPointSX(va, fx, fy);
-      const ay = viewPointSY(va, fx, fy, z);
+      let ax = viewPointSX(va, fx, fy);
+      let ay = viewPointSY(va, fx, fy, z);
+      if (__TC_APP__ && art) {
+        // Stage 0b (stage 0 §5.5, §7.7): the anchor on the art grid; the slope comes from the motion, not the frame.
+        const moving = qStamp[gi] === frameNo || (g.nextTile >= 0 && g.nextTile !== g.tile);
+        const vfm = viewDir(facing, rot);
+        const slope = sitDir >= 0 || !moving ? 0 : vfm & 1 ? 0.5 : -0.5;
+        (pixel.rt as NonNullable<typeof pixel.rt>).snapWalker(ax, ay, slope, snap);
+        ax = snap.x;
+        ay = snap.y;
+      }
       if (lod) {
         if (ax < view.x0 - 4 || ax > view.x1 + 4 || ay < view.y0 - 2 || ay > view.y1 + 8) continue;
         const colour = tint ? SHIRT_COLOURS.length + tintStep(g.temperament) : mix32(g.id) % SHIRT_COLOURS.length;
-        dots.push(devX(ax), devY(ay), colour);
+        // Stage 0b at n > 0: one art pixel above the snapped anchor (drawn n × n below).
+        if (__TC_APP__ && art && art.n > 0) dots.push(art.offX + (ax * art.n) / 2 + art.n / 2, art.offY + (ay * art.n) / 2, colour);
+        else dots.push(devX(ax), devY(ay), colour);
         continue;
       }
       const items = (g.items.balloon ? GUEST_BALLOON : 0) | (wet && g.items.umbrella ? GUEST_UMBRELLA : 0);
@@ -588,13 +639,26 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           const ri = list.ref[i] as number;
           const sp = rideSprites[ri];
           if (!sp) break;
-          const colL = ax - (rideEy[ri] as number) * HW + (list.sub[i] as number) * HW;
-          blitColumn(sp, ax, ay, colL, colL + HW);
+          const col = list.sub[i] as number;
+          const colL = ax - (rideEy[ri] as number) * HW + col * HW;
+          // Pixel: the first and last column reach the image edges (stage 0), so the ink ring is not cut.
+          const ends = __TC_APP__ && art ? (col === 0 ? 1 : 0) | (col === (rideCols[ri] as number) - 1 ? 2 : 0) : 0;
+          blitColumn(sp, ax, ay, colL, colL + HW, ends);
           break;
         }
         case KIND_STALL: {
-          const st = s.stalls[list.ref[i] as number];
-          if (st) blit(bank.stall(st.defId, (list.sub[i] as number) as Dir, 0, bucket), ax, ay);
+          const si = list.ref[i] as number;
+          const st = s.stalls[si];
+          if (!st) break;
+          let sp = bank.stall(st.defId, (list.sub[i] as number) as Dir, 0, bucket);
+          if (__TC_APP__ && art) {
+            // Stage 0b keep-last per stall index.
+            if (sp) {
+              lastStall[si] = sp;
+              lastStallId[si] = st.id;
+            } else if (lastStallId[si] === st.id) sp = pixel.rt?.keep(lastStall[si] ?? null) ?? null;
+          }
+          blit(sp, ax, ay);
           break;
         }
         case KIND_FENCE:
@@ -608,7 +672,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           mgmt.drawEntry(list.kind[i] as number, list.sub[i] as number, ax, ay, list.skey[i] as number);
           break;
         case KIND_TRACK:
-          track.drawItem(ctx as CanvasRenderingContext2D, list.ref[i] as number, list.sub[i] as number);
+          track.drawItem(ctx as CanvasRenderingContext2D, list.ref[i] as number, list.sub[i] as number, frame);
           break;
         default: {
           const kind = list.kind[i] as number;
@@ -894,8 +958,45 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
   const autoScale = new AutoScale(BUDGET_DESKTOP_FRAME_P95_MS);
   let lastDrawAt = -1;
 
+  /**
+   * Phase 8b stage 0b test: the Pixel plan of the app runtime (Test decisions 2, 3): canvas at ratio `dpr / k`, the box
+   * stretched by `k` and anchored top left, one sprite bucket, no exact chunk scale, the runtime's budget.
+   */
+  function applyPixelPlan(rt: NonNullable<typeof pixel.rt>): void {
+    planVersion = renderQualityVersion();
+    const cls = deviceClass(device, cssW, cssH);
+    autoScale.budgetMs = cls === 'phone' ? BUDGET_PHONE_FRAME_P95_MS : BUDGET_DESKTOP_FRAME_P95_MS;
+    const p = rt.plan(cssW, cssH, rawDpr);
+    dpr = (rawDpr > 0 && Number.isFinite(rawDpr) ? rawDpr : 1) / p.stretch;
+    lodZoom = renderPlan(renderQuality(), cls, rawDpr, autoScale.maxRatio).guestLodZoom;
+    terrain.allowExact = false;
+    prefetchTurns = false;
+    coarseRides = p.coarse;
+    spriteMemory.budgetBytes = p.budgetBytes;
+    pixelBudget = p.budgetBytes;
+    terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
+    canvas.width = p.canvasW;
+    canvas.height = p.canvasH;
+    if (canvas.style) {
+      canvas.style.width = `${p.boxW}px`;
+      canvas.style.height = `${p.boxH}px`;
+    }
+    canvas.dataset.art = 'pixel';
+    canvas.dataset.stretch = String(p.stretch);
+    // Full precision: `data-zoom` keeps 3 decimals, and 1.143 is not a crisp level on the Pixel 7 profile.
+    canvas.dataset.homeZoom = String(p.homeZoom);
+    canvas.dataset.pixelRatio = String(dpr);
+    canvas.dataset.device = p.device;
+    canvas.dataset.autoScale = 'full';
+  }
+
   /** Pixel ratio, zoom buckets, guest LOD zoom, and the shared sprite memory budget from the device and quality. */
   function applyPlan(): void {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) {
+      applyPixelPlan(rt);
+      return;
+    }
     if (planVersion !== renderQualityVersion()) autoScale.reset();
     planVersion = renderQualityVersion();
     const cls = deviceClass(device, cssW, cssH);
@@ -918,6 +1019,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
   /** Feed the frame interval to the `auto` step down; re-plan when it steps. */
   function autoFrame(): void {
+    // Stage 0b: Pixel keeps its plan (the stretch is whole; no step down of the render scale).
+    if (__TC_APP__ && art) return;
     if (renderQuality() !== 'auto' || typeof performance === 'undefined') {
       lastDrawAt = -1;
       return;
@@ -1015,7 +1118,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       const sc = staticImage.ctx as unknown as CanvasRenderingContext2D;
       sc.setTransform(1, 0, 0, 1, 0, 0);
       sc.globalAlpha = 1;
-      sc.imageSmoothingEnabled = true;
+      // Stage 0b: Pixel copies whole art pixels (smoothing only at the soft level).
+      sc.imageSmoothingEnabled = __TC_APP__ && art ? art.n === 0 : true;
       sc.fillStyle = SKY;
       sc.fillRect(0, 0, w, h);
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
@@ -1056,10 +1160,21 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       rot = (cam.rotation & 3) as ViewRotation;
       viewAffine(rot, map.width, map.height, va);
       clampCameraToMap(cam, map);
-      scale = cam.zoom * dpr;
-      bucket = zoomBucket(scale);
-      offX = canvas.width / 2 - cam.centerX * scale;
-      offY = canvas.height / 2 - cam.centerY * scale;
+      const rt = __TC_APP__ ? pixel.rt : null;
+      if (__TC_APP__ && rt) {
+        // Stage 0b: the art frame (whole offsets from the viewport centre, art scale n), one sprite bucket.
+        art = rt.beginFrame(cam, world, cssW, cssH, rawDpr, alpha);
+        scale = art.scale;
+        bucket = 0.5;
+        offX = art.offX;
+        offY = art.offY;
+      } else {
+        art = null;
+        scale = cam.zoom * dpr;
+        bucket = zoomBucket(scale);
+        offX = canvas.width / 2 - cam.centerX * scale;
+        offY = canvas.height / 2 - cam.centerY * scale;
+      }
       view.x0 = cam.centerX - cssW / 2 / cam.zoom;
       view.x1 = cam.centerX + cssW / 2 / cam.zoom;
       view.y0 = cam.centerY - cssH / 2 / cam.zoom;
@@ -1068,13 +1183,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = 1;
-      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingEnabled = __TC_APP__ && art ? art.n === 0 : true;
 
       frame.scale = scale;
       frame.offX = offX;
       frame.offY = offY;
       frame.dpr = dpr;
       frame.bucket = bucket;
+      frame.art = art;
       frame.view = view;
       frame.rotation = rot;
       frame.alpha = alpha;
@@ -1087,6 +1203,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       mgmt.begin(scale, offX, offY, dpr, bucket, view, va);
       mgmt.drawGround(world);
       for (const l of layers) l.drawGround?.(ctx, world, tool, frame);
+      // Phase 8b stage 0b test: object shadows on the ground, before the objects (D8).
+      if (__TC_APP__ && rt) rt.drawShadows(ctx, world, frame);
       if (tool.tool === 'buyLand') drawOwnershipTints(map);
 
       // Objects.
@@ -1109,7 +1227,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       for (const l of layers) l.collect?.(world, list, tool, frame);
       collectGuests(world, tool, alpha, lod);
       // Far zoom: guests are dots under the objects (rides and fences in front still cover them).
-      if (lod) dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
+      if (lod) {
+        // Stage 0b at n > 0: one art pixel per guest (in today's LOD colours; the slot colours need pixel code).
+        if (__TC_APP__ && art && art.n > 0) dots.draw(ctx, art.n, art.n);
+        else dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
+      }
       list.sort();
       drawList(world);
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
@@ -1131,6 +1253,24 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       if (rot !== lastRot) {
         canvas.dataset.rotation = String(rot);
         lastRot = rot;
+      }
+      if (__TC_APP__ && rt && art) {
+        // Stage 0b: budget, eviction and counters of the frame; the sprite memory gives way to the decoded pictures.
+        // Fix round 1: placeholder ground makes the frame incomplete (I2); the rest of the sprite memory counts (M1).
+        const staticBytes = statics.pixels * 4;
+        const chunkBytes = terrain.pixels * 4;
+        const otherBytes = Math.max(0, spriteMemory.bytes - staticBytes - chunkBytes);
+        const complete = rt.endFrame(staticBytes, chunkBytes, terrain.complete, otherBytes) ? '1' : '0';
+        spriteMemory.budgetBytes = Math.max(0, pixelBudget - rt.storeBytes);
+        const nStr = String(art.n);
+        if (nStr !== lastArtScale) {
+          canvas.dataset.artScale = nStr;
+          lastArtScale = nStr;
+        }
+        if (complete !== lastArtComplete) {
+          canvas.dataset.artComplete = complete;
+          lastArtComplete = complete;
+        }
       }
 
       if (t0) {

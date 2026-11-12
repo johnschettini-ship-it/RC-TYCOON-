@@ -11,6 +11,7 @@ import { buildSprite } from '../canvas';
 import { SpriteCache, spriteKey, type Sprite } from '../spriteCache';
 import { GHOST_TINT_INVALID, GHOST_TINT_VALID } from '../sprites/bank';
 import { drawSceneryArt, sceneryArtBounds, type SceneryArtOpts } from './art';
+import { K_GHOST, K_SCENERY, pixel } from '../artHook';
 
 /** Frame (variant) bits. */
 export const SCENERY_FRAME = {
@@ -68,6 +69,15 @@ export class ScenerySprites {
 
   /** The sprite for `key` (from `scenerySpriteKey(defId, f, frame, bucket)`), built when missing. */
   get(key: number, defId: string, f: Dir, frame: number, bucket: ZoomBucket): Sprite | null {
+    // Phase 8b stage 0b: predrawn pictures at bucket 0.5; a ghost is the frame-0 picture with the ghost swap
+    // (`ghostKey(K_SCENERY, defId, f)` = `spriteKey(defId, f, K_SCENERY, 0.5)`).
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) {
+      if (frame & (SCENERY_FRAME.ghostValid | SCENERY_FRAME.ghostInvalid)) {
+        return rt.picture(K_GHOST, spriteKey(defId, f, K_SCENERY, 0.5), frame & SCENERY_FRAME.ghostValid ? 0 : 1) ?? null;
+      }
+      return rt.picture(K_SCENERY, spriteKey(defId, f, frame, 0.5)) ?? null;
+    }
     const hit = this.cache.get(key);
     if (hit) return hit;
     const def = getSceneryDef(defId);

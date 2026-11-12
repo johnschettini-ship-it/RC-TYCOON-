@@ -5,3 +5,5 @@ playwright-report/
 *.log
 .DS_Store
 .claude/worktrees/
+dist-app/
+mobile/www/

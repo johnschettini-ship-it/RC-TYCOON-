@@ -82,4 +82,5 @@ function createUpdateToast(ctx: UiContext): UiPart {
   };
 }
 
-export const offlineUi: UiExtension = { bars: createUpdateToast };
+// Phase 8b stage 0b test (never merged): no update toast in the app output (no service worker there).
+export const offlineUi: UiExtension = import.meta.env.MODE === 'app' ? {} : { bars: createUpdateToast };

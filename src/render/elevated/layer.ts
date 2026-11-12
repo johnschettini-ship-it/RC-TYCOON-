@@ -16,6 +16,7 @@ import type { ToolState } from '../types';
 import type { World } from '../../sim/types';
 import type { ElevatedPath } from '../../sim/paths/types';
 import { RAMP_MASK } from '../../sim/paths/nodes';
+import { pixel } from '../artHook';
 
 const HW = 32;
 const HH = 16;
@@ -160,6 +161,11 @@ export function createElevatedPathLayer(): WorldLayer {
       if (kind !== LAYER_KIND.elevatedPath) return;
       const p = world.state.elevatedPaths[ref];
       if (!p) return;
+      // Phase 8b stage 0b test: posts and deck from pictures (the ghost below stays drawn live).
+      if (__TC_APP__ && pixel.rt) {
+        pixel.rt.drawElevated(ctx, p, world, f);
+        return;
+      }
       corners(world, p, f, p.z, p.rampDir);
       drawDeck(ctx, f, p.kind, true);
     },

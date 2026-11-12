@@ -5,6 +5,7 @@
  * randomness, no time: the same inputs give the same pixels. "Random" variation comes from `frac(seed)`.
  */
 import type { Dir } from '../../../sim/map';
+import { surfaceArt } from '../../artHook';
 import { mix32, shade } from '../../palette';
 import { box, poly3, sx, sy, type Ctx } from '../../sprites/shapes';
 import { TAU, dot, line2, oval, poly2, star } from '../../sprites/content/kit';
@@ -79,7 +80,10 @@ export function mixHex(a: string, b: string, t: number): string {
   const pa = parseInt(a.slice(1), 16);
   const pb = parseInt(b.slice(1), 16);
   const ch = (s: number): number => Math.round(((pa >> s) & 255) * (1 - t) + ((pb >> s) & 255) * t);
-  return `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
+  const out = `#${((ch(16) << 16) | (ch(8) << 8) | ch(0)).toString(16).padStart(6, '0')}`;
+  // Phase 8b tool hook: the derived-colour memo records the mix; without the hook nothing happens.
+  if (__TC_APP__) surfaceArt.on?.noteMixed(out, a, b, t);
+  return out;
 }
 
 /** Wilted colour: faded toward dry brown. */
@@ -89,6 +93,9 @@ export function wilt(colour: string, wilted: boolean): string {
 
 /** Soft ground shadow (ellipse) under a point. */
 export function shadow(ctx: Ctx, cu: number, cv: number, r: number, alpha = 0.2): void {
+  // Phase 8b tool hook: on a surface the shadow pictures carry the ground shadow.
+  const sa = __TC_APP__ ? surfaceArt.on : null;
+  if (__TC_APP__ && sa?.is(ctx)) return;
   oval(ctx, sx(cu, cv), sy(cu, cv, 0), r * 45, r * 22.5, `rgba(20,30,20,${alpha})`);
 }
 

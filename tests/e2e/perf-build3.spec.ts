@@ -68,11 +68,19 @@ interface RunResult {
 }
 
 const SCENE_DIR = fileURLToPath(new URL('../perf/', import.meta.url));
+/** Phase 8b stage 0b test: an address query for the runs (for example `?frames=coarse`). */
+const PERF_QUERY = process.env.TC_PERF_QUERY ?? '';
 
 /** Load a scene save through the title screen's Continue (slot 1). */
 async function loadScene(page: Page, scene: PerfSceneInfo): Promise<void> {
   const json = readFileSync(SCENE_DIR + scene.file, 'utf8');
-  await page.goto('/');
+  await page.goto('/' + PERF_QUERY);
+  // Phase 8b stage 0b test (Review Focus 1): an app run measures the app build, never a website server on the port.
+  if (process.env.TC_APP === '1') {
+    // `__tcBuild` is set by the runtime chunk, which loads after the page's load event; a website build never sets it.
+    await page.waitForFunction(() => (window as unknown as { __tcBuild?: string }).__tcBuild !== undefined, null, { timeout: 30_000 }).catch(() => undefined);
+    expect(await page.evaluate(() => (window as unknown as { __tcBuild?: string }).__tcBuild)).toBe('app');
+  }
   await page.evaluate((j) => {
     localStorage.clear();
     localStorage.setItem('tc.save.1', j);
@@ -183,6 +191,51 @@ async function heapMb(cdp: CDPSession): Promise<number> {
   return h.usedSize / (1024 * 1024);
 }
 
+/** Phase 8b stage 0b test: `window.__predrawnStats` (Pixel app runs only). */
+interface PredrawnStatsView {
+  budgetMbMax: number;
+  sheetMb: number;
+  swapMb: number;
+  chunkMb: number;
+  staticMb: number;
+  otherMb: number;
+  incompleteAfterTurnMax: number;
+  missingTotal: number;
+  chunkMsMax: number;
+  reset(): void;
+}
+
+/** `missingTotal` now (Pixel app runs), else null. */
+async function missingNow(page: Page): Promise<number | null> {
+  return page.evaluate(() => (window as unknown as { __predrawnStats?: PredrawnStatsView }).__predrawnStats?.missingTotal ?? null);
+}
+
+/**
+ * The 0b tail of a `[perf]` line: the Pixel numbers, or `art classic`. `missing` counts the measured window only
+ * (`mainMissing`); the misses of the view turns and the pan (new views decode; B5 and B3-other judge those through
+ * `incomplete after turn`) follow as `turn and pan misses`.
+ */
+async function artTail(page: Page, mainMissing: number | null): Promise<string> {
+  const art = await page.locator('#game').getAttribute('data-art');
+  if (art !== 'pixel') return '; art classic';
+  const n = await page.locator('#game').getAttribute('data-art-scale');
+  const k = await page.locator('#game').getAttribute('data-stretch');
+  const s = await page.evaluate(() => {
+    const st = (window as unknown as { __predrawnStats?: PredrawnStatsView }).__predrawnStats;
+    if (!st) return null;
+    const { budgetMbMax, sheetMb, swapMb, chunkMb, staticMb, otherMb, incompleteAfterTurnMax, missingTotal, chunkMsMax } = st;
+    return { budgetMbMax, sheetMb, swapMb, chunkMb, staticMb, otherMb, incompleteAfterTurnMax, missingTotal, chunkMsMax };
+  });
+  expect(s, 'a Pixel run has window.__predrawnStats').not.toBeNull();
+  const v = s as NonNullable<typeof s>;
+  return (
+    `; art n ${n}, k ${k}, budget max ${v.budgetMbMax.toFixed(2)} MB, sheets ${v.sheetMb.toFixed(2)} MB, swaps ${v.swapMb.toFixed(2)} MB, ` +
+    `chunks ${v.chunkMb.toFixed(2)} MB, static ${v.staticMb.toFixed(2)} MB, other ${v.otherMb.toFixed(2)} MB, ` +
+    `incomplete after turn ${v.incompleteAfterTurnMax}, missing ${mainMissing ?? v.missingTotal}, chunk max ${v.chunkMsMax.toFixed(1)} ms, ` +
+    `turn and pan misses ${v.missingTotal - (mainMissing ?? v.missingTotal)}`
+  );
+}
+
 const n1 = (v: number | null): string => (v === null ? 'n/a' : v.toFixed(1));
 const n2 = (v: number | null): string => (v === null ? 'n/a' : v.toFixed(2));
 
@@ -248,29 +301,39 @@ test.describe('perf run (Phase 6 §4.6 method)', () => {
   for (const id of ['build1', 'build2', 'phone'] as const) {
     test(`scene ${id}`, async ({ page }, info) => {
       const phone = info.project.name === 'phone';
-      test.skip(phone ? id === 'build1' : id === 'phone', 'desktop runs build1 and build2; phone runs phone and build2');
+      // Phase 8b stage 0b test: the tablet project runs build1 and build2 with the CPU throttled 4× (as the phone).
+      const tablet = info.project.name === 'tablet';
+      const throttled = phone || tablet;
+      test.skip(phone ? id === 'build1' : id === 'phone', 'desktop and tablet run build1 and build2; phone runs phone and build2');
       test.setTimeout(((seconds + warmup) * 1000 + 30_000) * runs * 2 + 120_000);
       const scene = PERF_SCENES.find((s) => s.id === id) as PerfSceneInfo;
       const cdp = await page.context().newCDPSession(page);
-      const at = (rot: number): Aim => ({ x: scene.focus.x, y: scene.focus.y, zoom: 1, rot });
+      let zoom = 1;
+      const at = (rot: number): Aim => ({ x: scene.focus.x, y: scene.focus.y, zoom, rot });
       for (let k = 0; k < runs; k++) {
         await loadScene(page, scene);
         if (quality) await page.evaluate((q) => (window as unknown as { __tc: TcPerfGame }).__tc.settings?.set('renderQuality', q), quality);
-        if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+        // Phase 8b stage 0b test: Pixel runs at its home zoom (read after two animation frames, once the plan is applied).
+        await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+        zoom = (await page.locator('#game').getAttribute('data-art')) === 'pixel' ? Number(await page.locator('#game').getAttribute('data-home-zoom')) : 1;
+        if (throttled) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
         await runFor(page, warmup * 1000, at(0));
+        await page.evaluate(() => (window as unknown as { __predrawnStats?: PredrawnStatsView }).__predrawnStats?.reset());
         const main = await runFor(page, seconds * 1000);
+        const mainMissing = await missingNow(page);
         const heap = await heapMb(cdp);
         // View turns: the longest frame (and its main-thread work) of the first second after each.
         const turns: RunResult[] = [];
         for (const rot of [1, 2]) turns.push(await runFor(page, 1_000, at(rot)));
         // A pan: the camera moves every frame, so no static layer can be reused.
         const pan = await runFor(page, 3_000, null, 6);
-        if (phone) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+        if (throttled) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+        const tail = await artTail(page, mainMissing);
         const ratio = await page.locator('#game').getAttribute('data-pixel-ratio');
         const turnText = turns.map((t) => `${t.max.toFixed(0)} ms (work ${n1(t.workMax)} ms)`).join(', ');
         console.log(
-          `[perf] ${info.project.name}${phone ? ' (CPU 4×)' : ''} scene ${id} run ${k + 1}/${runs}${quality ? ` (${quality})` : ''}, canvas ratio ${ratio}: ${fmt(main)}; ` +
-            `heap ${heap.toFixed(0)} MB; turns: longest frame ${turnText}; pan: frame p95 ${pan.p95.toFixed(1)} ms, work p95 ${n1(pan.workP95)} ms`,
+          `[perf] ${info.project.name}${throttled ? ' (CPU 4×)' : ''} scene ${id} run ${k + 1}/${runs}${quality ? ` (${quality})` : ''}, canvas ratio ${ratio}: ${fmt(main)}; ` +
+            `heap ${heap.toFixed(0)} MB; turns: longest frame ${turnText}; pan: frame p95 ${pan.p95.toFixed(1)} ms, work p95 ${n1(pan.workP95)} ms${tail}`,
         );
       }
     });

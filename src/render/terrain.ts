@@ -19,6 +19,7 @@ import { JOIN_E, JOIN_N, JOIN_S, JOIN_W, pathJoinMask } from './paths';
 import { mapToView, rotateSlopeMask, viewCornerHeights, viewSize, viewToMap, type ViewRotation } from './view';
 import { mix32, shade } from './palette';
 import { CHUNK_SIZE, TerrainTracker } from './terrainTracker';
+import { pixel } from './artHook';
 import type { Ctx } from './sprites/shapes';
 
 const HW = 32;
@@ -539,9 +540,11 @@ export class TerrainLayer {
   private stableFrames = 0;
 
   /** Build the image of `chunk` at `scale` image px per world px (a zoom bucket, or an exact device scale). */
-  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation, geom?: ChunkGeom): Sprite {
+  private build(map: MapState, chunk: number, scale: number, env: TerrainEnv, r: ViewRotation, geom?: ChunkGeom): Sprite | null {
     this.builds++;
     const g = geom ?? (this.bounds[chunk] as ChunkGeom);
+    // Phase 8b stage 0b test: the chunk from predrawn pieces; null while a piece decodes (built again next frame).
+    if (__TC_APP__ && pixel.rt) return pixel.rt.chunk(map, chunkViewRect(map, chunk % this.tracker.chunksX, Math.floor(chunk / this.tracker.chunksX), r), r, g);
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
     const { canvas, ctx } = makeCanvas(w, h);
@@ -615,8 +618,15 @@ export class TerrainLayer {
               sp = standIn;
               complete = false;
             } else {
-              sp = this.build(map, c, exact ? scale : bucket, env, r);
-              this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+              const built = this.build(map, c, exact ? scale : bucket, env, r);
+              // Stage 0b fix round 1 (M5): a null build (a piece still decoding) keeps the stand-in and stores nothing.
+              if (built) {
+                sp = built;
+                this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+              } else {
+                sp = standIn;
+                complete = false;
+              }
               if (exact) exactBuilds++;
               else refines++;
             }
@@ -629,9 +639,16 @@ export class TerrainLayer {
               complete = false;
               continue;
             }
-            sp = this.build(map, c, exact ? scale : bucket, env, r);
-            this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+            const built = this.build(map, c, exact ? scale : bucket, env, r);
             firstBuilds++;
+            if (!built) {
+              this.drawPlaceholder(ctx, map, c, r, scale, offX, offY);
+              this.placeholders++;
+              complete = false;
+              continue;
+            }
+            sp = built;
+            this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
           }
         }
       }
@@ -699,7 +716,9 @@ export class TerrainLayer {
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
       const key = c * KEYS_PER_CHUNK + r * 4 + bi;
       if (this.images.peek(key)) continue;
-      this.images.set(key, this.build(map, c, bucket, env, r, g));
+      const sp = this.build(map, c, bucket, env, r, g);
+      if (!sp) return false;
+      this.images.set(key, sp);
       this.prefetched++;
       return true;
     }

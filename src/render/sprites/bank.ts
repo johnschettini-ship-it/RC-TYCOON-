@@ -14,6 +14,16 @@ import { drawRideArt, rideArtBounds } from './rides';
 import { HAIR_COLOURS, SKIN_TONES } from './shapes';
 import { drawStallArt, stallArtBounds } from './stalls';
 import { decodeStaffFrame, drawStaffArt, STAFF_BOUNDS } from './staff';
+import { K_DECAL, K_ENTRANCE, K_FENCE, K_GHOST, K_GUEST, K_PATH_ITEM, K_RIDE, K_STAFF, K_STALL, pixel } from '../artHook';
+
+/**
+ * Phase 8b stage 0b test (never merged): the predrawn key of a ghost, `ghostKey(kind, defId, view)` of
+ * `pixel/app/keys.ts` = `spriteKey(defId, view, kind, 0.5)` (same layout, bucket bits 0), written here so the bank
+ * imports no pixel code (B8).
+ */
+function ghostPictureKey(kind: number, defId: string, view: number): number {
+  return spriteKey(defId, view, kind, 0.5);
+}
 import { drawLitterArt, drawMessArt, drawPathItemArt, LITTER_BOUNDS, MESS_BOUNDS, PATH_ITEM_BOUNDS } from './litter';
 
 /** Phase 4 §8 `SPRITE_CACHE_MB`: sprite LRU cap across rotations and zoom buckets (4 bytes per pixel). */
@@ -94,7 +104,13 @@ export class SpriteBank {
     this.guestBuilds = 0;
   }
 
-  ride(defId: string, w: number, d: number, rotation: Dir, frame: number, bucket: ZoomBucket): Sprite {
+  ride(defId: string, w: number, d: number, rotation: Dir, frame: number, bucket: ZoomBucket): Sprite | null {
+    // Phase 8b stage 0b: predrawn pictures (keys at bucket 0.5); ghosts are the frame-0 picture with a ghost swap.
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) {
+      if (frame === GHOST_FRAME_VALID || frame === GHOST_FRAME_INVALID) return rt.picture(K_GHOST, ghostPictureKey(K_RIDE, defId, rotation), frame === GHOST_FRAME_VALID ? 0 : 1) ?? null;
+      return rt.picture(K_RIDE, spriteKey(defId, rotation, frame, 0.5)) ?? null;
+    }
     const key = spriteKey(defId, rotation, frame, bucket);
     let sp = this.cache.get(key);
     if (sp) return sp;
@@ -110,7 +126,12 @@ export class SpriteBank {
     return sp;
   }
 
-  stall(defId: string, rotation: Dir, frame: number, bucket: ZoomBucket): Sprite {
+  stall(defId: string, rotation: Dir, frame: number, bucket: ZoomBucket): Sprite | null {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) {
+      if (frame === GHOST_FRAME_VALID || frame === GHOST_FRAME_INVALID) return rt.picture(K_GHOST, ghostPictureKey(K_STALL, defId, rotation), frame === GHOST_FRAME_VALID ? 0 : 1) ?? null;
+      return rt.picture(K_STALL, spriteKey(defId, rotation, frame, 0.5)) ?? null;
+    }
     const key = spriteKey(defId, rotation, frame, bucket);
     let sp = this.cache.get(key);
     if (sp) return sp;
@@ -121,7 +142,9 @@ export class SpriteBank {
   }
 
   /** `key` must come from `guestSpriteKey(facing, frame, bucket)`. */
-  guest(key: number, facing: Dir, frame: number, bucket: ZoomBucket): Sprite {
+  guest(key: number, facing: Dir, frame: number, bucket: ZoomBucket): Sprite | null {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) return rt.picture(K_GUEST, key - bucketIndex(bucket)) ?? null;
     let sp = this.cache.get(key);
     if (sp) return sp;
     if (this.guestBuilds >= GUEST_BUILDS_PER_FRAME) {
@@ -157,7 +180,9 @@ export class SpriteBank {
   }
 
   /** `key` must come from `staffSpriteKey(facing, frame, bucket)`. */
-  staff(key: number, facing: Dir, frame: number, bucket: ZoomBucket): Sprite {
+  staff(key: number, facing: Dir, frame: number, bucket: ZoomBucket): Sprite | null {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) return rt.picture(K_STAFF, key - bucketIndex(bucket)) ?? null;
     let sp = this.cache.get(key);
     if (sp) return sp;
     const f = decodeStaffFrame(frame);
@@ -167,7 +192,9 @@ export class SpriteBank {
   }
 
   /** `key` must come from `pathItemSpriteKey(frame, bucket)`. */
-  pathItem(key: number, frame: number, bucket: ZoomBucket): Sprite {
+  pathItem(key: number, frame: number, bucket: ZoomBucket): Sprite | null {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) return rt.picture(K_PATH_ITEM, key - bucketIndex(bucket)) ?? null;
     let sp = this.cache.get(key);
     if (sp) return sp;
     sp = buildSprite(PATH_ITEM_BOUNDS, bucket, (ctx) => drawPathItemArt(ctx, frame & 3, (frame >> 2) & 3, (frame >> 4) & 3, (frame & 64) !== 0));
@@ -176,7 +203,9 @@ export class SpriteBank {
   }
 
   /** `key` must come from `decalSpriteKey(frame, flip, bucket)`. */
-  decal(key: number, frame: number, flip: number, bucket: ZoomBucket): Sprite {
+  decal(key: number, frame: number, flip: number, bucket: ZoomBucket): Sprite | null {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) return rt.picture(K_DECAL, key - bucketIndex(bucket)) ?? null;
     let sp = this.cache.get(key);
     if (sp) return sp;
     sp =
@@ -187,7 +216,9 @@ export class SpriteBank {
     return sp;
   }
 
-  fence(dir: Dir, bucket: ZoomBucket): Sprite {
+  fence(dir: Dir, bucket: ZoomBucket): Sprite | null {
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) return rt.picture(K_FENCE, spriteKey('fence', dir, 0, 0.5)) ?? null;
     const key = spriteKey('fence', dir, 0, bucket);
     let sp = this.cache.get(key);
     if (sp) return sp;
@@ -196,8 +227,10 @@ export class SpriteBank {
     return sp;
   }
 
-  entrance(part: 0 | 1, outerDir: Dir | -1, bucket: ZoomBucket): Sprite {
+  entrance(part: 0 | 1, outerDir: Dir | -1, bucket: ZoomBucket): Sprite | null {
     const rot = outerDir < 0 ? 2 : outerDir;
+    const rt = __TC_APP__ ? pixel.rt : null;
+    if (__TC_APP__ && rt) return rt.picture(K_ENTRANCE, spriteKey('park_entrance', rot, part, 0.5)) ?? null;
     const key = spriteKey('park_entrance', rot, part, bucket);
     let sp = this.cache.get(key);
     if (sp) return sp;

@@ -5,6 +5,7 @@
  */
 import { displayPrefs } from '../a11y/prefs';
 import { SAFE_PALETTE } from '../data/tuning/a11y';
+import { surfaceArt } from './artHook';
 
 /** Valid ghosts and "OK" marks: blue (`#0072B2`). Invalid ghosts and errors: vermillion (`#D55E00`). */
 export const GHOST_VALID = SAFE_PALETTE[0];
@@ -128,5 +129,8 @@ export function shade(hex: string, f: number): string {
     const o = f >= 1 ? v + (255 - v) * (f - 1) : v * f;
     return Math.max(0, Math.min(255, Math.round(o)));
   };
-  return `#${((1 << 24) | (ch(r) << 16) | (ch(g) << 8) | ch(b)).toString(16).slice(1)}`;
+  const out = `#${((1 << 24) | (ch(r) << 16) | (ch(g) << 8) | ch(b)).toString(16).slice(1)}`;
+  // Phase 8b tool hook: the derived-colour memo records the shade; without the hook nothing happens.
+  if (__TC_APP__) surfaceArt.on?.noteDerived(out, hex, f);
+  return out;
 }

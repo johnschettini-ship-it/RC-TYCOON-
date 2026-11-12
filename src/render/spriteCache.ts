@@ -18,6 +18,9 @@ export interface Sprite {
   ox: number;
   oy: number;
   scale: number;
+  /** Phase 8b stage 0b test: source origin in `image` (a picture on a sheet); 0 when absent. */
+  sx?: number;
+  sy?: number;
 }
 
 const hashMemo = new Map<string, number>();

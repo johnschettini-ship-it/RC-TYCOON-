@@ -11,14 +11,23 @@
     "test": "vitest run",
     "bench": "vitest bench --run",
     "typecheck": "tsc --noEmit",
-    "e2e": "playwright test --trace off"
+    "e2e": "playwright test --trace off",
+    "build:app": "tsc --noEmit && vite build --mode app --outDir dist-app",
+    "check:app": "node scripts/check-app.ts dist-app",
+    "mobile:www": "vite build --mode app --outDir dist-app && node scripts/build-mobile-www.mjs",
+    "mobile:sync": "npm run mobile:www && npx cap sync android"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@capacitor/cli": "7.6.8",
     "@playwright/test": "1.63.0",
     "@types/node": "22.20.5",
     "typescript": "6.0.3",
     "vite": "8.3.5",
     "vitest": "5.0.5"
+  },
+  "dependencies": {
+    "@capacitor/android": "7.6.8",
+    "@capacitor/core": "7.6.8"
   }
 }

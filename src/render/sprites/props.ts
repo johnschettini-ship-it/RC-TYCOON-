@@ -3,6 +3,7 @@
  * for the temperament rings and the ghost icons, Phase 6 §4.7: colour is never the only signal).
  */
 import type { Dir } from '../../sim/map';
+import { surfaceArt } from '../artHook';
 import { GHOST_INVALID, GHOST_VALID, TINT_STEPS, shade } from '../palette';
 import type { ArtBounds } from './rides';
 import { box, cylinder, line3, poly3, rrect, sx, sy, type Ctx } from './shapes';
@@ -138,6 +139,11 @@ export function ringNotched(step: number | undefined): boolean {
 export const RING_NOTCHES = 6;
 
 export function drawGuestArt(ctx: Ctx, g: GuestLook): void {
+  const sa = __TC_APP__ ? surfaceArt.on : null;
+  if (__TC_APP__ && sa?.is(ctx)) {
+    sa.guest(ctx, g);
+    return;
+  }
   if (g.ring) {
     ctx.strokeStyle = g.ring;
     ctx.lineWidth = 1.6;
