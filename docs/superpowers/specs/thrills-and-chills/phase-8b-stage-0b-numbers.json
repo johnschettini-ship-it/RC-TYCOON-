@@ -1,0 +1,1291 @@
+{
+ "note": "Stage 0b numbers (Task 21). Medians of 3 runs. 1 MB = 1 048 576 bytes. Drawing path: software (SwiftShader). Tablet Pixel runs use the coarse frame set.",
+ "today": {
+  "phone": {
+   "phone": {
+    "frameP50": 33.3,
+    "frameP95": 50.1,
+    "workP95": 17.3,
+    "renderP95": 10.1,
+    "turn": 117,
+    "turnSteps": 7,
+    "budgetMax": null,
+    "budgetMaxAll": null,
+    "missing": 0,
+    "missingRuns": [
+     0,
+     0,
+     0
+    ],
+    "incompleteAfterTurn": null,
+    "chunkMax": null
+   },
+   "build2": {
+    "frameP50": 33.3,
+    "frameP95": 50,
+    "workP95": 24.6,
+    "renderP95": 9.8,
+    "turn": 83,
+    "turnSteps": 5,
+    "budgetMax": null,
+    "budgetMaxAll": null,
+    "missing": 0,
+    "missingRuns": [
+     0,
+     0,
+     0
+    ],
+    "incompleteAfterTurn": null,
+    "chunkMax": null
+   }
+  },
+  "tablet": {
+   "build1": {
+    "frameP50": 349.9,
+    "frameP95": 500,
+    "workP95": 292.9,
+    "renderP95": 184.1,
+    "turn": 667,
+    "turnSteps": 40,
+    "budgetMax": null,
+    "budgetMaxAll": null,
+    "missing": 0,
+    "missingRuns": [
+     0,
+     0,
+     0
+    ],
+    "incompleteAfterTurn": null,
+    "chunkMax": null
+   },
+   "build2": {
+    "frameP50": 283.4,
+    "frameP95": 449.9,
+    "workP95": 264,
+    "renderP95": 126.5,
+    "turn": 400,
+    "turnSteps": 24,
+    "budgetMax": null,
+    "budgetMaxAll": null,
+    "missing": 0,
+    "missingRuns": [
+     0,
+     0,
+     0
+    ],
+    "incompleteAfterTurn": null,
+    "chunkMax": null
+   }
+  }
+ },
+ "pixel": {
+  "phone": {
+   "phone": {
+    "frameP50": 16.7,
+    "frameP95": 33.4,
+    "workP95": 10,
+    "renderP95": 4.1,
+    "turn": 67,
+    "turnSteps": 4,
+    "budgetMax": 22.08,
+    "budgetMaxAll": 22.08,
+    "missing": 26,
+    "missingRuns": [
+     26,
+     26,
+     27
+    ],
+    "incompleteAfterTurn": 6,
+    "chunkMax": 3.7
+   },
+   "build2": {
+    "frameP50": 16.7,
+    "frameP95": 33.4,
+    "workP95": 17.5,
+    "renderP95": 6,
+    "turn": 83,
+    "turnSteps": 5,
+    "budgetMax": 26.46,
+    "budgetMaxAll": 26.46,
+    "missing": 8,
+    "missingRuns": [
+     8,
+     9,
+     8
+    ],
+    "incompleteAfterTurn": 6,
+    "chunkMax": 3.4
+   }
+  },
+  "tablet": null,
+  "tabletCoarse": {
+   "build1": {
+    "frameP50": 83.3,
+    "frameP95": 100.1,
+    "workP95": 36.2,
+    "renderP95": 14.5,
+    "turn": 167,
+    "turnSteps": 10,
+    "budgetMax": 41.74,
+    "budgetMaxAll": 43.03,
+    "missing": 9,
+    "missingRuns": [
+     8,
+     9,
+     9
+    ],
+    "incompleteAfterTurn": 12,
+    "chunkMax": 4.8
+   },
+   "build2": {
+    "frameP50": 66.7,
+    "frameP95": 100,
+    "workP95": 33.7,
+    "renderP95": 10.6,
+    "turn": 133,
+    "turnSteps": 8,
+    "budgetMax": 42.4,
+    "budgetMaxAll": 42.67,
+    "missing": 8,
+    "missingRuns": [
+     8,
+     9,
+     8
+    ],
+    "incompleteAfterTurn": 13,
+    "chunkMax": 3.4
+   }
+  },
+  "tabletNote": "pixel.tablet (full frame set) was not timed: projection upper bound 152 MB on the cases park; block 3 ran the coarse set (controller decision, Batch 7); block 4 not run."
+ },
+ "cases": {
+  "phone": {
+   "frameSet": "coarse",
+   "incompleteAfterTurnMax": 6,
+   "chunkMsMax": 4.099999999627471,
+   "swapMainMsMax": 0.8999999985098839,
+   "placeFrameMaxMs": 33.400000000001455,
+   "budgetMbMax": 22.43008041381836,
+   "budgetMbMaxAll": 22.88582992553711,
+   "partsLastRun": {
+    "budgetMb": 22.03518295288086,
+    "sheetMb": 9.96795654296875,
+    "swapMb": 5.1136474609375,
+    "chunkMb": 5.94140625,
+    "staticMb": 1.0121726989746094,
+    "otherMb": 0
+   },
+   "decodeMsT1": 4.5,
+   "decodeMsT4": 35.90000000037253,
+   "decodeSheet": {
+    "file": "ground-0fb1d5dfb1.png",
+    "w": 2044,
+    "h": 328,
+    "bytes": 34127
+   },
+   "storeDecodeMs": {
+    "count": 37,
+    "median": 108.20000000111759,
+    "max": 187.7999999988824
+   },
+   "runs": [
+    {
+     "incompleteAfterTurnMax": 6,
+     "chunkMsMax": 3.400000000372529,
+     "swapMainMsMax": 0.900000000372529,
+     "placeFrameMaxMs": 33.399999999999636,
+     "budgetMbMax": 22.88582992553711,
+     "decodeMsT1": 4.900000000372529,
+     "decodeMsT4": 50.100000001490116
+    },
+    {
+     "incompleteAfterTurnMax": 6,
+     "chunkMsMax": 4.099999999627471,
+     "swapMainMsMax": 0.5,
+     "placeFrameMaxMs": 33.400000000001455,
+     "budgetMbMax": 22.43008041381836,
+     "decodeMsT1": 4,
+     "decodeMsT4": 32.70000000111759
+    },
+    {
+     "incompleteAfterTurnMax": 6,
+     "chunkMsMax": 4.100000001490116,
+     "swapMainMsMax": 0.8999999985098839,
+     "placeFrameMaxMs": 66.70000000000073,
+     "budgetMbMax": 22.43008041381836,
+     "decodeMsT1": 4.5,
+     "decodeMsT4": 35.90000000037253
+    }
+   ],
+   "loadavgBefore": "1.00 0.62 0.65 1/300 20489",
+   "loadavgAfter": "1.00 0.68 0.66 2/303 20525"
+  },
+  "tablet": {
+   "frameSet": "coarse",
+   "incompleteAfterTurnMax": 18,
+   "chunkMsMax": 5.799999998882413,
+   "swapMainMsMax": 0.8000000007450581,
+   "placeFrameMaxMs": 116.59999999999854,
+   "budgetMbMax": 61.59051513671875,
+   "budgetMbMaxAll": 61.59051513671875,
+   "partsLastRun": {
+    "budgetMb": 61.19561767578125,
+    "sheetMb": 29.12384033203125,
+    "swapMb": 5.11474609375,
+    "chunkMb": 21.62109375,
+    "staticMb": 5.3359375,
+    "otherMb": 0
+   },
+   "decodeMsT1": 16.799999998882413,
+   "decodeMsT4": 199.69999999925494,
+   "decodeSheet": {
+    "file": "ground-0fb1d5dfb1.png",
+    "w": 2044,
+    "h": 328,
+    "bytes": 34127
+   },
+   "storeDecodeMs": {
+    "count": 108,
+    "median": 217.09999999962747,
+    "max": 270.59999999962747
+   },
+   "runs": [
+    {
+     "incompleteAfterTurnMax": 18,
+     "chunkMsMax": 5.400000000372529,
+     "swapMainMsMax": 1,
+     "placeFrameMaxMs": 100,
+     "budgetMbMax": 61.59051513671875,
+     "decodeMsT1": 43.80000000074506,
+     "decodeMsT4": 189
+    },
+    {
+     "incompleteAfterTurnMax": 18,
+     "chunkMsMax": 7.600000001490116,
+     "swapMainMsMax": 0.19999999925494194,
+     "placeFrameMaxMs": 116.69999999999709,
+     "budgetMbMax": 61.59051513671875,
+     "decodeMsT1": 16.799999998882413,
+     "decodeMsT4": 199.69999999925494
+    },
+    {
+     "incompleteAfterTurnMax": 18,
+     "chunkMsMax": 5.799999998882413,
+     "swapMainMsMax": 0.8000000007450581,
+     "placeFrameMaxMs": 116.59999999999854,
+     "budgetMbMax": 61.59051513671875,
+     "decodeMsT1": 16.09999999962747,
+     "decodeMsT4": 208.19999999925494
+    }
+   ],
+   "loadavgBefore": "1.00 0.68 0.66 3/293 20592",
+   "loadavgAfter": "1.09 0.83 0.73 1/304 20675"
+  }
+ },
+ "start": {
+  "newParkMs": 1731.699999999255,
+  "continueBuild2Ms": 2003.5,
+  "newParkRuns": [
+   1731.699999999255,
+   1929.699999999255,
+   1685.7999999988824
+  ],
+  "continueBuild2Runs": [
+   2009.0999999996275,
+   2003.5,
+   1999
+  ],
+  "limitMs": 4000
+ },
+ "sizes": {
+  "packs": {
+   "rides-full": {
+    "pictures": 14080,
+    "unique": 12268,
+    "sheets": 360,
+    "pngBytes": 4558970,
+    "decodedBytes": 531688192
+   },
+   "rides-coarse": {
+    "pictures": 4224,
+    "unique": 3600,
+    "sheets": 216,
+    "pngBytes": 1412593,
+    "decodedBytes": 156643840
+   },
+   "objects": {
+    "pictures": 532,
+    "unique": 424,
+    "sheets": 105,
+    "pngBytes": 77605,
+    "decodedBytes": 1331968
+   },
+   "ghosts": {
+    "pictures": 476,
+    "unique": 419,
+    "sheets": 4,
+    "pngBytes": 73394,
+    "decodedBytes": 4367872
+   },
+   "shadows": {
+    "pictures": 848,
+    "unique": 82,
+    "sheets": 1,
+    "pngBytes": 6087,
+    "decodedBytes": 1838592
+   },
+   "people": {
+    "pictures": 5628,
+    "unique": 594,
+    "sheets": 2,
+    "pngBytes": 3771,
+    "decodedBytes": 501888
+   },
+   "track": {
+    "pictures": 16930,
+    "unique": 13491,
+    "sheets": 65,
+    "pngBytes": 677914,
+    "decodedBytes": 30568384
+   },
+   "ground": {
+    "pictures": 1607,
+    "unique": 991,
+    "sheets": 1,
+    "pngBytes": 34127,
+    "decodedBytes": 2681728
+   }
+  },
+  "kinds": {
+   "ride": {
+    "pictures": 18304,
+    "unique": 15868,
+    "pngBytes": 5971563
+   },
+   "stall": {
+    "pictures": 56,
+    "unique": 51,
+    "pngBytes": 12344
+   },
+   "scenery": {
+    "pictures": 396,
+    "unique": 328,
+    "pngBytes": 60189
+   },
+   "pathItem": {
+    "pictures": 48,
+    "unique": 18,
+    "pngBytes": 1033
+   },
+   "decal": {
+    "pictures": 12,
+    "unique": 11,
+    "pngBytes": 535
+   },
+   "fence": {
+    "pictures": 4,
+    "unique": 4,
+    "pngBytes": 594
+   },
+   "entrance": {
+    "pictures": 8,
+    "unique": 4,
+    "pngBytes": 945
+   },
+   "show": {
+    "pictures": 8,
+    "unique": 8,
+    "pngBytes": 1965
+   },
+   "ghost": {
+    "pictures": 476,
+    "unique": 419,
+    "pngBytes": 73394
+   },
+   "shadow": {
+    "pictures": 848,
+    "unique": 82,
+    "pngBytes": 6087
+   },
+   "guest": {
+    "pictures": 5376,
+    "unique": 480,
+    "pngBytes": 1555
+   },
+   "staff": {
+    "pictures": 252,
+    "unique": 114,
+    "pngBytes": 2216
+   },
+   "rail": {
+    "pictures": 7328,
+    "unique": 7152,
+    "pngBytes": 410867
+   },
+   "support": {
+    "pictures": 48,
+    "unique": 22,
+    "pngBytes": 2006
+   },
+   "gate": {
+    "pictures": 4,
+    "unique": 4,
+    "pngBytes": 750
+   },
+   "car": {
+    "pictures": 9536,
+    "unique": 6300,
+    "pngBytes": 262989
+   },
+   "deck": {
+    "pictures": 10,
+    "unique": 10,
+    "pngBytes": 1291
+   },
+   "post": {
+    "pictures": 4,
+    "unique": 3,
+    "pngBytes": 11
+   },
+   "ground": {
+    "pictures": 1607,
+    "unique": 991,
+    "pngBytes": 34127
+   }
+  },
+  "totalPngBytes": 6844461,
+  "appArtBytesFull": 7928911,
+  "appArtBytesCoarseOnly": 3028112,
+  "buildMs": 22363
+ },
+ "projection": {
+  "mb": 1048576,
+  "budgetMb": 64,
+  "rows": [
+   {
+    "scene": "build1",
+    "device": "phone",
+    "frameSet": "coarse",
+    "stretch": 3,
+    "homeZoom": 1.1428571428571428,
+    "canvas": {
+     "w": 361,
+     "h": 735
+    },
+    "view": 1,
+    "sheetsMb": 9.02850341796875,
+    "swapMb": 0.94696044921875,
+    "chunkMb": 1.625,
+    "staticMb": 1.0121726989746094,
+    "totalMb": 12.61263656616211,
+    "sheets": 18,
+    "upperMb": 27.29848861694336,
+    "perView": [
+     12.316,
+     12.613,
+     12.581,
+     12.581
+    ],
+    "upperPerView": [
+     27.002,
+     27.298,
+     27.267,
+     27.267
+    ]
+   },
+   {
+    "scene": "build1",
+    "device": "tablet",
+    "frameSet": "full",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 15.9798583984375,
+    "swapMb": 0.94696044921875,
+    "chunkMb": 4.96875,
+    "staticMb": 5.3359375,
+    "totalMb": 27.23150634765625,
+    "sheets": 20,
+    "upperMb": 63.1640625,
+    "perView": [
+     26.966,
+     27.232,
+     26.872,
+     27.138
+    ],
+    "upperPerView": [
+     62.898,
+     63.164,
+     62.805,
+     63.07
+    ]
+   },
+   {
+    "scene": "build1",
+    "device": "tablet",
+    "frameSet": "coarse",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 9.02850341796875,
+    "swapMb": 0.94696044921875,
+    "chunkMb": 4.96875,
+    "staticMb": 5.3359375,
+    "totalMb": 20.2801513671875,
+    "sheets": 18,
+    "upperMb": 34.96600341796875,
+    "perView": [
+     20.015,
+     20.28,
+     19.921,
+     20.186
+    ],
+    "upperPerView": [
+     34.7,
+     34.966,
+     34.607,
+     34.872
+    ]
+   },
+   {
+    "scene": "build2",
+    "device": "phone",
+    "frameSet": "coarse",
+    "stretch": 3,
+    "homeZoom": 1.1428571428571428,
+    "canvas": {
+     "w": 361,
+     "h": 735
+    },
+    "view": 0,
+    "sheetsMb": 12.184814453125,
+    "swapMb": 0,
+    "chunkMb": 1.609375,
+    "staticMb": 1.0121726989746094,
+    "totalMb": 14.80636215209961,
+    "sheets": 26,
+    "upperMb": 26.49538803100586,
+    "perView": [
+     14.806,
+     14.525,
+     14.541,
+     14.525
+    ],
+    "upperPerView": [
+     26.495,
+     26.214,
+     26.23,
+     26.214
+    ]
+   },
+   {
+    "scene": "build2",
+    "device": "tablet",
+    "frameSet": "full",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 20.87432861328125,
+    "swapMb": 0,
+    "chunkMb": 5.203125,
+    "staticMb": 5.3359375,
+    "totalMb": 31.41339111328125,
+    "sheets": 27,
+    "upperMb": 62.6109619140625,
+    "perView": [
+     30.476,
+     31.413,
+     30.476,
+     31.413
+    ],
+    "upperPerView": [
+     61.673,
+     62.611,
+     61.673,
+     62.611
+    ]
+   },
+   {
+    "scene": "build2",
+    "device": "tablet",
+    "frameSet": "coarse",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 12.184814453125,
+    "swapMb": 0,
+    "chunkMb": 5.203125,
+    "staticMb": 5.3359375,
+    "totalMb": 22.723876953125,
+    "sheets": 26,
+    "upperMb": 34.41290283203125,
+    "perView": [
+     21.786,
+     22.724,
+     21.786,
+     22.724
+    ],
+    "upperPerView": [
+     33.475,
+     34.413,
+     33.475,
+     34.413
+    ]
+   },
+   {
+    "scene": "phone",
+    "device": "phone",
+    "frameSet": "coarse",
+    "stretch": 3,
+    "homeZoom": 1.1428571428571428,
+    "canvas": {
+     "w": 361,
+     "h": 735
+    },
+    "view": 1,
+    "sheetsMb": 9.36431884765625,
+    "swapMb": 0.94696044921875,
+    "chunkMb": 1.625,
+    "staticMb": 1.0121726989746094,
+    "totalMb": 12.94845199584961,
+    "sheets": 19,
+    "upperMb": 27.29848861694336,
+    "perView": [
+     12.652,
+     12.948,
+     12.917,
+     12.917
+    ],
+    "upperPerView": [
+     27.002,
+     27.298,
+     27.267,
+     27.267
+    ]
+   },
+   {
+    "scene": "phone",
+    "device": "tablet",
+    "frameSet": "full",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 15.59027099609375,
+    "swapMb": 0.94696044921875,
+    "chunkMb": 4.96875,
+    "staticMb": 5.3359375,
+    "totalMb": 26.8419189453125,
+    "sheets": 20,
+    "upperMb": 63.1640625,
+    "perView": [
+     26.576,
+     26.842,
+     26.483,
+     26.748
+    ],
+    "upperPerView": [
+     62.898,
+     63.164,
+     62.805,
+     63.07
+    ]
+   },
+   {
+    "scene": "phone",
+    "device": "tablet",
+    "frameSet": "coarse",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 9.36431884765625,
+    "swapMb": 0.94696044921875,
+    "chunkMb": 4.96875,
+    "staticMb": 5.3359375,
+    "totalMb": 20.615966796875,
+    "sheets": 19,
+    "upperMb": 34.96600341796875,
+    "perView": [
+     20.35,
+     20.616,
+     20.257,
+     20.522
+    ],
+    "upperPerView": [
+     34.7,
+     34.966,
+     34.607,
+     34.872
+    ]
+   },
+   {
+    "scene": "cases",
+    "device": "phone",
+    "frameSet": "coarse",
+    "stretch": 3,
+    "homeZoom": 1.1428571428571428,
+    "canvas": {
+     "w": 361,
+     "h": 735
+    },
+    "view": 0,
+    "sheetsMb": 17.98150634765625,
+    "swapMb": 1.775390625,
+    "chunkMb": 1.609375,
+    "staticMb": 1.0121726989746094,
+    "totalMb": 22.37844467163086,
+    "sheets": 28,
+    "upperMb": 54.93404769897461,
+    "perView": [
+     22.378,
+     22.269,
+     22.246,
+     22.269
+    ],
+    "upperPerView": [
+     54.934,
+     54.825,
+     54.801,
+     54.825
+    ]
+   },
+   {
+    "scene": "cases",
+    "device": "tablet",
+    "frameSet": "full",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 30.70135498046875,
+    "swapMb": 1.775390625,
+    "chunkMb": 5.1328125,
+    "staticMb": 5.3359375,
+    "totalMb": 42.94549560546875,
+    "sheets": 28,
+    "upperMb": 152.19879150390625,
+    "perView": [
+     42.059,
+     42.945,
+     42.145,
+     42.945
+    ],
+    "upperPerView": [
+     151.312,
+     152.199,
+     151.398,
+     152.199
+    ]
+   },
+   {
+    "scene": "cases",
+    "device": "tablet",
+    "frameSet": "coarse",
+    "stretch": 2,
+    "homeZoom": 1,
+    "canvas": {
+     "w": 1024,
+     "h": 1366
+    },
+    "view": 1,
+    "sheetsMb": 17.98150634765625,
+    "swapMb": 1.775390625,
+    "chunkMb": 5.1328125,
+    "staticMb": 5.3359375,
+    "totalMb": 30.22564697265625,
+    "sheets": 28,
+    "upperMb": 62.78125,
+    "perView": [
+     29.339,
+     30.226,
+     29.425,
+     30.226
+    ],
+    "upperPerView": [
+     61.895,
+     62.781,
+     61.98,
+     62.781
+    ]
+   }
+  ],
+  "decodedPerPack": {
+   "ghosts": 4367872,
+   "ground": 2681728,
+   "objects": 1331968,
+   "people": 501888,
+   "rides-coarse": 156643840,
+   "rides-full": 531688192,
+   "shadows": 1838592,
+   "track": 30568384
+  },
+  "report": {
+   "packs": {
+    "rides-full": {
+     "pictures": 14080,
+     "unique": 12268,
+     "sheets": 360,
+     "pngBytes": 4558970,
+     "decodedBytes": 531688192
+    },
+    "rides-coarse": {
+     "pictures": 4224,
+     "unique": 3600,
+     "sheets": 216,
+     "pngBytes": 1412593,
+     "decodedBytes": 156643840
+    },
+    "objects": {
+     "pictures": 532,
+     "unique": 424,
+     "sheets": 105,
+     "pngBytes": 77605,
+     "decodedBytes": 1331968
+    },
+    "ghosts": {
+     "pictures": 476,
+     "unique": 419,
+     "sheets": 4,
+     "pngBytes": 73394,
+     "decodedBytes": 4367872
+    },
+    "shadows": {
+     "pictures": 848,
+     "unique": 82,
+     "sheets": 1,
+     "pngBytes": 6087,
+     "decodedBytes": 1838592
+    },
+    "people": {
+     "pictures": 5628,
+     "unique": 594,
+     "sheets": 2,
+     "pngBytes": 3771,
+     "decodedBytes": 501888
+    },
+    "track": {
+     "pictures": 16930,
+     "unique": 13491,
+     "sheets": 65,
+     "pngBytes": 677914,
+     "decodedBytes": 30568384
+    },
+    "ground": {
+     "pictures": 1607,
+     "unique": 991,
+     "sheets": 1,
+     "pngBytes": 34127,
+     "decodedBytes": 2681728
+    }
+   },
+   "kinds": {
+    "ride": {
+     "pictures": 18304,
+     "unique": 15868,
+     "pngBytes": 5971563
+    },
+    "stall": {
+     "pictures": 56,
+     "unique": 51,
+     "pngBytes": 12344
+    },
+    "scenery": {
+     "pictures": 396,
+     "unique": 328,
+     "pngBytes": 60189
+    },
+    "pathItem": {
+     "pictures": 48,
+     "unique": 18,
+     "pngBytes": 1033
+    },
+    "decal": {
+     "pictures": 12,
+     "unique": 11,
+     "pngBytes": 535
+    },
+    "fence": {
+     "pictures": 4,
+     "unique": 4,
+     "pngBytes": 594
+    },
+    "entrance": {
+     "pictures": 8,
+     "unique": 4,
+     "pngBytes": 945
+    },
+    "show": {
+     "pictures": 8,
+     "unique": 8,
+     "pngBytes": 1965
+    },
+    "ghost": {
+     "pictures": 476,
+     "unique": 419,
+     "pngBytes": 73394
+    },
+    "shadow": {
+     "pictures": 848,
+     "unique": 82,
+     "pngBytes": 6087
+    },
+    "guest": {
+     "pictures": 5376,
+     "unique": 480,
+     "pngBytes": 1555
+    },
+    "staff": {
+     "pictures": 252,
+     "unique": 114,
+     "pngBytes": 2216
+    },
+    "rail": {
+     "pictures": 7328,
+     "unique": 7152,
+     "pngBytes": 410867
+    },
+    "support": {
+     "pictures": 48,
+     "unique": 22,
+     "pngBytes": 2006
+    },
+    "gate": {
+     "pictures": 4,
+     "unique": 4,
+     "pngBytes": 750
+    },
+    "car": {
+     "pictures": 9536,
+     "unique": 6300,
+     "pngBytes": 262989
+    },
+    "deck": {
+     "pictures": 10,
+     "unique": 10,
+     "pngBytes": 1291
+    },
+    "post": {
+     "pictures": 4,
+     "unique": 3,
+     "pngBytes": 11
+    },
+    "ground": {
+     "pictures": 1607,
+     "unique": 991,
+     "pngBytes": 34127
+    }
+   },
+   "totalPngBytes": 6844461,
+   "appArtBytesFull": 7928911,
+   "appArtBytesCoarseOnly": 3028112,
+   "buildMs": 22363
+  }
+ },
+ "b1": {
+  "entries": 44325,
+  "failures": 0,
+  "railsChecked": 7328,
+  "railsOutside": 0,
+  "firstRun": "result.first-run.md: 240 rail entries outside the single-tile anchor bound only; every compared hash equal (controller decision: bound fixed, not a B1 failure)",
+  "pass": true,
+  "kinds": {
+   "car": {
+    "entries": 9536,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 9536
+   },
+   "decal": {
+    "entries": 12,
+    "compared": 12,
+    "equal": 12,
+    "formatOk": 12
+   },
+   "deck": {
+    "entries": 10,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 10
+   },
+   "entrance": {
+    "entries": 8,
+    "compared": 8,
+    "equal": 8,
+    "formatOk": 8
+   },
+   "fence": {
+    "entries": 4,
+    "compared": 4,
+    "equal": 4,
+    "formatOk": 4
+   },
+   "gate": {
+    "entries": 4,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 4
+   },
+   "ghost": {
+    "entries": 476,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 476
+   },
+   "ground": {
+    "entries": 1607,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 1607
+   },
+   "guest": {
+    "entries": 5376,
+    "compared": 5376,
+    "equal": 5376,
+    "formatOk": 5376
+   },
+   "path_item": {
+    "entries": 48,
+    "compared": 48,
+    "equal": 48,
+    "formatOk": 48
+   },
+   "post": {
+    "entries": 4,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 4
+   },
+   "rail": {
+    "entries": 7328,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 7328
+   },
+   "ride": {
+    "entries": 18304,
+    "compared": 18304,
+    "equal": 18304,
+    "formatOk": 18304
+   },
+   "scenery": {
+    "entries": 396,
+    "compared": 396,
+    "equal": 396,
+    "formatOk": 396
+   },
+   "shadow": {
+    "entries": 848,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 848
+   },
+   "show": {
+    "entries": 8,
+    "compared": 8,
+    "equal": 8,
+    "formatOk": 8
+   },
+   "staff": {
+    "entries": 252,
+    "compared": 252,
+    "equal": 252,
+    "formatOk": 252
+   },
+   "stall": {
+    "entries": 56,
+    "compared": 56,
+    "equal": 56,
+    "formatOk": 56
+   },
+   "support": {
+    "entries": 48,
+    "compared": 0,
+    "equal": 0,
+    "formatOk": 48
+   }
+  }
+ },
+ "b7": {
+  "cmpPrintsNothing": true,
+  "recorderTests": "363",
+  "suite": "Whole unit suite in the worktree: 283 files passed, 4 skipped; 3 768 tests passed, 8 skipped; 0 failed. `comm -23 suite-16.txt baseline-full.txt` prints nothing.",
+  "holds": true
+ },
+ "b8": {
+  "webBytes": 363698,
+  "baseBytes": 363539,
+  "growthBytes": 159,
+  "limitBytes": 2048,
+  "noArt": true,
+  "workerSourceSame": true,
+  "precacheFilesSame": true,
+  "webClean": true,
+  "appBuildCheck": "ok (no sw.js, no sw-manifest.json)"
+ },
+ "rules": {
+  "B1": {
+   "result": "pass",
+   "detail": "44325 entries, 0 failures; 24464 hashes compared, all equal; 7328 rails in their slice bounds"
+  },
+  "B2": {
+   "result": "reported",
+   "detail": "strict, for information: phone 33.4 ms, build2 33.4 ms (limit 40): would pass; phone missing per run 26 / 26 / 27 (valid, controller decision 1); build2 missing per run 8 / 9 / 8 (valid, controller decision 1)"
+  },
+  "B2b": {
+   "result": "pass",
+   "detail": "phone frame p95 33.4 vs today 50.1 ms, work p95 10 vs today 17.3 + 2 ms (ok); build2 frame p95 33.4 ms vs 40 (ok); phone missing per run 26 / 26 / 27 (valid, controller decision 1); build2 missing per run 8 / 9 / 8 (valid, controller decision 1)"
+  },
+  "B3turn": {
+   "result": "reported",
+   "detail": "strict, for information: phone 67 ms (4 steps), build2 83 ms (5 steps), limit 6 steps: would pass"
+  },
+  "B3b": {
+   "result": "pass",
+   "detail": "phone 4 steps vs today 7 + 1 (ok); build2 5 steps vs today 5 + 1 (ok)"
+  },
+  "B3other": {
+   "result": "pass",
+   "detail": "phone: cold chunk 4.1 ms (≤ 12), swap 0.9 ms (≤ 3), incomplete after turn 6 (≤ 30), 20 placements 33.4 ms (≤ 100); tablet (reported): 5.8 ms, 0.8 ms, 18, 116.6 ms"
+  },
+  "B4": {
+   "result": "fired",
+   "detail": "coarse set: build1 frame p95 100.1 ms, build2 100 ms (limit 40: over); memory 61.59 MB (limit 64: ok); today build1 500, build2 449.9 ms; build1 missing per run 8 / 9 / 9 (valid, controller decision 1); build2 missing per run 8 / 9 / 8 (valid, controller decision 1)"
+  },
+  "B5": {
+   "result": "pass",
+   "detail": "new park 1732 ms, Continue build2 2004 ms (limit 4000); device times: owner"
+  },
+  "B6": {
+   "result": "pass",
+   "detail": "largest budget of any run: phone 26.46 MB, tablet 61.59 MB (limit 64)"
+  },
+  "B7": {
+   "result": "pass",
+   "detail": "classic-ops and renderer-ops identical to base; recorder tests pass; suite equal to baseline"
+  },
+  "B8": {
+   "result": "pass",
+   "detail": "website initial load +159 bytes (limit 2048); no art folder; worker rules the same; app build without worker"
+  }
+ },
+ "validity": {
+  "decision": "Controller decision 1 (Batch 8, made after the data was seen): [perf] lines with missing > 0 are valid timing evidence. Every frame was drawn and the frame times are real; the misses are short bursts of 2-6 frames when a ride first changes to an occupancy group the warm-up never needed, and the object keeps its last decoded picture meanwhile.",
+  "missingRuns": {
+   "pixel.phone.phone": [
+    26,
+    26,
+    27
+   ],
+   "pixel.phone.build2": [
+    8,
+    9,
+    8
+   ],
+   "pixel.tabletCoarse.build1": [
+    8,
+    9,
+    9
+   ],
+   "pixel.tabletCoarse.build2": [
+    8,
+    9,
+    8
+   ]
+  },
+  "originalRule": {
+   "pixel.phone.phone": "no valid value (missing per run 26 / 26 / 27)",
+   "pixel.phone.build2": "no valid value (missing per run 8 / 9 / 8)",
+   "pixel.tabletCoarse.build1": "no valid value (missing per run 8 / 9 / 9)",
+   "pixel.tabletCoarse.build2": "no valid value (missing per run 8 / 9 / 8)"
+  }
+ },
+ "drawingPath": {
+  "phone": {
+   "project": "phone",
+   "canvas2d": "unavailable_software",
+   "device": {
+    "vendorId": 65535,
+    "deviceId": 65535,
+    "vendorString": "Google Inc. (Google)",
+    "deviceString": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+    "driverVendor": "SwANGLE",
+    "driverVersion": "5.0.0"
+   },
+   "canvas": {
+    "width": 361,
+    "height": 735,
+    "styleWidth": "412.571px",
+    "styleHeight": "840px",
+    "k": 3,
+    "artScale": 2,
+    "dpr": 2.625,
+    "cssW": 412,
+    "cssH": 839
+   },
+   "homeZoom": 1.1428571428571428
+  },
+  "tablet": {
+   "project": "tablet",
+   "canvas2d": "unavailable_software",
+   "device": {
+    "vendorId": 65535,
+    "deviceId": 65535,
+    "vendorString": "Google Inc. (Google)",
+    "deviceString": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+    "driverVendor": "SwANGLE",
+    "driverVersion": "5.0.0"
+   },
+   "canvas": {
+    "width": 1024,
+    "height": 1366,
+    "styleWidth": "1024px",
+    "styleHeight": "1366px",
+    "k": 2,
+    "artScale": 2,
+    "dpr": 2,
+    "cssW": 1024,
+    "cssH": 1366
+   },
+   "homeZoom": 1
+  }
+ },
+ "webkit": "not possible here (controller decision C5: no WebKit download); the owner iPhone run covers WebKit",
+ "loadavg": [
+  "cases before 0.81 0.57 0.63 1/169 20291",
+  "cases after 1.09 0.83 0.73 1/179 20679",
+  "start before 0.37 0.67 0.68 1/174 20740",
+  "start after 1.01 0.79 0.72 4/179 21036",
+  "perf-today before 0.37 0.64 0.67 3/176 22891",
+  "perf-today after 1.19 1.13 0.96 1/174 23457",
+  "perf-pixel-phone before 0.40 0.91 0.89 1/172 23519",
+  "perf-pixel-phone after 1.23 1.16 1.01 1/179 23863",
+  "perf-pixel-tablet before 0.64 0.97 0.96 1/176 24092",
+  "perf-pixel-tablet after 1.18 1.11 1.02 2/179 24445"
+ ]
+}
