@@ -110,6 +110,69 @@ const STYLES = {
   },
 };
 
+// ---------- second round: D, E, F, G ----------
+// Same scene, same primitives. These four only add a "material" branch in the paint helpers below.
+// F's six inks (plus the paper). Every colour in the F sheet is snapped to one of these at the end.
+const INKS_F = { paper: '#f3e6c8', navy: '#243152', red: '#d6452f', teal: '#2a8a80', mustard: '#e8a62a', olive: '#7fa33c', peach: '#efb38f' };
+STYLES.d = {
+  letter: 'D', name: 'Storybook painted', file: 'd-storybook',
+  blurb: ['Gouache on warm paper. Muted, sun-faded colours with a', 'baked-in paper grain, slightly wobbly hand-drawn edges and', 'coloured-pencil linework (never black). Soft violet washes.'],
+  outline: 'pencil', sw: 1.3, r: 7, ink: '#5b3d33',
+  bg: ['#f6ecd8', '#efe2c8'], titleInk: '#5b3d33', sub: '#8a6a58',
+  pal: {
+    grass: '#a9c47f', grassAlt: '#a9c47f', tuft: '#83a663', earth: '#c99a6e', patch: '#9bbb72',
+    path: '#efdcbc', curb: '#d9bf98', joint: '#cdb08a',
+    stripeA: '#d9735f', stripeB: '#f7ead2', trim: '#e7b65a', deck: '#efd4a2', base: '#7fb5a8', column: '#e7c06e',
+    horses: ['#fbf3e4', '#eec0c4', '#c9bfe0', '#f1dfa0'], mane: '#d88a96', saddle: '#7c9cc8',
+    rail: '#d98a52', spine: '#efe6da', support: '#efe6da', tie: '#a7735f', car: '#cf5f5c', carTrim: '#e8bf62', seat: '#5e4d72',
+    wall: '#f6ead6', wood: '#c98e5e', awnA: '#6aa6c4', awnB: '#f8efdd', sign: '#e8bf62', scoop: '#e597aa', cone: '#d9a463',
+    leaf: '#7fae62', leaf2: '#5e9a72', trunk: '#9a6b4b', bush: '#79aa69', flower: '#e58fa6', flower2: '#f3e39a',
+    bench: '#c98e5e', metal: '#5a5d7e', glow: '#f6dc8c', queueRail: '#7f86b8',
+    pants: ['#5b6aa6', '#44506e', '#7c8fc4', '#cdb894', '#4a4a5c'],
+  },
+};
+STYLES.e = {
+  letter: 'E', name: 'Paper craft', file: 'e-paper',
+  blurb: ['Every shape is a piece of cut card: bright craft colours, a', 'thin white die-cut edge and a small crisp drop shadow under', 'each layer. Faint paper fibre texture. No outlines.'],
+  outline: 'diecut', sw: 2, r: 6, ink: '#2e2a4a',
+  bg: ['#dff1f5', '#f7efe1'], titleInk: '#2e2a4a', sub: '#5d5878',
+  pal: {
+    grass: '#6cc75a', grassAlt: '#6cc75a', tuft: '#4fae47', earth: '#c98a4e', patch: '#82d46a',
+    path: '#fde3b0', curb: '#f2c37a', joint: '#e9c58e',
+    stripeA: '#f2493d', stripeB: '#fff8ec', trim: '#ffbf1f', deck: '#ffd27a', base: '#1fb8a6', column: '#ffbf1f',
+    horses: ['#ffffff', '#ff9cc4', '#a99cff', '#ffe066'], mane: '#ff5c95', saddle: '#2f8fe8',
+    rail: '#ff7a14', spine: '#ffffff', support: '#ffffff', tie: '#b5523e', car: '#f23d52', carTrim: '#ffbf1f', seat: '#3a2f6e',
+    wall: '#fff6e8', wood: '#e8893f', awnA: '#2a9ff0', awnB: '#ffffff', sign: '#ffbf1f', scoop: '#ff78ab', cone: '#e8963f',
+    leaf: '#3fbf52', leaf2: '#16a389', trunk: '#9a5f33', bush: '#36b45a', flower: '#ff5fa0', flower2: '#fff066',
+    bench: '#e8893f', metal: '#3a4280', glow: '#ffe066', queueRail: '#4d5fe0',
+    pants: ['#4057d8', '#2d3a64', '#2f8fe8', '#d8bb8a', '#2d3a64'],
+  },
+};
+STYLES.f = {
+  letter: 'F', name: 'Retro poster', file: 'f-poster',
+  blurb: ['A mid-century fairground print: six inks on cream paper, flat', 'shapes, halftone dots instead of shading, and outlines printed', 'slightly out of register. Paper grain over everything.'],
+  outline: 'misreg', sw: 1.8, r: 5, ink: INKS_F.navy,
+  bg: [INKS_F.paper, INKS_F.paper], titleInk: INKS_F.navy, sub: INKS_F.navy,
+  pal: {
+    grass: INKS_F.olive, grassAlt: INKS_F.olive, tuft: INKS_F.teal, earth: INKS_F.mustard, patch: INKS_F.olive,
+    path: INKS_F.paper, curb: INKS_F.peach, joint: INKS_F.peach,
+    stripeA: INKS_F.red, stripeB: INKS_F.paper, trim: INKS_F.mustard, deck: INKS_F.peach, base: INKS_F.teal, column: INKS_F.mustard,
+    horses: [INKS_F.paper, INKS_F.peach, INKS_F.paper, INKS_F.mustard], mane: INKS_F.red, saddle: INKS_F.teal,
+    rail: INKS_F.red, spine: INKS_F.paper, support: INKS_F.paper, tie: INKS_F.navy, car: INKS_F.red, carTrim: INKS_F.mustard, seat: INKS_F.navy,
+    wall: INKS_F.paper, wood: INKS_F.mustard, awnA: INKS_F.teal, awnB: INKS_F.paper, sign: INKS_F.mustard, scoop: INKS_F.red, cone: INKS_F.peach,
+    leaf: INKS_F.teal, leaf2: INKS_F.teal, trunk: INKS_F.navy, bush: INKS_F.teal, flower: INKS_F.red, flower2: INKS_F.mustard,
+    bench: INKS_F.red, metal: INKS_F.navy, glow: INKS_F.mustard, queueRail: INKS_F.navy,
+    pants: [INKS_F.navy, INKS_F.navy, INKS_F.teal, INKS_F.peach, INKS_F.navy],
+  },
+};
+STYLES.g = {
+  letter: 'G', name: 'Golden hour lights', file: 'g-golden',
+  blurb: ['Shapes and colours of A, lit by a low evening sun from the', 'left: warm lit faces, cool blue shade sides, long soft shadows.', 'Ride bulbs, lamp and stall window glow. A day/night preview.'],
+  outline: 'hue', sw: 1.4, r: 6, ink: '#2b2d5a',
+  bg: ['#2c3268', '#3a2f5c'], titleInk: '#fff1dc', sub: '#ffd9b8',
+  pal: { ...STYLES.a.pal },
+};
+
 // ---------- the shared scene ----------
 const SCENE = {
   carousel: { x: 2.5, y: 2.5 },
@@ -155,9 +218,39 @@ function render(key, opts = {}) {
   const o = []; // output buffer
   const ink = S.ink;
   const isA = key === 'a', isB = key === 'b', isC = key === 'c';
+  const isD = key === 'd', isE = key === 'e', isF = key === 'f', isG = key === 'g';
+  const NEW = isD || isE || isF || isG;
+  const NAVY = INKS_F.navy, PAPER = '#fffdf6';
+  const GK = 0.011; // G: ground shift per unit of height (sun low on the left -> shadows run to screen right)
+
+  // --- second-round materials (D, E, F, G) ---
+  // tone of a face: top / left (lit) / right (shade)
+  function tone(base, role) {
+    if (isD) return role === 'top' ? light(base, 0.12) : role === 'right' ? mix(shade(base, 0.8), '#6a5a8e', 0.16) : base;
+    if (isE) return role === 'top' ? light(base, 0.1) : role === 'right' ? shade(base, 0.84) : base;
+    if (isF) return base; // F shades with halftone dots, not with a darker fill
+    if (isG) return role === 'top' ? mix(shade(base, 0.86), '#ffa860', 0.3) : role === 'right' ? mix(shade(base, 0.55), '#2e3a8a', 0.45) : mix(base, '#ff9248', 0.3);
+    return base;
+  }
+  const pencil = (base) => mix(shade(base, 0.52), '#6b3a2a', 0.3); // D: coloured pencil line
+  const eShadow = (d, extra = '') => `<path d="${d}" transform="translate(2,2.8)" fill="#2b1a0e" fill-opacity="0.3"${extra}/>`;
+  const fOutline = (d, w = 1.8) => `<path d="${d}" fill="none" stroke="${NAVY}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round" transform="translate(1.5,1.1)"/>`;
+  const dots = (d, pat = 'dots') => `<path d="${d}" fill="url(#${pat})"/>`;
+  // paint one closed shape in a new material. role: top | left | right | flat
+  function paint(d, base, role, fillOverride) {
+    const fill = fillOverride || tone(base, role);
+    if (isD) o.push(`<path d="${d}" fill="${fill}" stroke="${pencil(base)}" stroke-width="1.3" stroke-opacity="0.85" stroke-linejoin="round"/>`);
+    else if (isE) { o.push(eShadow(d)); o.push(`<path d="${d}" fill="${fill}" stroke="${PAPER}" stroke-width="2" paint-order="stroke" stroke-linejoin="round"/>`); }
+    else if (isF) { o.push(`<path d="${d}" fill="${fill}"/>`); if (role === 'right') o.push(dots(d)); o.push(fOutline(d)); }
+    else if (isG) o.push(`<path d="${d}" fill="${fill}" stroke="${shade(fill, 0.6)}" stroke-width="1.4" stroke-linejoin="round"/>`);
+  }
 
   // --- paint helpers ---
   const strokeOf = (base, w = S.sw) => {
+    if (isD) return ` stroke="${pencil(base)}" stroke-width="1.3" stroke-opacity="0.85" stroke-linejoin="round" stroke-linecap="round"`;
+    if (isE) return ` stroke="${PAPER}" stroke-width="2" paint-order="stroke" stroke-linejoin="round" stroke-linecap="round"`;
+    if (isF) return ` stroke="${NAVY}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"`;
+    if (isG) return ` stroke="${shade(tone(base, 'left'), 0.6)}" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round"`;
     if (isC) return ` stroke="${ink}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`;
     if (isA) return ` stroke="${shade(base, 0.66)}" stroke-width="${w}" stroke-linejoin="round" stroke-linecap="round"`;
     return '';
@@ -171,6 +264,7 @@ function render(key, opts = {}) {
     else if (kind === 'right') s = `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1">${st([[0, shade(base, 0.86)], [1, shade(base, 0.66)]])}</linearGradient>`;
     else if (kind === 'cyl') {
       if (isB) s = `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0">${st([[0, shade(base, 0.86)], [0.22, light(base, 0.32)], [0.5, base], [1, shade(base, 0.64)]])}</linearGradient>`;
+      else if (NEW) s = `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0">${st([[0, tone(base, 'left')], [0.6, tone(base, 'left')], [0.6, tone(base, 'right')], [1, tone(base, 'right')]])}</linearGradient>`;
       else s = `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0">${st([[0, base], [0.6, base], [0.6, shade(base, isC ? 0.8 : 0.84)], [1, shade(base, isC ? 0.8 : 0.84)]])}</linearGradient>`;
     } else if (kind === 'sphere') s = `<radialGradient id="${id}" cx="0.36" cy="0.3" r="0.78">${st([[0, light(base, 0.45)], [0.45, base], [1, shade(base, 0.68)]])}</radialGradient>`;
     else if (kind === 'hgrad') s = `<linearGradient id="${id}" x1="0" y1="0" x2="1" y2="0.3">${st([[0, light(base, 0.3)], [0.55, base], [1, shade(base, 0.72)]])}</linearGradient>`;
@@ -181,6 +275,7 @@ function render(key, opts = {}) {
   // a flat polygon face of an iso solid
   function face(pts, base, role, r = S.r) {
     const d = rp(pts, r);
+    if (NEW) { paint(d, base, role === 'top' || role === 'right' ? role : 'left'); return; }
     if (isB) {
       const fill = role === 'top' ? grad('top', base) : role === 'left' ? grad('left', base) : role === 'right' ? grad('right', base) : grad('hgrad', base);
       o.push(`<path d="${d}" fill="${fill}"/>`);
@@ -203,9 +298,19 @@ function render(key, opts = {}) {
   function cyl(gx, gy, r, z0, z1, base, topCol) {
     const c0 = P(gx, gy, z0), c1 = P(gx, gy, z1); const rx = R2 * W * r, ry = R2 * H * r;
     const side = `M${pt([c1[0] - rx, c1[1]])}L${pt([c0[0] - rx, c0[1]])}A${f(rx)} ${f(ry)} 0 0 0 ${pt([c0[0] + rx, c0[1]])}L${pt([c1[0] + rx, c1[1]])}Z`;
+    const tc = topCol || base;
+    if (NEW) {
+      paint(side, base, 'left', grad('cyl', base));
+      if (isF) { // halftone on the shade side only
+        const cid = nid('cp');
+        o.push(`<clipPath id="${cid}"><rect x="${f(c0[0] + rx * 0.2)}" y="${f(Math.min(c0[1], c1[1]) - ry - 4)}" width="${f(rx * 0.9)}" height="${f(Math.abs(c0[1] - c1[1]) + ry * 2 + 8)}"/></clipPath>`);
+        o.push(`<path d="${side}" fill="url(#dots)" clip-path="url(#${cid})"/>`);
+      }
+      paint(ellD(c1, rx, ry), tc, 'top');
+      return;
+    }
     if (isB) o.push(`<path d="${side}" fill="${grad('cyl', base)}"/>`);
     else o.push(`<path d="${side}" fill="${grad('cyl', base)}"${strokeOf(base)}/>`);
-    const tc = topCol || base;
     if (isB) {
       o.push(`<ellipse cx="${f(c1[0])}" cy="${f(c1[1])}" rx="${f(rx)}" ry="${f(ry)}" fill="${grad('top', tc)}"/>`);
       o.push(`<path d="M${pt([c1[0] - rx * 0.92, c1[1] + ry * 0.1])}A${f(rx * 0.95)} ${f(ry * 0.95)} 0 0 0 ${pt([c1[0] + rx * 0.4, c1[1] + ry * 0.92])}" fill="none" stroke="#fff" stroke-opacity="0.6" stroke-width="2" stroke-linecap="round"/>`);
@@ -213,6 +318,17 @@ function render(key, opts = {}) {
   }
   // round blob (foliage, heads, balls). rx/ry in screen px
   function blob(cx, cy, rx, base, ry = rx) {
+    if (NEW) {
+      const dA = ellD([cx, cy], rx, ry), dL = ellD([cx - rx * 0.13, cy - ry * 0.14], rx * 0.8, ry * 0.8);
+      if (isE) o.push(eShadow(dA));
+      o.push(`<path d="${dA}" fill="${isF ? base : tone(base, 'right')}"${isE ? ` stroke="${PAPER}" stroke-width="${rx < 4 ? 1.2 : 2}" paint-order="stroke"` : ''}/>`);
+      if (isF) o.push(dots(dA));
+      o.push(`<path d="${dL}" fill="${isG ? tone(base, 'left') : isD ? light(base, 0.06) : base}"/>`);
+      if (isD) o.push(`<path d="${dA}" fill="none" stroke="${pencil(base)}" stroke-width="1.2" stroke-opacity="0.85"/>`);
+      if (isF) o.push(fOutline(dA, rx < 4 ? 1.2 : 1.8));
+      if (isG) o.push(`<path d="${dA}" fill="none" stroke="${shade(tone(base, 'left'), 0.6)}" stroke-width="1.3"/>`);
+      return;
+    }
     if (isB) {
       o.push(`<ellipse cx="${f(cx)}" cy="${f(cy)}" rx="${f(rx)}" ry="${f(ry)}" fill="${grad('sphere', base)}"/>`);
       o.push(`<ellipse cx="${f(cx - rx * 0.36)}" cy="${f(cy - ry * 0.42)}" rx="${f(rx * 0.26)}" ry="${f(ry * 0.15)}" transform="rotate(-28 ${f(cx - rx * 0.36)} ${f(cy - ry * 0.42)})" fill="#fff" fill-opacity="0.6"/>`);
@@ -227,7 +343,11 @@ function render(key, opts = {}) {
   function tube(pts, w, base, smooth = false, extra = '') {
     const d = smooth ? smoothPath(pts) : line(pts);
     const cap = ` fill="none" stroke-linecap="round" stroke-linejoin="round"${extra}`;
-    if (isC) { o.push(`<path d="${d}"${cap} stroke="${ink}" stroke-width="${f(w + S.sw * 2)}"/>`); o.push(`<path d="${d}"${cap} stroke="${base}" stroke-width="${f(w)}"/>`); }
+    if (isD) { o.push(`<path d="${d}"${cap} stroke="${pencil(base)}" stroke-opacity="0.9" stroke-width="${f(w + 2)}"/>`); o.push(`<path d="${d}"${cap} stroke="${base}" stroke-width="${f(w)}"/>`); }
+    else if (isE) { o.push(`<path d="${d}"${cap} stroke="#2b1a0e" stroke-opacity="0.3" stroke-width="${f(w + 2)}" transform="translate(2,2.8)"/>`); o.push(`<path d="${d}"${cap} stroke="${PAPER}" stroke-width="${f(w + 2.2)}"/>`); o.push(`<path d="${d}"${cap} stroke="${base}" stroke-width="${f(w)}"/>`); }
+    else if (isF) { o.push(`<path d="${d}"${cap} stroke="${NAVY}" stroke-width="${f(w + 2.6)}" transform="translate(1.5,1.1)"/>`); o.push(`<path d="${d}"${cap} stroke="${base}" stroke-width="${f(w)}"/>`); }
+    else if (isG) { const lit = tone(base, 'left'); o.push(`<path d="${d}"${cap} stroke="${mix(shade(base, 0.5), '#2a3480', 0.35)}" stroke-width="${f(w + 2.2)}"/>`); o.push(`<path d="${d}"${cap} stroke="${lit}" stroke-width="${f(w)}"/>`); }
+    else if (isC) { o.push(`<path d="${d}"${cap} stroke="${ink}" stroke-width="${f(w + S.sw * 2)}"/>`); o.push(`<path d="${d}"${cap} stroke="${base}" stroke-width="${f(w)}"/>`); }
     else if (isA) { o.push(`<path d="${d}"${cap} stroke="${shade(base, 0.66)}" stroke-width="${f(w + 2.4)}"/>`); o.push(`<path d="${d}"${cap} stroke="${base}" stroke-width="${f(w)}"/>`); }
     else {
       o.push(`<path d="${d}"${cap} stroke="${shade(base, 0.62)}" stroke-width="${f(w + 1.6)}"/>`);
@@ -237,11 +357,21 @@ function render(key, opts = {}) {
   }
   // a generic small shape (guest parts, icons)
   function shape(d, base, round = false) {
+    if (NEW) { paint(d, base, 'left'); return; }
     if (isB) o.push(`<path d="${d}" fill="${round ? grad('sphere', base) : grad('hgrad', base)}"/>`);
     else o.push(`<path d="${d}" fill="${isA ? light(base, 0.04) : base}"${strokeOf(base, isC ? S.sw : 1.3)}/>`);
   }
   // soft ground shadow
   function shadow(d, k = 1) {
+    if (isD) { o.push(`<path d="${d}" fill="#5b4a78" fill-opacity="${f(0.2 * k)}" filter="url(#soft)"/>`); return; }
+    if (isE) { o.push(`<path d="${d}" fill="#2b1a0e" fill-opacity="${f(0.2 * k)}" filter="url(#softE)" transform="translate(2,1.5)"/>`); return; }
+    if (isF) { o.push(`<path d="${d}" fill="url(#dotsShadow)"/>`); return; }
+    if (isG) { // stretched away from the low sun (to the right)
+      const prs = [...d.matchAll(/(-?[\d.]+),(-?[\d.]+)/g)]; const xs = prs.map((m) => +m[1]), ys = prs.map((m) => +m[2]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs), cy = (Math.min(...ys) + Math.max(...ys)) / 2, ax = x0 + (x1 - x0) * 0.3;
+      o.push(`<path d="${d}" fill="#262a6e" fill-opacity="${f(0.3 * k)}" filter="url(#soft)" transform="translate(${f(ax)},${f(cy)}) matrix(2.1,0.12,0,1,0,0) translate(${f(-ax)},${f(-cy)})"/>`);
+      return;
+    }
     if (isB) {
       o.push(`<path d="${d}" fill="#3b2a2a" fill-opacity="${f(0.2 * k)}" filter="url(#aoWide)"/>`);
       o.push(`<path d="${d}" fill="#2a1d24" fill-opacity="${f(0.22 * k)}" filter="url(#aoTight)" transform="scale(1)"/>`);
@@ -259,6 +389,38 @@ function render(key, opts = {}) {
   if (isB) o.push(`<ellipse cx="800" cy="905" rx="660" ry="70" fill="#5a3b2a" fill-opacity="0.16" filter="url(#aoWide2)"/>`);
   if (isA) o.push(`<ellipse cx="800" cy="890" rx="640" ry="48" fill="#5b7aa8" fill-opacity="0.13" filter="url(#soft2)"/>`);
   if (isC) o.push(`<ellipse cx="800" cy="884" rx="600" ry="36" fill="#1f2340" fill-opacity="0.1" filter="url(#soft2)"/>`);
+  if (isD) { // loose watercolour washes on the paper
+    o.push(`<rect width="1600" height="1000" fill="#000" filter="url(#paperD)" opacity="0.5"/>`);
+    o.push(`<g filter="url(#paint)">`);
+    o.push(`<path d="M120,520C140,330 420,250 620,300C820,190 1180,200 1350,330C1520,430 1520,640 1360,760C1150,900 500,930 300,820C160,760 105,650 120,520Z" fill="#bcdcc8" fill-opacity="0.6"/>`);
+    o.push(`<path d="M980,170C1080,120 1250,140 1300,210C1260,260 1080,270 990,240Z" fill="#f6c39a" fill-opacity="0.6"/>`);
+    o.push(`<ellipse cx="800" cy="890" rx="620" ry="44" fill="#6a5a8e" fill-opacity="0.16" filter="url(#soft2)"/>`);
+    o.push(`</g>`);
+  }
+  if (isE) { // card clouds and a sun, each a cut piece with its own little shadow
+    for (const [x, y, w] of [[250, 300, 130], [1360, 250, 160], [1470, 630, 110], [140, 650, 90]]) {
+      const d = `M${x - w / 2},${y}a${w / 4},${w / 4} 0 0 1 ${w / 4},-${w / 5}a${w / 3.2},${w / 3.2} 0 0 1 ${w / 2},0a${w / 4},${w / 4} 0 0 1 ${w / 4},${w / 5}z`;
+      o.push(eShadow(d)); o.push(`<path d="${d}" fill="#ffffff"/>`);
+    }
+    o.push(`<ellipse cx="800" cy="888" rx="610" ry="34" fill="#2b1a0e" fill-opacity="0.13" filter="url(#soft2)"/>`);
+  }
+  if (isF) { // sunburst printed in a mustard halftone
+    for (let i = 0; i < 24; i += 2) {
+      const a0 = i / 24 * Math.PI * 2, a1 = (i + 1) / 24 * Math.PI * 2, R = 1400;
+      o.push(`<path d="M800,560L${f(800 + Math.cos(a0) * R)},${f(560 + Math.sin(a0) * R)}L${f(800 + Math.cos(a1) * R)},${f(560 + Math.sin(a1) * R)}Z" fill="url(#dotsSun)"/>`);
+    }
+    o.push(`<rect x="22" y="22" width="1556" height="956" rx="6" fill="none" stroke="${NAVY}" stroke-width="3"/>`);
+    o.push(`<rect x="31" y="31" width="1538" height="938" rx="4" fill="none" stroke="${INKS_F.red}" stroke-width="1.5"/>`);
+    o.push(`<path d="${ellD([800, 884], 600, 34)}" fill="url(#dotsFaint)"/>`);
+  }
+  if (isG) { // low sun on the left, haze, first stars
+    o.push(`<rect width="1600" height="1000" fill="url(#skyG)"/>`);
+    o.push(`<circle cx="150" cy="470" r="150" fill="url(#sunHalo)"/>`);
+    o.push(`<circle cx="150" cy="470" r="44" fill="#fff0c4"/>`);
+    const rr = rng(21); for (let i = 0; i < 40; i++) { const x = 300 + rr() * 1280, y = 20 + rr() * 220; o.push(`<circle cx="${f(x)}" cy="${f(y)}" r="${f(0.6 + rr() * 1.1)}" fill="#fff6e0" fill-opacity="${f(0.35 + rr() * 0.5)}"/>`); }
+    o.push(`<ellipse cx="900" cy="892" rx="700" ry="46" fill="#1c1d4a" fill-opacity="0.35" filter="url(#soft2)"/>`);
+  }
+  if (isD) o.push(`<g filter="url(#paint)">`); // everything in the scene gets the wobbly edge + pigment grain
 
   // ================= island =================
   const T = 12, slab = 40;
@@ -275,8 +437,16 @@ function render(key, opts = {}) {
       o.push(`<path d="${line([P(0.3, T, 1), P(T, T, 1), P(T, 0.3, 1)])}" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" filter="url(#blur2)"/>`);
     } else {
       face(leftF, C.earth, 'left', 14); face(rightF, C.earth, 'right', 14);
-      o.push(`<path d="${rp([P(0, T, 0), P(T, T, 0), P(T, 0, 0), P(T, 0, -8), P(T, T, -8), P(0, T, -8)], 8)}" fill="${shade(C.grass, 0.82)}"${strokeOf(C.grass)}/>`);
+      if (isE) for (const [k, t] of [[0.68, 0.12], [0.34, 0.24]]) {
+        paint(rp([P(0, T), P(T, T), P(T, T, -slab * k), P(0, T, -slab * k)], 8), C.earth, 'left', light(C.earth, t));
+        paint(rp([P(T, 0), P(T, T), P(T, T, -slab * k), P(T, 0, -slab * k)], 8), C.earth, 'right', shade(light(C.earth, t), 0.84));
+      }
+      const lipD = rp([P(0, T, 0), P(T, T, 0), P(T, 0, 0), P(T, 0, -8), P(T, T, -8), P(0, T, -8)], 8);
+      if (NEW) { paint(lipD, C.grass, 'right', isF ? C.grass : undefined); paint(rp(top, 16), C.grass, 'top'); }
+      else {
+      o.push(`<path d="${lipD}" fill="${shade(C.grass, 0.82)}"${strokeOf(C.grass)}/>`);
       o.push(`<path d="${rp(top, 16)}" fill="${C.grass}"${strokeOf(C.grass)}/>`);
+      }
       // earth strata
       for (const k of [0.45]) {
         o.push(`<path d="${line([P(0.3, T, -slab * k), P(T, T, -slab * k), P(T, 0.3, -slab * k)])}" fill="none" stroke="${shade(C.earth, 0.78)}" stroke-width="${isC ? 2 : 1.4}" stroke-opacity="0.6" stroke-linecap="round" stroke-dasharray="18 10"/>`);
@@ -289,6 +459,10 @@ function render(key, opts = {}) {
     if (isB) {
       const rr = rng(3); for (let i = 0; i < 26; i++) { const p = P(rr() * 12, rr() * 12); o.push(`<ellipse cx="${f(p[0])}" cy="${f(p[1])}" rx="${f(40 + rr() * 60)}" ry="${f(20 + rr() * 26)}" fill="${grad('glow', rr() > 0.5 ? light(C.grass, 0.25) : shade(C.grass, 0.88))}" fill-opacity="0.7"/>`); }
     }
+    if (isD) { const rr = rng(3); for (let i = 0; i < 14; i++) { const p = P(0.5 + rr() * 11, 0.5 + rr() * 11); o.push(`<ellipse cx="${f(p[0])}" cy="${f(p[1])}" rx="${f(36 + rr() * 50)}" ry="${f(16 + rr() * 18)}" fill="${rr() > 0.5 ? '#c3d48c' : '#8fb070'}" fill-opacity="0.45"/>`); } }
+    if (isE) { const rr = rng(3); for (let i = 0; i < 9; i++) { const p = P(0.5 + rr() * 11, 0.5 + rr() * 11); const d = ellD(p, 30 + rr() * 40, 14 + rr() * 16); o.push(eShadow(d)); o.push(`<path d="${d}" fill="${C.patch}"/>`); } }
+    if (isF) { const rr = rng(3); for (let i = 0; i < 9; i++) { const p = P(0.5 + rr() * 11, 0.5 + rr() * 11); o.push(`<path d="${ellD(p, 30 + rr() * 40, 14 + rr() * 16)}" fill="url(#dotsLight)"/>`); } }
+    if (isG) { const rr = rng(3); for (let i = 0; i < 9; i++) { const p = P(0.5 + rr() * 11, 0.5 + rr() * 11); o.push(`<ellipse cx="${f(p[0])}" cy="${f(p[1])}" rx="${f(30 + rr() * 40)}" ry="${f(14 + rr() * 16)}" fill="${tone(C.patch, 'top')}"/>`); } }
     if (isC) {
       const rr = rng(3); for (let i = 0; i < 9; i++) { const p = P(0.5 + rr() * 11, 0.5 + rr() * 11); o.push(`<ellipse cx="${f(p[0])}" cy="${f(p[1])}" rx="${f(30 + rr() * 40)}" ry="${f(14 + rr() * 16)}" fill="${C.patch}"/>`); }
     }
@@ -298,6 +472,7 @@ function render(key, opts = {}) {
   // ================= paths =================
   const tileD = (x, y, z = 0, inset = 0) => poly([P(x + inset, y + inset, z), P(x + 1 - inset, y + inset, z), P(x + 1 - inset, y + 1 - inset, z), P(x + inset, y + 1 - inset, z)]);
   function pavement(tiles, base, curb, raise) {
+    if (isG) { base = tone(base, 'top'); curb = tone(curb, 'left'); }
     const all = tiles.map(([x, y]) => tileD(x, y, raise)).join('');
     const side = tiles.map(([x, y]) => tileD(x, y, 0)).join('');
     if (isB) {
@@ -306,7 +481,8 @@ function render(key, opts = {}) {
       o.push(`<path d="${all}" fill="${curb}" stroke="${curb}" stroke-width="9" stroke-linejoin="round"/>`);
       o.push(`<path d="${all}" fill="${base}"/>`);
     } else {
-      const edge = isC ? ink : shade(curb, 0.78);
+      const edge = isC ? ink : isF ? NAVY : isD ? pencil(curb) : shade(curb, 0.78);
+      if (isE) o.push(`<path d="${side}" fill="#2b1a0e" fill-opacity="0.22" stroke="#2b1a0e" stroke-opacity="0.22" stroke-width="9" stroke-linejoin="round" transform="translate(1.4,2.5)"/>`);
       const wE = isC ? 7 + S.sw * 2 : 8.6;
       o.push(`<path d="${side}" fill="${edge}" stroke="${edge}" stroke-width="${wE}" stroke-linejoin="round"/>`);
       o.push(`<path d="${side}" fill="${shade(curb, 0.92)}" stroke="${shade(curb, 0.92)}" stroke-width="7" stroke-linejoin="round"/>`);
@@ -319,6 +495,7 @@ function render(key, opts = {}) {
       const q = [P(x + 0.06, y + 0.06, raise), P(x + 0.94, y + 0.06, raise), P(x + 0.94, y + 0.94, raise), P(x + 0.06, y + 0.94, raise)];
       if (isB) { const q2 = [P(x + 0.07, y + 0.07, raise), P(x + 0.93, y + 0.07, raise), P(x + 0.93, y + 0.93, raise), P(x + 0.07, y + 0.93, raise)]; o.push(`<path d="${rp(q2, 14)}" fill="${shade(base, 0.8)}" transform="translate(0,2.5)" filter="url(#aoTight)" opacity="0.7"/>`); o.push(`<path d="${rp(q2, 14)}" fill="${grad('top', base)}" stroke="${shade(base, 0.86)}" stroke-width="1.2" stroke-opacity="0.6"/>`); }
       else if (isA) o.push(`<path d="${rp(q, 8)}" fill="${light(base, 0.25)}" stroke="${C.joint}" stroke-width="1.3"/>`);
+      else if (isE) { const q2 = [P(x + 0.1, y + 0.1, raise), P(x + 0.9, y + 0.1, raise), P(x + 0.9, y + 0.9, raise), P(x + 0.1, y + 0.9, raise)]; o.push(eShadow(rp(q2, 7))); o.push(`<path d="${rp(q2, 7)}" fill="${light(base, 0.35)}" stroke="${PAPER}" stroke-width="1.6" paint-order="stroke"/>`); }
       else o.push(`<path d="${rp(q, 7)}" fill="none" stroke="${C.joint}" stroke-width="2"/>`);
     }
   }
@@ -346,6 +523,10 @@ function render(key, opts = {}) {
         const d = `M${pt([p[0] - 6, p[1]])}Q${pt([p[0] - 5, p[1] - 7])} ${pt([p[0] - 2, p[1] - 9])}Q${pt([p[0] - 2, p[1] - 4])} ${pt([p[0], p[1] - 2])}Q${pt([p[0] + 1, p[1] - 9])} ${pt([p[0] + 4, p[1] - 10])}Q${pt([p[0] + 3, p[1] - 4])} ${pt([p[0] + 6, p[1]])}Z`;
         if (isC) o.push(`<path d="${d}" fill="${C.tuft}" stroke="${ink}" stroke-width="2" stroke-linejoin="round"/>`);
         else if (isA) o.push(`<path d="${d}" fill="${C.tuft}"/>`);
+        else if (isD) o.push(`<path d="${d}" fill="${C.tuft}" stroke="${pencil(C.tuft)}" stroke-width="0.9"/>`);
+        else if (isE) { o.push(eShadow(d)); o.push(`<path d="${d}" fill="${C.tuft}"/>`); }
+        else if (isF) o.push(`<path d="${d}" fill="${C.tuft}" stroke="${NAVY}" stroke-width="1" transform="translate(0.8,0.6)"/>`);
+        else if (isG) o.push(`<path d="${d}" fill="${tone(C.tuft, 'left')}"/>`);
         else o.push(`<path d="${d}" fill="${grad('hgrad', C.tuft)}"/>`);
       } else { // tiny flower
         const col = kind < 0.86 ? '#ffffff' : C.flower2;
@@ -356,6 +537,7 @@ function render(key, opts = {}) {
     function blobSmall(cx, cy, r, col) {
       if (isC) o.push(`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${col}" stroke="${ink}" stroke-width="1.2"/>`);
       else if (isA) o.push(`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${col}" stroke="${shade(col, 0.75)}" stroke-width="0.8"/>`);
+      else if (NEW) o.push(`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${isG ? tone(col, 'left') : col}"${isD ? ` stroke="${pencil(col)}" stroke-width="0.7"` : isF ? ` stroke="${NAVY}" stroke-width="0.8"` : ''}/>`);
       else o.push(`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(r)}" fill="${grad('sphere', col)}"/>`);
     }
   }
@@ -365,8 +547,24 @@ function render(key, opts = {}) {
   {
     const cz = SCENE.carousel;
     shadow(groundEll(cz.x, cz.y, 1.5, 0.22, 0.12), 1.15);
-    const shPts = track.map(([x, y, z]) => P(x + z * 0.0035, y + z * 0.0016));
-    if (isB) {
+    const shPts = track.map(([x, y, z]) => isG ? P(x + z * GK, y - z * GK) : P(x + z * 0.0035, y + z * 0.0016));
+    if (isD) o.push(`<path d="${smoothPath(shPts)}" fill="none" stroke="#5b4a78" stroke-opacity="0.17" stroke-width="14" stroke-linecap="round" filter="url(#soft)"/>`);
+    else if (isE) o.push(`<path d="${smoothPath(shPts)}" fill="none" stroke="#2b1a0e" stroke-opacity="0.18" stroke-width="12" stroke-linecap="round" filter="url(#softE)" transform="translate(2,1.5)"/>`);
+    else if (isF) o.push(`<path d="${smoothPath(shPts)}" fill="none" stroke="url(#dotsShadow)" stroke-width="13" stroke-linecap="round"/>`);
+    else if (isG) {
+      o.push(`<path d="${smoothPath(shPts)}" fill="none" stroke="#262a6e" stroke-opacity="0.22" stroke-width="10" stroke-linecap="round" filter="url(#soft)"/>`);
+      // long cast shadows of the tall things: hull of the footprint and the top, slid along the ground away from the sun
+      const castG = (pts3, k = 1) => { const g = hull(pts3.map(([x, y, z]) => P(x + z * GK, y - z * GK))); o.push(`<path d="${rp(g, 10)}" fill="#262a6e" fill-opacity="${f(0.26 * k)}" filter="url(#softG)"/>`); };
+      const ring = (x, y, r, z, n = 16) => Array.from({ length: n }, (_, i) => [x + Math.cos(i / n * 6.283) * r, y + Math.sin(i / n * 6.283) * r, z]);
+      castG([...ring(cz.x, cz.y, 1.34, 0), ...ring(cz.x, cz.y, 1.4, 104), [cz.x, cz.y, 166]]);
+      const st = SCENE.stall; castG([[st.x0, st.y0, 0], [st.x1, st.y0, 0], [st.x1, st.y1, 0], [st.x0, st.y1, 0], [st.x0, st.y0, 112], [st.x1, st.y0, 112], [st.x1, st.y1, 60], [st.x0, st.y1, 60]]);
+      castG([...ring(SCENE.tree1[0], SCENE.tree1[1], 0.1, 0, 6), ...ring(SCENE.tree1[0] + 0.25, SCENE.tree1[1] - 0.25, 0.55, 75)], 0.9);
+      castG([...ring(SCENE.tree2[0], SCENE.tree2[1], 0.1, 0, 6), ...ring(SCENE.tree2[0], SCENE.tree2[1], 0.4, 55), [SCENE.tree2[0], SCENE.tree2[1], 105]], 0.9);
+      castG([[SCENE.lamp[0], SCENE.lamp[1], 0], [SCENE.lamp[0] + 0.03, SCENE.lamp[1] - 0.03, 0], [SCENE.lamp[0], SCENE.lamp[1], 92]], 0.8);
+      castG([...ring(SCENE.bush[0], SCENE.bush[1], 0.4, 0, 8), ...ring(SCENE.bush[0], SCENE.bush[1], 0.35, 28, 8)], 0.8);
+      castG([[1.82, 5.92, 0], [1.84, 5.9, 0], [1.82, 5.92, 70]], 0.7);
+    }
+    else if (isB) {
       o.push(`<path d="${smoothPath(shPts)}" fill="none" stroke="#3b2a2a" stroke-opacity="0.16" stroke-width="16" stroke-linecap="round" filter="url(#aoWide)"/>`);
     } else o.push(`<path d="${smoothPath(shPts)}" fill="none" stroke="${isA ? '#2d5d46' : '#1f2340'}" stroke-opacity="${isA ? 0.15 : 0.13}" stroke-width="14" stroke-linecap="round" filter="url(#${isA ? 'soft' : 'softC'})"/>`);
     const s = SCENE.stall; shadow(rp([P(s.x0 + 0.05, s.y0 + 0.05), P(s.x1 + 0.3, s.y0 + 0.05), P(s.x1 + 0.3, s.y1 + 0.4), P(s.x0 + 0.05, s.y1 + 0.4)], 14), 1.1);
@@ -418,6 +616,7 @@ function render(key, opts = {}) {
     for (const i of [0, track.length - 1]) { const p = P(track[i][0], track[i][1], track[i][2] - 1); blob(p[0], p[1], 6.5, C.carTrim); }
     // train car on the lift
     const ci = track.findIndex((p) => p[0] >= 5.55);
+    if (isG) for (let i = 4; i < track.length; i += 6) { const p = off(i, 0.15, 2); o.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="6" fill="url(#bulbHalo)"/><circle cx="${f(p[0])}" cy="${f(p[1])}" r="1.7" fill="#fff6d0"/>`); }
     drawCar(ci);
   }
   function drawCar(ci) {
@@ -438,7 +637,7 @@ function render(key, opts = {}) {
     face(sideF, C.car, 'left', isB ? 8 : 6);
     // trim stripe on the side
     const st = [corner(-hl + 0.04, sideW, 13), corner(hl - 0.04, sideW, 13), corner(hl - 0.04, sideW, 9), corner(-hl + 0.04, sideW, 9)];
-    if (isB) o.push(`<path d="${rp(st, 2)}" fill="${grad('hgrad', C.carTrim)}"/>`); else o.push(`<path d="${rp(st, 2)}" fill="${C.carTrim}"${isC ? ` stroke="${ink}" stroke-width="1.6"` : ''}/>`);
+    if (isB) o.push(`<path d="${rp(st, 2)}" fill="${grad('hgrad', C.carTrim)}"/>`); else if (NEW) paint(rp(st, 2), C.carTrim, 'left'); else o.push(`<path d="${rp(st, 2)}" fill="${C.carTrim}"${isC ? ` stroke="${ink}" stroke-width="1.6"` : ''}/>`);
     face(top, C.car, 'top', isB ? 8 : 6);
     // open tub: dark interior + two riders
     const inner = [corner(-hl + 0.07, -hw + 0.06, z1), corner(hl - 0.1, -hw + 0.06, z1), corner(hl - 0.1, hw - 0.06, z1), corner(-hl + 0.07, hw - 0.06, z1)];
@@ -505,6 +704,7 @@ function render(key, opts = {}) {
         o.push(`<path d="${poly(w.pts)}" fill="${shade(w.col, k)}" stroke="${shade(w.col, k)}" stroke-width="0.6"/>`);
       } else {
         const lit = Math.cos(w.tm) < 0.2;
+        if (NEW) { const c2 = tone(w.col, lit ? 'left' : 'right'); o.push(`<path d="${poly(w.pts)}" fill="${c2}" stroke="${c2}" stroke-width="0.6"/>`); if (isF && !lit) o.push(dots(poly(w.pts))); continue; }
         o.push(`<path d="${poly(w.pts)}" fill="${lit ? (isA ? light(w.col, 0.05) : w.col) : shade(w.col, isC ? 0.82 : 0.86)}" stroke="${lit ? w.col : shade(w.col, isC ? 0.82 : 0.86)}" stroke-width="0.6"/>`);
       }
     }
@@ -512,7 +712,9 @@ function render(key, opts = {}) {
       o.push(`<path d="${poly(cone)}" fill="url(#roofShade)"/>`);
       o.push(`<path d="${line([[apex[0] - 6, apex[1] + 10], [rb[0] - rx * 0.55, rb[1] + ry * 0.1]])}" stroke="#fff" stroke-opacity="0.45" stroke-width="7" stroke-linecap="round" filter="url(#blur2)"/>`);
     }
-    if (!isB) o.push(`<path d="${poly(cone)}" fill="none"${strokeOf(C.stripeA)}/>`);
+    if (isF) o.push(fOutline(poly(cone)));
+    else if (isE) o.push(`<path d="${poly(cone)}" fill="none" stroke="${PAPER}" stroke-width="2.2" stroke-linejoin="round"/>`);
+    else if (!isB) o.push(`<path d="${poly(cone)}" fill="none"${strokeOf(C.stripeA)}/>`);
     // scalloped valance + trim
     const nS = 18; const t0s = -0.12, t1s = Math.PI + 0.12;
     for (let i = 0; i < nS; i++) {
@@ -520,15 +722,19 @@ function render(key, opts = {}) {
       const a = ell(rb, rx, ry, ta), b = ell(rb, rx, ry, tb), m = ell(rb, rx, ry, (ta + tb) / 2);
       const col = i % 2 ? C.stripeB : C.stripeA;
       const d = `M${pt(a)}L${pt([a[0], a[1] + 6])}Q${pt([m[0], m[1] + 22])} ${pt([b[0], b[1] + 6])}L${pt(b)}Z`;
-      if (isB) o.push(`<path d="${d}" fill="${grad('left', col)}"/>`);
+      if (NEW) paint(d, col, Math.cos((ta + tb) / 2) > 0.2 ? 'right' : 'left');
+      else if (isB) o.push(`<path d="${d}" fill="${grad('left', col)}"/>`);
       else o.push(`<path d="${d}" fill="${Math.cos((ta + tb) / 2) > 0.2 ? shade(col, isC ? 0.82 : 0.86) : col}"${strokeOf(col, isC ? S.sw : 1.3)}/>`);
     }
     const band = `M${pt(ell(rb, rx, ry, t0s))}A${f(rx)} ${f(ry)} 0 0 1 ${pt(ell(rb, rx, ry, t1s))}`;
     if (isC) { o.push(`<path d="${band}" fill="none" stroke="${ink}" stroke-width="${7 + S.sw * 2}" stroke-linecap="round"/>`); }
     else o.push(`<path d="${band}" fill="none" stroke="${shade(C.trim, isB ? 0.75 : 0.7)}" stroke-width="${isB ? 9 : 8.5}" stroke-linecap="round"/>`);
-    o.push(`<path d="${band}" fill="none" stroke="${C.trim}" stroke-width="${isB ? 7.5 : 7}" stroke-linecap="round"/>`);
+    o.push(`<path d="${band}" fill="none" stroke="${isG ? tone(C.trim, 'left') : C.trim}" stroke-width="${isB ? 7.5 : 7}" stroke-linecap="round"/>`);
     if (isB) o.push(`<path d="${band}" fill="none" stroke="#fff" stroke-opacity="0.6" stroke-width="2" stroke-linecap="round" transform="translate(0,-2)"/>`);
     // light bulbs on the band
+    if (isG) { // lit bulbs: a soft halo each, then a hot core
+      for (let i = 0; i <= 12; i++) { const p = ell(rb, rx, ry, t0s + (t1s - t0s) * i / 12); o.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="9" fill="url(#bulbHalo)"/><circle cx="${f(p[0])}" cy="${f(p[1])}" r="2.6" fill="#fffbe0"/>`); }
+    } else
     for (let i = 0; i <= 12; i++) { const p = ell(rb, rx, ry, t0s + (t1s - t0s) * i / 12); if (isB) o.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="2.3" fill="#fffbe6"/>`); else o.push(`<circle cx="${f(p[0])}" cy="${f(p[1])}" r="2.2" fill="#fffbe6"${isC ? ` stroke="${ink}" stroke-width="1"` : ''}/>`); }
     // finial + flag
     tube([apex, [apex[0], apex[1] - 26]], 2.4, C.metal);
@@ -584,7 +790,8 @@ function render(key, opts = {}) {
     box(s.x0, s.x1, s.y0, ym, 56, 68, C.awnA);
     // serving window with the vendor inside
     const win = [P(s.x0 + 0.1, ym, 52), P(s.x1 - 0.1, ym, 52), P(s.x1 - 0.1, ym, 16), P(s.x0 + 0.1, ym, 16)];
-    o.push(`<path d="${rp(win, 5)}" fill="${shade(C.wall, 0.45)}"${isC ? ` stroke="${ink}" stroke-width="${S.sw}"` : ''}/>`);
+    if (isG) o.push(`<path d="${rp(win, 5)}" fill="#ffbf5e"/><path d="${rp(win, 5)}" fill="url(#bulbHalo)" transform="translate(${f(P(7.5, ym, 34)[0])},${f(P(7.5, ym, 34)[1])}) scale(1.9) translate(${f(-P(7.5, ym, 34)[0])},${f(-P(7.5, ym, 34)[1])})" opacity="0.7"/>`);
+    else o.push(`<path d="${rp(win, 5)}" fill="${shade(C.wall, 0.45)}"${isC ? ` stroke="${ink}" stroke-width="${S.sw}"` : ''}/>`);
     const vp = P(7.45, 5.3, 6);
     shape(rp([[vp[0] - 7, vp[1] - 12], [vp[0] + 7, vp[1] - 12], [vp[0] + 7, vp[1] + 4], [vp[0] - 7, vp[1] + 4]], 4), '#ffffff');
     blob(vp[0], vp[1] - 18, 6, '#e8b48f'); hairCap(vp[0], vp[1] - 18, 6, '#ff6f7d', 1);
@@ -600,13 +807,15 @@ function render(key, opts = {}) {
       const col = i % 2 ? C.awnB : C.awnA;
       const q = [P(xs(i), ym, 68), P(xs(i + 1), ym, 68), P(xs(i + 1), yf, zf), P(xs(i), yf, zf)];
       if (isB) o.push(`<path d="${poly(q)}" fill="${grad('top', col)}" stroke="${light(col, 0.1)}" stroke-width="0.5"/>`);
+      else if (NEW) { const c2 = tone(col, 'top'); o.push(`<path d="${poly(q)}" fill="${c2}" stroke="${c2}" stroke-width="0.5"/>`); }
       else o.push(`<path d="${poly(q)}" fill="${isA ? light(col, 0.08) : col}" stroke="${col}" stroke-width="0.5"/>`);
     }
-    if (!isB) o.push(`<path d="${rp([P(xs(0), ym, 68), P(xs(n), ym, 68), P(xs(n), yf, zf), P(xs(0), yf, zf)], 3)}" fill="none"${strokeOf(C.awnA)}/>`);
+    if (isF) o.push(fOutline(rp([P(xs(0), ym, 68), P(xs(n), ym, 68), P(xs(n), yf, zf), P(xs(0), yf, zf)], 3)));
+    else if (!isB) o.push(`<path d="${rp([P(xs(0), ym, 68), P(xs(n), ym, 68), P(xs(n), yf, zf), P(xs(0), yf, zf)], 3)}" fill="none"${strokeOf(C.awnA)}/>`);
     for (let i = 0; i < n; i++) {
       const col = i % 2 ? C.awnB : C.awnA; const a = P(xs(i), yf, zf), b = P(xs(i + 1), yf, zf);
       const dd = `M${pt(a)}C${pt([a[0] + 2, a[1] + 12])} ${pt([b[0] - 2, b[1] + 12])} ${pt(b)}Z`;
-      if (isB) o.push(`<path d="${dd}" fill="${grad('left', col)}"/>`); else o.push(`<path d="${dd}" fill="${col}"${strokeOf(col === C.awnB ? C.awnA : col, isC ? S.sw : 1.3)}/>`);
+      if (NEW) paint(dd, col, 'left'); else if (isB) o.push(`<path d="${dd}" fill="${grad('left', col)}"/>`); else o.push(`<path d="${dd}" fill="${col}"${strokeOf(col === C.awnB ? C.awnA : col, isC ? S.sw : 1.3)}/>`);
     }
     // sign board on the roof with an ice-cream icon
     const sb = [P(7.2, 5.22, 112), P(7.8, 5.22, 112), P(7.8, 5.22, 76), P(7.2, 5.22, 76)];
@@ -630,8 +839,14 @@ function render(key, opts = {}) {
     cyl(x, y, 0.08, 0, 7, C.metal);
     tube([P(x, y, 6), P(x, y, 70)], 3.6, C.metal);
     const h = P(x, y, 78);
-    o.push(`<circle cx="${f(h[0])}" cy="${f(h[1])}" r="22" fill="${grad('glow', C.glow)}"/>`);
-    shape(rp([[h[0] - 6, h[1] - 8], [h[0] + 6, h[1] - 8], [h[0] + 5, h[1] + 8], [h[0] - 5, h[1] + 8]], 4), C.glow, true);
+    if (isG) { // light pool on the ground + big halo
+      const g0 = P(x, y); o.push(`<ellipse cx="${f(g0[0])}" cy="${f(g0[1])}" rx="64" ry="30" fill="url(#poolG)"/>`);
+      o.push(`<circle cx="${f(h[0])}" cy="${f(h[1])}" r="46" fill="url(#bulbHalo)"/>`);
+    } else if (isE) { const d = ellD(h, 20, 20); o.push(`<path d="${d}" fill="${C.glow}" fill-opacity="0.55"/>`); }
+    else if (isF) o.push(`<path d="${ellD(h, 22, 22)}" fill="url(#dotsSun)"/>`);
+    else o.push(`<circle cx="${f(h[0])}" cy="${f(h[1])}" r="22" fill="${grad('glow', C.glow)}"/>`);
+    if (isG) o.push(`<path d="${rp([[h[0] - 6, h[1] - 8], [h[0] + 6, h[1] - 8], [h[0] + 5, h[1] + 8], [h[0] - 5, h[1] + 8]], 4)}" fill="#fff4c8" stroke="#ffd36b" stroke-width="1.4"/>`);
+    else shape(rp([[h[0] - 6, h[1] - 8], [h[0] + 6, h[1] - 8], [h[0] + 5, h[1] + 8], [h[0] - 5, h[1] + 8]], 4), C.glow, true);
     shape(`M${f(h[0] - 9)},${f(h[1] - 8)}Q${f(h[0])},${f(h[1] - 19)} ${f(h[0] + 9)},${f(h[1] - 8)}Z`, C.metal);
     blob(h[0], h[1] - 17, 2.6, C.metal);
   });
@@ -709,6 +924,11 @@ function render(key, opts = {}) {
   for (const g of SCENE.queuers) add(g.at[0] + g.at[1], () => { const p = P(...g.at, 0); guest(p[0], p[1] - 3, g); });
 
   items.sort((a, b) => a.depth - b.depth).forEach((it) => it.fn());
+  if (isD) o.push(`</g>`);
+  if (isD) o.push(`<rect width="1600" height="1000" fill="#000" filter="url(#paperD)" opacity="0.35" pointer-events="none"/>`);
+  if (isE) o.push(`<rect width="1600" height="1000" fill="#000" filter="url(#paperE)" opacity="0.5" pointer-events="none"/>`);
+  if (isF) o.push(`<rect width="1600" height="1000" fill="#000" filter="url(#grainF)" pointer-events="none"/>`);
+  if (isG) o.push(`<rect width="1600" height="1000" fill="url(#gradeG)" style="mix-blend-mode:soft-light" pointer-events="none"/>`);
 
   if (isB) o.push(`<rect width="1600" height="1000" fill="url(#studio)" pointer-events="none"/>`);
   // ================= sheet furniture =================
@@ -721,11 +941,14 @@ function render(key, opts = {}) {
 
   // palette chips (top right)
   {
-    const chips = [C.grass, C.path, C.stripeA, C.base, C.rail, C.awnA, C.leaf, C.trim];
+    const chips = isF ? Object.values(INKS_F).slice(1).concat(INKS_F.paper) : [C.grass, C.path, C.stripeA, C.base, C.rail, C.awnA, C.leaf, C.trim];
     o.push(`<text x="1180" y="70" font-family="${FONT}" font-size="15" font-weight="700" letter-spacing="3" fill="${S.sub}">PALETTE</text>`);
     chips.forEach((c, i) => {
       const x = 1196 + i * 46, y = 104;
-      if (isB) { blob(x, y, 17, c); }
+      if (isD) { o.push(`<g filter="url(#paint)">`); blob(x, y, 16, c); o.push(`</g>`); }
+      else if (isG) { o.push(`<circle cx="${x}" cy="${y}" r="21" fill="url(#bulbHalo)" opacity="0.5"/>`); blob(x, y, 15, c); }
+      else if (isE || isF) paint(rp([[x - 16, y - 16], [x + 16, y - 16], [x + 16, y + 16], [x - 16, y + 16]], isE ? 8 : 3), c, 'left');
+      else if (isB) { blob(x, y, 17, c); }
       else if (isA) { o.push(`<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="10" fill="${c}" stroke="${shade(c, 0.66)}" stroke-width="1.6"/><path d="M${x - 17},${y + 4}L${x + 17},${y + 4}L${x + 17},${y + 7}A10 10 0 0 1 ${x + 7},${y + 17}L${x - 7},${y + 17}A10 10 0 0 1 ${x - 17},${y + 7}Z" fill="${shade(c, 0.84)}"/><rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="10" fill="none" stroke="${shade(c, 0.66)}" stroke-width="1.6"/>`); }
       else { o.push(`<rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="9" fill="${c}"/><path d="M${x - 17},${y + 4}L${x + 17},${y + 4}L${x + 17},${y + 8}A9 9 0 0 1 ${x + 8},${y + 17}L${x - 8},${y + 17}A9 9 0 0 1 ${x - 17},${y + 8}Z" fill="${shade(c, 0.8)}"/><rect x="${x - 17}" y="${y - 17}" width="34" height="34" rx="9" fill="none" stroke="${ink}" stroke-width="${S.sw}"/>`); }
     });
@@ -734,19 +957,57 @@ function render(key, opts = {}) {
   // guest line-up (bottom left), at 2x
   {
     o.push(`<text x="56" y="782" font-family="${FONT}" font-size="15" font-weight="700" letter-spacing="3" fill="${S.sub}">GUESTS · 2×</text>`);
+    if (isD) o.push(`<g filter="url(#paint)">`);
     SCENE.walkers.forEach((g, i) => guest(84 + i * 82, 960, { ...g, dir: 1 }, 2, true));
+    if (isD) o.push(`</g>`);
   }
   // shading rules (bottom right): box, cylinder, ball at 1.6x
   {
     o.push(`<text x="1180" y="782" font-family="${FONT}" font-size="15" font-weight="700" letter-spacing="3" fill="${S.sub}">SHADING RULE · 1.6×</text>`);
     const at = (gx, gy, tx, ty, fn) => { const p = P(gx, gy); o.push(`<g transform="translate(${tx},${ty}) scale(1.6) translate(${f(-p[0])},${f(-p[1])})">`); fn(); o.push(`</g>`); };
-    const ex = '#ffb347';
+    const ex = isF ? INKS_F.mustard : isD ? '#e3a959' : '#ffb347';
+    if (isD) o.push(`<g filter="url(#paint)">`);
     at(20, 20, 1240, 950, () => { shadow(rp([P(20.05, 19.6), P(20.9, 19.6), P(20.9, 20.6), P(20.05, 20.6)], 8)); box(19.6, 20.4, 19.6, 20.4, 0, 34, ex); });
-    at(30, 30, 1385, 950, () => { shadow(groundEll(30, 30, 0.42)); cyl(30, 30, 0.38, 0, 38, '#56b4e9'); });
-    at(40, 40, 1515, 948, () => { const p = P(40, 40); shadow(ellD([p[0] + 3, p[1] + 1], 22, 9)); blob(p[0], p[1] - 22, 22, '#ff7f9e'); });
+    at(30, 30, 1385, 950, () => { shadow(groundEll(30, 30, 0.42)); cyl(30, 30, 0.38, 0, 38, isF ? INKS_F.teal : isD ? '#6aa6c4' : '#56b4e9'); });
+    at(40, 40, 1515, 948, () => { const p = P(40, 40); shadow(ellD([p[0] + 3, p[1] + 1], 22, 9)); blob(p[0], p[1] - 22, 22, isF ? INKS_F.red : isD ? '#e3909f' : '#ff7f9e'); });
+    if (isD) o.push(`</g>`);
   }
 
   const defsStr = [...defs.values()].map((d) => d.s).join('');
+  function extraDefs() {
+    const full = `x="0" y="0" width="1600" height="1000" filterUnits="userSpaceOnUse"`;
+    let s2 = `<filter id="softE" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.8"/></filter>`;
+    if (isD) s2 += `
+<filter id="paint" ${full}>
+  <feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="2" seed="4" result="warp"/>
+  <feDisplacementMap in="SourceGraphic" in2="warp" scale="4.5" xChannelSelector="R" yChannelSelector="G" result="wob"/>
+  <feTurbulence type="fractalNoise" baseFrequency="0.018 0.03" numOctaves="3" seed="9" result="blot"/>
+  <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="2" result="tooth"/>
+  <feColorMatrix in="blot" type="matrix" values="0.4 0 0 0 0.72  0.4 0 0 0 0.72  0.4 0 0 0 0.72  0 0 0 0 1" result="blotG"/>
+  <feColorMatrix in="tooth" type="matrix" values="0.26 0 0 0 0.84  0.26 0 0 0 0.84  0.26 0 0 0 0.84  0 0 0 0 1" result="toothG"/>
+  <feBlend in="blotG" in2="toothG" mode="multiply" result="tex"/>
+  <feBlend in="wob" in2="tex" mode="multiply" result="painted"/>
+  <feComposite in="painted" in2="wob" operator="in"/>
+</filter>
+<filter id="paperD" ${full}><feTurbulence type="fractalNoise" baseFrequency="0.7" numOctaves="3" seed="7"/><feColorMatrix type="matrix" values="0 0 0 0 0.45  0 0 0 0 0.33  0 0 0 0 0.22  0 0 0 -1.4 0.82"/></filter>`;
+    if (isE) s2 += `
+<filter id="paperE" ${full}><feTurbulence type="fractalNoise" baseFrequency="0.9 0.25" numOctaves="2" seed="5"/><feColorMatrix type="matrix" values="0 0 0 0 0.3  0 0 0 0 0.25  0 0 0 0 0.2  0 0 0 -1.6 0.8"/></filter>`;
+    if (isF) s2 += `
+<pattern id="dots" width="4.4" height="4.4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="2.2" cy="2.2" r="1.15" fill="${NAVY}"/></pattern>
+<pattern id="dotsShadow" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="2" cy="2" r="1.35" fill="${NAVY}"/></pattern>
+<pattern id="dotsLight" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="3" cy="3" r="1.2" fill="${INKS_F.teal}"/></pattern>
+<pattern id="dotsSun" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(15)"><circle cx="3.5" cy="3.5" r="1.6" fill="${INKS_F.mustard}"/></pattern>
+<filter id="grainF" ${full}><feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="1" seed="3"/><feColorMatrix type="matrix" values="0 0 0 0 0.953  0 0 0 0 0.902  0 0 0 0 0.784  0 0 0 -30 10.2"/></filter>
+<pattern id="dotsFaint" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(30)"><circle cx="3" cy="3" r="1.25" fill="${NAVY}"/></pattern>`;
+    if (isG) s2 += `
+<filter id="softG" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="5"/></filter>
+<linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2c3268"/><stop offset="0.28" stop-color="#6a4a8c"/><stop offset="0.44" stop-color="#d9756e"/><stop offset="0.52" stop-color="#f6a965"/><stop offset="0.6" stop-color="#e88c6a"/><stop offset="0.75" stop-color="#8a4f78"/><stop offset="1" stop-color="#3a2f5c"/></linearGradient>
+<radialGradient id="sunHalo"><stop offset="0" stop-color="#fff2c0" stop-opacity="0.9"/><stop offset="0.35" stop-color="#ffc77a" stop-opacity="0.45"/><stop offset="1" stop-color="#ff9a5a" stop-opacity="0"/></radialGradient>
+<radialGradient id="bulbHalo"><stop offset="0" stop-color="#fff3b0" stop-opacity="0.95"/><stop offset="0.3" stop-color="#ffd36b" stop-opacity="0.55"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+<radialGradient id="poolG"><stop offset="0" stop-color="#ffd98a" stop-opacity="0.55"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+<linearGradient id="gradeG" x1="0" y1="0" x2="1" y2="0.3"><stop offset="0" stop-color="#ffb060" stop-opacity="0.55"/><stop offset="0.5" stop-color="#ff9a6a" stop-opacity="0.12"/><stop offset="1" stop-color="#3a3f9a" stop-opacity="0.5"/></linearGradient>`;
+    return s2;
+  }
   const filters = `
 <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${S.bg[0]}"/><stop offset="1" stop-color="${S.bg[1]}"/></linearGradient>
 <radialGradient id="roofShade" cx="0.3" cy="0.25" r="0.9"><stop offset="0" stop-color="#ffffff" stop-opacity="0.3"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#3a1020" stop-opacity="0.25"/></radialGradient>
@@ -758,7 +1019,7 @@ function render(key, opts = {}) {
 <filter id="aoWide2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="24"/></filter>
 <filter id="aoTight" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter>
 <filter id="blur1" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.9"/></filter>
-<filter id="blur2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5"/></filter>`;
+<filter id="blur2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.5"/></filter>${NEW ? extraDefs() : ''}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" width="1600" height="1000">
 <title>Thrills &amp; Chills — curved concept ${S.letter}: ${S.name}</title>
 <defs>${filters}${defsStr}</defs>
@@ -768,8 +1029,22 @@ ${o.join('\n')}
 }
 
 fs.mkdirSync(OUT, { recursive: true });
-for (const k of ['a', 'b', 'c']) {
-  const svg = render(k);
+// F: snap every colour to the nearest of the six inks (or the paper). Shading is dots, so nothing needs a tint.
+function snapInks(svg) {
+  const inks = Object.values(INKS_F).map((h) => [h, hex2rgb(h)]);
+  const skin = { '#8d5a3b': INKS_F.red, '#c68642': INKS_F.mustard, '#d9a27a': INKS_F.mustard };
+  return svg.replace(/#[0-9a-fA-F]{6}\b/g, (m) => {
+    const lc = m.toLowerCase(); if (skin[lc]) return skin[lc];
+    const [r, g, b] = hex2rgb(lc); let best = null, bd = 1e9;
+    for (const [h, [R, G, B]] of inks) { const d = 2 * (r - R) ** 2 + 4 * (g - G) ** 2 + 3 * (b - B) ** 2; if (d < bd) { bd = d; best = h; } }
+    return best;
+  });
+}
+const only = process.argv.slice(2);
+for (const k of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+  if (only.length && !only.includes(k)) continue;
+  let svg = render(k);
+  if (k === 'f') svg = snapInks(svg);
   fs.writeFileSync(`${OUT}/${STYLES[k].file}.svg`, svg);
   console.log(k, (svg.length / 1024).toFixed(0) + ' KB');
 }
