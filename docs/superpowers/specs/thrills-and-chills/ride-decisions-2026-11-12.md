@@ -1,6 +1,6 @@
 # Core decisions on rides and building (owner, 2026-11-12)
 
-Status: decided by the owner on 2026-11-12, except where a line says "proposal".
+Status: decided by the owner on 2026-11-12. The owner accepted the two proposals below ("That's fine", 2026-11-12).
 
 | # | Topic | Decision |
 |---|---|---|
@@ -11,7 +11,7 @@ Status: decided by the owner on 2026-11-12, except where a line says "proposal".
 | — | Height limit measure | The limit is the climb above the station, not the height above the ground (decided earlier on 2026-11-12, built in 8e0c0c7). |
 | — | Mini Railway | A train may have one car (built in 8e0c0c7). |
 
-## R2 proposal: new height limits (climb above the station)
+## R2: new height limits (climb above the station)
 
 | Ride | Today | Proposal |
 |---|---|---|
@@ -28,9 +28,9 @@ Status: decided by the owner on 2026-11-12, except where a line says "proposal".
 | Ghost Train | 6 m | 10 m |
 | Go-Kart Track | 4 m | 6 m |
 
-Rating rule (proposal): for each metre above the old limit, the ride's intensity rises by a fixed step, capped, so a very tall family ride starts to count as a thrill ride.
+Rating rule: for each metre above the old limit, the ride's intensity rises by a fixed step, capped, so a very tall family ride starts to count as a thrill ride.
 
-## R4 proposal: order of work
+## R4: order of work
 
 1. Coasters (new pieces: loops, launches, more inversions; Auto-finish first because every track ride uses it).
 2. Thrill flat rides.
