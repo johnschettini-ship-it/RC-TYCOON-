@@ -35,7 +35,7 @@ function typeOf(id: string, frictionless = false): TrackTypeDef {
 }
 
 function ctxFor(pieces: TrackPieceInstance[], type: TrackTypeDef): StepContext {
-  return { layout: buildLayout(pieces), type, pieces, trainLenMm: type.vehicle.carLengthMm, laps: 1000, holdFrontMm: null, leader: null, slowFactor: 1 };
+  return { layout: buildLayout(pieces), type, pieces, trainLenMm: type.vehicle.carLengthMm, cars: 1, carLenMm: type.vehicle.carLengthMm, laps: 1000, holdFrontMm: null, leader: null, slowFactor: 1 };
 }
 
 /** A running train with its centre at `s` (mm), far from the station stop. */

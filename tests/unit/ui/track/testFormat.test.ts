@@ -46,8 +46,10 @@ describe('Test tab (R1 reference circuit)', () => {
     const rows = testRows(t);
     expect(rows.map((r) => r.key)).toEqual(['vMax', 'vAvg', 'rideTime', 'length', 'drops', 'dropMax', 'posG', 'negG', 'airtime', 'latG', 'inversions', 'highest', 'turns']);
     const v = Object.fromEntries(rows.map((r) => [r.key, r.value]));
-    expect(v.vMax).toBe('17.4 m/s (63 km/h)');
-    expect(v.rideTime).toBe('48.3 s');
+    // R6 (owner 2026-11-12): forces averaged over R1's 4 cars, the chain pulls while any car is on it (17.4 → 17.3 m/s,
+    // 48.3 → 45.2 s).
+    expect(v.vMax).toBe('17.3 m/s (62 km/h)');
+    expect(v.rideTime).toBe('45.2 s');
     expect(v.length).toBe('204 m');
     expect(v.drops).toBe('1');
     expect(v.dropMax).toBe('16 m');

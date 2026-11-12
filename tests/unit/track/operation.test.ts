@@ -389,10 +389,11 @@ describe('guests on track rides (phase-2 §4.11) and the R1 script (§9.2)', () 
   it('builds R1 by commands, tests, opens, and carries guests for a month', () => {
     const { w, ride, d, boarded, worst } = r1Script();
     expect(d.test?.passed).toBe(true);
-    // Within ±0.05 of the phase-2 §4.10 worked example (5.00 / 3.46 / 1.42).
-    expect(Math.abs((d.test?.excitement ?? 0) - 500)).toBeLessThanOrEqual(5);
-    expect(Math.abs((d.test?.intensity ?? 0) - 346)).toBeLessThanOrEqual(5);
-    expect(Math.abs((d.test?.nausea ?? 0) - 142)).toBeLessThanOrEqual(5);
+    // Within ±0.05 of the R1 ratings (phase-2 §4.10 worked example 5.00 / 3.46 / 1.42 for a point train).
+    // R6 (owner 2026-11-12): forces averaged over 4 cars, the chain pulls while any car is on it: 4.98 / 3.11 / 1.31.
+    expect(Math.abs((d.test?.excitement ?? 0) - 498)).toBeLessThanOrEqual(5);
+    expect(Math.abs((d.test?.intensity ?? 0) - 311)).toBeLessThanOrEqual(5);
+    expect(Math.abs((d.test?.nausea ?? 0) - 131)).toBeLessThanOrEqual(5);
     expect(ride.totals.riders).toBeGreaterThan(0);
     expect(boarded.size).toBe(ride.totals.riders);
     const tickets = w.state.economy.ledger.reduce((a, m) => a + m.lines.rideTickets, 0);

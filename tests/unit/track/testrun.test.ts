@@ -33,7 +33,9 @@ describe('test run (phase-2 §4.9)', () => {
     expect(r.vMaxMms / 1000).toBeCloseTo(17.4, 0);
     expect(r.drops).toBe(1);
     expect(r.dropMaxMm).toBe(16_000);
-    expect(r.posGMax / 100).toBeCloseTo(2.24, 1);
+    // R6 (owner 2026-11-12): forces averaged over 4 cars; the valley peak is shared by the train (2.25 → 2.06 G), and the
+    // chain pulls until the last car leaves the lift (controller decision 2026-11-12).
+    expect(r.posGMax / 100).toBeCloseTo(2.06, 1);
     expect(r.latMax / 100).toBeCloseTo(0.66, 1);
     expect(r.airtimeTicks).toBe(0);
     expect(r.inversions).toBe(0);

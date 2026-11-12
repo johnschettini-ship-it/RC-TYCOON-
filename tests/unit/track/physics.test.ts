@@ -30,7 +30,7 @@ function frictionless(id = 'steel_coaster'): TrackTypeDef {
 
 function ctxFor(pieces: TrackPieceInstance[], type: TrackTypeDef, cars = 1): StepContext {
   const layout = buildLayout(pieces);
-  return { layout, type, pieces, trainLenMm: cars * type.vehicle.carLengthMm, laps: 1000, holdFrontMm: null, leader: null, slowFactor: 1 };
+  return { layout, type, pieces, trainLenMm: cars * type.vehicle.carLengthMm, cars, carLenMm: type.vehicle.carLengthMm, laps: 1000, holdFrontMm: null, leader: null, slowFactor: 1 };
 }
 
 function runUntil(ctx: StepContext, t: TrainState, pred: (t: TrainState) => boolean, max = 20_000): number {
@@ -80,14 +80,22 @@ describe('gravity physics (phase-2 §4.7)', () => {
     const end = L.startMm[15] as number; // bottom of the descent
     const v0 = 2;
     // Reference: the same forces integrated with a 100× finer step (test only).
+    // R6 (owner 2026-11-12): forces averaged over the 4 cars (car centres at ±1.25 m and ±3.75 m from the train's centre).
+    const carMm = [3750, 1250, -1250, -3750];
     let s = start / 1000;
     let v = v0;
     const mu = type.physics.mu;
     const cd = type.physics.cd;
     const dt = 0.0005;
     for (let i = 0; i < 2_000_000 && s * 1000 < end; i++) {
-      const smp = sampleAt(L, s * 1000);
-      const a = -G * smp.sinT - (mu * G * Math.abs(smp.cosT) + cd * v * v);
+      let sinT = 0;
+      let cosAbs = 0;
+      for (const o of carMm) {
+        const smp = sampleAt(L, s * 1000 + o);
+        sinT += smp.sinT / carMm.length;
+        cosAbs += Math.abs(smp.cosT) / carMm.length;
+      }
+      const a = -G * sinT - (mu * G * cosAbs + cd * v * v);
       v += a * dt;
       s += v * dt;
     }

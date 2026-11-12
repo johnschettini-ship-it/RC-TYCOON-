@@ -3,6 +3,11 @@
  * State is integer mm and mm/s; each tick computes in doubles (+ − × ÷ only, plus table trig) and rounds.
  * Every term is an acceleration, so guest load never changes motion.
  *
+ * Train length (R6, owner 2026-11-12): a train of n cars is sampled at its n car centres (the positions the renderer
+ * draws). The gravity and friction terms and the G are the mean over the cars (drag depends only on v and acts once);
+ * every car has the same mass, so mass still cancels. The strongest car's G is reported beside the mean for the
+ * safety checks (owner change, 2026-11-12). A one-car train gives exactly the values of a single sample.
+ *
  * Integration: the force sample is taken at the predicted midpoint of the step and the position advances by
  * the average speed, which keeps energy within 0.5% over a full drop. Stops (station, holds, gap rule)
  * brake with the larger of their nominal deceleration and the one needed to halt exactly on the point.
@@ -36,7 +41,11 @@ export interface StepContext {
   type: TrackTypeDef;
   /** The ride's pieces (chain and brake options are read live). */
   pieces: readonly TrackPieceInstance[];
+  /** `cars × carLenMm`. */
   trainLenMm: number;
+  /** R6: cars in the train (forces are averaged over them) and the length of one car (mm). */
+  cars: number;
+  carLenMm: number;
   /** Laps for this dispatch: the train stops in the station after `laps × length` mm. */
   laps: number;
   /** Distance (mm) from the train's front to a point where it must stop (block hold, breakdown hold), or null. */
@@ -97,6 +106,87 @@ export function gForces(cosT: number, sinB: number, cosB: number, v: number, kv:
 }
 
 const SP = newSamplePoint();
+/** Scratch sample for the per-car terms (never the same object as `SP`, which a caller may still read). */
+const SPK = newSamplePoint();
+
+/**
+ * Offset of car `k` (0 = front) from the train's centre along the track (mm): `((cars − 1) / 2 − k) × carLenMm`, the
+ * positions `trainCarPoses` draws.
+ */
+export function carOffsetMm(k: number, cars: number, carLenMm: number): number {
+  return ((cars - 1) / 2 - k) * carLenMm;
+}
+
+/**
+ * Along-track acceleration (m/s²) of a gravity train whose centre is at `sMid`: the mean over the cars of
+ * `−g·sinθ − μ·g·|cosθ|` (friction only when v > 0), minus drag `c_d·v²` once. Allocation-free.
+ */
+export function trainAccel(type: TrackTypeDef, layout: CircuitLayout, sMid: number, v: number, cars: number, carLenMm: number): number {
+  let grav = 0;
+  let fric = 0;
+  for (let k = 0; k < cars; k++) {
+    const sm = sampleAt(layout, sMid + carOffsetMm(k, cars, carLenMm), SPK);
+    grav += -G * sm.sinT;
+    fric += sm.cosT < 0 ? -sm.cosT : sm.cosT;
+  }
+  // Same operation order as a single sample (−g·sinθ, then − (μ·g·|cosθ| + c_d·v²)), so one car is bit-for-bit today's.
+  let a = grav / cars;
+  if (v > 0) a -= type.physics.mu * G * (fric / cars) + type.physics.cd * v * v;
+  return a;
+}
+
+/** R6: any car's centre is on a chain piece. */
+function trainOnChain(ctx: StepContext, sMid: number): boolean {
+  for (let k = 0; k < ctx.cars; k++) {
+    const pi = pieceIndexAt(ctx.layout, wrapMm(ctx.layout, sMid + carOffsetMm(k, ctx.cars, ctx.carLenMm)));
+    if (ctx.pieces[pi]?.chain) return true;
+  }
+  return false;
+}
+
+/** Mean sinθ over the cars (the water current's slope term). */
+function trainSinT(layout: CircuitLayout, sMid: number, cars: number, carLenMm: number): number {
+  let sum = 0;
+  for (let k = 0; k < cars; k++) sum += sampleAt(layout, sMid + carOffsetMm(k, cars, carLenMm), SPK).sinT;
+  return sum / cars;
+}
+
+/**
+ * G of a train (R6 and the owner change of 2026-11-12). `gv`, `gl`: the mean over the cars (ratings); vertical is the
+ * mean of the cars' vertical G, lateral the absolute value of the mean signed lateral term. `gvMax`, `gvMin`, `glMax`:
+ * the strongest car (safety): the most positive and the most negative vertical G and the largest lateral G of any car.
+ */
+export interface TrainG {
+  gv: number;
+  gl: number;
+  gvMax: number;
+  gvMin: number;
+  glMax: number;
+}
+
+/** G of a train whose centre is at `sMid`, moving at `v` m/s (see `TrainG`). */
+export function trainGAt(layout: CircuitLayout, sMid: number, v: number, cars: number, carLenMm: number): TrainG {
+  const v2 = v * v;
+  let gvSum = 0;
+  let glSum = 0;
+  let gvMax = -Infinity;
+  let gvMin = Infinity;
+  let glMax = 0;
+  for (let k = 0; k < cars; k++) {
+    const sm = sampleAt(layout, sMid + carOffsetMm(k, cars, carLenMm), SPK);
+    // The gForces formula, keeping the sign of the lateral term.
+    const gv = ((G * sm.cosT + v2 * sm.kv) * sm.cosB + v2 * sm.kh * sm.sinB) / G;
+    const glRaw = (v2 * sm.kh * sm.cosB - (G * sm.cosT + v2 * sm.kv) * sm.sinB) / G;
+    const glAbs = glRaw < 0 ? -glRaw : glRaw;
+    gvSum += gv;
+    glSum += glRaw;
+    if (gv > gvMax) gvMax = gv;
+    if (gv < gvMin) gvMin = gv;
+    if (glAbs > glMax) glMax = glAbs;
+  }
+  const gl = glSum / cars;
+  return { gv: gvSum / cars, gl: gl < 0 ? -gl : gl, gvMax, gvMin, glMax };
+}
 
 /**
  * Speed after one tick of a controller that drives the train toward `target` before `remainingM` metres: up at `up`,
@@ -111,16 +201,6 @@ function toward(v: number, target: number, remainingM: number, up: number, down 
   return v;
 }
 
-/** Phase 2 gravity acceleration with friction and drag (friction and drag act only when v > 0). */
-function gravityAccel(type: TrackTypeDef, sm: SamplePoint, v: number): number {
-  let a = -G * sm.sinT;
-  if (v > 0) {
-    const c = sm.cosT < 0 ? -sm.cosT : sm.cosT;
-    a -= type.physics.mu * G * c + type.physics.cd * v * v;
-  }
-  return a;
-}
-
 /**
  * Water current speed (m/s) at `uMm` into a piece: the type's current, varied on rough water as a fixed function of the
  * position (phase-2 §4.14: never the RNG, so the test run and operation stay equal).
@@ -131,9 +211,9 @@ export function waterCurrentAt(type: TrackTypeDef, def: TrackPieceDef | undefine
   return vc * (1 + ROUGH_AMPLITUDE * tsin((TAU * uMm) / ROUGH_WAVELENGTH_MM));
 }
 
-/** Speed after one tick of the water current (a = −g·sinθ − k·(v − vCurrent)). */
-function currentStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: SamplePoint, v: number, uMm: number): number {
-  const a = -G * sm.sinT - (type.water?.k ?? 0) * (v - waterCurrentAt(type, def, uMm));
+/** Speed after one tick of the water current (a = −g·sinθ − k·(v − vCurrent)); `sinT` is the cars' mean (R6). */
+function currentStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sinT: number, v: number, uMm: number): number {
+  const a = -G * sinT - (type.water?.k ?? 0) * (v - waterCurrentAt(type, def, uMm));
   return v + a * DT;
 }
 
@@ -142,19 +222,20 @@ function currentStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: Sam
  * (the caller treats the boat as controlled there, so it never counts as stalled). No allocation: this runs per boat
  * per tick.
  */
-function waterStep(type: TrackTypeDef, def: TrackPieceDef | undefined, sm: SamplePoint, v: number, uMm: number, pieceEndM: number): number {
+function waterStep(ctx: StepContext, def: TrackPieceDef | undefined, sMid: number, v: number, uMm: number, pieceEndM: number): number {
+  const { type, layout, cars, carLenMm } = ctx;
   switch (def?.water?.drive ?? 'current') {
     case 'conveyor':
       return (def?.water?.conveyorMms ?? 0) / 1000;
     case 'gravity':
-      return v + gravityAccel(type, sm, v) * DT;
+      return v + trainAccel(type, layout, sMid, v, cars, carLenMm) * DT;
     case 'splash':
       // Splash brake at 12 m/s², or harder when needed, so the boat always leaves the piece at ≤ 4 m/s.
-      return v > SPLASH_MAX_V ? toward(v, SPLASH_MAX_V, pieceEndM, 0, SPLASH_DECEL) : currentStep(type, def, sm, v, uMm);
+      return v > SPLASH_MAX_V ? toward(v, SPLASH_MAX_V, pieceEndM, 0, SPLASH_DECEL) : currentStep(type, def, trainSinT(layout, sMid, cars, carLenMm), v, uMm);
     case 'whirlpool':
-      return Math.min(currentStep(type, def, sm, v, uMm), WHIRLPOOL_MAX_V);
+      return Math.min(currentStep(type, def, trainSinT(layout, sMid, cars, carLenMm), v, uMm), WHIRLPOOL_MAX_V);
     default:
-      return currentStep(type, def, sm, v, uMm);
+      return currentStep(type, def, trainSinT(layout, sMid, cars, carLenMm), v, uMm);
   }
 }
 
@@ -179,12 +260,10 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
   let v1: number;
   let controlled = false;
   if (type.drive === 'waterCurrent') {
-    const sm = sampleAt(layout, t.s + v * DT * 500, SP);
-    v1 = waterStep(type, def, sm, v, wrapMm(layout, t.s) - (layout.startMm[pi] as number), pieceEndM);
+    v1 = waterStep(ctx, def, t.s + v * DT * 500, v, wrapMm(layout, t.s) - (layout.startMm[pi] as number), pieceEndM);
     controlled = def?.water?.drive === 'conveyor';
   } else if (type.drive === 'gravity') {
-    const sm = sampleAt(layout, t.s + v * DT * 500, SP);
-    v1 = v + gravityAccel(type, sm, v) * DT;
+    v1 = v + trainAccel(type, layout, t.s + v * DT * 500, v, ctx.cars, ctx.carLenMm) * DT;
     if (def?.special === 'blockBrake' || departing) {
       v1 = toward(v, STATION_SPEED, pieceEndM, RELEASE_ACCEL);
       controlled = true;
@@ -192,7 +271,9 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
       v1 = v < STATION_SPEED ? Math.min(STATION_SPEED, v + RELEASE_ACCEL * DT) : v1;
       controlled = true;
     }
-    if (inst?.chain && v1 < type.physics.chainSpeedMms / 1000) {
+    // R6 (controller decision 2026-11-12): the chain pulls while any car of the train is on a chain piece, as real
+    // chain lifts do (a one-car train: its centre, as before). With the centre only, R1's 4-car train stalled after the lift.
+    if (trainOnChain(ctx, t.s) && v1 < type.physics.chainSpeedMms / 1000) {
       v1 = Math.min(type.physics.chainSpeedMms / 1000, v + CHAIN_ACCEL * DT);
     }
     if (def?.special === 'brakes') {
@@ -272,8 +353,8 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
     } else if (isLoop) {
       const sm = sampleAt(layout, t.s + dsMm, SP);
       if (sm.theta > PI / 2 && sm.theta < (3 * PI) / 2) {
-        const { gv } = gForces(sm.cosT, sm.sinB, sm.cosB, v1, sm.kv, sm.kh);
-        if (gv < 0) stall = 'loop';
+        // R6: the train's mean vertical G (one car: the centre's, as before).
+        if (trainGAt(layout, t.s + dsMm, v1, ctx.cars, ctx.carLenMm).gv < 0) stall = 'loop';
       }
     }
   }
@@ -310,8 +391,7 @@ export function trainSample(layout: CircuitLayout, t: TrainState, out: SamplePoi
   return sampleAt(layout, t.s, out);
 }
 
-/** Vertical and lateral G of a train now. */
-export function trainG(layout: CircuitLayout, t: TrainState): { gv: number; gl: number } {
-  const sm = sampleAt(layout, t.s, SP);
-  return gForces(sm.cosT, sm.sinB, sm.cosB, t.v / 1000, sm.kv, sm.kh);
+/** G of a train now (R6: mean over its cars, and the strongest car; see `TrainG`). */
+export function trainG(layout: CircuitLayout, t: TrainState, cars: number, carLenMm: number): TrainG {
+  return trainGAt(layout, t.s, t.v / 1000, cars, carLenMm);
 }

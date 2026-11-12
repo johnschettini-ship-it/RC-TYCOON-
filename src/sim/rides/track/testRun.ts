@@ -130,6 +130,8 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
     type,
     pieces: data.pieces,
     trainLenMm: trainLengthMm(type, cars),
+    cars,
+    carLenMm: type.vehicle.carLengthMm,
     laps: 1,
     holdFrontMm: null,
     leader: null,
@@ -165,7 +167,9 @@ export function runTestLap(map: MapState, data: TrackRideData, type: TrackTypeDe
     if (train.v > vMax) vMax = train.v;
     const onStation = layout.statics[r.pieceIndex]?.def.special === 'station';
     if (!onStation) {
-      win.push(trainG(layout, train));
+      // R6 (owner 2026-11-12): the G of the train averaged over its cars (ratings).
+      const g = trainG(layout, train, cars, type.vehicle.carLengthMm);
+      win.push({ gv: g.gv, gl: g.gl });
       if (win.length > G_AVERAGE_TICKS) win.shift();
       let gv = 0;
       let gl = 0;

@@ -156,3 +156,47 @@ export const RAIL_HILL_PIECES: PieceSpec[] = [
   ...times(3, 'straight'),
   'turn_medium_right',
 ];
+
+/**
+ * R6 (owner 2026-11-12): one-car reference circuits for the train-length baseline (`fixtures/one-car-baseline.json`).
+ * Each is built by commands on a fresh world and set to one car per train; a one-car train must measure exactly as
+ * before the forces were averaged over the cars.
+ */
+export const ONE_CAR_CIRCUITS: { name: string; typeId: string; x: number; y: number; pieces: PieceSpec[] }[] = (() => {
+  const c = (id: string): PieceSpec => ({ id, chain: true });
+  const loop8: PieceSpec[] = [
+    'station', 'straight', 'straight', 'turn_medium_right', 'straight', 'straight', 'straight', 'turn_medium_right',
+    'straight', 'straight', 'straight', 'straight', 'turn_medium_right', 'straight', 'straight', 'straight', 'turn_medium_right',
+  ];
+  const water = (set: 'flume' | 'rapids'): PieceSpec[] => {
+    const p = (s: string): string => `${set}_${s}`;
+    const feature = set === 'flume' ? ['flume_drop', 'flume_splashdown'] : ['rapids_waterfall', 'rapids_rough', 'rapids_whirlpool'];
+    return [
+      p('station'), ...times(3, p('lift')), p('straight'), p('turn_small_r'), ...feature, p('turn_small_r'),
+      ...times(6, p('straight')), p('turn_small_r'), ...times(3, p('straight')), p('turn_small_r'),
+    ];
+  };
+  return [
+    {
+      name: 'spinning_mouse', typeId: 'spinning_mouse', x: 10, y: 10,
+      pieces: [
+        c('flat_to_gentle_up'), c('gentle_up'), c('gentle_up_to_flat'), 'block_brake', c('straight'), 'turn_small_right',
+        'flat_to_gentle_down', 'gentle_down', 'gentle_down_to_flat', 'brakes', 'turn_small_right',
+        'straight', 'straight', 'straight', 'straight', 'straight', 'straight', 'turn_small_right',
+        'straight', 'straight', 'straight', 'block_brake', 'turn_small_right',
+      ],
+    },
+    { name: 'log_flume', typeId: 'log_flume', x: 10, y: 10, pieces: water('flume') },
+    { name: 'rapids_raft', typeId: 'rapids_raft', x: 10, y: 10, pieces: water('rapids') },
+    { name: 'go_karts', typeId: 'go_karts', x: 10, y: 10, pieces: loop8 },
+    { name: 'mini_railway_one_car', typeId: 'mini_railway', x: 10, y: 10, pieces: loop8 },
+  ];
+})();
+
+/** Build one of `ONE_CAR_CIRCUITS` on `world` with one car per train; returns the ride id. */
+export function buildOneCar(world: World, c: (typeof ONE_CAR_CIRCUITS)[number]): number {
+  const id = place(world, c.typeId, c.x, c.y, EAST);
+  addAll(world, id, c.pieces);
+  expectOk(executeCommand(world, { type: 'setTrainConfig', rideId: id, trains: 1, carsPerTrain: 1 }, { setup: true }));
+  return id;
+}

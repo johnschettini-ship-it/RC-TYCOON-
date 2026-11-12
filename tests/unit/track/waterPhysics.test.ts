@@ -44,7 +44,7 @@ const rapids = getTrackTypeDef('rapids_raft') as TrackTypeDef;
 
 function ctxFor(pieces: TrackPieceInstance[], type: TrackTypeDef): StepContext {
   const layout = buildLayout(pieces);
-  return { layout, type, pieces, trainLenMm: type.vehicle.carLengthMm, laps: 1000, holdFrontMm: null, leader: null, slowFactor: 1 };
+  return { layout, type, pieces, trainLenMm: type.vehicle.carLengthMm, cars: 1, carLenMm: type.vehicle.carLengthMm, laps: 1000, holdFrontMm: null, leader: null, slowFactor: 1 };
 }
 
 /** A boat running from the station stop point. */

@@ -177,6 +177,8 @@ export function stepLiveTest(world: World, ride: Ride, data: TrackRideData, type
       type,
       pieces: data.pieces,
       trainLenMm: trainLen(type, data),
+      cars: data.trainConfig.carsPerTrain,
+      carLenMm: type.vehicle.carLengthMm,
       laps: 1,
       holdFrontMm: null,
       leader: null,
@@ -336,7 +338,7 @@ export function operateRide(world: World, ride: Ride, data: TrackRideData, type:
           }
           if (gap !== Infinity) leader = { gapMm: gap, vMms: vL };
         }
-        const ctx: StepContext = { layout, type, pieces: data.pieces, trainLenMm: len, laps: lapsFor(type, data, t, L), holdFrontMm, leader, slowFactor };
+        const ctx: StepContext = { layout, type, pieces: data.pieces, trainLenMm: len, cars: data.trainConfig.carsPerTrain, carLenMm: type.vehicle.carLengthMm, laps: lapsFor(type, data, t, L), holdFrontMm, leader, slowFactor };
         const lapsBefore = Math.floor(t.dist / L);
         const from = t.s;
         const dist0 = t.dist;

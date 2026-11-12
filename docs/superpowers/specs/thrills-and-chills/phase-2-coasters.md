@@ -156,12 +156,13 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
 | Edit during a test | `Wait for the test to finish` |
 
 ### 4.7 Physics
-- **Model:** each train is a point on the circuit at its **centre**. `s` = distance from the station entry joint, in metres, wrapping at the circuit length. All forces use the sample at the centre.
+- **Model:** a train's position is its **centre**. `s` = distance from the station entry joint, in metres, wrapping at the circuit length.
+- **Train length (R6, owner 2026-11-12; replaces "each train is a point … all forces use the sample at the centre"):** a train of `n` cars is sampled at its `n` car centres, `s + ((n − 1) / 2 − k) × carLength` for car `k` (0 = front), the positions the renderer draws. The gravity and friction terms below are the **mean over the cars**; drag `c_d·v²` depends only on v and acts once. Every car has the same mass, so mass still cancels. A long train is pulled over a crest by its front cars and held back by its rear cars. The water current's slope term uses the cars' mean `sinθ`; the loop stall uses the train's mean vertical G. A one-car train (Spinning Mouse, karts, boats) gives exactly the values of the single centre sample.
 - **Mass-independent:** every term below is an acceleration. Guest load never changes motion. So a train with guests moves exactly like the empty test train.
 - **Per tick** (dt = 0.05 s), for drive `gravity`:
   1. `a = −g·sinθ − μ·g·cosθ − c_d·v²` (friction and drag act only when v > 0).
   2. `v' = v + a·dt`.
-  3. Chain piece and `v' < chainSpeed`: `v' = min(chainSpeed, v + 3.0·dt)`.
+  3. Chain piece and `v' < chainSpeed`: `v' = min(chainSpeed, v + 3.0·dt)`. With train length (controller decision 2026-11-12) the chain pulls while **any car's centre** is on a chain piece, as a real chain lift holds every car until the last one leaves it (one car: its centre, as before). With the centre only, R1's default 4-car train left the lift at 3 m/s with its rear cars still on the slope and stopped on the flat top (piece 11); with this rule R1 passes at 1–7 cars.
   4. Brakes and `v' > target`: `v' = max(target, v − a·dt)` with `a = max(6.0, (v² − target²) / (2·d))` m/s², where `d` is the distance to the end of the brake piece. So the train always leaves the piece at the target speed.
   5. Block brake: trim to 2.0 m/s the same way. A train slower than 2.0 m/s is lifted to 2.0 m/s at 2.0 m/s². If the next block is occupied, stop the train (decelerate at `max(6.0 m/s², rate needed to halt on the point)`) so its front halts at the piece exit joint. The train is **held**. On release it accelerates at 2.0 m/s² to 2.0 m/s.
   - *Note (W1-G, as implemented and tested):* the first draft used a fixed 6.0 m/s² and only trimmed fast trains. A 4 m piece cannot hold to that: at 6.0 m/s² a train entering at 17 m/s leaves at √(17² − 2·6·4) ≈ 15.5 m/s, and a train that reaches a block brake below 2.0 m/s (or starts from a hold) would leave below 2.0 m/s. Either way brakes and block brakes would not output fixed speeds, which the equivalence guarantee below needs.
@@ -209,6 +210,7 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
 | `highest` | Highest rail above ground (m) |
 | `turnPieces` | Count of turn pieces of any kind |
 
+- **G of a train (R6, owner 2026-11-12):** the measured `Gv` is the mean of the cars' `Gv`; `Gl` is the absolute value of the mean signed lateral term (the formulas below, at each car centre). Ratings use these averages. The strongest car (the most positive and most negative `Gv`, the largest `Gl` of any car) is also computed for the safety limits (owner change 2026-11-12, ride work 1 Task 3).
 - **G formulas** at a sample with pitch θ, bank β, speed v:
   - `Gv = ((g·cosθ + v²·κv)·cosβ + v²·κh·sinβ) / g`
   - `Gl = |v²·κh·cosβ − g·cosθ·sinβ| / g`
@@ -249,6 +251,7 @@ Steps in order:
 - E = 1.3928 + 0.64 + 0.3 + 0 + 0 + 0.1625 + 1.5 + 1.0 = 4.9953 → **5.00**
 - I = 1.0 + 0.324 + 0.65 + 0.8705 + 0 + 0.32 + 0.3 = 3.4645 → **3.46**
 - N = 0.375 + 0.65 + 0 + 0 + 0.4 + 0 = 1.425 → **1.42** (in binary floating point the sum is 1.4249999…, so `Math.round(x × 100)` gives 142)
+- *Note (R6, owner 2026-11-12):* these are the values of a point train (one car). R1's default 4-car train, with forces averaged over the cars and the chain pulling while any car is on it, measures vMax 17.33 m/s, posGMax 2.06, vertGMin 0.38, latMax 0.63, ride time 45.2 s and rates **4.98 / 3.11 / 1.31** (before R6: 17.41, 2.25, 0.23, 0.65, 48.25 s, 5.00 / 3.46 / 1.42).
 - A unit test feeds these inputs to the rating function and expects 500 / 346 / 142.
 - *Note (W1-G, as implemented and tested):* the first draft of this example (vMax 17.4, rideTime 52.0, posGMax 2.24, vertGMin 0.57, latMax 0.66 → 5.00 / 3.14 / 1.43) cannot hold. `steep_down` alone has a constant pitch of 56.31° and κv = 0, so its vertical G is cos 56.31° = 0.555 < 0.57, and the crest transitions before it (κv −1/24 and −1/20 at speed) go lower still.
 
