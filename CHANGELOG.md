@@ -25,12 +25,21 @@ Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document vers
 - **Title screen:** a pixel-art skyline park with the game name and a menu with Continue for the newest save (`docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md`). The four pictures are data in the JavaScript bundle; there are no image files.
 - **Settings version 2:** adds `mascotTips` (default on). A version 1 document is checked as version 1 and gets `mascotTips: true`; the store writes version 2 at the next change.
 
+### Ride work 1 (owner decisions R1, R2, R5–R8 of 2026-11-12)
+- **Higher height limits with an intensity step** (R2): the limits (the climb above the station) rise to Steel 75, Inverted 70, Wooden 60, Bobsled 35, Log Flume 30, Spinning Mouse 24, Junior 20, Monorail 24, Rapids 15, Mini Railway 16, Ghost Train 10 and Go-Kart 6 m. Each whole metre above a ride's old limit adds +0.10 intensity, at most +2.00, so a very tall family ride counts as a thrill ride.
+- **Trains with their length** (R6): a train is simulated with all its cars; the push along the track and the G forces of the ratings are the average over the cars, so a long train is pulled over a crest by its front cars and held back by its rear cars. A one-car train runs as before. A chain lift pulls while any car is on a chain piece.
+- **Safety limits** (R7): vertical G above 6.0 or below −2.0 and lateral G above 3.0, measured on the strongest car, are hard limits. A piece that would pass one cannot be built (Build is disabled with the reason), and a ride whose test lap passes one, or whose train stops, cannot open. The ride panel names the value and the piece, outlines the place on the map, and has a **Show on map** button (on a phone the panel lowers so the place shows). The rating penalty limits (5.0, −1.5, 2.5) are unchanged.
+- **Live meter** (R5): while a piece is chosen the builder shows the train's top speed and the strongest vertical and lateral G on that piece, from the same physics as the test run, with a level (within the limits, near the limit, over the safety limit) shown by an icon and words as well as colour, or "Train stops on piece n".
+- **Auto-finish** (R1, R8): one button in the track builder finds a way from the track end back to the station and shows it on the map with its piece count and price; Confirm builds it all at once (Undo removes one piece at a time). The path uses the ride's plain pieces and, where the train is too fast for a turn, ordinary brakes at 17, 12 or 7 m/s; it never uses block brakes, loops, corkscrews, helices, spooky tunnels or water features. It is offered only when the finished ride passes its test within the safety limits. The search stops after about 3 seconds ("No safe way back found: build closer to the station or lower the track").
+- Save schema 3 (unchanged); a saved ride keeps its ratings until its next test, and open rides keep running under the new physics.
+
 ### Fixed (final review)
 - **Title screen:** while it is open, the game behind it is inert (Tab and Shift+Tab stay on the title's controls), and the park behind it never overwrites the autosave.
 - **Focus ring:** the keyboard focus ring is visible on every control that draws a hard shadow (status pill, mood bar, controls, cards, the title menu), over that shadow; a held card draws it inside its own edge.
 
 ### Size
 - First load: **354.2 KB** gzipped (JavaScript 343.9 KB + CSS 10.3 KB) of the 400 KB budget (Build 3: JavaScript 306.4 KB + CSS 7.5 KB). The title pictures are part of the JavaScript.
+- With ride work 1 (2026-11-12): first load **365.4 KB** gzipped JavaScript + CSS (measured by `node scripts/check-release.ts`; Vite reports 364.8 kB JavaScript and 12.1 kB CSS gzipped) of the 400 KB budget.
 - Font files (not part of the first-load budget, cached for offline play): `fredoka-latin-wght-normal.woff2` **29,732 bytes** and `fredoka-latin-ext-wght-normal.woff2` **4,576 bytes**, with their licence in `src/assets/fonts/fredoka/LICENSE`. The release check allows exactly these two font files at these sizes.
 
 ### Not yet checked by a person

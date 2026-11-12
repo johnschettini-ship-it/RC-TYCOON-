@@ -2,6 +2,11 @@
 
 Status: decided by the owner on 2026-11-12. The owner accepted the two proposals below ("That's fine", 2026-11-12).
 
+Built (ride work 1, plan `docs/superpowers/plans/2026-11-12-ride-work-1.md`, 2026-11-12, Build 4, not yet tagged):
+R2 in 3ffdb34; R6 in f8c9821 and 1c5ecb0; R7 in b5acb88 and d42ea36; R5 in 28c629b and 522937c; R1 and R8 in
+0a51d2e, 9b5da2f and cfa87d5 (brakes and the 3 s limit). R3 and R4 are not built yet. Existing parks: save schema 3 is
+unchanged; a saved ride keeps its ratings until its next test (`tests/integration/ride-rules-saves.test.ts`).
+
 | # | Topic | Decision |
 |---|---|---|
 | R1 | Building track rides | Keep piece-by-piece building and add **Auto-finish**: one button that closes the circuit back to the station when a closing path exists (it shows the price and the pieces it adds; the player confirms). Owner note (2026-11-12, "Allow brakes + 3 s limit"): Auto-finish may lay the ride's ordinary brake piece, at a speed it picks from a small fixed set (17, 12 and 7 m/s, the speeds the plain turns need), to slow the train before turns (no block brakes, loops, corkscrews, helices, spooky tunnels or water features), and it stops searching after about 3 seconds, saying "No safe way back found: build closer to the station or lower the track". |
