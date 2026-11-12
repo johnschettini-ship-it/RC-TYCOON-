@@ -1,5 +1,5 @@
 /**
- * The 85-item scenery catalog (Wave 3.0 contract data) checked row by row against the Phase 4 §4.5 tables in the spec,
+ * The 83-item scenery catalog (85 until the Frost and Spark statues were removed, Task 24) (Wave 3.0 contract data) checked row by row against the Phase 4 §4.5 tables in the spec,
  * and the theme list against catalog §6.
  */
 import { readFileSync } from 'node:fs';
@@ -35,8 +35,8 @@ function specRows(): Row[] {
 describe('scenery catalog matches the spec tables', () => {
   const rows = specRows();
 
-  it('the spec lists 85 items, the catalog has the same ids in the same order', () => {
-    expect(rows).toHaveLength(85);
+  it('the spec lists 83 items (Task 24), the catalog has the same ids in the same order', () => {
+    expect(rows).toHaveLength(83);
     expect(SCENERY.map((d) => d.id)).toEqual(rows.map((r) => r.id));
   });
 

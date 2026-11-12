@@ -31,10 +31,10 @@ describe('chooseTheme', () => {
   it('picks the theme with the most items in view; base items do not count', () => {
     const w = makeTestWorld();
     put(w, 'snowman', 11, 11);
-    put(w, 'statue_frost', 12, 11);
+    put(w, 'snowdrift', 12, 11);
     put(w, 'ice_arch', 13, 11);
     put(w, 'steam_vent', 14, 14);
-    put(w, 'statue_spark', 15, 14);
+    put(w, 'fire_fern', 15, 14);
     for (let i = 0; i < 5; i++) put(w, 'oak_round', 10 + i, 18);
     expect(chooseTheme(w, VIEW)).toBe('frost_peaks');
     put(w, 'steam_vent', 16, 14);

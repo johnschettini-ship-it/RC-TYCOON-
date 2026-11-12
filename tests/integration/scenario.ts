@@ -175,7 +175,7 @@ export function buildPhase3Park(world: World): Phase3Park {
   const mechanic = must(world, { type: 'hireStaff', staffType: 'mechanic' }).id as EntityId;
   const security = must(world, { type: 'hireStaff', staffType: 'security' }).id as EntityId;
   const performer = must(world, { type: 'hireStaff', staffType: 'performer' }).id as EntityId;
-  must(world, { type: 'setCostume', staffId: performer, costume: 'spark' });
+  must(world, { type: 'setCostume', staffId: performer, costume: 'boo' });
   return { ...p1, bigWheel, teacups, juniorCoaster, groundskeepers: [gk1, gk2], mechanic, security, performer, bins, benches };
 }
 

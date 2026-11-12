@@ -50,8 +50,6 @@ export const THOUGHT = {
   wantCocoa: 'wantCocoa',
   feelAwful: 'feelAwful',
   performerFun: 'performerFun',
-  frostCute: 'frostCute',
-  sparkAwesome: 'sparkAwesome',
   needCash: 'needCash',
   thrillWeekend: 'thrillWeekend',
   chillWeekend: 'chillWeekend',

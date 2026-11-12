@@ -24,7 +24,7 @@ The player shapes the land, adds water, buys more land, decorates with themed sc
 3. Water surface editing. Water blocks walking. Elevated paths work as bridges.
 4. Water rides: Log Flume and Rapids Raft piece sets on the Phase 2 track system.
 5. Map sizes 64, 96, 128, 192, 256. Land purchase and construction rights. Derived border fence.
-6. Scenery: base set plus 6 themes (85 items). Gardens need water.
+6. Scenery: base set plus 6 themes (85 items; 83 since the Frost and Spark statues were removed with the mascots, Task 24). Gardens need water.
 7. Calm and Buzz fields, guest effects, park rating input, overlays.
 8. After Dark: day/night lighting, lamps, light map, night effects on guests, per-park toggle.
 9. View rotation in 4 directions.
@@ -218,7 +218,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | `park_clock` | Park Clock | 1×1 | 4 | $90 | 1 | 0 | L |
 | `fence_painted` | Painted Fence | edge | 1 | $10 | 0 | 0 | E |
 
-*Frost Peaks (research: Scenery, 12 items)*
+*Frost Peaks (research: Scenery, 11 items; the Frost Statue was removed with the mascots, owner decision 2026-11-12, Task 24: an older save's Frost Statue loads as the Robot Statue)*
 | id | Name | Size | H | Cost | C | B | Flags |
 |---|---|---|---|---|---|---|---|
 | `snow_pine` | Snow Pine | 1×1 | 9 | $50 | 3 | 0 | S |
@@ -226,7 +226,6 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | `ice_arch` | Ice Arch | 1×1 | 5 | $140 | 3 | 0 | L, P |
 | `igloo` | Igloo | 2×2 | 3 | $160 | 3 | 0 | — |
 | `fountain_frozen` | Frozen Fountain | 2×2 | 3 | $380 | 6 | 0 | L |
-| `statue_frost` | Frost Statue | 1×1 | 4 | $250 | 4 | 0 | — |
 | `ice_crystals` | Ice Crystal Cluster | 1×1 | 2 | $60 | 2 | 0 | L |
 | `snowdrift` | Snowdrift | 1×1 | 1 | $15 | 1 | 0 | S |
 | `snowman` | Snow Figure | 1×1 | 2 | $45 | 2 | 0 | — |
@@ -234,7 +233,7 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | `sled_rack` | Sled Rack | 1×1 | 1 | $30 | 1 | 0 | — |
 | `wall_ice` | Ice Block Wall | edge | 2 | $20 | 1 | 0 | E |
 
-*Volcano Ridge (research: Scenery, 12 items)*
+*Volcano Ridge (research: Scenery, 11 items; the Spark Statue was removed with the mascots, Task 24: an older save's Spark Statue loads as the Robot Statue)*
 | id | Name | Size | H | Cost | C | B | Flags |
 |---|---|---|---|---|---|---|---|
 | `lava_rock` | Lava Rock | 1×1 | 2 | $25 | 0 | 1 | S |
@@ -242,7 +241,6 @@ Both rides use the Phase 2 track system: the same piece geometry, builder, valid
 | `steam_vent` | Steam Vent | 1×1 | 1 | $80 | 0 | 3 | — |
 | `glow_crystal` | Glowing Crystal | 1×1 | 3 | $90 | 0 | 2 | L |
 | `ember_torch` | Ember Torch | 1×1 | 3 | $55 | 0 | 1 | L |
-| `statue_spark` | Spark Statue | 1×1 | 4 | $250 | 0 | 4 | L |
 | `fire_fern` | Fire Fern | 1×1 | 2 | $30 | 1 | 1 | S |
 | `ash_palm` | Ash Palm | 1×1 | 7 | $50 | 1 | 1 | S |
 | `magma_pool` | Glow Pit | 2×2 | 1 | $200 | 0 | 4 | L |
@@ -556,7 +554,7 @@ Run the scripted game twice: equal state hash. Run it again with view rotation c
 
 ### 9.5 Playwright smoke
 Tests use the `window.__tc` debug hook, which exists only in dev and test builds.
-- **Desktop:** New Park at 96 × 96. Raise land with the 3 × 3 brush; cash drops. Paint snow. Place a Frost Statue. Turn on the Calm overlay; the legend shows. Rotate the view; the centre tile stays the same. Turn on After Dark. Set the clock to 22:00 and then 12:00; mean canvas brightness is lower at 22:00. No console errors.
+- **Desktop:** New Park at 96 × 96. Raise land with the 3 × 3 brush; cash drops. Paint snow. Place a Snow Figure (a Frost Statue before Task 24). Turn on the Calm overlay; the legend shows. Rotate the view; the centre tile stays the same. Turn on After Dark. Set the clock to 22:00 and then 12:00; mean canvas brightness is lower at 22:00. No console errors.
 - **Phone profile:** Tap Land, tap a tile, tap Raise twice. Buy land by drag and Confirm. Place scenery with Confirm. Tap both view rotate buttons. No console errors.
 
 ---
@@ -565,7 +563,7 @@ Tests use the `window.__tc` debug hook, which exists only in dev and test builds
 - [ ] All tools in section 7 work with mouse, keyboard, and touch.
 - [ ] Every error string in sections 4.1–4.9 appears in a test.
 - [ ] Water rides pass test runs and get ratings with the water extras.
-- [ ] The 85 scenery items render in all 4 view rotations.
+- [ ] The 85 scenery items (83 since Task 24) render in all 4 view rotations.
 - [ ] Calm, Buzz, and Light overlays show correct bands with a legend.
 - [ ] After Dark on and off behave as in 4.7.
 - [ ] 3 Build 1 fixture saves migrate and keep playing for 1 game month without errors.

@@ -111,7 +111,7 @@ describe('mouse', () => {
 describe('touch', () => {
   it('a tap moves the ghost; Confirm places; Repeat keeps the tool', () => {
     const { game, at } = setup();
-    chooseSceneryItem(game, 'statue_frost');
+    chooseSceneryItem(game, 'snowman');
     game.tool.scenery.repeat = true;
     gesture(game, at, { type: 'tap', x: 20, y: 20, pointerType: 'touch' });
     expect(game.world.state.scenery).toEqual([]);

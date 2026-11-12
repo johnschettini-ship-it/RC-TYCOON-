@@ -101,7 +101,7 @@ const SAMPLE: { [K in Command['type']]: Extract<Command, { type: K }> } = {
   fireStaff: { type: 'fireStaff', staffId: 1 },
   editPatrol: { type: 'editPatrol', staffId: 1, add: [], remove: [] },
   clearPatrol: { type: 'clearPatrol', staffId: 1 },
-  setCostume: { type: 'setCostume', staffId: 1, costume: 'frost' },
+  setCostume: { type: 'setCostume', staffId: 1, costume: 'boo' },
   setInspectionInterval: { type: 'setInspectionInterval', rideId: 1, intervalTicks: 100 },
   buildPathItem: { type: 'buildPathItem', x: 1, y: 1, itemType: 'bench' },
   removePathItem: { type: 'removePathItem', x: 1, y: 1 },

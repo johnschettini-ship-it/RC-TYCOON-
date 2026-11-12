@@ -135,11 +135,11 @@ test.describe('Build 3 overview screenshot', () => {
       };
       for (const [defId, x, y] of [
         ['snow_pine', 34, 15], ['snow_pine_small', 34, 17], ['snowman', 35, 20], ['snow_pine', 33, 19], ['ice_crystals', 36, 21],
-        ['aurora_lantern', 33, 13], ['snow_pine_small', 37, 21], ['statue_frost', 35, 13],
+        ['aurora_lantern', 33, 13], ['snow_pine_small', 37, 21], ['ice_crystals', 35, 13],
       ] as const) put(defId, x, y);
       for (const [defId, x, y] of [
         ['ash_palm', 48, 16], ['lava_rock', 48, 21], ['glow_crystal', 49, 18], ['ember_torch', 44, 13], ['basalt_columns', 49, 20],
-        ['fire_fern', 46, 21], ['ash_palm', 50, 15], ['statue_spark', 48, 13],
+        ['fire_fern', 46, 21], ['ash_palm', 50, 15], ['ember_torch', 48, 13],
       ] as const) put(defId, x, y);
       // Lamps along the roads (lit paths at night).
       for (const [x, y] of [[31, 10], [31, 16], [31, 22], [34, 14], [38, 14], [44, 6], [27, 6], [15, 6], [40, 6], [25, 11]] as const) run({ type: 'buildPathItem', x, y, itemType: 'lamp' });

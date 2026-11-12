@@ -1,6 +1,6 @@
 /**
  * Staff sprites (Phase 3, catalog §5 and §7): Groundskeeper, Mechanic, Security Guard, and Performer
- * (plain, or in the Frost, Spark, or Boo costume). Original procedural art drawn around the feet at
+ * (plain, or in the Boo costume). Original procedural art drawn around the feet at
  * (0, 0), about guest size; mascots are a little bigger. Deterministic. Owner: W2-B.
  */
 import type { Dir } from '../../sim/map';
@@ -14,8 +14,8 @@ export const STAFF_BOUNDS: ArtBounds = { left: -12, right: 12, top: -30, bottom:
 
 /** Sprite type codes (frame bits 0–1). */
 export const STAFF_TYPE_CODE = { groundskeeper: 0, mechanic: 1, security: 2, performer: 3 } as const;
-/** Costume codes (frame bits 2–3): 0 none. */
-export const COSTUME_CODE = { frost: 1, spark: 2, boo: 3 } as const;
+/** Costume codes (frame bits 2–3): 0 none. Codes 1 and 2 were Frost and Spark (removed with the mascots, Task 24). */
+export const COSTUME_CODE = { boo: 3 } as const;
 
 export interface StaffLook {
   /** STAFF_TYPE_CODE value. */
@@ -200,120 +200,7 @@ function tool(ctx: Ctx, look: StaffLook, side: number): void {
   }
 }
 
-// ---------------------------------------------------------------- mascot costumes (original designs)
-
-/** Frost: a round white yeti with small horns and a blue scarf (catalog §7). */
-function frost(ctx: Ctx, look: StaffLook): void {
-  const front = look.facing === 1 || look.facing === 2;
-  const bob = look.walk === 0 ? 0 : -0.8;
-  const arms = look.action > 0 ? -5 : 0;
-  shadow(ctx, 6);
-  const fur = '#f4f8ff';
-  const edge = '#a9cde8';
-  // Feet.
-  ellipse(ctx, -2.8, -0.8 + (look.walk === 1 ? -0.8 : 0), 2.6, 1.5, edge);
-  ellipse(ctx, 2.8, -0.8 + (look.walk === 2 ? -0.8 : 0), 2.6, 1.5, edge);
-  // Arms.
-  ellipse(ctx, -7, -9 + bob + arms * 0.6, 2.2, 3.6, edge);
-  ellipse(ctx, 7, -9 + bob + (look.action === 2 ? arms * 0.6 : 0), 2.2, 3.6, edge);
-  ellipse(ctx, -7, -9.2 + bob + arms * 0.6, 1.8, 3.2, fur);
-  ellipse(ctx, 7, -9.2 + bob + (look.action === 2 ? arms * 0.6 : 0), 1.8, 3.2, fur);
-  // Round body and head in one.
-  ellipse(ctx, 0, -10.5 + bob, 7.4, 9.2, edge);
-  ellipse(ctx, 0, -10.7 + bob, 6.8, 8.6, fur);
-  // Small horns.
-  ctx.fillStyle = '#c9dcef';
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(s * 3.2, -17.8 + bob);
-    ctx.quadraticCurveTo(s * 6.4, -21 + bob, s * 5.4, -23.4 + bob);
-    ctx.quadraticCurveTo(s * 4.8, -20.4 + bob, s * 1.8, -18.8 + bob);
-    ctx.closePath();
-    ctx.fill();
-  }
-  if (front) {
-    ellipse(ctx, 0, -13.4 + bob, 4.4, 3.4, '#cfe6f7');
-    eyes(ctx, 0, -14 + bob, 1.6, 0.8);
-    ctx.strokeStyle = '#1b2433';
-    ctx.lineWidth = 0.6;
-    ctx.beginPath();
-    ctx.arc(0, -12.9 + bob, 1.1, 0.2, Math.PI - 0.2);
-    ctx.stroke();
-  }
-  // Blue scarf with a trailing end.
-  ctx.fillStyle = '#2f86d6';
-  ctx.beginPath();
-  rrect(ctx, -6.2, -9.8 + bob, 12.4, 2.2, 1.1);
-  ctx.fill();
-  ctx.fillStyle = '#5fb3f0';
-  ctx.fillRect(front ? 2.4 : -4.2, -8.2 + bob, 1.8, 4);
-}
-
-/** Spark: a small orange fire fox with a flame tail (catalog §7). */
-function spark(ctx: Ctx, look: StaffLook): void {
-  const front = look.facing === 1 || look.facing === 2;
-  const side = look.facing === 1 || look.facing === 0 ? 1 : -1;
-  const hop = look.action === 1 ? -2 : look.walk === 0 ? 0 : -0.6;
-  shadow(ctx, 5);
-  // Flame tail (behind when facing the viewer).
-  const tail = (): void => {
-    const tx = -side * 5;
-    const flick = look.action === 2 ? 1.5 : 0;
-    ctx.fillStyle = '#e8503a';
-    ctx.beginPath();
-    ctx.moveTo(tx * 0.5, -5 + hop);
-    ctx.quadraticCurveTo(tx * 1.6, -6 + hop, tx * 1.5 + flick, -14 + hop);
-    ctx.quadraticCurveTo(tx * 1.1, -10 + hop, tx * 0.4, -8 + hop);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = '#ffd166';
-    ctx.beginPath();
-    ctx.moveTo(tx * 0.7, -6 + hop);
-    ctx.quadraticCurveTo(tx * 1.35, -7 + hop, tx * 1.3 + flick * 0.6, -11.5 + hop);
-    ctx.quadraticCurveTo(tx * 1.0, -9 + hop, tx * 0.6, -8 + hop);
-    ctx.closePath();
-    ctx.fill();
-  };
-  if (front) tail();
-  // Legs.
-  ctx.fillStyle = '#c4552c';
-  ctx.fillRect(-2.6, -3.6 + hop + (look.walk === 1 ? -1 : 0), 1.8, 3.6);
-  ctx.fillRect(0.8, -3.6 + hop + (look.walk === 2 ? -1 : 0), 1.8, 3.6);
-  // Body with a cream belly.
-  ellipse(ctx, 0, -7.5 + hop, 4.6, 4.8, '#f07a3a');
-  if (front) ellipse(ctx, 0, -6.8 + hop, 2.6, 3.2, '#fff1dc');
-  // Paws up while performing.
-  ctx.fillStyle = '#f07a3a';
-  const up = look.action > 0 ? -3 : 0;
-  ctx.fillRect(-5.4, -9 + hop + up, 1.6, 3.4);
-  ctx.fillRect(3.8, -9 + hop + up, 1.6, 3.4);
-  // Head with pointed ears.
-  ellipse(ctx, 0, -14.8 + hop, 4.6, 4.2, '#f07a3a');
-  ctx.fillStyle = '#f07a3a';
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(s * 1.4, -18 + hop);
-    ctx.lineTo(s * 4.4, -22.4 + hop);
-    ctx.lineTo(s * 4.6, -16.6 + hop);
-    ctx.closePath();
-    ctx.fill();
-  }
-  ctx.fillStyle = '#3b1d12';
-  for (const s of [-1, 1]) {
-    ctx.beginPath();
-    ctx.moveTo(s * 3.6, -20.6 + hop);
-    ctx.lineTo(s * 4.4, -22.4 + hop);
-    ctx.lineTo(s * 4.5, -20 + hop);
-    ctx.closePath();
-    ctx.fill();
-  }
-  if (front) {
-    ellipse(ctx, side * 0.6, -13.2 + hop, 2.6, 1.8, '#fff1dc');
-    eyes(ctx, side * 0.4, -15.4 + hop, 1.6, 0.75);
-    ellipse(ctx, side * 0.9, -13.6 + hop, 0.7, 0.55, '#3b1d12');
-  }
-  if (!front) tail();
-}
+// ---------------------------------------------------------------- costumes (original designs)
 
 /** Boo: a small round ghost with a purple glow (catalog §7). Floats a little above the ground. */
 function boo(ctx: Ctx, look: StaffLook): void {
@@ -355,8 +242,6 @@ function boo(ctx: Ctx, look: StaffLook): void {
 
 export function drawStaffArt(ctx: Ctx, look: StaffLook): void {
   if (look.type === STAFF_TYPE_CODE.performer) {
-    if (look.costume === COSTUME_CODE.frost) return frost(ctx, look);
-    if (look.costume === COSTUME_CODE.spark) return spark(ctx, look);
     if (look.costume === COSTUME_CODE.boo) return boo(ctx, look);
   }
   human(ctx, look);

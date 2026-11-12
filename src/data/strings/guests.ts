@@ -47,8 +47,6 @@ export const guestStrings: Record<string, string> = {
   wantCocoa: 'A cocoa would be nice',
   feelAwful: 'I feel awful',
   performerFun: 'That performer is fun!',
-  frostCute: 'Frost is so cute!',
-  sparkAwesome: 'Spark is awesome!',
   needCash: 'I need cash',
   thrillWeekend: 'Thrill Weekend? Count me in!',
   chillWeekend: 'Chill Weekend sounds perfect',

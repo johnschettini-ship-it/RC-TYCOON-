@@ -15,7 +15,7 @@ The complete core tycoon game on one flat 64 × 64 map.
 - Footpaths and queue paths; 14 flat rides and 11 stalls and facilities.
 - **Temperament:** every guest sits somewhere from pure Chill (0) to pure Thrill (100). It sets what they ride, how fast they tire, and what makes them happy. The HUD shows your park's Thrill/Chill balance.
 - **Coasters:** a piece-by-piece track builder for 7 track ride types, train physics, test runs, and excitement, intensity, and nausea ratings.
-- **Management:** staff (groundskeepers, mechanics, security guards, and performers in Frost, Spark, and Boo costumes), litter and vandalism, breakdowns, research, marketing campaigns, loans, weather, park value, and a monthly finance report.
+- **Management:** staff (groundskeepers, mechanics, security guards, and performers, who can wear the Boo costume), litter and vandalism, breakdowns, research, marketing campaigns, loans, weather, park value, and a monthly finance report.
 - Saves: 3 slots, an autosave each game month, and file export and import.
 
 ### Build 2 — "The Wide World"
@@ -37,7 +37,7 @@ The complete core tycoon game on one flat 64 × 64 map.
 - **Offline play:** a service worker keeps the current build on your device (see [Offline play](#offline-play)).
 - **Performance:** profiling overlay (`F3`) and render quality settings.
 
-### Build 4 — "Frost and Spark"
+### Build 4 — "Interface"
 - **New interface:** a light look with one bundled font (Fredoka). The top bar and the 21-button toolbar are gone: a status pill, a mood bar, five card decks, and a hand of cards replace them (see [Controls](#controls)).
 - **Tips:** short tips when the park needs something; close each one, or turn them all off in the settings.
 - **Title screen:** a pixel-art skyline park with Continue for your last park.

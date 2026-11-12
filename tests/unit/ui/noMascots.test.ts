@@ -1,6 +1,7 @@
 /**
  * No mascots in the interface (Task 23, owner decision 2026-11-12): no string names Frost or Spark as a speaker, no tip
- * or tutorial line speaks in a mascot's voice, and no interface module draws a mascot face.
+ * or tutorial line speaks in a mascot's voice, and no interface module draws a mascot face. Task 24 removed them from
+ * the park too: no statue, costume or guest thought names them.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -13,12 +14,8 @@ import { en } from '../../../src/data/strings/en';
  */
 const ALLOWED: Readonly<Record<string, string>> = {
   'content.frost_peaks': 'scenery land name (Frost Peaks)',
-  'content.statue_frost': 'a scenery statue in the park',
-  'content.statue_spark': 'a scenery statue in the park',
-  'costume.frost': 'a performer costume in the park (staff)',
-  'costume.spark': 'a performer costume in the park (staff)',
-  frostCute: 'a guest thought about the performer costume',
-  sparkAwesome: 'a guest thought about the performer costume',
+  // Task 24: the statues, costumes and guest thoughts of the mascots were removed from the park; no allowance is left
+  // for them.
 };
 
 function filesUnder(dir: string): string[] {
@@ -34,6 +31,10 @@ describe('no mascots in the interface (Task 23)', () => {
       .filter(([k, v]) => /\b(Frost|Spark)\b/.test(v) && !(k in ALLOWED))
       .map(([k, v]) => `${k}: ${v}`);
     expect(found).toEqual([]);
+  });
+
+  it('the only allowance left is the land name Frost Peaks (Task 24)', () => {
+    expect(Object.keys(ALLOWED)).toEqual(['content.frost_peaks']);
   });
 
   it('every declared exception still exists (no stale entry)', () => {

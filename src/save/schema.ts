@@ -58,7 +58,8 @@ const GUEST_STATES = every<GuestStateName>()(['arriving', 'walking', 'queueing',
 const STAFF_TYPES = every<StaffType>()(['groundskeeper', 'mechanic', 'security', 'performer']);
 const STAFF_STATES = every<StaffStateName>()(['walking', 'sweeping', 'cleaning', 'emptying', 'inspecting', 'fixing', 'performing', 'watering']);
 const STAFF_TASKS = every<StaffTask>()(['none', 'wander', 'toPatrol', 'sweep', 'mess', 'bin', 'water', 'fix', 'inspect', 'roam', 'perform']);
-const COSTUMES = every<Costume>()(['frost', 'spark', 'boo']);
+/** Task 24: Frost and Spark removed; an older save's costume becomes Boo before this check (`migrations/retired.ts`). */
+const COSTUMES = every<Costume>()(['boo']);
 const RESEARCH_LEVELS = every<ResearchLevel>()(['none', 'low', 'medium', 'high']);
 const RESEARCH_CATEGORIES = every<ResearchCategory>()(['gentle', 'thrill', 'coasters', 'shops', 'water', 'scenery']);
 const MESSAGE_CATEGORIES = every<MessageCategory>()(['breakdown', 'research', 'weather', 'finance', 'staff', 'marketing', 'park']);

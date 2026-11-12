@@ -166,10 +166,11 @@ describe('guest hooks for Build 2 (Wave 3.0 call sites)', () => {
 });
 
 describe('contract helpers with real bodies', () => {
-  it('scenery catalog: 85 items, base 13, 12 per theme, unique ids, spec rows', () => {
-    expect(SCENERY).toHaveLength(85);
-    expect(new Set(SCENERY.map((d) => d.id)).size).toBe(85);
-    for (const t of SCENERY_THEMES) expect(SCENERY.filter((d) => d.theme === t.id)).toHaveLength(t.id === 'base' ? 13 : 12);
+  it('scenery catalog: 83 items, base 13, 12 per theme (11 in Frost Peaks and Volcano Ridge since Task 24), unique ids, spec rows', () => {
+    expect(SCENERY).toHaveLength(83);
+    expect(new Set(SCENERY.map((d) => d.id)).size).toBe(83);
+    const size = (id: string): number => (id === 'base' ? 13 : id === 'frost_peaks' || id === 'volcano_ridge' ? 11 : 12);
+    for (const t of SCENERY_THEMES) expect(SCENERY.filter((d) => d.theme === t.id)).toHaveLength(size(t.id));
     expect(getSceneryDef('fountain_carved')).toMatchObject({ w: 2, d: 2, heightM: 3, buildCost: 40_000, calm: 6, buzz: 0, light: true, edge: false });
     expect(getSceneryDef('rope_bridge_decor')).toMatchObject({ w: 2, d: 1 });
     expect(getSceneryDef('gate_crooked')).toMatchObject({ overPath: true, spooky: true, light: false });
@@ -233,8 +234,8 @@ describe('contract helpers with real bodies', () => {
   it('the Boo costume matches only when its rule is active', () => {
     expect(costumeMatches('boo', 50)).toBe(false);
     expect(costumeMatches('boo', 50, true)).toBe(true);
-    expect(costumeMatches('frost', 10, true)).toBe(true);
-    expect(costumeMatches('spark', 10, true)).toBe(false);
+    // Task 24: Boo is the only costume left (Frost and Spark were removed); no costume means no match.
+    expect(costumeMatches(null, 10, true)).toBe(false);
   });
 
   it('view rotation table: map → view → map is the identity for every r (Phase 4 §4.8)', () => {

@@ -120,10 +120,10 @@ Each footpath tile holds one path item. Angry guests can break path items (Phase
 | `security` | Security Guard | $120 | $60 | 1 tile / 10 ticks | Guests within 6 tiles do not vandalize. |
 | `performer` | Performer | $120 | $55 | 1 tile / 14 ticks | Guests within 4 tiles gain happiness. Costume sets a bonus (below). |
 
+Costumes (the Frost and Spark costumes were removed, Task 24):
+
 | Costume | Mascot | Bonus |
 |---|---|---|
-| Frost | Friendly yeti | ×1.5 for Chill guests (temperament ≤ 35) |
-| Spark | Fire fox | ×1.5 for Thrill guests (temperament ≥ 65) |
 | Boo | Small ghost | ×1.5 for all guests at night or within 6 tiles of a spooky ride (Phase 4) |
 
 ---
@@ -136,8 +136,8 @@ Item lists, sizes, prices, and Calm/Buzz values are in `phase-4-land-scenery-aft
 |---|---|---|---|
 | Base set | start | neutral | trees, shrubs, flower beds, hedges, fences, fountain |
 | Classic Fair | start | family | striped tents, bunting poles, flower tubs, carved fountain, ticket arch |
-| Frost Peaks | Scenery | chill | snow pines, ice arch, igloo, frozen fountain, Frost statue |
-| Volcano Ridge | Scenery | thrill | lava rocks, steam vent, glowing crystals, ember torches, Spark statue |
+| Frost Peaks | Scenery | chill | snow pines, ice arch, igloo, frozen fountain, snow figure |
+| Volcano Ridge | Scenery | thrill | lava rocks, steam vent, glowing crystals, ember torches, glow pit |
 | Spooky Hollow | Scenery | chill, spooky | bare trees, pumpkins, ghost lanterns, crooked gate, Boo statue |
 | Jungle Lagoon | Scenery | chill | giant leaves, stone ruins, tropical flowers, rope bridge decor, rock waterfall |
 | Starport | Scenery | thrill | rocket, satellite dish, planet globes, neon tubes, robot statue |
@@ -146,10 +146,10 @@ Item lists, sizes, prices, and Calm/Buzz values are in `phase-4-land-scenery-aft
 
 ## 7. Mascots
 
+> Frost (a round white yeti) and Spark (a small orange fire fox) were removed: from the interface in Task 23 and from the park in Task 24 (owner decision 2026-11-12: their performer costumes, statues and guest thoughts are gone; an older save's Frost or Spark statue loads as the Robot Statue and a performer in their costume wears Boo).
+
 | Name | Look | Side | Used in |
 |---|---|---|---|
-| Frost | Round white yeti, blue scarf | Chill | Logo, title screen, tutorial guide, Performer costume, statue |
-| Spark | Small orange fire fox, flame tail | Thrill | Logo, title screen, tutorial guide, Performer costume, statue |
 | Boo | Small round ghost, purple glow | Spooky | Performer costume, statue, After Dark hints |
 
 ---

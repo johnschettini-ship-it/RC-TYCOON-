@@ -185,7 +185,7 @@ export function makeRichWorld(): RichWorld {
   patrol[patrol.length - 1] = 0xff;
   addStaffDirect(world, { patrol });
   const mechanic = addStaffDirect(world, { type: 'mechanic', state: 'fixing', targetRideId: ride.id, targetTile: ride.exit!.outside });
-  addStaffDirect(world, { type: 'performer', costume: 'spark', state: 'performing' });
+  addStaffDirect(world, { type: 'performer', costume: 'boo', state: 'performing' });
   ride.assignedMechanicId = mechanic.id;
   ride.status = 'broken';
   ride.statusBeforeBreakdown = 'open';

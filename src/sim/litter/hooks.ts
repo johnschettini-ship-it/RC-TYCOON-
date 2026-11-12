@@ -33,7 +33,7 @@ import type { Guest } from '../guests/types';
 import type { GuestHooks } from '../hooks';
 import { Content, neighbour, PathItem, type Dir } from '../map';
 import { rngChance, rngInt } from '../rng';
-import { costumeMatches, performerBonus } from '../staff/costumes';
+import { performerBonus } from '../staff/costumes';
 import { changeHappiness, changeNeed } from '../staff/guestEffects';
 import { performersWithin, securityWithin } from '../staff/presence';
 import type { Stall } from '../stalls/types';
@@ -199,11 +199,8 @@ function performers(world: World, guest: Guest): boolean {
   }
   const bestBoo = boo(best);
   changeHappiness(guest, performerBonus(best.costume, guest.temperament, bestBoo));
-  if (costumeMatches(best.costume, guest.temperament, bestBoo) && best.costume !== 'boo') {
-    addThought(world, guest, best.costume === 'frost' ? THOUGHT.frostCute : THOUGHT.sparkAwesome);
-  } else {
-    addThought(world, guest, THOUGHT.performerFun);
-  }
+  // Task 24: the Frost and Spark costumes and their thoughts were removed; every performer gives this thought.
+  addThought(world, guest, THOUGHT.performerFun);
   return false;
 }
 

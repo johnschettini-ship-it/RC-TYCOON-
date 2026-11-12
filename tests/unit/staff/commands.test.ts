@@ -157,9 +157,9 @@ describe('setCostume / setInspectionInterval', () => {
     const world = makeTestWorld();
     const p = hire(world, 'performer');
     const g = hire(world, 'groundskeeper');
-    expect(executeCommand(world, { type: 'setCostume', staffId: p, costume: 'spark' }).ok).toBe(true);
-    expect(world.state.staff.members[0]?.costume).toBe('spark');
-    expect(executeCommand(world, { type: 'setCostume', staffId: g, costume: 'frost' })).toEqual({
+    expect(executeCommand(world, { type: 'setCostume', staffId: p, costume: 'boo' }).ok).toBe(true);
+    expect(world.state.staff.members[0]?.costume).toBe('boo');
+    expect(executeCommand(world, { type: 'setCostume', staffId: g, costume: 'boo' })).toEqual({
       ok: false,
       reason: 'Only Performers wear costumes',
     });

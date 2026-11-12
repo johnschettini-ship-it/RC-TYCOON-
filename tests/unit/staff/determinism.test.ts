@@ -54,7 +54,7 @@ function buildPark(seed: number): { world: World; stall: Stall } {
   hire('mechanic');
   hire('security');
   const p = hire('performer');
-  executeCommand(world, { type: 'setCostume', staffId: p, costume: 'spark' });
+  executeCommand(world, { type: 'setCostume', staffId: p, costume: 'boo' });
   return { world, stall };
 }
 

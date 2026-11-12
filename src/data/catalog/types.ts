@@ -92,7 +92,8 @@ export interface PathItemDef {
 }
 
 export type StaffType = 'groundskeeper' | 'mechanic' | 'security' | 'performer';
-export type Costume = 'frost' | 'spark' | 'boo';
+/** Task 24: Frost and Spark removed; Boo is the one costume left. */
+export type Costume = 'boo';
 
 export interface StaffDef {
   id: StaffType;

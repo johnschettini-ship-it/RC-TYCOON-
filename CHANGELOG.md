@@ -2,7 +2,8 @@
 
 Every public build of Thrills & Chills. A build keeps saves from the builds before it: older saves upgrade when they load (save schema 1 → 2 → 3). Settings and scenario progress are stored apart from saves.
 
-## Build 4 — "Frost and Spark" (4.0.0, unreleased)
+## Build 4 — "Interface" (4.0.0, unreleased)
+Build name: "Interface" (was "Frost and Spark" until the mascots were removed, owner decision 2026-11-12).
 Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document version 2.
 
 ### Changed
@@ -19,6 +20,7 @@ Save schema 3 (unchanged): Build 1 to Build 3 saves load. Settings document vers
 - **Compact top row on the phone** (after the owner's test play): an upright phone shows one top row (cash and guests, a mood circle with the leading face and its share, a date chip with the month and the clock, Menu) with Pause, Messages and the view buttons as small round buttons under it at the right; the rating and the year are in the names of the mood circle and the chip (the top region ends 58 px higher).
 - **Build mode for track rides** (after the owner's test play): while the track builder is open the deck chips (the deck list on desktop) and the hand are hidden, and on a phone Messages and the objectives flag too; the phone's piece panel is condensed (one row each of tabs and small piece tiles, a small status line, Build with the price; 315 → 239 px high), and Build is disabled while a piece cannot be built, with the reason in the panel and no toast repeating it.
 - **No mascots** (owner decision): the Frost and Spark faces are gone from the interface; the mood bar is the track alone, the phone's mood circle is a plain round button in the leading group's colour with its share ("40%"), and the tips, the tutorial, award toasts and the end screen show their text with no face or speaker; the tips setting is now labelled "Tips" (same saved value).
+- **No mascots in the park** (owner decision): the Frost and Spark performer costumes, the Frost and Spark statues and their guest thoughts are removed (Boo is the costume left; Frost Peaks and Volcano Ridge have 11 items each). Older saves still load: a Frost or Spark statue becomes the Robot Statue, a performer in their costume wears Boo, and their thoughts are dropped (save schema 3 unchanged). The build is now named "Interface".
 - **One top row on the phone** (owner decision): an upright phone shows the whole top region in one row: cash over guests, the mood circle, a time chip with the weather icon and the hour (the month and year in its name), Speed, one turn-view button (tap: clockwise; hold: counter-clockwise) and Menu. Messages (with the unread count) and a scenario's Objectives are Menu items, and a dot on Menu shows unread messages; from $100,000 the pill shows the cash as "$199K" or "$1.23M" (the top region ends 52 px higher: `--hud-bottom` 104 → 52 px at 390 × 844).
 - **Title screen:** a pixel-art skyline park with the game name and a menu with Continue for the newest save (`docs/superpowers/specs/thrills-and-chills/phase-7-title-screen.md`). The four pictures are data in the JavaScript bundle; there are no image files.
 - **Settings version 2:** adds `mascotTips` (default on). A version 1 document is checked as version 1 and gets `mascotTips: true`; the store writes version 2 at the next change.

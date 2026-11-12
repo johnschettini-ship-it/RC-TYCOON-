@@ -1,6 +1,6 @@
 /**
- * Owner: W1-H. Costume matches (Phase 3 §4.2, master R6). Frost: Chill (T ≤ 35). Spark: Thrill (T ≥ 65).
- * Boo (Phase 4 §4.7): matches every guest when `booActive` (night with After Dark on, or within 6 tiles of a spooky
+ * Owner: W1-H. Costume matches (Phase 3 §4.2, master R6). A costume with a temperament range matches the guests in it
+ * (the Frost and Spark costumes were; both were removed with the mascots, Task 24). Boo (Phase 4 §4.7): matches every guest when `booActive` (night with After Dark on, or within 6 tiles of a spooky
  * ride; the caller asks `booBonusActive` in `lighting/api.ts`, W3-F).
  */
 import { COSTUMES } from '../../data/catalog/people';

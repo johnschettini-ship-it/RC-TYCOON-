@@ -91,6 +91,15 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
       it('keeps every Build 1 value: heights, owned, and water unchanged (step 2), nothing else touched', () => {
         const before = v1State(name);
         const after = load(read(name)).state as unknown as Raw;
+        // Task 24 (retired content, not a version step): a Spark or Frost performer wears Boo and the mascot thoughts
+        // with their cooldowns are dropped. Apply exactly that to the Build 1 state; everything else must be equal.
+        for (const m of before.staff.members) if (m.costume === 'spark' || m.costume === 'frost') m.costume = 'boo';
+        for (const g of before.guests) {
+          g.thoughts = g.thoughts.filter((t: Raw) => t.id !== 'sparkAwesome' && t.id !== 'frostCute');
+          delete g.thoughtCooldowns.sparkAwesome;
+          delete g.thoughtCooldowns.frostCute;
+        }
+        expect(JSON.stringify(after)).not.toMatch(/sparkAwesome|frostCute|"costume":"(spark|frost)"/);
         // Drop exactly the fields the migration adds; the rest must be equal, typed arrays included.
         const stripped = { ...after, schemaVersion: 1 };
         for (const k of NEW_TOP) delete stripped[k];

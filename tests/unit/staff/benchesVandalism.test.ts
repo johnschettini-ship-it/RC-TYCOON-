@@ -5,7 +5,7 @@ vi.mock('../../../src/sim/notifications', async () => (await import('./fakes')).
 
 import { decisionHooks, litterHooks } from '../../../src/sim/litter/hooks';
 import { PathItem, tileIndex } from '../../../src/sim/map';
-import { BENCH_ENERGY } from '../../../src/data/catalog/people';
+import { BENCH_ENERGY, COSTUMES } from '../../../src/data/catalog/people';
 import { THOUGHT } from '../../../src/sim/guests/thoughts';
 import {
   ANGRY_HAPPY,
@@ -270,18 +270,10 @@ describe('performers and costumes (R6)', () => {
     expect(bonus(world, at(20 + PERFORMER_RADIUS + 1), 50)).toBe(0);
   });
 
-  it('Spark matches Thrill guests (T ≥ 65) only', () => {
-    const { world, at } = show('spark');
-    expect(bonus(world, at(21), 65)).toBe(PERFORMER_HAPPY_MATCH);
-    expect(bonus(world, at(21), 64)).toBe(PERFORMER_HAPPY);
-    expect(bonus(world, at(21), 10)).toBe(PERFORMER_HAPPY);
-  });
-
-  it('Frost matches Chill guests (T ≤ 35) only', () => {
-    const { world, at } = show('frost');
-    expect(bonus(world, at(21), 35)).toBe(PERFORMER_HAPPY_MATCH);
-    expect(bonus(world, at(21), 36)).toBe(PERFORMER_HAPPY);
-    expect(bonus(world, at(21), 90)).toBe(PERFORMER_HAPPY);
+  it('no costume matches a temperament range (Task 24: the Frost and Spark costumes were removed)', () => {
+    expect(COSTUMES.map((c) => c.temperament)).toEqual([null]);
+    const { world, at } = show('boo');
+    for (const t of [0, 35, 36, 64, 65, 100]) expect(bonus(world, at(21), t)).toBe(PERFORMER_HAPPY);
   });
 
   it('Boo has no match in Phase 3', () => {
@@ -289,28 +281,24 @@ describe('performers and costumes (R6)', () => {
     for (const t of [0, 50, 100]) expect(bonus(world, at(21), t)).toBe(PERFORMER_HAPPY);
   });
 
-  it('match thoughts: "Spark is awesome!" and "Frost is so cute!"', () => {
-    const a = show('spark');
-    const g = addGuestDirect(a.world, a.at(21), { temperament: 80 });
-    decisionHooks.performers(a.world, g);
-    expect(g.thoughts.map((t) => t.id)).toEqual([THOUGHT.sparkAwesome]);
-    const b = show('frost');
-    const h = addGuestDirect(b.world, b.at(21), { temperament: 20 });
-    decisionHooks.performers(b.world, h);
-    expect(h.thoughts.map((t) => t.id)).toEqual([THOUGHT.frostCute]);
-    const c = show(null);
-    const k = addGuestDirect(c.world, c.at(21), { temperament: 50 });
-    decisionHooks.performers(c.world, k);
-    expect(k.thoughts.map((t) => t.id)).toEqual([THOUGHT.performerFun]);
+  it('every performer gives "That performer is fun!" (Task 24: the Frost and Spark thoughts were removed)', () => {
+    for (const costume of ['boo', null] as const) {
+      const c = show(costume);
+      for (const temperament of [20, 50, 80]) {
+        const k = addGuestDirect(c.world, c.at(21), { temperament });
+        decisionHooks.performers(c.world, k);
+        expect(k.thoughts.map((t) => t.id)).toEqual([THOUGHT.performerFun]);
+      }
+    }
   });
 
   it('at most one performer bonus per decision; a performer who is not performing gives nothing', () => {
-    const { world, at, p } = show('spark');
+    const { world, at, p } = show('boo');
     const q = hireAt(world, 'performer', at(22));
     q.state = 'performing';
-    q.costume = 'spark';
+    q.costume = 'boo';
     world.state.tick++;
-    expect(bonus(world, at(21), 80)).toBe(PERFORMER_HAPPY_MATCH);
+    expect(bonus(world, at(21), 80)).toBe(PERFORMER_HAPPY);
     p.state = 'walking';
     q.state = 'walking';
     world.state.tick++;

@@ -55,7 +55,7 @@ test.describe('scenery tool', () => {
     // Locked theme: marked, cards disabled.
     await page.getByTestId('scenery-tab-frost_peaks').click();
     await expect(page.getByTestId('scenery-locked')).toHaveText('Research Scenery to unlock Frost Peaks');
-    await expect(page.getByTestId('scenery-item-statue_frost')).toBeDisabled();
+    await expect(page.getByTestId('scenery-item-snowman')).toBeDisabled();
 
     await page.getByTestId('scenery-tab-base').click();
     await page.getByTestId('scenery-item-oak_round').click();
@@ -70,11 +70,11 @@ test.describe('scenery tool', () => {
     // Without Shift the tool ends.
     await expect(await toolControl(page, 'scenery')).toHaveAttribute('aria-pressed', 'false');
 
-    // Researched theme, Shift-click keeps the tool, R turns the next statue.
+    // Researched theme, Shift-click keeps the tool, R turns the next figure.
     await researchThemes(page);
     await openTool(page, 'scenery');
     await page.getByTestId('scenery-tab-frost_peaks').click();
-    await page.getByTestId('scenery-item-statue_frost').click();
+    await page.getByTestId('scenery-item-snowman').click();
     const q = await tilePoint(page, 24, 40);
     await page.mouse.move(q.x, q.y);
     await page.keyboard.down('Shift');
@@ -87,8 +87,8 @@ test.describe('scenery tool', () => {
     await page.mouse.click(r.x, r.y);
     await expect.poll(async () => (await scenery(page)).map((s) => [s.defId, s.x, s.rotation])).toEqual([
       ['oak_round', 22, 0],
-      ['statue_frost', 24, 0],
-      ['statue_frost', 26, 1],
+      ['snowman', 24, 0],
+      ['snowman', 26, 1],
     ]);
 
     // Remove mode: click the oak for a $20 refund.
@@ -101,7 +101,7 @@ test.describe('scenery tool', () => {
     await expect(page.getByTestId('scenery-status-detail')).toHaveText('Remove Round Oak · +$20');
     await page.mouse.click(o.x, o.y);
     await expect.poll(() => cash(page)).toBe(c0 + 2_000);
-    expect((await scenery(page)).map((s) => s.defId)).toEqual(['statue_frost', 'statue_frost']);
+    expect((await scenery(page)).map((s) => s.defId)).toEqual(['snowman', 'snowman']);
     errors.expectNoErrors();
   });
 
@@ -189,7 +189,6 @@ test.describe('Wave 3 scenery screenshot', () => {
       put('snow_pine_small', 24, 41);
       put('igloo', 22, 38);
       put('fountain_frozen', 27, 37);
-      put('statue_frost', 29, 41);
       put('ice_crystals', 29, 39);
       put('snowman', 25, 42);
       put('snowdrift', 23, 42);
@@ -200,7 +199,6 @@ test.describe('Wave 3 scenery screenshot', () => {
       // Volcano Ridge (north-east of the cross).
       put('lava_crag', 33, 39);
       put('magma_pool', 36, 41);
-      put('statue_spark', 32, 42);
       put('steam_vent', 35, 39);
       put('glow_crystal', 33, 42);
       put('ember_torch', 32, 41);

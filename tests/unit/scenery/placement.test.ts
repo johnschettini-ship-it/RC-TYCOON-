@@ -132,8 +132,8 @@ describe('placeScenery: rules in order (Phase 4 §4.5 table)', () => {
   it('unlocked, except in setup mode: "Not unlocked"', () => {
     const w = sceneryWorld();
     w.state.management.research.unlocked = [];
-    expect(reasonOf(place(w, 'statue_frost', 5, 5))).toBe('Not unlocked');
-    expect(place(w, 'statue_frost', 5, 5, 0, -1, true).ok).toBe(true);
+    expect(reasonOf(place(w, 'snowman', 5, 5))).toBe('Not unlocked');
+    expect(place(w, 'snowman', 5, 5, 0, -1, true).ok).toBe(true);
   });
 
   it('cash ≥ cost: exact cash builds, one cent less fails with "Not enough cash"', () => {
@@ -396,7 +396,7 @@ describe('removeScenery and demolish', () => {
 });
 
 describe('every catalog item (Phase 4 §10)', () => {
-  it('all 85 items place and remove in all 4 rotations, with the 50% refund', () => {
+  it('all 83 items (Task 24) place and remove in all 4 rotations, with the 50% refund', () => {
     const w = sceneryWorld();
     const map = w.state.map;
     w.state.park.cash = 100_000_000;
@@ -418,6 +418,6 @@ describe('every catalog item (Phase 4 §10)', () => {
         for (let i = 0; i < map.content.length; i++) if (map.content[i] === Content.Scenery) throw new Error(`${def.id} left tile ${i}`);
       }
     }
-    expect(placed).toBe(85 * 4);
+    expect(placed).toBe(83 * 4);
   });
 });

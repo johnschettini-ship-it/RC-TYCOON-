@@ -69,7 +69,7 @@ describe('theme research unlocks items', () => {
   it('placeScenery answers "Not unlocked" until the theme is researched through the hourly research step', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
-    expect(executeCommand(w, { type: 'placeScenery', defId: 'statue_frost', x: 10, y: 10, rotation: 0, edge: -1 })).toEqual({ ok: false, reason: 'Not unlocked' });
+    expect(executeCommand(w, { type: 'placeScenery', defId: 'snowman', x: 10, y: 10, rotation: 0, edge: -1 })).toEqual({ ok: false, reason: 'Not unlocked' });
     r.current = 'frost_peaks';
     r.level = 'high';
     r.progress = 238;
@@ -77,7 +77,7 @@ describe('theme research unlocks items', () => {
     hourlyResearch(w);
     expect(r.unlocked).toContain('frost_peaks');
     expect(w.events).toContainEqual({ type: 'researchUnlocked', itemId: 'frost_peaks' });
-    expect(executeCommand(w, { type: 'placeScenery', defId: 'statue_frost', x: 10, y: 10, rotation: 0, edge: -1 }).ok).toBe(true);
+    expect(executeCommand(w, { type: 'placeScenery', defId: 'snowman', x: 10, y: 10, rotation: 0, edge: -1 }).ok).toBe(true);
     expect(executeCommand(w, { type: 'placeScenery', defId: 'lava_rock', x: 12, y: 10, rotation: 0, edge: -1 })).toEqual({ ok: false, reason: 'Not unlocked' });
   });
 

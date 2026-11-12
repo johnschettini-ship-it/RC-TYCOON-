@@ -1,4 +1,4 @@
-/** Volcano Ridge art (12 items, thrill: reds, oranges, yellows on dark basalt). Owner: W3-D. */
+/** Volcano Ridge art (11 items since the Spark Statue was removed with the mascots, Task 24; thrill: reds, oranges, yellows on dark basalt). Owner: W3-D. */
 import { box, cylinder, disc } from '../../sprites/shapes';
 import {
   archPosts,
@@ -106,29 +106,6 @@ const emberTorch: SceneryArtFn = (ctx, o) => {
   poly2(ctx, [x - 5, y, x + s * 2, y - 14, x + 5, y], LAVA);
   poly2(ctx, [x - 2.5, y, x + s * 1, y - 9, x + 2.5, y], EMBER);
   dot(ctx, x, y - 2, 1.6, '#fff4c0');
-};
-
-/** Spark the fire fox (catalog §7): orange fox with a flame tail. */
-function sparkFigure(ctx: Ctx, x: number, y: number, s: 1 | -1, front: boolean): void {
-  // Flame tail behind.
-  poly2(ctx, [x - s * 4, y - 6, x - s * 16, y - 18, x - s * 12, y - 26, x - s * 9, y - 16, x - s * 6, y - 22, x - s * 3, y - 12], LAVA);
-  poly2(ctx, [x - s * 5, y - 8, x - s * 12, y - 18, x - s * 7, y - 14], EMBER);
-  oval(ctx, x, y - 9, 8, 9, '#f07a2a');
-  oval(ctx, x + s * 2, y - 7, 4, 6, '#ffe6c8');
-  oval(ctx, x + s * 2, y - 22, 8, 7, '#f07a2a');
-  for (const k of [-1, 1]) poly2(ctx, [x + s * 2 + k * 4, y - 26, x + s * 2 + k * 7, y - 35, x + s * 2 + k * 1, y - 28], '#e0601a');
-  if (front) {
-    poly2(ctx, [x + s * 2, y - 22, x + s * 11, y - 19, x + s * 2, y - 16], '#ffe6c8');
-    dot(ctx, x + s * 11, y - 19, 1.3, '#2a1a14');
-    eyes(ctx, x + s * 3, y - 23, 2.6, 1.4, s);
-  }
-}
-
-const statueSpark: SceneryArtFn = (ctx, o) => {
-  shadow(ctx, 0.5, 0.5, 0.3);
-  pedestal(ctx, 0.24, 6, '#5a4a44');
-  for (const [u, v] of [[0.3, 0.72], [0.72, 0.3]] as const) glow(ctx, sx(u, v), sy(u, v, 6), 1.6, EMBER);
-  sparkFigure(ctx, CX, sy(0.5, 0.5, 6), screenSide(o.facing), facesViewer(o.facing));
 };
 
 const fireFern: SceneryArtFn = (ctx, o) => {
@@ -258,7 +235,6 @@ export const VOLCANO_ART: Readonly<Record<string, SceneryArtFn>> = {
   steam_vent: steamVent,
   glow_crystal: glowCrystal,
   ember_torch: emberTorch,
-  statue_spark: statueSpark,
   fire_fern: fireFern,
   ash_palm: ashPalm,
   magma_pool: magmaPool,

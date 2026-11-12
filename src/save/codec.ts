@@ -3,12 +3,13 @@ import type { GameState, World } from '../sim/types';
 import { checkIntegrity } from './integrity';
 import { damaged, ERR_NEWER, ERR_NOT_A_SAVE, ERR_TOO_OLD, ERR_UNREADABLE, ERR_UPGRADE } from './messages';
 import { MigrationError, type Migrations } from './migrations';
+import { retireMascots } from './migrations/retired';
 import { checkStructure, isRecord } from './schema';
 import { decodeTypedArrays, encodeTypedArray } from './typedArrays';
 import { STATE_SCHEMA_VERSION } from '../sim/types';
 
 export const SAVE_FORMAT = 'thrills-and-chills-save';
-/** Schema version this build writes (Build 3 = 3, master §7). */
+/** Schema version this build writes (Build 3 = 3, master §7; Build 4 keeps 3, Task 24). */
 export const SCHEMA_VERSION: number = STATE_SCHEMA_VERSION;
 
 export type LoadResult = { ok: true; world: World } | { ok: false; error: string };
@@ -91,6 +92,10 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
         return fail(e instanceof MigrationError && from === version ? e.message : ERR_UPGRADE);
       }
     }
+
+    // Task 24: the retired Frost and Spark content becomes its replacements (`migrations/retired.ts`); the version
+    // stays, and the checks below run on the result.
+    state = retireMascots(state);
 
     if (migrated) {
       // Phase 4 §5.1 steps 5–6: a structure failure after the upgrade is an upgrade failure; a reference failure

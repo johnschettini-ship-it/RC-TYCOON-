@@ -42,7 +42,7 @@ describe('management render layer (collection, no canvas)', () => {
     const world = makeTestWorld();
     executeCommand(world, { type: 'hireStaff', staffType: 'performer' });
     const m = world.state.staff.members[0]!;
-    executeCommand(world, { type: 'setCostume', staffId: m.id, costume: 'spark' });
+    executeCommand(world, { type: 'setCostume', staffId: m.id, costume: 'boo' });
     const map = world.state.map;
     m.tile = tileIndex(map, 10, 10);
     m.nextTile = tileIndex(map, 11, 10);
@@ -55,8 +55,8 @@ describe('management render layer (collection, no canvas)', () => {
     // 7 of 14 ticks: halfway to (11, 10).
     expect(e.depth).toBeCloseTo(11 + 10.5);
     expect(e.sub & 3).toBe(1);
-    expect(decodeStaffFrame(e.sub >> 2)).toMatchObject({ type: 3, costume: 2 });
-    expect(staffFrame(3, 2, 1, 0)).toBe(3 | (2 << 2) | (1 << 4));
+    expect(decodeStaffFrame(e.sub >> 2)).toMatchObject({ type: 3, costume: 3 });
+    expect(staffFrame(3, 3, 1, 0)).toBe(3 | (3 << 2) | (1 << 4));
   });
 
   it('pushes path items with their bin fill level and broken flag', () => {

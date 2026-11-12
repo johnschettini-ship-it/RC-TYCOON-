@@ -1,5 +1,6 @@
 /**
- * Scenery catalog (Phase 4 §4.5 item tables, catalog §6): the base set and 6 themes, 85 items.
+ * Scenery catalog (Phase 4 §4.5 item tables, catalog §6): the base set and 6 themes, 83 items (the Frost and Spark
+ * statues were removed with the mascots, Task 24; an older save's statue becomes the Robot Statue).
  * Owner: integrator (contract data, generated from the spec tables). Money is integer cents; heights are metres.
  * Flag letters as in the spec: L = light source, W = needsWater, S = slopeOk, E = edge item, P = overPath, K = spooky.
  */
@@ -79,7 +80,6 @@ export const SCENERY: readonly SceneryDef[] = Object.freeze<SceneryDef[]>([
     S('ice_arch', 'Ice Arch', 1, 1, 5, 14000, 3, 0, 'LP'),
     S('igloo', 'Igloo', 2, 2, 3, 16000, 3, 0, ''),
     S('fountain_frozen', 'Frozen Fountain', 2, 2, 3, 38000, 6, 0, 'L'),
-    S('statue_frost', 'Frost Statue', 1, 1, 4, 25000, 4, 0, ''),
     S('ice_crystals', 'Ice Crystal Cluster', 1, 1, 2, 6000, 2, 0, 'L'),
     S('snowdrift', 'Snowdrift', 1, 1, 1, 1500, 1, 0, 'S'),
     S('snowman', 'Snow Figure', 1, 1, 2, 4500, 2, 0, ''),
@@ -93,7 +93,6 @@ export const SCENERY: readonly SceneryDef[] = Object.freeze<SceneryDef[]>([
     S('steam_vent', 'Steam Vent', 1, 1, 1, 8000, 0, 3, ''),
     S('glow_crystal', 'Glowing Crystal', 1, 1, 3, 9000, 0, 2, 'L'),
     S('ember_torch', 'Ember Torch', 1, 1, 3, 5500, 0, 1, 'L'),
-    S('statue_spark', 'Spark Statue', 1, 1, 4, 25000, 0, 4, 'L'),
     S('fire_fern', 'Fire Fern', 1, 1, 2, 3000, 1, 1, 'S'),
     S('ash_palm', 'Ash Palm', 1, 1, 7, 5000, 1, 1, 'S'),
     S('magma_pool', 'Glow Pit', 2, 2, 1, 20000, 0, 4, 'L'),

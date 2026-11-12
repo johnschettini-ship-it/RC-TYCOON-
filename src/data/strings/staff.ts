@@ -48,7 +48,5 @@ export const staffStrings: Record<string, string> = {
   'breakdown.gate_stuck': 'Gate stuck',
   'breakdown.slow_running': 'Running slowly',
   // Costumes
-  'costume.frost': 'Frost',
-  'costume.spark': 'Spark',
   'costume.boo': 'Boo',
 };

@@ -17,9 +17,10 @@ export const STAFF: readonly StaffDef[] = Object.freeze([
   { id: 'performer', name: 'Performer', hireCost: 12000, wageMonthly: 5500, ticksPerTile: 14 },
 ]);
 
-/** Temperament groups (master R6): Chill ≤ 35, Thrill ≥ 65. */
+/**
+ * Performer costumes. The Frost and Spark costumes (Chill ≤ 35, Thrill ≥ 65) were removed with the mascots (Task 24,
+ * owner decision 2026-11-12); an older save's performer in one of them wears Boo (`src/save/migrations/retired.ts`).
+ */
 export const COSTUMES: readonly CostumeDef[] = Object.freeze([
-  { id: 'frost', mascot: 'Friendly yeti', bonus: 1.5, temperament: { min: 0, max: 35 } },
-  { id: 'spark', mascot: 'Fire fox', bonus: 1.5, temperament: { min: 65, max: 100 } },
   { id: 'boo', mascot: 'Small ghost', bonus: 1.5, temperament: null },
 ]);

@@ -1,4 +1,4 @@
-/** Frost Peaks art (12 items, chill: blues, teals, violets, snow white). Owner: W3-D. */
+/** Frost Peaks art (11 items since the Frost Statue was removed with the mascots, Task 24; chill: blues, teals, violets, snow white). Owner: W3-D. */
 import { box, cylinder, disc } from '../../sprites/shapes';
 import {
   archPosts,
@@ -146,30 +146,6 @@ const fountainFrozen: SceneryArtFn = (ctx, o) => {
   glow(ctx, sx(cu + 0.5, cv + 0.3), sy(cu + 0.5, cv + 0.3, 6), 2, '#bdf0ff');
 };
 
-/** Frost the yeti (catalog §7): round white body, small horns, blue scarf. */
-function frostFigure(ctx: Ctx, x: number, y: number, s: 1 | -1, front: boolean): void {
-  oval(ctx, x, y - 12, 12, 13, SNOW);
-  oval(ctx, x - 8, y - 2, 5, 3, SNOW);
-  oval(ctx, x + 8, y - 2, 5, 3, SNOW);
-  oval(ctx, x - s * 12, y - 14, 4, 7, '#e8f2fc', 0.4 * s);
-  oval(ctx, x + s * 12, y - 18, 4, 7, '#e8f2fc', -0.6 * s);
-  oval(ctx, x, y - 28, 10, 9, SNOW);
-  for (const k of [-1, 1]) poly2(ctx, [x + k * 6, y - 34, x + k * 10, y - 42, x + k * 3, y - 36], '#c9dcef');
-  poly2(ctx, [x - 10, y - 21, x + 10, y - 21, x + 9, y - 18, x - 9, y - 18], '#3d7fe0');
-  poly2(ctx, [x + s * 4, y - 19, x + s * 9, y - 9, x + s * 5, y - 9], '#3d7fe0');
-  if (front) {
-    oval(ctx, x + s * 2, y - 27, 7, 5, '#cfe6f7');
-    eyes(ctx, x + s * 2, y - 28, 3, 1.6, s);
-    line2(ctx, x + s * 2 - 2, y - 24.5, x + s * 2 + 2, y - 24.5, '#3a5068', 1);
-  }
-}
-
-const statueFrost: SceneryArtFn = (ctx, o) => {
-  shadow(ctx, 0.5, 0.5, 0.3);
-  pedestal(ctx, 0.24, 6, '#8fa9c0');
-  frostFigure(ctx, CX, sy(0.5, 0.5, 6), screenSide(o.facing), facesViewer(o.facing));
-};
-
 const iceCrystals: SceneryArtFn = (ctx, o) => {
   shadow(ctx, 0.5, 0.5, 0.28, 0.15);
   const shards: Array<[number, number, number, number]> = [
@@ -279,7 +255,6 @@ export const FROST_ART: Readonly<Record<string, SceneryArtFn>> = {
   ice_arch: iceArch,
   igloo,
   fountain_frozen: fountainFrozen,
-  statue_frost: statueFrost,
   ice_crystals: iceCrystals,
   snowdrift,
   snowman,
