@@ -28,7 +28,8 @@ export interface SectionProjection {
   stallKind: ProjectionStallKind | null;
   /**
    * Top speed (mm/s) and the strongest car's G extremes (hundredths; each car's own 5-tick window, then the extremes
-   * over the cars) while the centre is on the candidate; 0/100/100/0 when never measured. These are the safety values.
+   * over the cars) over the section (from the front car reaching the candidate until the centre leaves it; see
+   * `continueProjection`); 0/100/100/0 when never measured. These are the safety values.
    */
   vMaxMms: number;
   posGMax: number;
@@ -118,8 +119,14 @@ export function projectPrefix(data: TrackRideData, type: TrackTypeDef): Projecti
   const cars = data.trainConfig.carsPerTrain;
   const hit = prefixCache.get(key);
   if (hit && hit.cars === cars) return hit.snap;
-  const pieces = data.pieces;
-  const layout = buildLayout(pieces, true);
+  const w = runPrefix(data.pieces, type, cars);
+  prefixCache.set(key, { cars, snap: w });
+  return w;
+}
+
+/** The prefix run of `projectPrefix`, uncached. */
+function runPrefix(pieces: readonly TrackPieceInstance[], type: TrackTypeDef, cars: number): ProjectionSnapshot {
+  const layout = buildLayout(pieces as TrackPieceInstance[], true);
   const ctx = contextFor(layout, pieces, type, cars);
   const w = dispatchSnapshot(pieces, type, cars);
   const end = layout.lengthMm;
@@ -131,7 +138,6 @@ export function projectPrefix(data: TrackRideData, type: TrackTypeDef): Projecti
     }
     stepOnce(ctx, w);
   }
-  prefixCache.set(key, { cars, snap: w });
   return w;
 }
 
@@ -151,7 +157,10 @@ function emptyProjection(): SectionProjection {
 
 /**
  * Continue `from` (a snapshot taken on the pieces before the last one) over `pieces`, whose last piece is the
- * candidate. Measures while the train's centre is on the candidate; stops when the centre leaves it, on a stall, or
+ * candidate. Measures from the tick the front car's centre reaches the candidate until the train's centre leaves it
+ * (Task 5): the first part is exact (every car is on real track), so every tick of the closed test lap is measured
+ * exactly by the candidate under the front car, and Build refuses the piece the test lap names with the same value;
+ * the second part (the centre on the candidate, the front cars on the run-out) is the plan's section. Stops when the centre leaves it, on a stall, or
  * after `PROJECTION_MAX_TICKS` (then not reached, no stall). `next` is the snapshot for the next piece: taken at the
  * same rule as `projectPrefix`, against the candidate's end (or at the stall). `from` is not changed.
  */
@@ -173,6 +182,7 @@ export function continueProjection(
   const a = layout.startMm[last] as number;
   const b = layout.startMm[last + 1] as number;
   const w = cloneSnapshot(from);
+  const frontCarMm = (ctx.trainLenMm - ctx.carLenMm) / 2;
   let next: ProjectionSnapshot | null = null;
   let vMax = 0;
   let pos = -Infinity;
@@ -194,8 +204,9 @@ export function continueProjection(
       out.stallKind = w.stall.kind;
       break;
     }
+    // The section: from the front car's centre reaching the candidate until the train's centre leaves it (Task 5).
     const c = w.train.s;
-    if (c < a || c >= b) continue;
+    if (c + frontCarMm < a || c >= b) continue;
     if (w.train.v > vMax) vMax = w.train.v;
     if (!measured) continue;
     let gv = 0;
@@ -242,4 +253,29 @@ export function projectSection(data: TrackRideData, type: TrackTypeDef, candidat
 
 function isStation(p: TrackPieceInstance): boolean {
   return getTrackPieceDef(p.defId)?.special === 'station';
+}
+
+/**
+ * The first piece whose section passes a hard limit when the track is built piece by piece in order: the piece Build
+ * refuses (Task 5), with the same breach. Each piece continues from the previous piece's `next` snapshot, as the
+ * cached prefix would (one pass over the track). Null when no section passes a limit or the train stops first. The
+ * trouble place of an unsafe test (Open, the test message, the map) uses it, so Build and Open name the same piece and
+ * the same value.
+ */
+export function firstUnsafeSection(
+  pieces: readonly TrackPieceInstance[],
+  type: TrackTypeDef,
+  cars: number,
+): { pieceIndex: number; breach: SafetyBreach } | null {
+  let m = 0;
+  while (m < pieces.length && isStation(pieces[m] as TrackPieceInstance)) m++;
+  if (m === 0 || m >= pieces.length) return null;
+  let snap = runPrefix(pieces.slice(0, m), type, cars);
+  for (let k = m; k < pieces.length; k++) {
+    const { projection, next } = continueProjection(pieces.slice(0, k + 1), type, cars, snap);
+    if (projection.breach) return { pieceIndex: k, breach: projection.breach };
+    if (projection.stallPiece !== null) return null;
+    snap = next;
+  }
+  return null;
 }

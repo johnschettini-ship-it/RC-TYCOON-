@@ -4,7 +4,12 @@ import type { CommandResult } from '../../../src/sim/commands/types';
 import type { Dir } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
 import type { Ride } from '../../../src/sim/rides/types';
-import { pieceExitJoint } from '../../../src/sim/rides/track/geometry';
+import { getTrackPieceDef, getTrackTypeDef, type TrackPieceDef, type TrackTypeDef } from '../../../src/data/track';
+import { BRAKE_SPEED } from '../../../src/data/tuning/track';
+import { applyPlan, trackEnd } from '../../../src/sim/rides/track/build';
+import { enterBuilding } from '../../../src/sim/rides/track/common';
+import { jointsEqual, pieceEntryJoint, pieceExitJoint } from '../../../src/sim/rides/track/geometry';
+import { checkPieceTiles, pieceCost } from '../../../src/sim/rides/track/placement';
 import type { TrackDir, TrackPieceInstance, TrackRideData } from '../../../src/sim/rides/track/types';
 
 export type PieceSpec = string | { id: string; chain?: boolean; brakeSpeed?: number };
@@ -302,3 +307,30 @@ export const HILLS_300: PieceSpec[] = [
     'straight',
   ]).flat(),
 ].slice(0, 300);
+
+/**
+ * R7 (Task 5): write pieces straight into the ride data, with the same tile rules as `addTrackPiece` (tiles, height,
+ * supports) but without the build-time safety rule and without cash. Circuits that pass a hard safety limit on purpose
+ * (`UNSAFE_DROP_PIECES`, `SHARP_TURN_PIECES`) cannot be built with commands since Build refuses an over-limit piece, so
+ * the test lap and Open tests lay them with this. Throws when a piece does not fit.
+ */
+export function writePieces(world: World, rideId: number, specs: PieceSpec[]): void {
+  const ride = rideOf(world, rideId);
+  const data = dataOf(world, rideId);
+  const type = getTrackTypeDef(data.typeId) as TrackTypeDef;
+  specs.forEach((spec, i) => {
+    const p = typeof spec === 'string' ? { id: spec } : spec;
+    const def = getTrackPieceDef(p.id) as TrackPieceDef;
+    const end = trackEnd(world, ride, data);
+    const brakeSpeed = def.special === 'brakes' ? (p.brakeSpeed ?? BRAKE_SPEED.default) : null;
+    const piece: TrackPieceInstance = { defId: p.id, x: end.x, y: end.y, z: end.z, dir: end.dir, chain: !!p.chain, brakeSpeed, cost: 0 };
+    const chk = checkPieceTiles(world, rideId, data.pieces.length, piece, type, data.pieces);
+    if (!chk.ok) throw new Error(`Piece ${i + 2} (${p.id}) does not fit: ${chk.reason}`);
+    const cost = pieceCost(type, def, piece.chain, chk.heightAboveGround);
+    piece.cost = cost;
+    const first = data.pieces[0];
+    const closes = first !== undefined && jointsEqual(pieceExitJoint(piece), pieceEntryJoint(first));
+    if (ride.status !== 'building') enterBuilding(ride, data);
+    applyPlan(world, ride, data, { piece, def, tiles: chk.tiles, cost, closes }, { setup: true });
+  });
+}

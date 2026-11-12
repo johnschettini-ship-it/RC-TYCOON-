@@ -38,7 +38,8 @@ describe('builder helpers', () => {
     const p = previewTrackPiece(w, id, 'flat_to_gentle_up', true);
     expect(p).toMatchObject({ ok: true, cost: 6_300, closes: false, heightAboveGround: 1 });
     expect(stateHash(w)).toBe(h);
-    expect(previewTrackPiece(w, id, 'flat_to_gentle_down')).toEqual({ ok: false, reason: TRACK_ERR.belowGround });
+    // Task 5: the preview carries the meter; a piece refused before the projection (tiles) has none.
+    expect(previewTrackPiece(w, id, 'flat_to_gentle_down')).toEqual({ ok: false, reason: TRACK_ERR.belowGround, meter: null });
     const r = expectOk(add(w, id, { id: 'flat_to_gentle_up', chain: true }, false));
     expect(r.cost).toBe(6_300);
   });

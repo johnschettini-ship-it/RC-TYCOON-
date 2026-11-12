@@ -48,6 +48,11 @@ export const TRACK_ERR = {
   unsafePosG: 'Too strong for riders: {g} G on piece {n} (limit {limit} G)',
   unsafeNegG: 'Lifts riders too hard: {g} G on piece {n} (limit {limit} G)',
   unsafeLat: 'Too hard sideways: {g} G on piece {n} (limit {limit} G)',
+  // R7 (Task 5): a piece whose projected section passes a hard safety limit cannot be built. `{g}` and `{limit}` have
+  // two decimals (`formatSafetyG`), so a refusal never reads as equal to the limit.
+  pieceUnsafePosG: 'Over the safety limit: {g} G (max {limit} G)',
+  pieceUnsafeNegG: 'Over the safety limit: {g} G (min {limit} G)',
+  pieceUnsafeLat: 'Over the safety limit: {g} G sideways (max {limit} G)',
 } as const;
 
 /** Command warnings (Phase 1 §4.1 strings, reused for track gates). */
@@ -79,8 +84,11 @@ export const trackStrings: Record<string, string> = {
   'track.testFailedLoop': TRACK_RATING_WARN.testFailedLoop,
   'track.testFailedCorkscrew': TRACK_RATING_WARN.testFailedCorkscrew,
   'track.fault': 'Ride closed after a fault. Run a new test',
-  // R7: `{text}` is the filled unsafe reason (`TRACK_ERR.unsafe*`).
-  'track.testUnsafe': 'Test: {text}',
+  // R7: a passed test whose strongest car passed a hard limit. The same texts as the Open refusals, with their own
+  // parameters (`{g}`, `{n}`, `{limit}`), so the message line is translated as a whole.
+  'track.testUnsafePosG': `Test: ${TRACK_ERR.unsafePosG}`,
+  'track.testUnsafeNegG': `Test: ${TRACK_ERR.unsafeNegG}`,
+  'track.testUnsafeLat': `Test: ${TRACK_ERR.unsafeLat}`,
 };
 
 /** Fill `{key}` placeholders. */

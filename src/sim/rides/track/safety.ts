@@ -55,21 +55,43 @@ export function meterLevel(kind: SafetyKind, hundredths: number): MeterLevel {
   return hundredths >= WARN_LAT ? 'warn' : 'ok';
 }
 
-/** One decimal, Unicode minus: 640 → "6.4", −230 → "−2.3". */
+/**
+ * Two decimals (the hundredths the limits compare), Unicode minus: 601 → "6.01", −230 → "−2.30". A value just past a
+ * limit never reads as the limit itself. The meter, the Build refusal and the Open refusal all use it.
+ */
 export function formatSafetyG(hundredths: number): string {
-  const tenths = Math.round(Math.abs(hundredths) / 10);
-  const s = `${Math.floor(tenths / 10)}.${tenths % 10}`;
-  return hundredths < 0 && tenths > 0 ? `−${s}` : s;
+  const a = Math.abs(Math.round(hundredths));
+  const s = `${Math.floor(a / 100)}.${String(a % 100).padStart(2, '0')}`;
+  return hundredths < 0 && a > 0 ? `−${s}` : s;
 }
 
 function limitOf(kind: SafetyKind): number {
   return kind === 'posG' ? LIMIT_POS : kind === 'negG' ? LIMIT_NEG : LIMIT_LAT;
 }
 
+function breachParams(b: SafetyBreach): { g: string; limit: string } {
+  return { g: formatSafetyG(b.value), limit: formatSafetyG(limitOf(b.kind)) };
+}
+
 /** Open refusal and ride warning for a test whose strongest car passed a limit on piece `pieceNumber` (1-based). */
 export function unsafeOpenReason(b: SafetyBreach, pieceNumber: number): string {
   const template = b.kind === 'posG' ? TRACK_ERR.unsafePosG : b.kind === 'negG' ? TRACK_ERR.unsafeNegG : TRACK_ERR.unsafeLat;
-  return fillTrackString(template, { g: formatSafetyG(b.value), n: pieceNumber, limit: formatSafetyG(limitOf(b.kind)) });
+  return fillTrackString(template, { ...breachParams(b), n: pieceNumber });
+}
+
+/**
+ * The test message for the same case: a string-table id with its parameters (not a filled English sentence), so the
+ * message log shows it in the player's language.
+ */
+export function unsafeTestMessage(b: SafetyBreach, pieceNumber: number): { textId: string; params: { g: string; n: number; limit: string } } {
+  const textId = b.kind === 'posG' ? 'track.testUnsafePosG' : b.kind === 'negG' ? 'track.testUnsafeNegG' : 'track.testUnsafeLat';
+  return { textId, params: { ...breachParams(b), n: pieceNumber } };
+}
+
+/** Build refusal (Task 5) for a piece whose projected section passes a hard limit. */
+export function unsafePieceReason(b: SafetyBreach): string {
+  const template = b.kind === 'posG' ? TRACK_ERR.pieceUnsafePosG : b.kind === 'negG' ? TRACK_ERR.pieceUnsafeNegG : TRACK_ERR.pieceUnsafeLat;
+  return fillTrackString(template, breachParams(b));
 }
 
 /**

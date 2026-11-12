@@ -27,6 +27,7 @@ import {
   place,
   R1_PIECES,
   UNSAFE_DROP_PIECES,
+  writePieces,
   type PieceSpec,
 } from './helpers';
 
@@ -129,7 +130,7 @@ describe('section projection (R5, owner 2026-11-12)', () => {
   it('the strongest car is each car’s own window, the same value the test lap refuses to open with (review I-2)', () => {
     const w = makeTestWorld();
     const id = place(w, 'steel_coaster', 4, 2, EAST);
-    addAll(w, id, UNSAFE_DROP_PIECES);
+    writePieces(w, id, UNSAFE_DROP_PIECES); // Task 5: Build refuses its piece 32, so the circuit is written, not built
     const d = dataOf(w, id);
     const lap = runTestLapDetailed(w.state.map, d, steel);
     const k = lap.breachPiece!;

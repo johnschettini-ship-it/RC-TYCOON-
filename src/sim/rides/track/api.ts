@@ -28,6 +28,7 @@ import { jointsEqual, localToWorld, pieceEntryJoint, pieceExitJoint, piecesForEn
 import { buildLayout, getLayout, newSamplePoint, poseAt, type TrackPose } from './layout';
 import { buildOccupancy, groundOwner, highestAboveGround, refreshGroundTiles } from './placement';
 import { ratingWarnings } from './ratings';
+import type { SectionProjection } from './projection';
 import { unsafeOpenReason } from './safety';
 import { stationAppendBlock } from './stops';
 import { troublePlaceOf, type TroublePlace } from './trouble';
@@ -181,23 +182,28 @@ export function nextTrackPieces(world: World, rideId: number): TrackPieceDef[] {
   return piecesForEnd(data.typeId, end.slope, end.bank, !!type && stationAppendBlock(data.pieces, type) === null);
 }
 
-/** Ghost preview for the builder: the same checks as `addTrackPiece`, without changing anything. */
+/**
+ * Ghost preview for the builder: the same checks as `addTrackPiece`, without changing anything. `meter` (R5) is the
+ * piece's projected section when it was computed (the piece is ok, or refused for safety or cash), else null.
+ */
 export function previewTrackPiece(
   world: World,
   rideId: number,
   defId: string,
   chain = false,
   brakeSpeed?: number,
-): { ok: true; cost: Cents; closes: boolean; tiles: number[]; heightAboveGround: number } | { ok: false; reason: string } {
+):
+  | { ok: true; cost: Cents; closes: boolean; tiles: number[]; heightAboveGround: number; meter: SectionProjection | null }
+  | { ok: false; reason: string; meter: SectionProjection | null } {
   const ride = findRide(world, rideId);
   const data = trackData(world, rideId);
   const type = data ? getTrackTypeDef(data.typeId) : undefined;
-  if (!ride || !data || !type) return { ok: false, reason: TRACK_ERR.noRide };
+  if (!ride || !data || !type) return { ok: false, reason: TRACK_ERR.noRide, meter: null };
   const r = planAppend(world, ride, data, type, defId, chain, brakeSpeed, { setup: false });
-  if (!r.ok) return r;
+  if (!r.ok) return { ok: false, reason: r.reason, meter: r.projection ?? null };
   const map = world.state.map;
   const h = Math.max(0, ...r.plan.tiles.map((t) => t.wt.railMax - (map.heights[t.index] as number)));
-  return { ok: true, cost: r.plan.cost, closes: r.plan.closes, tiles: r.plan.tiles.map((t) => t.index), heightAboveGround: h };
+  return { ok: true, cost: r.plan.cost, closes: r.plan.closes, tiles: r.plan.tiles.map((t) => t.index), heightAboveGround: h, meter: r.plan.projection ?? null };
 }
 
 /** Car poses of every train on the circuit, front car first (renderer). */

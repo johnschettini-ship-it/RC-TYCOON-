@@ -31,7 +31,7 @@ import { emitTrackCues } from './cues';
 import { newTrain, stepTrain, stopCentreMm, type StepContext, type StepResult } from './physics';
 import { stepWithStops, usesStops } from './stops';
 import type { TrackRideData, TrainState } from './types';
-import { unsafeOpenReason } from './safety';
+import { unsafeTestMessage } from './safety';
 import { troublePlaceOf } from './trouble';
 
 /** Snapshot of a train for this tick's decisions (positions in mm). */
@@ -207,8 +207,8 @@ export function stepLiveTest(world: World, ride: Ride, data: TrackRideData, type
   const place = troublePlaceOf(world, data);
   const tile = place ? place.tile : stationTile(world, ride);
   if (res.passed && place && place.kind !== 'stall' && place.value !== null) {
-    const text = unsafeOpenReason({ kind: place.kind, value: place.value }, place.pieceIndex + 1);
-    emit(world, { type: 'message', category: 'park', textId: 'track.testUnsafe', params: { text }, tile, entityId: ride.id });
+    const m = unsafeTestMessage({ kind: place.kind, value: place.value }, place.pieceIndex + 1);
+    emit(world, { type: 'message', category: 'park', textId: m.textId, params: m.params, tile, entityId: ride.id });
   } else if (res.passed) {
     emit(world, { type: 'message', category: 'park', textId: 'track.testPassed', params: { name: ride.name }, tile, entityId: ride.id });
   } else {

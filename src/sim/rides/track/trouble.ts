@@ -1,12 +1,14 @@
 /**
  * The trouble place of a ride's last test (R7, owner 2026-11-12; plan ride-work-1 decision 7). Owner: W1-G.
- * Derived on demand, never saved: a failed test's stall piece, or for a passed test the piece where the strongest car
- * first passed a hard safety limit (a deterministic re-run of the lap, cached by the stored result).
+ * Derived on demand, never saved: a failed test's stall piece, or for a passed test over a hard safety limit the first
+ * piece Build would refuse for it (`firstUnsafeSection`, Task 5) with that section's value (deterministic re-runs,
+ * cached by the stored result).
  */
 import { getTrackTypeDef } from '../../../data/track';
 import { inBounds, tileIndex } from '../../map';
 import type { World } from '../../types';
 import { pieceWorldTiles } from './geometry';
+import { firstUnsafeSection } from './projection';
 import type { SafetyKind } from './safety';
 import { testLapDetail } from './testRun';
 import type { TestResult, TrackRideData } from './types';
@@ -46,8 +48,13 @@ export function troublePlaceOf(world: World, data: TrackRideData): TroublePlace 
   } else {
     const type = getTrackTypeDef(data.typeId);
     const d = type ? testLapDetail(world.state.map, data, type, t) : null;
-    if (d?.breach && d.breachPiece !== null) {
-      place = { pieceIndex: d.breachPiece, kind: d.breach.kind, tile: pieceTile(world, data, d.breachPiece), value: d.breach.value };
+    if (type && d?.breach && d.breachPiece !== null) {
+      // Task 5: name the piece Build refuses, with its section's value (the same check, the same number); the lap's own
+      // first tick over the limit is the fallback (not expected: every lap tick is measured by some section).
+      const s = firstUnsafeSection(data.pieces, type, data.trainConfig.carsPerTrain);
+      const pieceIndex = s ? s.pieceIndex : d.breachPiece;
+      const breach = s ? s.breach : d.breach;
+      place = { pieceIndex, kind: breach.kind, tile: pieceTile(world, data, pieceIndex), value: breach.value };
     }
   }
   places.set(t, place);

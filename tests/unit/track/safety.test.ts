@@ -17,7 +17,8 @@ import { canOpenTrackRide, trackTroublePlace, trackWarnings } from '../../../src
 import { pieceWorldTiles } from '../../../src/sim/rides/track/geometry';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { carOffsetMm, stepTrain, trainGAt, type StepContext } from '../../../src/sim/rides/track/physics';
-import { formatSafetyG, meterLevel, safetyBreachOf } from '../../../src/sim/rides/track/safety';
+import { formatSafetyG, meterLevel, safetyBreachOf, unsafeOpenReason, unsafeTestMessage } from '../../../src/sim/rides/track/safety';
+import { setLocale, t } from '../../../src/data/strings/index';
 import { dispatchedTestTrain, runTestLap, runTestLapDetailed, trainLengthMm } from '../../../src/sim/rides/track/testRun';
 import type { TrackRideData } from '../../../src/sim/rides/track/types';
 import { updateTrackRides } from '../../../src/sim/rides/track/update';
@@ -36,15 +37,21 @@ import {
   rideOf,
   SHARP_TURN_PIECES,
   UNSAFE_DROP_PIECES,
+  writePieces,
   type PieceSpec,
 } from './helpers';
 
 const steel = getTrackTypeDef('steel_coaster') as TrackTypeDef;
 
+/**
+ * A Steel Coaster at (4, 2) heading +x. Task 5: Build refuses an over-limit piece, so the unsafe circuits are written
+ * into the ride data (`writePieces`: the same tile rules, no safety rule); the others are built with commands.
+ */
 function build(pieces: PieceSpec[]): { w: World; id: number; d: TrackRideData } {
   const w = makeTestWorld();
   const id = place(w, 'steel_coaster', 4, 2, EAST);
-  addAll(w, id, pieces);
+  if (pieces === UNSAFE_DROP_PIECES || pieces === SHARP_TURN_PIECES) writePieces(w, id, pieces);
+  else addAll(w, id, pieces);
   return { w, id, d: dataOf(w, id) };
 }
 
@@ -138,8 +145,26 @@ describe('hard safety limits (R7, owner 2026-11-12)', () => {
     expect([199, 200, 300, 301].map((h) => meterLevel('lat', h))).toEqual(['ok', 'warn', 'warn', 'over']);
   });
 
-  it('formatSafetyG: one decimal and a Unicode minus', () => {
-    expect([640, -230, 600, 0, 1234].map(formatSafetyG)).toEqual(['6.4', '−2.3', '6.0', '0.0', '12.3']);
+  // Task 5 (controller 2026-11-12): two decimals, so a refusal at 6.01 G never reads as the 6.00 G limit.
+  it('formatSafetyG: two decimals and a Unicode minus', () => {
+    expect([640, -230, 600, 601, 0, 1234, -5].map(formatSafetyG)).toEqual(['6.40', '−2.30', '6.00', '6.01', '0.00', '12.34', '−0.05']);
+  });
+
+  it('the unsafe test message is a string-table text with parameters, translated whole in en-XA', () => {
+    const m = unsafeTestMessage({ kind: 'posG', value: 621 }, 32);
+    expect(m).toEqual({ textId: 'track.testUnsafePosG', params: { g: '6.21', n: 32, limit: '6.00' } });
+    expect(t(m.textId, m.params)).toBe(`Test: ${unsafeOpenReason({ kind: 'posG', value: 621 }, 32)}`);
+    try {
+      setLocale('en-XA');
+      for (const kind of ['posG', 'negG', 'lat'] as const) {
+        const x = unsafeTestMessage({ kind, value: kind === 'negG' ? -201 : 650 }, 4);
+        const line = t(x.textId, x.params);
+        expect(line).toContain(String(x.params.g));
+        expect(line, kind).not.toMatch(/[A-Za-z]{3,}/); // no English words left
+      }
+    } finally {
+      setLocale('en');
+    }
   });
 
   it('a passed test whose strongest car passes 6.0 G blocks opening and names the value and the piece', () => {
@@ -150,12 +175,12 @@ describe('hard safety limits (R7, owner 2026-11-12)', () => {
     expect(result.posGMax).toBeLessThanOrEqual(600);
     expect(worst.posGMax).toBeGreaterThan(600); // precondition: the circuit is unsafe
     expect(troubleKind).toBe('posG');
-    const reason = fillTrackString(TRACK_ERR.unsafePosG, { g: formatSafetyG(worst.posGMax), n: troublePiece! + 1, limit: '6.0' });
+    const reason = fillTrackString(TRACK_ERR.unsafePosG, { g: formatSafetyG(worst.posGMax), n: troublePiece! + 1, limit: '6.00' });
     publishTest(w, id);
-    // The test message is the unsafe one and points at the trouble piece.
+    // The test message is the unsafe one and points at the trouble piece (Task 5: a string id with its parameters).
     const m = lastMessage(w);
-    expect(m.textId).toBe('track.testUnsafe');
-    expect(m.params).toEqual({ text: reason });
+    expect(m.textId).toBe('track.testUnsafePosG');
+    expect(m.params).toEqual({ g: formatSafetyG(worst.posGMax), n: troublePiece! + 1, limit: '6.00' });
     expect(m.tile).toBe(firstTile(w, d, troublePiece!));
     expect(trackTroublePlace(w, id)).toEqual({ pieceIndex: troublePiece, kind: 'posG', tile: firstTile(w, d, troublePiece!), value: worst.posGMax });
     placeGates(w, id);
@@ -171,10 +196,17 @@ describe('hard safety limits (R7, owner 2026-11-12)', () => {
     expect(det.result.latMax).toBeLessThanOrEqual(300);
     expect(det.worst.latMax).toBeGreaterThan(300);
     expect(det.troubleKind).toBe('lat');
+    // The lap first passes 3.0 G with its centre on the straight (piece 18) and its front cars in the small turn.
+    expect(d.pieces[det.troublePiece!]!.defId).toBe('straight');
     publishTest(w, id);
     placeGates(w, id);
+    // Task 5: Open names the piece Build refuses (the small turn, piece 19, the first section over the limit) with the
+    // same value; here the strongest car's value of the whole lap.
+    const place = trackTroublePlace(w, id)!;
+    expect(place).toMatchObject({ pieceIndex: det.troublePiece! + 1, kind: 'lat', value: det.worst.latMax });
+    expect(d.pieces[place.pieceIndex]!.defId).toBe('turn_small_right');
     expect(canOpenTrackRide(w, rideOf(w, id))).toBe(
-      fillTrackString(TRACK_ERR.unsafeLat, { g: formatSafetyG(det.worst.latMax), n: det.troublePiece! + 1, limit: '3.0' }),
+      fillTrackString(TRACK_ERR.unsafeLat, { g: formatSafetyG(det.worst.latMax), n: place.pieceIndex + 1, limit: '3.00' }),
     );
   });
 
@@ -228,7 +260,7 @@ describe('hard safety limits (R7, owner 2026-11-12)', () => {
     }
     expect(ride.status).toBe('open');
     ride.status = 'closed';
-    expect(canOpenTrackRide(w, ride)).toMatch(/^Too strong for riders: \d+\.\d G on piece \d+ \(limit 6\.0 G\)$/);
+    expect(canOpenTrackRide(w, ride)).toMatch(/^Too strong for riders: \d+\.\d\d G on piece \d+ \(limit 6\.00 G\)$/);
   });
 
   it('a passed test within the limits has no trouble place and opens as before', () => {

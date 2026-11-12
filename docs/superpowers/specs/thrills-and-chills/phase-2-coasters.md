@@ -128,6 +128,8 @@ Groups: S station, St straight, G gentle, X steep, Ts small turn, Tm medium turn
 ### 4.6 Validation and error strings
 Commands return these exact `reason` strings (no final period, master R4). `{n}` and `{name}` are filled in.
 
+`addTrackPiece` checks in this order (ride work 1 Task 5, 2026-11-12): length, piece, type, fit, tiles, supports, **safety**, cash. The safety check applies in setup mode too; a stall never blocks building (§4.9).
+
 | Rule | Reason |
 |---|---|
 | Not enough money | `Not enough cash` |
@@ -143,6 +145,7 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
 | Rail below ground | `Track cannot go below ground` |
 | Rail higher than the type maximum | `Too high for this ride type (max {n} m)` |
 | More than 2 unsupported tiles in a row | `Too many tiles without supports` |
+| The piece's projected section passes a hard safety limit (R7, ride work 1 Task 5; §4.9) | `Over the safety limit: {g} G (max 6.00 G)`, `Over the safety limit: {g} G (min −2.00 G)`, `Over the safety limit: {g} G sideways (max 3.00 G)` |
 | More than 300 pieces | `Track is too long (max 300 pieces)` |
 | Gate not beside a station side | `Gate must be beside the station` |
 | Gate tile not empty | `Tile is not empty` |
@@ -215,7 +218,9 @@ Commands return these exact `reason` strings (no final period, master R4). `{n}`
   - `Gv = ((g·cosθ + v²·κv)·cosβ + v²·κh·sinβ) / g`
   - `Gl = |v²·κh·cosβ − g·cosθ·sinβ| / g`
 - **Hard safety limits (R7, owner 2026-11-12; ride work 1 Task 3):** a test lap whose **strongest car** passes vertical G above **6.0**, below **−2.0**, or lateral G above **3.0** cannot open (the rating penalty limits 5.0 / −1.5 / 2.5 stay). The strongest car is each car's own 5-tick moving average (station ticks excluded, as above), then the largest (or, for −G, the smallest) over the cars (controller decision 2026-11-12, review I-2: not a window of the per-tick strongest car, which mixes cars and refuses circuits no seat feels). Compared as integer hundredths, strictly: exactly 6.00, −2.00 and 3.00 are allowed. Nothing is saved: the values are derived from a deterministic re-run of the lap, cached by the stored test result.
-  - **Open rule:** after "Run a test first", a passed test over a limit refuses with `Too strong for riders: {g} G on piece {n} (limit 6.0 G)`, `Lifts riders too hard: {g} G on piece {n} (limit −2.0 G)` or `Too hard sideways: {g} G on piece {n} (limit 3.0 G)` (checked posG, negG, lat; `{n}` is the piece under the train's centre at the first tick where that limit was passed). The same text is the first ride warning and the test message (`Test: …`). An open ride is never closed by this rule; it is checked when it next opens.
+  - **Open rule:** after "Run a test first", a passed test over a limit refuses with `Too strong for riders: {g} G on piece {n} (limit 6.00 G)`, `Lifts riders too hard: {g} G on piece {n} (limit −2.00 G)` or `Too hard sideways: {g} G on piece {n} (limit 3.00 G)` (checked posG, negG, lat; `{n}` is the piece Build refuses, see "One place, one value" below; two decimals since Task 5). The same text is the first ride warning; the test message is `Test: …` with the same parameters (its own string ids, so it is translated as a whole). An open ride is never closed by this rule; it is checked when it next opens.
+  - **Build rule (R7, ride work 1 Task 5, 2026-11-12):** a piece whose **projected section** passes a hard limit cannot be built (Build disabled in the builder, the reason in its line; the command refuses with `Over the safety limit: …`, §4.6), in setup mode too. The projection simulates the test train from the station dispatch over the open track plus the candidate with the test lap's physics and windows; past the last piece the track runs on straight (the virtual run-out). The **section** of a candidate runs from the tick the front car's centre reaches it until the train's centre leaves it: the first part is exact (every car is on real track), so every tick of the closed test lap is measured exactly by the candidate under the front car, and a circuit whose every piece was buildable passes the open rule (dispatch aside); the second part (centre on the candidate, front cars on the run-out) is the plan's centre rule. A stall never blocks building: the meter shows "Train stops on piece n". G values at the limits are shown with two decimals (`6.01 G … (max 6.00 G)`), the same formatter in the meter, the Build reason and the Open reason.
+  - **One place, one value (Task 5):** for a passed test over a limit, the piece and value that Open, the test message and the map name are those of the first piece Build would refuse when the circuit is built in order (`firstUnsafeSection`: one pass of the projection over the track), so Build and Open always name the same piece and the same value. On the reference unsafe circuits this is the piece that ends the too-tight valley (piece 32, 6.21 G, also the lap's strongest car) and the small turn itself (piece 19, 3.25 G sideways; the lap first passes the limit with its centre on the straight before it).
   - **Place on the map:** the trouble piece (a failed test's stall piece, or the piece above) is outlined in the blocked colours with the cross icon while the ride is selected; the test message points at its tile, and the ride panel's Overview has **Show on map** (shown only when there is a place).
 
 ### 4.10 Ratings
@@ -267,7 +272,7 @@ Steps in order:
 | E < 2.00 | `This ride is dull` |
 | Any penalty applied | `G-forces are too strong. Guests enjoy this ride less` |
 | Test failed | `Test failed: train stops on piece {n} ({name})` or `Test failed: train is too slow for the loop on piece {n}` |
-| Passed, but over a hard safety limit (R7, §4.9) | `Too strong for riders: {g} G on piece {n} (limit 6.0 G)` (or the −G / sideways text), listed first |
+| Passed, but over a hard safety limit (R7, §4.9) | `Too strong for riders: {g} G on piece {n} (limit 6.00 G)` (or the −G / sideways text), listed first |
 
 ### 4.11 Guests on track rides
 - Ride choice uses the Phase 1 score and hard rejects, including max intensity `2.0 + 0.08 × T`. A ride without a passed test has no stats and is never chosen.

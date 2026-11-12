@@ -15,6 +15,8 @@ import { clearTest, refundShare } from './common';
 import { jointsEqual, pieceEntryJoint, pieceExitJoint, pieceWorldTiles, TRACK_DX, TRACK_DY, trackDirFromMapDir, type Joint } from './geometry';
 import { invalidateLayout } from './layout';
 import { checkPieceTiles, pieceCost, refreshGroundTiles, type TilePlan } from './placement';
+import { projectSection, type SectionProjection } from './projection';
+import { unsafePieceReason } from './safety';
 import { stationAppendBlock } from './stops';
 import type { TrackPieceInstance, TrackRideData } from './types';
 
@@ -24,9 +26,12 @@ export interface PiecePlan {
   tiles: TilePlan[];
   cost: number;
   closes: boolean;
+  /** R5/R7: the projected section of the piece (the builder's meter); absent on plans made outside `planAppend`. */
+  projection?: SectionProjection;
 }
 
-export type PlanResult = { ok: true; plan: PiecePlan } | { ok: false; reason: string };
+/** A refusal carries the projection when the piece was refused for safety (R7) or by the cash check after it. */
+export type PlanResult = { ok: true; plan: PiecePlan } | { ok: false; reason: string; projection?: SectionProjection };
 
 /** The joint where the next piece starts (the station entry when the track is empty). */
 export function trackEnd(world: World, ride: Ride, data: TrackRideData): Joint {
@@ -37,7 +42,12 @@ export function trackEnd(world: World, ride: Ride, data: TrackRideData): Joint {
   return { x: ride.x, y: ride.y, z, dir: trackDirFromMapDir(ride.rotation), slope: 'F', bank: 'none' };
 }
 
-/** Validate a piece at the track end (§4.6 order: length, piece, type, fit, tiles, supports, cash). */
+/**
+ * Validate a piece at the track end (§4.6 order: length, piece, type, fit, tiles, supports, safety, cash). Safety (R7,
+ * owner 2026-11-12): the piece's projected section (`projectSection`: the test train from the station over the open
+ * track plus this piece, values taken while the train's centre is on it, strongest car) must not pass a hard limit. It
+ * applies with `ctx.setup` too. A stall does not block building (the meter shows it; the test blocks opening).
+ */
 export function planAppend(
   world: World,
   ride: Ride,
@@ -74,12 +84,14 @@ export function planAppend(
   const piece: TrackPieceInstance = { defId, x: end.x, y: end.y, z: end.z, dir: end.dir, chain, brakeSpeed: bs, cost: 0 };
   const chk = checkPieceTiles(world, ride.id, pieces.length, piece, type, pieces);
   if (!chk.ok) return chk;
+  const projection = projectSection(data, type, piece);
+  if (projection.breach) return { ok: false, reason: unsafePieceReason(projection.breach), projection };
   const cost = pieceCost(type, def, chain, chk.heightAboveGround);
-  if (!canAfford(world, cost, ctx)) return { ok: false, reason: TRACK_ERR.notEnoughCash };
+  if (!canAfford(world, cost, ctx)) return { ok: false, reason: TRACK_ERR.notEnoughCash, projection };
   piece.cost = cost;
   const first = pieces[0];
   const closes = first !== undefined && jointsEqual(pieceExitJoint(piece), pieceEntryJoint(first));
-  return { ok: true, plan: { piece, def, tiles: chk.tiles, cost, closes } };
+  return { ok: true, plan: { piece, def, tiles: chk.tiles, cost, closes, projection } };
 }
 
 /** Apply a validated plan: add the piece, take ground tiles, pay, close the circuit. */
