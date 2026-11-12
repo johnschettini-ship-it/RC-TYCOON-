@@ -27,6 +27,7 @@ import { markNetworkDirty } from '../../pathing';
 import { isUnlocked } from '../../research/api';
 import type { World } from '../../types';
 import type { Ride } from '../types';
+import { planPath } from './autoFinish';
 import { applyPlan, clearGateTile, gateSide, planAppend, removeLast } from './build';
 import { clearTest, editBlock, enterBuilding, isRunningStatus, refundShare, trackContext, trainsIdle } from './common';
 import { TRACK_DX, TRACK_DY, trackDirFromMapDir } from './geometry';
@@ -147,6 +148,26 @@ function addTrackPiece(world: World, cmd: Cmd<'addTrackPiece'>, ctx: CommandCont
   if (ride.status !== 'building') enterBuilding(ride, data);
   applyPlan(world, ride, data, r.plan, ctx);
   return ok(r.plan.cost, r.plan.closes ? [TRACK_WARN.circuitComplete] : []);
+}
+
+/**
+ * R1 (Task 7): build a closing path at once. `planPath` re-checks every piece against the world as it is now (tiles,
+ * supports, safety, the train not stopping), the circuit closing, the finished lap (R8) and the cash for the whole path;
+ * nothing is written before every check has passed. Undo (`removeLastTrackPiece`) then removes the pieces one at a time.
+ */
+function autoFinishTrack(world: World, cmd: Cmd<'autoFinishTrack'>, ctx: CommandContext): CommandResult {
+  const tc = trackContext(world, cmd.rideId);
+  if (!tc) return fail(TRACK_ERR.noRide);
+  const { ride, data, type } = tc;
+  const block = editBlock(ride, data);
+  if (block) return fail(block);
+  if (data.circuitClosed) return fail(TRACK_ERR.circuitAlreadyComplete);
+  if (!Array.isArray(cmd.pieces)) return fail(TRACK_ERR.autoFinishNotClosing);
+  const r = planPath(world, ride, data, type, cmd.pieces, ctx);
+  if (!r.ok) return fail(r.reason);
+  if (ride.status !== 'building') enterBuilding(ride, data);
+  for (const plan of r.plans) applyPlan(world, ride, data, plan, ctx);
+  return ok(r.cost, [TRACK_WARN.circuitComplete]);
 }
 
 function removeLastTrackPiece(world: World, cmd: Cmd<'removeLastTrackPiece'>, ctx: CommandContext): CommandResult {
@@ -351,6 +372,7 @@ function editTrack(world: World, cmd: Cmd<'editTrack'>, _ctx: CommandContext): C
 export const trackHandlers: HandlerMap<TrackCommand> = {
   placeStation,
   addTrackPiece,
+  autoFinishTrack,
   removeLastTrackPiece,
   setPieceOptions,
   placeTrackGate,

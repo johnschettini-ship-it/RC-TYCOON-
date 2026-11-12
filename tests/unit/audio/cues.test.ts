@@ -89,6 +89,7 @@ const SAMPLE: { [K in Command['type']]: Extract<Command, { type: K }> } = {
   renamePark: { type: 'renamePark', name: 'P' },
   placeStation: { type: 'placeStation', typeId: 'steel_coaster', x: 1, y: 1, dir: 1 },
   addTrackPiece: { type: 'addTrackPiece', rideId: 1, defId: 'straight' },
+  autoFinishTrack: { type: 'autoFinishTrack', rideId: 1, pieces: [] },
   removeLastTrackPiece: { type: 'removeLastTrackPiece', rideId: 1 },
   setPieceOptions: { type: 'setPieceOptions', rideId: 1, index: 0, chain: true },
   placeTrackGate: { type: 'placeTrackGate', rideId: 1, kind: 'entrance', x: 1, y: 1 },
@@ -144,7 +145,7 @@ describe('command results → SFX (every command kind)', () => {
         .filter(([, v]) => v === sfx)
         .map(([k]) => k)
         .sort();
-    expect(by('build_place')).toEqual(['addTrackPiece', 'buildPathItem', 'placeRide', 'placeScenery', 'placeShowSite', 'placeStall', 'placeStation', 'placeTrackGate']);
+    expect(by('build_place')).toEqual(['addTrackPiece', 'autoFinishTrack', 'buildPathItem', 'placeRide', 'placeScenery', 'placeShowSite', 'placeStall', 'placeStation', 'placeTrackGate']);
     expect(by('build_path')).toEqual(['buildPath', 'buildPathLine', 'buyLand', 'levelLand', 'lowerCorner', 'lowerLand', 'lowerWater', 'paintTerrain', 'raiseCorner', 'raiseLand', 'raiseWater', 'smoothLand']);
     expect(by('demolish')).toEqual(['demolish', 'removeLastTrackPiece', 'removePathItem', 'removeScenery']);
     expect(Object.keys(COMMAND_SFX).sort()).toEqual(Object.keys(SAMPLE).sort());

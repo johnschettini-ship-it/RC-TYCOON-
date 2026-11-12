@@ -46,6 +46,8 @@ export type TrackCommand =
   | { type: 'placeStation'; typeId: string; x: number; y: number; dir: Dir }
   | { type: 'addTrackPiece'; rideId: EntityId; defId: string; chain?: boolean; brakeSpeed?: number }
   | { type: 'removeLastTrackPiece'; rideId: EntityId }
+  /** R1 (Task 7): build a whole closing path at once (all or nothing); Undo removes the pieces one at a time. */
+  | { type: 'autoFinishTrack'; rideId: EntityId; pieces: { defId: string; chain: boolean }[] }
   | { type: 'setPieceOptions'; rideId: EntityId; index: number; chain?: boolean; brakeSpeed?: number }
   | { type: 'placeTrackGate'; rideId: EntityId; kind: 'entrance' | 'exit'; x: number; y: number }
   | { type: 'setTrainConfig'; rideId: EntityId; trains: number; carsPerTrain: number }

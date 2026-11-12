@@ -53,6 +53,11 @@ export const TRACK_ERR = {
   pieceUnsafePosG: 'Over the safety limit: {g} G (max {limit} G)',
   pieceUnsafeNegG: 'Over the safety limit: {g} G (min {limit} G)',
   pieceUnsafeLat: 'Over the safety limit: {g} G sideways (max {limit} G)',
+  // R1/R8 (owner 2026-11-12): Auto-finish (the search's answer and the `autoFinishTrack` command's refusals).
+  autoFinishNone: 'No safe way back to the station was found',
+  autoFinishStallsFirst: 'The train stops on piece {n}. Fix that first',
+  autoFinishNotClosing: 'These pieces do not reach the station',
+  autoFinishLapFails: 'The finished ride would not pass its test',
 } as const;
 
 /** Command warnings (Phase 1 §4.1 strings, reused for track gates). */

@@ -43,6 +43,7 @@ export const COMMAND_SFX: Readonly<Record<Command['type'], SfxId | null>> = Obje
   placeStation: 'build_place',
   placeTrackGate: 'build_place',
   addTrackPiece: 'build_place',
+  autoFinishTrack: 'build_place',
   buildPathItem: 'build_place',
   // Path tiles, and the brush-like land tools (one tick per edit, limited with the paths).
   buildPath: 'build_path',

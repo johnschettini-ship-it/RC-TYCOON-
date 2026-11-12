@@ -200,3 +200,13 @@ export const METER_WARN_MARGIN_G = 0.5;
  * prefix (120 s); a train still on the candidate piece then counts as not reached. Provisional.
  */
 export const PROJECTION_MAX_TICKS = 2_400;
+
+/**
+ * R1/R8 (owner 2026-11-12; plan ride-work-1 decision 9): the Auto-finish search. Weighted A* (`f = g + weight·h`) from
+ * the track end to the station's entry over the ride's plain pieces. Limits: at most `maxPieces` pieces added,
+ * `nodeLimit` expanded nodes and `lapTries` closed test laps. The builder runs the search in slices of `nodesPerSlice`
+ * nodes until `frameBudgetMs` of the frame are spent (Task 7 measured about 0.2 ms per node on desktop, so the plan's
+ * 1,500 nodes per frame would hold a frame for about 300 ms). The answer never depends on the slicing.
+ * Provisional (tuning-log.md).
+ */
+export const AUTO_FINISH = { maxPieces: 40, nodeLimit: 20_000, lapTries: 8, nodesPerSlice: 16, frameBudgetMs: 10, weight: 2 } as const;

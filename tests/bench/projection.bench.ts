@@ -12,7 +12,8 @@ import { getTrackTypeDef, type TrackTypeDef } from '../../src/data/track';
 import { continueProjection, projectPrefix } from '../../src/sim/rides/track/projection';
 import type { TrackRideData } from '../../src/sim/rides/track/types';
 import { makeTestWorld } from '../helpers/world';
-import { dataOf, EAST, HILLS_300, layPieces, place } from '../unit/track/helpers';
+import { findClosingPath, startAutoFinish } from '../../src/sim/rides/track/autoFinish';
+import { addAll, dataOf, EAST, HILLS_300, layPieces, place, R1_PIECES } from '../unit/track/helpers';
 
 const RUN = { time: 2_000, warmupTime: 300 };
 
@@ -41,3 +42,17 @@ for (const [typeId, cars] of [['steel_coaster', 4], ['steel_coaster', 7], ['inve
     );
   }, 120_000);
 }
+
+/**
+ * R1 (plan ride-work-1 Task 7): one whole Auto-finish search on R1 with its last five pieces missing (no budget in the
+ * plan; the builder runs it in slices of `AUTO_FINISH.nodesPerFrame` nodes, so it never blocks one frame for long).
+ */
+test('auto-finish: R1 without its last five pieces', async ({ bench }) => {
+  const w = makeTestWorld();
+  const id = place(w, 'steel_coaster', 4, 2, EAST);
+  addAll(w, id, R1_PIECES.slice(0, R1_PIECES.length - 5));
+  const f = await bench('findClosingPath (R1 − 5)', () => findClosingPath(w, id)).run(RUN);
+  const s = startAutoFinish(w, id);
+  const o = s.step(Number.POSITIVE_INFINITY);
+  console.log(`[bench] auto-finish R1 − 5: mean ${f.latency.mean.toFixed(3)} ms, ${s.nodes} nodes, ${o?.kind}`);
+}, 120_000);

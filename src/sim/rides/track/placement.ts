@@ -36,6 +36,11 @@ export interface Envelope {
   railMin: number;
   railMax: number;
   rail: boolean;
+  /**
+   * Auto-finish (Task 7): an envelope of a path piece not built yet (`checkPieceTiles` option `extra`) that would take its
+   * tile's ground. The check then treats the tile as track ground, as it would read once that piece is built.
+   */
+  ownsGround?: boolean;
 }
 
 export type Occupancy = Map<number, Envelope[]>;
@@ -141,6 +146,20 @@ export interface TileCheck {
   tiles: TilePlan[];
   /** Highest rail above the ground on this piece (m). */
   heightAboveGround: number;
+  /** Rail tiles without a support at the end of this piece (the span rule's run for the next piece). */
+  runAfter: number;
+}
+
+/**
+ * Options for checking pieces that are not built yet (Auto-finish, Task 7). Without them the check reads the world as it
+ * is. `occ`: the world's track occupancy, built once by the caller (replaces `buildOccupancy(world)`). `extra`: the
+ * envelopes of the path pieces laid before this one (with `ownsGround` where they take the ground). `runBefore`: the
+ * unsupported run at the end of those pieces (replaces the run read from the ride's built pieces).
+ */
+export interface PieceTileOptions {
+  occ?: Occupancy;
+  extra?: Occupancy;
+  runBefore?: number;
 }
 
 /**
@@ -154,6 +173,7 @@ export function checkPieceTiles(
   piece: TrackPieceInstance,
   type: TrackTypeDef,
   ownPieces: readonly TrackPieceInstance[],
+  opts: PieceTileOptions = {},
 ): TileCheck | { ok: false; reason: string } {
   const map = world.state.map;
   const def = getTrackPieceDef(piece.defId) as TrackPieceDef;
@@ -189,13 +209,16 @@ export function checkPieceTiles(
   const climb = stationZ === Infinity ? heightAboveGround : tilesClimb(wts, stationZ);
   if (climb > type.maxHeightM) return { ok: false, reason: fillTrackString(TRACK_ERR.tooHigh, { n: type.maxHeightM }) };
 
-  const occ = buildOccupancy(world);
+  const occ = opts.occ ?? buildOccupancy(world);
+  const extra = opts.extra;
   const plans: TilePlan[] = [];
   for (let k = 0; k < wts.length; k++) {
     const wt = wts[k] as WorldPieceTile;
     const i = idx[k] as number;
     const g = map.heights[i] as number;
-    const c = map.content[i];
+    const more = extra?.get(i);
+    // A path piece laid before this one that takes this tile's ground makes it track ground (as `applyPlan` would).
+    const c = more?.some((e) => e.ownsGround) && map.content[i] === Content.Empty ? Content.Track : map.content[i];
     if (c === Content.Building || c === Content.ParkEntrance) {
       return { ok: false, reason: TRACK_ERR.hitsBuilding };
     }
@@ -208,7 +231,7 @@ export function checkPieceTiles(
     const [lo, hi] = interval(wt, g, takesGround);
     const other = otherOccupantHit(world, i, lo, hi);
     if (other) return { ok: false, reason: other === 'elevatedPath' ? TRACK_ERR.hitsPath : TERRAIN_ERR.sceneryInWay };
-    const envs = occ.get(i) ?? [];
+    const envs = more ? [...(occ.get(i) ?? []), ...more] : (occ.get(i) ?? []);
     const owner = c === Content.Track ? groundOwner(envs, g) : null;
     if (c === Content.Track && envs.length === 0) {
       return { ok: false, reason: map.contentRef[i] === rideId ? TRACK_ERR.hitsOwnTrack : TRACK_ERR.hitsOtherTrack };
@@ -223,14 +246,14 @@ export function checkPieceTiles(
   }
 
   // Span rule: at most 2 consecutive rail tiles without a support along the track.
-  let run = trailingUnsupported(world, rideId, ownPieces.slice(0, pieceIndex), occ);
+  let run = opts.runBefore ?? trailingUnsupported(world, rideId, ownPieces.slice(0, pieceIndex), occ);
   const st = pieceStatic(piece.defId);
   for (const ti of st.railOrder) {
     const p = plans[ti] as TilePlan;
     if (p.takesGround) run = 0;
     else if (++run > MAX_UNSUPPORTED_TILES) return { ok: false, reason: TRACK_ERR.noSupports };
   }
-  return { ok: true, tiles: plans, heightAboveGround };
+  return { ok: true, tiles: plans, heightAboveGround, runAfter: run };
 }
 
 /** Lowest entry height of the station pieces (m), or Infinity when there is none. */
@@ -264,8 +287,8 @@ export function climbAboveStationM(pieces: readonly TrackPieceInstance[]): numbe
   return climb;
 }
 
-/** Rail tiles without a support at the end of the existing track. */
-function trailingUnsupported(world: World, rideId: number, pieces: readonly TrackPieceInstance[], occ: Occupancy): number {
+/** Rail tiles without a support at the end of the existing track (the span rule; Auto-finish reads it for its start). */
+export function trailingUnsupported(world: World, rideId: number, pieces: readonly TrackPieceInstance[], occ: Occupancy): number {
   const map = world.state.map;
   let run = 0;
   for (let pi = pieces.length - 1; pi >= 0; pi--) {
