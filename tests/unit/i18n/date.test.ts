@@ -5,13 +5,23 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { en } from '../../../src/data/strings/en';
 import { setLocale } from '../../../src/data/strings/index';
 import { setActiveStrings } from '../../../src/data/strings/resolve';
-import { formatGameDate, monthName } from '../../../src/i18n';
+import { formatGameDate, formatGameDateShort, monthName } from '../../../src/i18n';
 import { TICKS_PER_HOUR, TICKS_PER_MONTH } from '../../../src/data/tuning/core';
 import { MONTH_NAMES, formatDate } from '../../../src/sim/time';
 
 afterEach(() => {
   setActiveStrings(null);
   setLocale('en');
+});
+
+describe('formatGameDateShort (Task 21, the phone date chip)', () => {
+  it('is the month and the clock, without the year', () => {
+    expect(formatGameDateShort(450)).toBe('Mar 09:00');
+    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 09:04');
+    expect(formatGameDateShort(13 * TICKS_PER_MONTH + 450)).toBe('Apr 09:00');
+    setActiveStrings({ ...en, 'date.clock': '12' });
+    expect(formatGameDateShort(9 * TICKS_PER_HOUR + 4)).toBe('Mar 9:04 AM');
+  });
 });
 
 describe('formatGameDate', () => {

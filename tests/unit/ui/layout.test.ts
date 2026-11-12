@@ -56,4 +56,12 @@ describe('status pill fields (Phase 7 §4.2)', () => {
     expect(pillFields('bottom', 150)).toEqual(['cash']);
     expect(pillFields('bottom', 175)).toEqual(['cash']);
   });
+
+  it('the compact top row of the upright phone (Task 21) shows cash and guests, no rating', () => {
+    expect(pillFields('bottom', 100, true)).toEqual(['cash', 'guests']);
+    expect(pillFields('bottom', 125, true)).toEqual(['cash', 'guests']);
+    expect(pillFields('bottom', 150, true)).toEqual(['cash']);
+    expect(pillFields('bottom', 175, true)).toEqual(['cash']);
+    expect(pillFields('side', 100, true)).toEqual(['name', 'cash', 'guests', 'rating']);
+  });
 });

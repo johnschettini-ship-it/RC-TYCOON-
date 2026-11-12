@@ -25,10 +25,14 @@ export function toolbarPlacement(viewportWidthCss: number, viewportHeightCss: nu
 
 export type PillField = 'name' | 'cash' | 'guests' | 'rating';
 
-/** Fields of the status pill (Phase 7 §4.2): the phone drops the name, and at 150% text scale and more, guests and rating. */
-export function pillFields(layout: ToolbarPlacement, textScale: TextScale): PillField[] {
+/**
+ * Fields of the status pill (Phase 7 §4.2): the phone drops the name, and at 150% text scale and more, guests and rating.
+ * The upright phone's compact top row (Task 21; not the low layout) drops the rating too: it is in the mood circle's name.
+ */
+export function pillFields(layout: ToolbarPlacement, textScale: TextScale, compact = false): PillField[] {
   if (layout === 'side') return ['name', 'cash', 'guests', 'rating'];
-  return textScale >= 150 ? ['cash'] : ['cash', 'guests', 'rating'];
+  if (textScale >= 150) return ['cash'];
+  return compact ? ['cash', 'guests'] : ['cash', 'guests', 'rating'];
 }
 
 export type SheetHeight = 'peek' | 'half' | 'full';

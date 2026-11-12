@@ -47,23 +47,32 @@ async function plainEnglish(page: Page): Promise<string[]> {
   });
 }
 
-test('switching to en-XA changes the HUD text at once', async ({ page }) => {
+test('switching to en-XA changes the HUD text at once', async ({ page }, info) => {
+  // The upright phone's chip shows the month and clock; the whole date with the year is its name (Task 21).
+  const phone = info.project.name === 'phone';
   await page.goto('/');
   await page.getByTestId('title-new').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
-  const date = page.getByTestId('hud-date');
-  await expect(date).toHaveText(/^(Mar|Apr) · Year \d+ · \d\d:\d\d$/);
+  const date = phone ? page.getByTestId('day-pill') : page.getByTestId('hud-date');
+  const dateText = phone ? 'aria-label' : null;
+  const expectDate = async (re: RegExp, not = false): Promise<void> => {
+    if (dateText === null) await (not ? expect(date).not.toHaveText(re) : expect(date).toHaveText(re));
+    else await (not ? expect(date).not.toHaveAttribute(dateText, re) : expect(date).toHaveAttribute(dateText, re));
+  };
+  await expectDate(/^(Mar|Apr) · Year \d+ · \d\d:\d\d$/);
+  if (phone) await expect(page.getByTestId('hud-date')).toHaveText(/^(Mar|Apr) \d\d:\d\d$/);
   await expect(page.getByTestId('hud-cash')).toHaveText(/^\$/);
 
   await page.evaluate(() => (window as unknown as { __tc: TcHook }).__tc.settings.set('locale', 'en-XA'));
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
-  await expect(date).toHaveText(/Ýéåŕ \d+/);
-  await expect(date).not.toHaveText(/Year/);
+  await expectDate(/Ýéåŕ \d+/);
+  await expectDate(/Year/, true);
+  if (phone) await expect(page.getByTestId('hud-date')).toHaveText(/Ṁåŕ|Åþŕ/);
   await expect(page.getByTestId('hud-cash')).toHaveText(/^\[\$[\d,.]+ .+\]$/u);
 
   await page.evaluate(() => (window as unknown as { __tc: TcHook }).__tc.settings.set('locale', 'en'));
-  await expect(date).toHaveText(/^(Mar|Apr) · Year \d+ · \d\d:\d\d$/);
+  await expectDate(/^(Mar|Apr) · Year \d+ · \d\d:\d\d$/);
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 });
 

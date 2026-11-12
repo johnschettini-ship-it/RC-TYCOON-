@@ -51,6 +51,22 @@ test('the mood bar is a 44 px plate with 30 px faces; on the desktop it is at mo
   await newPark(page);
   const bar = await boxOf(page, '[data-testid="hud-balance"]');
   expect(Math.abs(bar.height - 44), `mood bar height ${bar.height}`).toBeLessThanOrEqual(1);
+  if (isPhone(info)) {
+    // The upright phone shows the mood circle instead (Task 21): 44 × 44, one 30 px face per mascot (both with no guests).
+    expect(Math.abs(bar.width - 44), `mood circle width ${bar.width}`).toBeLessThanOrEqual(1);
+    await expect(page.locator('.mood-track')).toBeHidden();
+    await expect(page.locator('.mood-face').first()).toBeHidden();
+    await mix304030(page);
+    await page.evaluate(() => {
+      const g = (window as unknown as { __tc: { world: { state: { guests: Array<{ temperament: number }> } } } }).__tc;
+      for (const x of g.world.state.guests) if (x.temperament === 50) x.temperament = 20;
+    });
+    await expect(page.getByTestId('mood-count')).toHaveText('70');
+    const face = await page.evaluate(() => (document.querySelector('.mood-lead canvas') as HTMLElement).getBoundingClientRect().height);
+    expect(face).toBe(30);
+    await expect(page.locator('.mood-text')).toHaveCount(0);
+    return;
+  }
   const faces = await page.evaluate(() => [...document.querySelectorAll('.mood-face canvas')].map((c) => c.getBoundingClientRect().height));
   expect(faces).toEqual([30, 30]);
   const track = await boxOf(page, '.mood-track');
@@ -76,6 +92,16 @@ test('phone 390 × 844: the top region ends at least 12 px higher than at the ba
 test('at 30/40/30 the segments are in proportion; the desktop numbers fit their segment and keep clear of the knot, the phone shows none', async ({ page }, info) => {
   await newPark(page);
   await mix304030(page);
+  if (isPhone(info)) {
+    // The upright phone shows the mood circle (Task 21): the counter has the leading share (Family, 40%), no segments.
+    await expect(page.getByTestId('mood-count')).toHaveText('40');
+    await expect(page.locator('.mood-track')).toBeHidden();
+    // The phone's bar is in the low layout now: its segments are checked there.
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(page.locator('#ui')).toHaveAttribute('data-low', '1');
+    await expect(page.locator('.mood-track')).toBeVisible();
+    await expect.poll(() => page.evaluate(() => (document.querySelector('.seg-family') as HTMLElement).style.flexGrow)).toBe('40');
+  }
   const m = await page.evaluate(() => {
     const track = document.querySelector('.mood-track') as HTMLElement;
     const knot = (track.querySelector('.mood-knot') as HTMLElement).getBoundingClientRect();
@@ -131,13 +157,15 @@ test('desktop 175% text: the percentages and the track grow with the text, and n
   }
 });
 
-test('the mood bar name holds the three percentages and the lean text; the title holds the lean text', async ({ page }) => {
+test('the mood bar name holds the three percentages and the lean text; the title holds the lean text', async ({ page }, info) => {
   await newPark(page);
   const bar = page.getByTestId('hud-balance');
-  await expect(bar).toHaveAttribute('title', 'No guests yet');
+  // The upright phone's mood circle (Task 21): the title is the whole name, with the rating.
+  await expect(bar).toHaveAttribute('title', isPhone(info) ? /^Thrill\/Chill balance: no guests yet, No guests yet, Park rating \d+$/ : 'No guests yet');
   await mix304030(page);
   await expect(bar).toHaveAttribute('aria-label', /30% Chill.*40% Family.*30% Thrill.*The park is in balance/);
   await expect(bar).toHaveAttribute('title', /The park is in balance/);
+  if (isPhone(info)) await expect(bar).toHaveAttribute('title', /30% Chill.*40% Family.*30% Thrill.*The park is in balance, Park rating \d+$/);
 });
 
 test('cards are about 12% smaller and the hand is at least 12 px lower than at the base', async ({ page }, info) => {

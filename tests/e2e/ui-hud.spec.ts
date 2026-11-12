@@ -28,7 +28,15 @@ test.describe('HUD and deck list', () => {
   });
 
   test('the HUD shows the park name, cash, and a date with the clock', async ({ page }, info) => {
-    await expect(page.getByTestId('hud-date')).toHaveText(/^(Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Jan|Feb) · Year \d+ · \d\d:\d\d$/);
+    const full = /^(Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Jan|Feb) · Year \d+ · \d\d:\d\d$/;
+    if (info.project.name === 'phone') {
+      // The upright phone's chip shows the month and clock; the whole date is the chip's name and title (Task 21).
+      await expect(page.getByTestId('hud-date')).toHaveText(/^(Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Jan|Feb) \d\d:\d\d$/);
+      await expect(page.getByTestId('day-pill')).toHaveAttribute('aria-label', full);
+      await expect(page.getByTestId('day-pill')).toHaveAttribute('title', full);
+    } else {
+      await expect(page.getByTestId('hud-date')).toHaveText(full);
+    }
     // A new park runs at 1×, so hourly costs (research budget) start at once: check format and range, not an exact amount.
     await expect(page.getByTestId('hud-cash')).toHaveText(/^\$1[45],\d{3}(\.\d{2})?$/);
     if (info.project.name === 'desktop') await expect(page.getByTestId('hud-name')).toHaveText('Test Park');
@@ -88,8 +96,15 @@ test.describe('HUD and deck list', () => {
   });
 
   test('the status pill shows cash, guests, and rating, and opens the Park panel', async ({ page }, info) => {
-    if (info.project.name === 'phone') await page.setViewportSize({ width: 390, height: 844 });
-    for (const id of ['hud-cash', 'hud-guests', 'hud-rating']) await expect(page.getByTestId(id)).toBeVisible();
+    const phone = info.project.name === 'phone';
+    if (phone) await page.setViewportSize({ width: 390, height: 844 });
+    // The upright phone's compact row (Task 21) shows no rating in the pill: it is in the mood circle's name.
+    for (const id of phone ? ['hud-cash', 'hud-guests'] : ['hud-cash', 'hud-guests', 'hud-rating']) await expect(page.getByTestId(id)).toBeVisible();
+    if (phone) {
+      await expect(page.getByTestId('hud-rating')).toBeHidden();
+      const rating = (await page.getByTestId('hud-rating').textContent()) ?? 'missing';
+      await expect(page.getByTestId('hud-balance')).toHaveAttribute('aria-label', new RegExp(`Park rating ${rating}$`));
+    }
     await page.getByTestId('status-pill').click();
     await expect(page.locator('.panel-title')).toHaveText('Test Park');
   });

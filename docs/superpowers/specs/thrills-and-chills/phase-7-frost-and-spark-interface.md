@@ -1,7 +1,7 @@
 # Phase 7 — Interface ("Frost and Spark")
 
 - **Build:** 4. No save schema change. Settings document version 2.
-- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.10, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft; 4.1 and 4.2 also describe the day chip and the view controls that replaced the day pill after the owner's test play.
+- **Status:** Built in Build 4 (4.0.0). The owner acceptance of the screenshots is open (`build-4-acceptance.md`). Sections 4.1, 4.2, 4.4, 4.6, 4.7, 4.8, 4.9, 4.10, 4.12, 7, 8, 9, and 12 describe what was built where it differs from the first draft; 4.1 and 4.2 also describe the day chip and the view controls that replaced the day pill after the owner's test play; 4.1, 4.2 and 4.3 also describe the upright phone's compact top row with the mood circle and the date chip (Task 21, after the owner's test play).
 - **Master spec:** `../2026-11-09-thrills-and-chills-design.md`.
 - **Approved draft pictures:** `../../../screenshots/phase-7-draft-desktop.png` (1280 × 800) and `../../../screenshots/phase-7-draft-phone.png` (390 × 844).
 
@@ -53,13 +53,13 @@ The layout switch stays at 900 CSS px (`toolbarPlacement`, `src/ui/layout.ts`). 
 
 | Region | Desktop (≥ 900 px) | Phone (< 900 px) |
 |---|---|---|
-| **Status pill** | Top left. | Top row, left. |
+| **Status pill** | Top left. | Top row, left (cash and guests; the compact top row, below). |
 | **Deck list** | Top left, below the status pill. A column. When the column does not fit, it scrolls and Demolish stays in view at its bottom. | A row of chips directly above the hand. The row scrolls sideways. |
-| **Mood bar** | Top centre. Width `clamp(280px, 40vw, 520px)`. | Second row. Full width. |
-| **Controls** | Top right, row 1: the 4 speed buttons, Messages, Menu. | Top row, right: Messages, one Speed button, Menu. |
-| **Chip row** (day chip, objectives flag, view controls) | Top right, row 2, right-aligned under the controls: `[day chip] [objectives flag] [view controls]`, with no plate round the group. | Third row: the day chip (and the objectives flag) at the left, the two view rotate buttons side by side at the right; the map shows between them. At large text the date wraps inside the chip and the chip grows. |
+| **Mood bar** | Top centre. Width `clamp(280px, 40vw, 520px)`. | Top row, right of the status pill: the mood circle (section 4.3). |
+| **Controls** | Top right, row 1: the 4 speed buttons, Messages, Menu. | Menu at the right end of the top row; one Speed button and Messages under the row at the right, left of the view controls. |
+| **Chip row** (day chip, objectives flag, view controls) | Top right, row 2, right-aligned under the controls: `[day chip] [objectives flag] [view controls]`, with no plate round the group. | The day chip is in the top row, left of Menu. Under the row at the right: the Speed button, Messages and the two view rotate buttons; the objectives flag at the left of that row; the map shows between them. With large text (above 100%) the chip leads the row under the top row, and that row wraps when it is full. |
 | **Hand** | Bottom centre, on the zone strip. | Bottom, full width. |
-| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the chip row. A tip too tall for the space above the chip row moves up over the top region. |
+| **Tip bubble** | Centred above the hand, in the place of the tool status bar (section 4.8). | Below the buttons under the top row. A tip too tall for the space above the chip row moves up over the top region. |
 | **Card details** | The side panel on the right (the existing panel position). | The bottom sheet (the existing sheet). |
 
 Rules:
@@ -68,6 +68,22 @@ Rules:
 - The chip row has no plate and `pointer-events: none`; only the day chip, the objectives flag, and the view controls take a press. A press between them goes to the map. The row is as high as its controls (44 px at 100%).
 - The zone strip has `pointer-events: none`. A click on it goes to the map. (No full-body mascots are drawn at the bottom corners; see section 4.8.)
 - With the hand open on a 390 × 844 screen at 100% text scale, the free map area is at least 45% of the screen height.
+
+#### Compact top row on the upright phone
+Added after the owner's test play (Task 21; the owner chose the design "One row, compact"). It holds on the upright phone (`data-layout="bottom"` without `data-low`); the desktop and the low layout keep their top region.
+
+```
+┌────────────────────────────────────────┐
+│ $14,994 👤0  (😊48)  [☀ Mar 9:04]   (≡) │
+└────────────────────────────────────────┘
+                       (⏸) (✉) (⟲) (⟳)
+```
+
+1. **One row:** the status pill (cash and guests, no rating), the mood circle (section 4.3), the day chip (section 4.2) and Menu, 8 px apart, each a 44 × 44 px target (the chip's press area is its weather button). The plate is 44 px high at 100% text (at most 52 px). The pill shows the cash in whole dollars; the full value is in its accessible name and title.
+2. **Under the row, at the right edge:** the Speed button (Pause, `1×`, …), Messages and the two view rotate buttons, round 44 × 44 px buttons 8 px apart in one row with no plate; a press between them reaches the map. A scenario's objectives flag sits at the left of that row.
+3. **Order:** `hud.ts` moves the parts into this order when the mode or the text scale changes (not per frame), so the focus order follows the rows: pill, mood circle, chip, Menu, then the flag, Speed, Messages, the rotate buttons.
+4. **`--hud-bottom`** is the bottom of the buttons under the row: 104 px at 390 × 844 and 100% text (162 px before). The tip, the panels and the legend strip sit below it.
+5. **Large text (above 100%):** the chip leads the row under the top row, so Menu stays in the top row (a tall mascot tip that moves up over the region cannot cover it); the row under it wraps when it is full, its buttons at the right. At 175% with `en-XA` nothing is clipped and every control can be reached.
 
 #### Track station row and overlay legend strip on the phone
 Added after the owner's test play (Task 20; the owner chose these designs). They hold on the phone (`data-layout="bottom"`) and in the low layout (`data-low="1"`); the desktop keeps the station panel and the legend card as before.
@@ -88,7 +104,7 @@ Added after the owner's test play (Task 19; the owner chose this design). A wind
 ### 4.2 Status pill, day chip, and view controls
 **Status pill.** One button. It opens the Park panel.
 - Desktop: park name, cash, guests, rating. Each number has a text label.
-- Phone: cash, guests, rating. Guests and rating have an icon and a screen-reader label.
+- Phone: cash, guests, rating. Guests and rating have an icon and a screen-reader label. The upright phone's compact top row (section 4.1) shows cash and guests only: the rating is in the mood circle's name and title; the cash shows in whole dollars, and the full value is in the pill's accessible name (a screen-reader span) and title.
 - Phone, text scale 150% or 175%: cash only. The Park panel shows the guest count and the rating.
 - Negative cash shows a minus sign and the danger text colour.
 - The elements keep their test ids: `hud-name`, `hud-cash`, `hud-guests`, `hud-rating`.
@@ -96,6 +112,7 @@ Added after the owner's test play (Task 19; the owner chose this design). A wind
 **Day chip** (`data-testid="day-pill"`; after the owner's test play the wide day pill became this chip). A slim pill that holds only the weather badge and the date and clock (`hud-date`).
 - At text scale 100% the visible plate is at most 36 px high and as wide as its content (at most 200 px with `Mar · Year 1 · 17:00`); font `calc(13px * var(--ts, 1))`; weather icon 20 px, forecast icon 12 px; surface, ink outline, full radius.
 - The weather badge (`hud-weather`) is a 44 × 44 px button that reaches past the plate's edges (transparent there). Its name is the weather text only, not the date. A press shows the forecast as a toast.
+- Upright phone (compact top row, Task 21): the chip shows the month and the clock, "Mar 09:04" (`date.short`); the year is in the chip's accessible name and title (the chip is a group named with the whole date, "Mar · Year 1 · 09:04").
 
 **Objectives flag** (scenario, `hud-objectives`): directly right of the day chip, 8 px from it.
 
@@ -126,6 +143,7 @@ The mood bar shows the guest mix, the same data as today (`temperamentShares` an
 - **Accessible name:** the existing text, "Thrill/Chill balance: {chill}% Chill, {family}% Family, {thrill}% Thrill", then the lean text. Test id `hud-balance`; the button also has `data-tool="temperament"`.
 - **Colour is not the only signal:** on the desktop each segment shows its percentage as text (`calc(11px * var(--ts, 1))`, bold) when the segment is at least 44 px wide (times the text scale); the phone segments show no numbers. When the knot would cover the percentage, the text moves to the larger part of its segment beside the knot; it is hidden when that part is under 44 px times the text scale (`segmentLabel`, `src/ui/mood/model.ts`). The accessible name (on both layouts) gives the same data.
 - **Reduced motion:** the knot moves with no transition.
+- **Mood circle (upright phone, Task 21):** on the compact top row the same button (`hud-balance`, `data-tool="temperament"`, the same press and `aria-pressed`) is a 44 × 44 px circle. It shows the face of the group that leads now (Frost for Chill, Spark for Thrill, with the mood of the face rule above; for Family the mascot that the face rule makes sad, or both happy faces when neither is sad; ties go Chill, Family, Thrill) and a small counter (`mood-count`) with that group's share in percent, on the group's accent colour. With no guests it shows both happy faces and no counter. Its accessible name and its title hold the three percentages, the lean text and the park rating: "Thrill/Chill balance: 40% Chill, 30% Family, 30% Thrill, The park leans to Chill, Park rating 538" (`ui.mood.nameRating`). The track and the two end faces are not shown there (`leadFace`, `src/ui/mood/model.ts`).
 
 ### 4.4 Decks
 The deck list is a toolbar named "Card decks" with 5 toggle buttons and the Demolish button.
@@ -324,10 +342,10 @@ None added. None changed. The UI sends the same commands as today.
 | Card drag | `src/ui/decks/drag.ts` | Mouse and pen drag from a card to the map. |
 | Card details | `src/ui/panels/cardDetails.ts` | The `cardDetails` panel view. |
 | Mood model | `src/ui/mood/model.ts` | Pure. Lean, knot position, lean text id. |
-| Mood bar | `src/ui/mood/moodBar.ts` | The bar, the faces, the overlay toggle. |
+| Mood bar | `src/ui/mood/moodBar.ts` | The bar, the faces, the overlay toggle; the mood circle of the upright phone (Task 21). |
 | Tip model | `src/ui/tips/model.ts` | Pure. The 3 rules and the closed-tip rule. |
 | Tip bubble | `src/ui/tips/bubble.ts` | The bubble with a small face, its button, and its hide rules. |
-| Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, chip row (day chip; places the extension parts by `hudSlot`). |
+| Top region | `src/ui/hud.ts` (rewritten) | Status pill, controls, chip row (day chip; places the extension parts by `hudSlot`); the compact top row of the upright phone (Task 21). |
 | Tuning | `src/data/tuning/interface.ts` | The constants of section 8. |
 | Strings | `src/data/strings/interface.ts` | The texts of section 9. |
 

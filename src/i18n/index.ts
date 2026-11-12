@@ -65,6 +65,11 @@ export function formatGameDate(tick: number): string {
   return t('date.full', { month: monthName(monthOfYear(tick)), year: yearOf(tick), time: formatClock(tick) });
 }
 
+/** The phone's date chip (Task 21): month and clock, "Mar 09:04" (the year is in the chip's name and title). */
+export function formatGameDateShort(tick: number): string {
+  return t('date.short', { month: monthName(monthOfYear(tick)), time: formatClock(tick) });
+}
+
 export function localizeReason(reason: string): string {
   if (currentLocale() === 'en') return reason;
   const m = reasonId(reason);

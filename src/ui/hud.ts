@@ -2,10 +2,15 @@
  * Top region (Phase 7 §4.1, §4.2): status pill, mood slot, controls (speed, Messages, Menu), and the chip row: the day
  * chip (weather, date and clock), the extension parts (the objectives flag right of the chip, the view controls at the
  * row's right end). The container and the chip row have no background; only their pills and buttons take pointer events.
+ *
+ * The upright phone (Task 21, not the low layout) has one compact row: the status pill (cash and guests), the mood
+ * circle, the day chip (month and clock) and Menu; under it at the right, with no plate, the Speed button, Messages and
+ * the view controls. The parts move between the containers only when that mode changes, so the focus order follows the
+ * rows.
  */
 import { text } from '../data/strings/en';
 import type { Speed } from '../loop';
-import { formatGameDate } from '../i18n';
+import { formatGameDate, formatGameDateShort } from '../i18n';
 import { unreadCount } from '../sim/notifications';
 import type { TextScale } from '../settings/types';
 import type { UiContext } from './context';
@@ -13,7 +18,7 @@ import { h, newId, setAttr, setText, toggleClass } from './dom';
 import { formatMoney } from './format';
 import { icon } from './icons';
 import { pillFields, type PillField, type ToolbarPlacement } from './layout';
-import { createMoodBar } from './mood/moodBar';
+import { compactTop, createMoodBar } from './mood/moodBar';
 import { mgmtIcon } from './management/icons';
 import { createWeatherBadge } from './management/weatherBadge';
 import { UI_EXTENSIONS } from './extensions';
@@ -26,6 +31,8 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
   // Status pill: one button that opens the Park panel. A hidden field is `hidden`, not removed.
   const name = h('span', { class: 'hud-name', 'data-testid': 'hud-name' });
   const cash = h('span', { class: 'hud-value', 'data-testid': 'hud-cash' });
+  // Task 21: the compact row shows whole dollars; screen readers get the full value from this span instead.
+  const cashFull = h('span', { class: 'sr-only', hidden: true });
   const guests = h('span', { class: 'hud-value', 'data-testid': 'hud-guests' });
   const rating = h('span', { class: 'hud-value', 'data-testid': 'hud-rating' });
   const labels: HTMLElement[] = [];
@@ -38,7 +45,7 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     h('span', { class: `hud-field ${cls}` }, label === null ? null : labelOf(label), iconName ? icon(iconName) : null, value);
   const fields: Record<PillField, HTMLElement> = {
     name: h('span', { class: 'hud-field hud-field-name' }, name),
-    cash: field('hud-field-cash', text('ui.hud.cash'), null, cash),
+    cash: h('span', { class: 'hud-field hud-field-cash' }, labelOf(text('ui.hud.cash')), cash, cashFull),
     guests: field('hud-field-guests', text('ui.hud.guestsShort'), 'guests', guests),
     rating: field('hud-field-rating', text('ui.hud.ratingShort'), 'star', rating),
   };
@@ -82,7 +89,8 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     { type: 'button', class: 'hud-btn', 'data-tool': 'menu', 'data-testid': 'tool-menu', 'aria-label': text('ui.tool.menu'), title: text('ui.tool.menu'), 'aria-haspopup': 'dialog', onclick: openMenu },
     icon('menu'),
   );
-  const controls = h('div', { class: 'hud-controls' }, h('div', { class: 'speed-wrap' }, speedToggle, speedGroup), messages, menu);
+  const speedWrap = h('div', { class: 'speed-wrap' }, speedToggle, speedGroup);
+  const controls = h('div', { class: 'hud-controls' }, speedWrap, messages, menu);
 
   // Chip row: the day chip (weather badge, date and clock), the extension parts of the `chip` slot right of it (the
   // objectives flag), and those of the `end` slot at the right end (the view controls). The modules own their parts.
@@ -91,13 +99,9 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
   const chip = h('div', { class: 'pill day-pill', 'data-testid': 'day-pill' }, weather.el, h('span', { class: 'hud-clock', title: text('ui.hud.date') }, date));
   const placed = UI_EXTENSIONS.flatMap((x) => (x.hud ? [{ part: x.hud(ctx), end: x.hudSlot === 'end' }] : []));
   const extra = placed.map((p) => p.part);
-  const dayRow = h(
-    'div',
-    { class: 'hud-day' },
-    chip,
-    ...placed.filter((p) => !p.end).map((p) => p.part.el),
-    ...placed.filter((p) => p.end).map((p) => p.part.el),
-  );
+  const chipParts = placed.filter((p) => !p.end).map((p) => p.part.el);
+  const endParts = placed.filter((p) => p.end).map((p) => p.part.el);
+  const dayRow = h('div', { class: 'hud-day' }, chip, ...chipParts, ...endParts);
 
   const el = h('header', { class: 'hud', role: 'region', 'aria-label': text('ui.hud.label') }, statusPill, moodSlot, controls, dayRow);
 
@@ -133,6 +137,32 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
     if (speedOpen && !(e.target instanceof Node && speedGroup.parentElement?.contains(e.target))) setSpeedOpen(false);
   });
 
+  // Task 21: the compact row puts the chip between the mood circle and Menu, and the Speed button and Messages in the row
+  // under it, before the view controls. With large text (above 100%) the chip leads the row under it instead, so Menu
+  // stays in the top row. Called only when the mode or the text scale changes.
+  let lastArrange = '';
+  const arrange = (compact: boolean, large: boolean): void => {
+    if (compact && !large) {
+      el.insertBefore(chip, controls);
+      controls.replaceChildren(menu);
+      dayRow.replaceChildren(...chipParts, speedWrap, messages, ...endParts);
+    } else if (compact) {
+      controls.replaceChildren(menu);
+      dayRow.replaceChildren(chip, ...chipParts, speedWrap, messages, ...endParts);
+    } else {
+      controls.replaceChildren(speedWrap, messages, menu);
+      dayRow.replaceChildren(chip, ...chipParts, ...endParts);
+    }
+    cashFull.hidden = !compact;
+    setAttr(cash, 'aria-hidden', compact ? 'true' : null);
+    if (!compact) {
+      setAttr(statusPill, 'title', null);
+      for (const a of ['role', 'aria-label', 'title']) setAttr(chip, a, null);
+    } else {
+      setAttr(chip, 'role', 'group');
+    }
+  };
+
   let lastUnread = -1;
   let lastFields = '';
   let lastSpeed: Speed | -1 = -1;
@@ -149,18 +179,38 @@ export function createHud(ctx: UiContext, openMenu: () => void): { el: HTMLEleme
         // The phone shows icons and numbers; the labels stay for screen readers.
         for (const l of labels) toggleClass(l, 'sr-only', layout === 'bottom');
       }
-      const shown = pillFields(layout, game.settings.get('textScale') as TextScale);
+      const compact = compactTop(ctx.root);
+      const textScale = game.settings.get('textScale') as TextScale;
+      const arrangeKey = `${compact}:${textScale > 100}`;
+      if (arrangeKey !== lastArrange) {
+        lastArrange = arrangeKey;
+        arrange(compact, textScale > 100);
+      }
+      const shown = pillFields(layout, textScale, compact);
       const key = shown.join();
       if (key !== lastFields) {
         lastFields = key;
         for (const f of Object.keys(fields) as PillField[]) fields[f].hidden = !shown.includes(f);
       }
       setText(name, s.park.name);
-      setText(cash, formatMoney(s.park.cash));
+      const cashText = formatMoney(s.park.cash);
       toggleClass(cash, 'neg', s.park.cash < 0);
       setText(guests, String(s.guests.length));
       setText(rating, String(s.park.rating));
-      setText(date, formatGameDate(s.tick));
+      const dateText = formatGameDate(s.tick);
+      if (compact) {
+        // Whole dollars in the pill; the full value is in its name and title. The year is in the chip's name and title.
+        const whole = Math.trunc(s.park.cash / 100) * 100 || 0;
+        setText(cash, formatMoney(whole));
+        setText(cashFull, cashText);
+        setAttr(statusPill, 'title', text('ui.hud.pillCompact', { cash: cashText, guests: s.guests.length }));
+        setText(date, formatGameDateShort(s.tick));
+        setAttr(chip, 'aria-label', dateText);
+        setAttr(chip, 'title', dateText);
+      } else {
+        setText(cash, cashText);
+        setText(date, dateText);
+      }
       weather.update();
       for (const p of extra) p.update(now);
       for (const b of speedButtons) {

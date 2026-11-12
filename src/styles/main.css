@@ -138,6 +138,8 @@ button { font: inherit; color: inherit; }
 .mood-track .seg-num { display: inline-block; flex: none; }
 .mood-knot { position: absolute; top: -1px; bottom: -1px; width: 6px; margin-left: -3px; border-radius: 3px; background: var(--surface); border: 2px solid var(--ink); box-sizing: border-box; transition: left 0.4s ease; pointer-events: none; }
 .tc-rm .mood-knot { transition: none; }
+/* The mood circle's parts (Task 21) show on the upright phone only. */
+.mood-lead, .mood-count { display: none; }
 .seg-chill { background: var(--accent-chill); }
 .seg-family { background: var(--accent-family); }
 .seg-thrill { background: var(--accent-thrill); }
@@ -170,7 +172,7 @@ button { font: inherit; color: inherit; }
 }
 .hud-day > * { flex: none; }
 /* The day chip: a slim pill (36 px at 100%) as wide as its weather icons and date; the date wraps at large text. */
-.hud-day > .day-pill {
+:is(.hud-day, .hud) > .day-pill {
   flex: 0 1 auto;
   min-width: 0;
   display: flex;
@@ -209,6 +211,34 @@ button { font: inherit; color: inherit; }
 /* The chip and the objectives flag at the left, the view controls side by side at the right. */
 #ui[data-layout='bottom'] .hud-day { justify-self: stretch; justify-content: flex-start; }
 #ui[data-layout='bottom'] .view-controls { margin-left: auto; }
+/*
+ * Upright phone, compact top row (Task 21; not the low layout): one row with the status pill (cash and guests), the
+ * mood circle, the day chip and Menu; under it at the right, with no plate, the Speed button, Messages and the view
+ * controls (the chip row; the flag of a scenario at its left). `hud.ts` moves the parts into this order when the mode
+ * changes. With large text (above 100%) the chip leads the row under it, so Menu stays in the top row; the row under it
+ * wraps when it is full (its buttons stay at the right).
+ */
+#ui[data-layout='bottom']:not([data-low='1']) .hud { display: flex; flex-wrap: wrap; align-items: center; }
+#ui[data-layout='bottom']:not([data-low='1']) .status-pill { flex: 0 1 auto; min-width: 0; min-height: var(--touch); padding: 2px 12px; }
+#ui[data-layout='bottom']:not([data-low='1']) .hud-mood { flex: none; }
+#ui[data-layout='bottom']:not([data-low='1']) .hud-controls { flex: none; margin-left: auto; }
+#ui[data-layout='bottom']:not([data-low='1']) .hud-day { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-end; }
+/* The chip (large text) and the objectives flag keep to the left; the buttons stay at the right, also on a wrapped line. */
+#ui[data-layout='bottom']:not([data-low='1']) .hud-day > :not([hidden]):is(:has(+ .speed-wrap), :has(+ [hidden] + .speed-wrap)) { margin-right: auto; }
+#ui[data-layout='bottom']:not([data-low='1']) .view-controls { margin-left: 0; }
+/* The mood circle: a 44 × 44 round button with the leading face and a counter of its share in the group's colour. */
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar { position: relative; width: var(--touch); height: var(--touch); min-height: 0; padding: 0; justify-content: center; border-radius: 50%; }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-bar :is(.mood-face, .mood-track) { display: none; }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-lead { display: inline-flex; line-height: 0; }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-count:not([hidden]) {
+  display: inline-grid; place-items: center; position: absolute; right: -6px; bottom: -5px;
+  min-width: calc(18px * var(--ts, 1)); height: calc(18px * var(--ts, 1)); padding: 0 3px; box-sizing: border-box;
+  border: 2px solid var(--ink); border-radius: 999px; background: var(--surface); color: var(--ink);
+  font-size: calc(11px * var(--ts, 1)); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; pointer-events: none;
+}
+#ui[data-layout='bottom']:not([data-low='1']) .mood-count[data-group='chill'] { background: var(--accent-chill); }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-count[data-group='family'] { background: var(--accent-family); }
+#ui[data-layout='bottom']:not([data-low='1']) .mood-count[data-group='thrill'] { background: var(--accent-thrill); }
 
 /* Decks (Phase 7 §4.4, §4.5): the deck list, the hand, and tool cards. */
 .decks { display: contents; }

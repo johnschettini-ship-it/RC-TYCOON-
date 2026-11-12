@@ -13,12 +13,20 @@ test('the game loads the bundled font and asks no other host for anything', asyn
   expect(foreign).toEqual([]);
 });
 
-test('the mood bar names the balance and toggles the Temperament overlay', async ({ page }) => {
+test('the mood bar names the balance and toggles the Temperament overlay', async ({ page }, info) => {
   await newPark(page);
   const bar = page.getByTestId('hud-balance');
-  await expect(bar).toHaveAttribute('aria-label', 'Thrill/Chill balance: no guests yet, No guests yet');
-  // The lean text is the title (Task 18: no lean line under the track).
-  await expect(bar).toHaveAttribute('title', 'No guests yet');
+  if (info.project.name === 'phone') {
+    // The upright phone's mood circle (Task 21): the name and the title also hold the park rating.
+    const rating = await page.evaluate(() => (window as unknown as { __tc: { world: { state: { park: { rating: number } } } } }).__tc.world.state.park.rating);
+    const name = `Thrill/Chill balance: no guests yet, No guests yet, Park rating ${rating}`;
+    await expect(bar).toHaveAttribute('aria-label', name);
+    await expect(bar).toHaveAttribute('title', name);
+  } else {
+    await expect(bar).toHaveAttribute('aria-label', 'Thrill/Chill balance: no guests yet, No guests yet');
+    // The lean text is the title (Task 18: no lean line under the track).
+    await expect(bar).toHaveAttribute('title', 'No guests yet');
+  }
   const overlay = () => page.evaluate(() => (window as unknown as { __tc: { tool: { overlay: string } } }).__tc.tool.overlay);
   await bar.click();
   await expect(bar).toHaveAttribute('aria-pressed', 'true');
@@ -72,6 +80,16 @@ test('at 30/40/30 the mood bar segments keep the guest mix in proportion while a
   });
   const bar = page.getByTestId('hud-balance');
   await expect(bar).toHaveAttribute('aria-label', /30% Chill/);
+  if (info.project.name === 'phone') {
+    // The upright phone shows the mood circle (Task 21): Family leads with 40%; the track is not shown. The phone's bar
+    // is in the low layout now: its segments are checked there.
+    await expect(page.getByTestId('mood-count')).toHaveText('40');
+    await expect(bar.locator('.mood-lead')).toHaveAttribute('data-face', /^(both|frost|spark)$/);
+    await expect(page.locator('.mood-track')).toBeHidden();
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect(page.locator('#ui')).toHaveAttribute('data-low', '1');
+    await expect.poll(() => page.evaluate(() => (document.querySelector('.seg-family') as HTMLElement).style.flexGrow)).toBe('40');
+  }
   const m = await page.evaluate(() => {
     const track = document.querySelector('.mood-track') as HTMLElement;
     const inner = track.clientWidth;

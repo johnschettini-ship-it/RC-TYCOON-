@@ -19,6 +19,7 @@ export const interfaceStrings: Record<string, string> = {
   'ui.mood.balance': 'The park is in balance',
   'ui.mood.name': '{balance}, {lean}',
   'ui.mood.percent': '{n}%',
+  'ui.mood.nameRating': '{balance}, {lean}, Park rating {rating}',
   'ui.details.seats': 'Seats',
   'ui.details.ticket': 'Ticket',
   'ui.details.running': 'Running cost per month',

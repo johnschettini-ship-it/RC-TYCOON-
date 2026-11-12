@@ -55,3 +55,26 @@ export function segmentLabel(p: SharePercents, group: Group, trackPx: number): {
   if (right >= SEG_LABEL_PX) return { show: true, padStart: k + KNOT_CLEAR_PX - a, padEnd: 0 };
   return hidden;
 }
+
+/** The face and counter of the phone's mood circle (Task 21): the group that leads now and its share. */
+export interface LeadFace {
+  /** Frost for Chill, Spark for Thrill; for Family the mascot the face rule makes sad, or both when neither is. */
+  who: 'frost' | 'spark' | 'both';
+  mood: 'happy' | 'sad';
+  /** The leading group (ties go Chill, Family, Thrill); null with no guests. */
+  group: Group | null;
+  /** The leading group's share in percent (0 with no guests). */
+  share: number;
+}
+
+export function leadFace(p: SharePercents, totalGuests: number, moods: { frost: 'happy' | 'sad'; spark: 'happy' | 'sad' }): LeadFace {
+  if (totalGuests <= 0) return { who: 'both', mood: 'happy', group: null, share: 0 };
+  let group: Group = 'chill';
+  for (const g of ['family', 'thrill'] as const) if (p[g] > p[group]) group = g;
+  const share = p[group];
+  if (group === 'chill') return { who: 'frost', mood: moods.frost, group, share };
+  if (group === 'thrill') return { who: 'spark', mood: moods.spark, group, share };
+  if (moods.frost === 'sad') return { who: 'frost', mood: 'sad', group, share };
+  if (moods.spark === 'sad') return { who: 'spark', mood: 'sad', group, share };
+  return { who: 'both', mood: 'happy', group, share };
+}

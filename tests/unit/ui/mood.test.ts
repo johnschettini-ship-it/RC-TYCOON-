@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { faceMoods, knotPercent, lean, leanTextId, segmentLabel } from '../../../src/ui/mood/model';
+import { faceMoods, knotPercent, lean, leadFace, leanTextId, segmentLabel } from '../../../src/ui/mood/model';
 
 const p = (chill: number, family: number, thrill: number) => ({ chill, family, thrill });
 
@@ -45,5 +45,24 @@ describe('mood model (Phase 7 §4.3)', () => {
     expect(segmentLabel(p(38, 25, 37), 'family', 300).show).toBe(false);
     expect(segmentLabel(p(10, 45, 45), 'chill', 300).show).toBe(false);
     expect(segmentLabel(p(0, 50, 50), 'chill', 300).show).toBe(false);
+  });
+});
+
+describe('mood circle face (Task 21)', () => {
+  const happy = { frost: 'happy', spark: 'happy' } as const;
+  it('shows the leading group: Frost for Chill, Spark for Thrill, with the face rule mood', () => {
+    expect(leadFace(p(40, 30, 30), 10, happy)).toEqual({ who: 'frost', mood: 'happy', group: 'chill', share: 40 });
+    expect(leadFace(p(40, 30, 30), 10, { frost: 'sad', spark: 'happy' })).toEqual({ who: 'frost', mood: 'sad', group: 'chill', share: 40 });
+    expect(leadFace(p(20, 38, 42), 12, { frost: 'happy', spark: 'sad' })).toEqual({ who: 'spark', mood: 'sad', group: 'thrill', share: 42 });
+  });
+  it('for Family shows the mascot the face rule makes sad, or both happy', () => {
+    expect(leadFace(p(30, 40, 30), 10, happy)).toEqual({ who: 'both', mood: 'happy', group: 'family', share: 40 });
+    expect(leadFace(p(30, 40, 30), 10, { frost: 'sad', spark: 'happy' })).toEqual({ who: 'frost', mood: 'sad', group: 'family', share: 40 });
+    expect(leadFace(p(30, 40, 30), 10, { frost: 'happy', spark: 'sad' })).toEqual({ who: 'spark', mood: 'sad', group: 'family', share: 40 });
+  });
+  it('ties go Chill, Family, Thrill; no guests shows both, happy, with no group', () => {
+    expect(leadFace(p(40, 40, 20), 5, happy).group).toBe('chill');
+    expect(leadFace(p(20, 40, 40), 5, happy).group).toBe('family');
+    expect(leadFace(p(0, 0, 0), 0, happy)).toEqual({ who: 'both', mood: 'happy', group: null, share: 0 });
   });
 });
