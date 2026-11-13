@@ -15,6 +15,7 @@
  * them: terrain chunks are painted in view space, depth sorts by u + v, sprite cache keys hold the view rotation, and
  * picking runs through the inverse (`pickTile(map, sx, sy, r)` in `./iso.ts`). Hot loops use `viewAffine`.
  */
+import { STEP_PX } from './heightStep';
 import type { Dir, MapState } from '../sim/map';
 import type { Camera } from './types';
 
@@ -189,7 +190,6 @@ export function viewCornerHeights(
 /** Master 6.4 projection constants (`./iso.ts`), repeated so this module stays free of imports. */
 const HALF_W = 32;
 const HALF_H = 16;
-const STEP = 8;
 
 /**
  * Height (steps) of the ground under the camera centre on a full map: the base height of the tile the centre ray
@@ -202,7 +202,7 @@ function centreHeight(cam: Camera, map: Pick<MapState, 'width' | 'height'> & Par
   let z = hs[0] as number;
   for (let k = 0; k < 4; k++) {
     const a = cam.centerX / HALF_W;
-    const b = (cam.centerY + z * STEP) / HALF_H;
+    const b = (cam.centerY + z * STEP_PX) / HALF_H;
     const p = viewToMapContinuous((a + b) / 2, (b - a) / 2, r, map.width, map.height);
     const x = Math.floor(p.x);
     const y = Math.floor(p.y);
@@ -222,13 +222,13 @@ function centreHeight(cam: Camera, map: Pick<MapState, 'width' | 'height'> & Par
 export function rotateCameraView(cam: Camera, map: Pick<MapState, 'width' | 'height'>, dir: 1 | -1, z?: number): void {
   const zz = z ?? centreHeight(cam, map as Pick<MapState, 'width' | 'height'> & Partial<Pick<MapState, 'heights'>>);
   const a = cam.centerX / HALF_W;
-  const b = (cam.centerY + zz * STEP) / HALF_H;
+  const b = (cam.centerY + zz * STEP_PX) / HALF_H;
   const p = viewToMapContinuous((a + b) / 2, (b - a) / 2, cam.rotation, map.width, map.height);
   const r = ((cam.rotation + (dir > 0 ? 1 : 3)) & 3) as ViewRotation;
   const q = mapToViewContinuous(p.x, p.y, r, map.width, map.height);
   cam.rotation = r;
   cam.centerX = (q.u - q.v) * HALF_W;
-  cam.centerY = (q.u + q.v) * HALF_H - zz * STEP;
+  cam.centerY = (q.u + q.v) * HALF_H - zz * STEP_PX;
 }
 
 // ------------------------------------------------------------------ projection with the view (hot loops)
@@ -250,7 +250,7 @@ export function viewTileSX(a: ViewAffine, x: number, y: number): number {
 
 /** World px y of the top corner of map tile (x, y) at height `z` (steps) as seen in the view. */
 export function viewTileSY(a: ViewAffine, x: number, y: number, z: number): number {
-  return ((a.ux + a.vx) * x + (a.uy + a.vy) * y + a.tu0 + a.tv0) * HALF_H - z * STEP;
+  return ((a.ux + a.vx) * x + (a.uy + a.vy) * y + a.tu0 + a.tv0) * HALF_H - z * STEP_PX;
 }
 
 /** World px x of continuous map point (fx, fy) as seen in the view. */
@@ -260,5 +260,5 @@ export function viewPointSX(a: ViewAffine, fx: number, fy: number): number {
 
 /** World px y of continuous map point (fx, fy) at height `z` (steps) as seen in the view. */
 export function viewPointSY(a: ViewAffine, fx: number, fy: number, z: number): number {
-  return ((a.ux + a.vx) * fx + (a.uy + a.vy) * fy + a.u0 + a.v0) * HALF_H - z * STEP;
+  return ((a.ux + a.vx) * fx + (a.uy + a.vy) * fy + a.u0 + a.v0) * HALF_H - z * STEP_PX;
 }

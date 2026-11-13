@@ -8,6 +8,7 @@
  * colours, a ramp tilted toward `rampDir`). The overlay pass draws the path tool ghost at the chosen height.
  * Everything goes through the view rotation (`../view.ts`); no allocations per frame.
  */
+import { STEP_PX } from '../heightStep';
 import { LAYER_KIND, type LayerFrame, type WorldLayer } from '../layers';
 import { Layer } from '../depth';
 import { GHOST_FILL_INVALID, GHOST_FILL_VALID, GHOST_INVALID, GHOST_VALID, ghostLineWidth } from '../palette';
@@ -19,7 +20,6 @@ import { RAMP_MASK } from '../../sim/paths/nodes';
 
 const HW = 32;
 const HH = 16;
-const STEP = 8;
 /** Deck slab thickness in px (zoom 1). */
 const DECK_PX = 4;
 
@@ -86,8 +86,8 @@ export function createElevatedPathLayer(): WorldLayer {
       const mc = (c - r + 4) & 3;
       const g = base + ((slope >> mc) & 1);
       const flatY = (cu + cv) * HH;
-      deckY[c] = (flatY - top * STEP) * f.scale + f.offY;
-      groundY[c] = (flatY - g * STEP) * f.scale + f.offY;
+      deckY[c] = (flatY - top * STEP_PX) * f.scale + f.offY;
+      groundY[c] = (flatY - g * STEP_PX) * f.scale + f.offY;
     }
   }
 
@@ -147,11 +147,11 @@ export function createElevatedPathLayer(): WorldLayer {
         const u = uv[0] as number;
         const v = uv[1] as number;
         const ax = (u - v) * HW;
-        const ay = (u + v) * HH - p.z * STEP;
+        const ay = (u + v) * HH - p.z * STEP_PX;
         const ground = map.heights[p.y * map.width + p.x] ?? 0;
         // Cull by the deck and its supports down to the ground.
         if (ax + HW < f.view.x0 || ax - HW > f.view.x1) continue;
-        if (ay + 2 * HH + (p.z - ground + 1) * STEP < f.view.y0 || ay - STEP > f.view.y1) continue;
+        if (ay + 2 * HH + (p.z - ground + 1) * STEP_PX < f.view.y0 || ay - STEP_PX > f.view.y1) continue;
         sink.push(LAYER_KIND.elevatedPath, k, 0, ax, ay, 0, u + v + 0.5, p.z, Layer.Path);
       }
     },

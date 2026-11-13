@@ -7,5 +7,6 @@ describe('artStyle', () => {
   it('reads VITE_ART', () => expect(artStyle('', 'real')).toBe('real'));
   it('?art wins over env', () => expect(artStyle('?art=real', 'classic')).toBe('real'));
   it('rejects unknown values', () => expect(artStyle('?art=pixel', 'pixel')).toBe('classic'));
+  it('unknown ?art does not fall through to env', () => expect(artStyle('?art=pixel', 'real')).toBe('classic'));
   it('real step is 9.8', () => expect(REAL_STEP_PX).toBe(9.8));
 });

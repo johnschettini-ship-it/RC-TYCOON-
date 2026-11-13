@@ -2,17 +2,13 @@
  * Isometric math (Phase 0 §4.7, master 6.4). Owner: W1-A, W3-G (view rotation). Signatures are a contract; the
  * optional view rotation `r` (Phase 4 §4.8) defaults to 0, so Build 1 callers keep their behaviour.
  */
+import { STEP_PX } from './heightStep';
 import type { MapState } from '../sim/map';
 import { rotateSlopeMask, viewSize, viewToMap, type ViewRotation } from './view';
 
 export const TILE_W = 64;
 export const TILE_H = 32;
-/** Screen px per height step; live binding, set once at start-up per look (classic 8, real 9.8). */
-export let STEP_PX = 8;
-
-export function setStepPx(px: number): void {
-  STEP_PX = px;
-}
+export { STEP_PX, setStepPx } from './heightStep';
 
 const HALF_W = TILE_W / 2;
 const HALF_H = TILE_H / 2;

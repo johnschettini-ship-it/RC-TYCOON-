@@ -14,6 +14,7 @@
  * Frame counters (`stats()`, `totals()`, and `window.__tcShows = { frame, totals }` in the browser for Playwright)
  * count beams, rockets, particles, flashes, and glows drawn.
  */
+import { STEP_PX } from '../heightStep';
 import { getShowSiteDef, type ShowSiteDef } from '../../data/catalog';
 import { displayPrefs } from '../../a11y/prefs';
 import { Content, type Dir } from '../../sim/map';
@@ -38,7 +39,6 @@ import { showPlan } from './timeline';
 
 const HW = 32;
 const HH = 16;
-const STEP = 8;
 const SUB_WHOLE = -1;
 /** Sprite frames: 0 = the site, 1 = valid ghost, 2 = invalid ghost. */
 const FRAME_GHOST_VALID = 1;
@@ -142,7 +142,7 @@ export function createShowLayer(): ShowLayer {
     const vb = viewTileV(affine, x + n - 1, y + n - 1);
     const u0 = ua < ub ? ua : ub;
     const v0 = va < vb ? va : vb;
-    return { u0, v0, ax: (u0 - v0) * HW, ay: (u0 + v0) * HH - z * STEP };
+    return { u0, v0, ax: (u0 - v0) * HW, ay: (u0 + v0) * HH - z * STEP_PX };
   }
 
   function paletteOf(world: World, site: ShowSite): readonly string[] {
@@ -165,7 +165,7 @@ export function createShowLayer(): ShowLayer {
     const u = viewTileU(affine, x, y);
     const v = viewTileV(affine, x, y);
     const px = (u - v) * HW;
-    const py = (u + v) * HH - z * STEP;
+    const py = (u + v) * HH - z * STEP_PX;
     ctx.moveTo(devX(f, px), devY(f, py));
     ctx.lineTo(devX(f, px + HW), devY(f, py + HH));
     ctx.lineTo(devX(f, px), devY(f, py + 2 * HH));
