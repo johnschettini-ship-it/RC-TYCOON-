@@ -10,7 +10,11 @@
 import { SPRITE_CACHE_BUDGET_MB } from '../data/tuning/perf';
 import type { ZoomBucket } from './camera';
 
-/** A pre-drawn image. `ox`, `oy`: image pixel of the anchor point. `scale`: image pixels per world pixel. */
+/**
+ * A pre-drawn image. `ox`, `oy`: pixel of the anchor point, relative to the sprite's top-left. `scale`: image pixels
+ * per world pixel. `sx`, `sy`: top-left of the sprite's `w` × `h` rectangle inside `image` (an atlas sheet, realistic
+ * look); absent means 0, 0, the whole image.
+ */
 export interface Sprite {
   image: CanvasImageSource;
   w: number;
@@ -18,6 +22,8 @@ export interface Sprite {
   ox: number;
   oy: number;
   scale: number;
+  sx?: number;
+  sy?: number;
 }
 
 const hashMemo = new Map<string, number>();

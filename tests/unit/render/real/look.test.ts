@@ -41,7 +41,8 @@ class PixCanvas {
   }
 }
 
-const FRAME = { sheet: 's0', sx: 2, sy: 1, w: 3, h: 4, ox: 1.5, oy: 3.75 };
+/** ox/oy: offset from the game anchor to the frame's top-left (index format), so the top-left is up-left of the anchor. */
+const FRAME = { sheet: 's0', sx: 2, sy: 1, w: 3, h: 4, ox: -10, oy: -30 };
 
 function entry(kind: RealKind, item: string, density: 2 | 4, rot: 0 | 1 | 2 | 3 | 'all', frames: Record<string, typeof FRAME>, mask = false): RealSetEntry {
   const sheets: RealSetEntry['sheets'] = [{ file: 's0', w: 8, h: 8, ...(mask ? { mask: 'm0' } : {}) }];
@@ -64,6 +65,7 @@ function makeIndex(): RealIndex {
       sets.push(entry('scenery', 'bench', d, r, { 'bench:f0': FRAME }));
       sets.push(entry('rail', 'steel_coaster', d, r, { 'flat:t0': FRAME }, true));
       sets.push(entry('ground', 'grass', d, r, { 's0:v1': FRAME }));
+      sets.push(entry('support', 'steel_coaster', d, r, { h3: FRAME }));
     }
     sets.push(entry('car', 'steel_coaster', d, 'all', { 'y31:p23:r1:full': FRAME }, true));
     for (let b = 0; b < 2; b++) for (let o = 0; o < 4; o++) sets.push(entry('guest', `b${b}o${o}`, d, 'all', { 'f2:w1': FRAME, 'f0:sit': FRAME }, true));
@@ -99,6 +101,8 @@ class FakeSets implements RealSets {
   densityCap(): 2 | 4 { return this.cap; }
   isDemoted(key: SetKey): boolean { return this.demoted.has(key); }
   hold(id: string, bytes: number): void { if (bytes > 0) this.held.set(id, bytes); else this.held.delete(id); }
+
+  images(key: SetKey): CanvasImageSource[] { return this.ready.get(key)!.images; }
 
   wanted(priority: 'now' | 'ahead'): SetKey[] {
     return this.wants.filter((w) => w.priority === priority).flatMap((w) => w.keys).sort();
@@ -143,15 +147,15 @@ describe('RealLook', () => {
     const sp = look.stall('snack_shack', 0);
     expect(sp).toBeTruthy();
     expect(sp!.scale).toBe(4);
-    expect(sp!.ox).toBe(FRAME.ox);
-    expect(sp!.oy).toBe(FRAME.oy);
+    // Frame ox/oy -10/-30 (anchor to top-left) -> sprite ox/oy 10/30 (anchor inside the image), as blit wants.
+    expect(sp!.ox).toBe(10);
+    expect(sp!.oy).toBe(30);
     expect(sp!.w).toBe(FRAME.w);
     expect(sp!.h).toBe(FRAME.h);
-    const img = sp!.image as unknown as PixCanvas;
-    expect([img.width, img.height]).toEqual([FRAME.w, FRAME.h]);
-    // The cropped frame is cached and its bytes are held in the set manager budget.
-    expect(look.stall('snack_shack', 0)!.image).toBe(sp!.image);
-    expect([...sets.held.values()].reduce((a, b) => a + b, 0)).toBe(FRAME.w * FRAME.h * 4);
+    // An atlas sprite: the sheet itself, with the frame's source rectangle; nothing copied or held.
+    expect(sp!.image).toBe(sets.images(setKey('stall', 'snack_shack', 4, 0))[0]);
+    expect([sp!.sx, sp!.sy]).toEqual([FRAME.sx, FRAME.sy]);
+    expect(sets.held.size).toBe(0);
   });
 
   it('returns null and counts incomplete while the set loads', () => {
@@ -203,6 +207,7 @@ describe('RealLook', () => {
       k('ground', 'grass', 3),
       ...guests,
       k('rail', 'steel_coaster', 3),
+      k('support', 'steel_coaster', 3),
       k('ride', 'carousel', 'all'),
       k('scenery', 'bench', 3),
       k('shadow', 'carousel', 'all'),
@@ -212,6 +217,7 @@ describe('RealLook', () => {
     expect(sets.wanted('ahead')).toEqual([
       k('ground', 'grass', 0),
       k('rail', 'steel_coaster', 0),
+      k('support', 'steel_coaster', 0),
       k('scenery', 'bench', 0),
       k('shadow', 'snack_shack', 0),
       k('stall', 'snack_shack', 0),
@@ -257,21 +263,29 @@ describe('RealLook', () => {
     expect(a).toBeTruthy();
     const hex = SHIRT_COLOURS[3]!;
     const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
-    const px = (a.image as unknown as PixCanvas).data;
-    for (let c = 0; c < 3; c++) expect(Math.abs(px[c]! - rgb[c]! * 128 / 255)).toBeLessThanOrEqual(1);
-    expect(look.guest(5, 3, 1, 2, false)!.image).toBe(a.image);
+    // The whole sheet is tinted once: the sprite points into the tinted 8x8 sheet at the frame's rectangle.
+    const sheet = a.image as unknown as PixCanvas;
+    expect([sheet.width, sheet.height]).toEqual([8, 8]);
+    expect([a.sx, a.sy, a.ox, a.oy]).toEqual([FRAME.sx, FRAME.sy, 10, 30]);
+    const at = (FRAME.sy * 8 + FRAME.sx) * 4;
+    for (let c = 0; c < 3; c++) expect(Math.abs(sheet.data[at + c]! - rgb[c]! * 128 / 255)).toBeLessThanOrEqual(1);
+    const key = setKey('guest', 'b1o2', 2, 'all');
+    expect([...sets.held.entries()]).toEqual([[`${key}#${hex}`, 8 * 8 * 4]]);
+    // Same colour, other frame: same tinted sheet, no new hold.
+    expect(look.guest(5, 3, 0, 0, true)!.image).toBe(a.image);
+    expect(sets.held.size).toBe(1);
     const b = look.guest(5, 4, 1, 2, false)!;
     expect(b.image).not.toBe(a.image);
-    expect(look.guest(5, 4, 0, 0, true)).toBeTruthy(); // sitting frame
+    expect(sets.held.has(`${key}#${SHIRT_COLOURS[4]!}`)).toBe(true);
   });
 
-  it('frees cached frames when their set is no longer ready', () => {
+  it('frees tinted sheets when their set is no longer ready', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
-    sets.setState(setKey('stall', 'snack_shack', 2, 0), 'ready');
-    const img = look.stall('snack_shack', 0)!.image as unknown as PixCanvas;
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    const img = look.guest(0, 1, 1, 2, false)!.image as unknown as PixCanvas;
     expect(sets.held.size).toBe(1);
-    sets.setState(setKey('stall', 'snack_shack', 2, 0), 'none');
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'none');
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     expect(sets.held.size).toBe(0);
     expect(img.width).toBe(0);
@@ -283,6 +297,10 @@ describe('RealLook', () => {
     sets.setState(setKey('rail', 'steel_coaster', 2, 2), 'ready');
     sets.setState(setKey('car', 'steel_coaster', 2, 'all'), 'ready');
     sets.setState(setKey('ground', 'grass', 2, 2), 'ready');
+    sets.setState(setKey('support', 'steel_coaster', 2, 2), 'ready');
+    expect(look.support('mini_railway', 3, 2)).toBeTruthy();
+    expect(look.support('steel_coaster', 4, 2)).toBeUndefined(); // no such frame
+    expect(look.support('go_karts', 3, 2)).toBeUndefined();
     expect(look.rail('mini_railway', 'flat', 0, 2, 3)).toBeTruthy();
     expect(look.car('steel_coaster', -1, -1, 25, true, 1)).toBeTruthy(); // wraps to y31 p23 r1
     expect(look.groundPiece('grass', 0, 1, 2)).toBeTruthy();

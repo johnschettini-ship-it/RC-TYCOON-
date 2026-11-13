@@ -7,9 +7,10 @@
  *   - `null`: the set is still loading; skip the object this frame (counted by `incomplete()`);
  *   - `undefined`: draw today's art (item mapped to 'classic', set failed, or the bake lacks the set or frame).
  *
- * Sprites: `Sprite` has no source rectangle, so each drawn frame is copied out of its sheet into its own small
- * canvas (tinted there when the sheet has a mask). These frames are cached, held in the set manager's budget
- * (`SetManager.hold`), and freed when their set is freed or they go unused for `KEEP_FRAMES` prepares.
+ * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
+ * (sheet with a mask) point into a copy of the whole sheet tinted once per (sheet, colour) with `tintSheet`
+ * (spec §5.7), cached per `${setKey}#${hex}` and held in the set manager's budget (`SetManager.hold`) under that key;
+ * it is freed when its set is freed or goes unused for `KEEP_FRAMES` prepares.
  *
  * Contract with the bake (Task 9), frame keys via `frameKey`:
  *   ride     set ride:<item>        frame [item, `f<frame>`, `occ0` | `occ1`]   (occupancy > 0 → occ1, full)
@@ -20,10 +21,12 @@
  *   staff    set guest:staff_<type> frame [`f<facing 0-3>`, `w<walk>`]          (not baked in stage 1)
  *   rail     set rail:<item>        frame [pieceId, `t<tile>`]                  (track-colour mask, optional)
  *   car      set car:<item>         frame [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (car-colour mask)
+ *   support  set support:<item>     frame [`h<heightStep>`]                     (one per 1 m step)
  *   ground   set ground:<terrain>   frame [`s<slopeMask>`, `v<variant>`]
- * A set with `rot: 'all'` serves every view rotation and is wanted once. Frame `ox`/`oy` are copied to the
- * sprite unchanged: `renderer.ts` `blit` puts the image's top-left at anchor − (ox, oy) × (device px per
- * sprite px), so the bake must write ox/oy as the anchor's position inside the frame, in density pixels.
+ * A set with `rot: 'all'` serves every view rotation and is wanted once. A sheet's tint mask is listed as another
+ * sheet of the same set (`sheets[i].mask` names its file); a sheet without a mask is drawn untinted.
+ * Frame `ox`/`oy` follow the index format (offset from the game anchor to the frame's top-left, density px); the
+ * sprite takes their negation, because `blit` puts the top-left at anchor − sprite.ox.
  */
 import { SHIRT_COLOURS } from '../palette';
 import type { Sprite } from '../spriteCache';
@@ -33,10 +36,14 @@ import type { ViewRotation } from '../view';
 import type { World } from '../../sim/types';
 import { PathItem } from '../../sim/map';
 import { realItem } from './fallbacks';
-import { frameKey, setKey, type RealFrame, type RealIndex, type RealKind, type SetKey } from './indexFormat';
+import { frameKey, setKey, type RealIndex, type RealKind, type SetKey } from './indexFormat';
 import type { Decoded, ReadySet, SetManager } from './setManager';
 import { tintSheet, type CanvasLike } from './tint';
 
+/**
+ * Every getter returns a `Sprite` to draw, `null` when its set is not ready yet (skip the object this frame; counted
+ * by `incomplete()`), or `undefined` to draw today's art (classic fallback: unbaked item, failed set, missing frame).
+ */
 export interface RealLook {
   density(zoom: number, dpr: number): 2 | 4;
   prepare(world: World, rot: ViewRotation, view: ViewRect, zoom: number, dpr: number): void;
@@ -47,6 +54,7 @@ export interface RealLook {
   staff(staffType: string, facing: number, walk: number): Sprite | null | undefined;
   rail(trackType: string, pieceId: string, tile: number, rot: ViewRotation, colour: number): Sprite | null | undefined;
   car(trackType: string, yawStep: number, pitchStep: number, rollStep: number, full: boolean, colour: number): Sprite | null | undefined;
+  support(trackType: string, heightStep: number, rot: ViewRotation): Sprite | null | undefined;
   shadow(kind: 'ride' | 'stall' | 'scenery', defId: string, rot: ViewRotation): Sprite | null | undefined;
   groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation): Sprite | null | undefined;
   /** Objects skipped since the last `prepare` because their set was not ready. */
@@ -59,20 +67,16 @@ export interface RealLook {
 export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold'>;
 
 export interface RealLookOptions {
-  /** Canvas factory for cropped and tinted frames. Default: `OffscreenCanvas`, else a DOM canvas. */
+  /** Canvas factory for tinted sheets. Default: `OffscreenCanvas`, else a DOM canvas. */
   makeCanvas?: (w: number, h: number) => CanvasLike;
-  /** Cap on cached frame bytes; least recently used frames not drawn this frame go first. Default 16 MB. */
-  frameBudgetBytes?: number;
 }
 
 /** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps. */
 export const CAR_YAW_STEPS = 32;
 export const CAR_TILT_STEPS = 24;
 
-/** Cached frames unused for this many prepares are freed. */
+/** Tinted sheets unused for this many prepares are freed. */
 const KEEP_FRAMES = 120;
-const DEFAULT_FRAME_BUDGET = 16 * 2 ** 20;
-const HOLD_ID = 'realLook:frames';
 
 /** F1: the smallest of {2, 4} ≥ zoom × dpr, else 4; then no more than the set manager's cap. */
 export function pickDensity(zoom: number, dpr: number, cap: 2 | 4): 2 | 4 {
@@ -104,25 +108,20 @@ function defaultCanvas(w: number, h: number): CanvasLike {
   return c as unknown as CanvasLike;
 }
 
-interface CropCtx {
-  drawImage(img: CanvasImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void;
-}
-
-interface CachedFrame {
+/** One set tinted with one colour: its tinted sheets by sheet index, made on first use. */
+interface Tinted {
   setKey: SetKey;
-  /** The ready set's images when the frame was cut; a reload gives a new array and invalidates the frame. */
+  /** The ready set's images when tinted; a reload gives a new array and invalidates the tint. */
   source: CanvasImageSource[];
-  image: CanvasImageSource;
+  sheets: Map<number, Decoded>;
   bytes: number;
   lastFrame: number;
-  close(): void;
 }
 
 const PATH_ITEM_IDS: Record<number, string> = { [PathItem.Bench]: 'bench', [PathItem.Bin]: 'bin', [PathItem.Lamp]: 'lamp' };
 
 export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookOptions = {}): RealLook {
   const make = opts.makeCanvas ?? defaultCanvas;
-  const frameBudget = opts.frameBudgetBytes ?? DEFAULT_FRAME_BUDGET;
   const keys = new Set<SetKey>(index.sets.map((e) => e.key));
   const itemsOf = (kind: RealKind): string[] => [...new Set(index.sets.filter((e) => e.kind === kind).map((e) => e.item))].sort();
   const guestItems = itemsOf('guest').filter((i) => !i.startsWith('staff_'));
@@ -133,8 +132,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   let frameNo = 0;
   let skipped = 0;
   const fallbacks = new Set<string>();
-  const cache = new Map<string, CachedFrame>();
-  let cacheBytes = 0;
+  /** By `${setKey}#${hex}`, which is also the hold id in the set manager. */
+  const tinted = new Map<string, Tinted>();
 
   /** The set to use for (kind, item) at the current density and `rot`, or undefined when the bake has none. */
   function resolve(kind: RealKind, item: string, rot: ViewRotation): SetKey | undefined {
@@ -146,56 +145,39 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     return keys.has(k) ? k : undefined;
   }
 
-  function evict(c: string): void {
-    const f = cache.get(c);
-    if (!f) return;
-    f.close();
-    cache.delete(c);
-    cacheBytes -= f.bytes;
+  function evict(id: string): void {
+    const t = tinted.get(id);
+    if (!t) return;
+    for (const d of t.sheets.values()) d.close();
+    tinted.delete(id);
+    sets.hold(id, 0);
   }
 
-  function fitBudget(incoming: number): void {
-    if (cacheBytes + incoming <= frameBudget) return;
-    const old = [...cache.entries()].filter(([, f]) => f.lastFrame < frameNo).sort((a, b) => a[1].lastFrame - b[1].lastFrame);
-    for (const [c] of old) {
-      if (cacheBytes + incoming <= frameBudget) break;
-      evict(c);
-    }
-  }
+  const wrap = (image: CanvasImageSource): Decoded => ({ image, bytes: 0, close() {} });
 
-  function crop(img: CanvasImageSource, f: RealFrame): CanvasLike {
-    const c = make(f.w, f.h);
-    (c.getContext('2d') as CropCtx).drawImage(img, f.sx, f.sy, f.w, f.h, 0, 0, f.w, f.h);
-    return c;
-  }
-
-  function release(c: CanvasLike): void {
-    c.width = 0;
-    c.height = 0;
-  }
-
-  /** Cut (and tint) frame `fk` of a ready set. Returns undefined when the frame's sheet is missing. */
-  function cut(key: SetKey, rs: ReadySet, fk: string, f: RealFrame, tint: string | null): CachedFrame | undefined {
-    const si = rs.sheets.findIndex((s) => s.file === f.sheet);
-    const base = rs.images[si];
-    if (!base) return undefined;
+  /** Sheet `si` of a ready set tinted with `hex`, or undefined when the sheet has no mask in the set. */
+  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): CanvasImageSource | undefined {
     const maskFile = rs.sheets[si]?.mask;
-    const mi = maskFile === undefined ? -1 : rs.sheets.findIndex((s) => s.file === maskFile);
-    const maskImg = rs.images[mi];
-    const bytes = f.w * f.h * 4;
-    if (tint !== null && maskImg) {
-      const a = crop(base, f);
-      const m = crop(maskImg, f);
-      const asDecoded = (c: CanvasLike): Decoded => ({ image: c as unknown as CanvasImageSource, bytes, close: () => release(c) });
-      const da = asDecoded(a);
-      const dm = asDecoded(m);
-      const out = tintSheet(da, dm, hexRgb(tint), make);
-      da.close();
-      dm.close();
-      return { setKey: key, source: rs.images, image: out.image, bytes: out.bytes, lastFrame: frameNo, close: () => out.close() };
+    if (maskFile === undefined) return undefined;
+    const mask = rs.images[rs.sheets.findIndex((s) => s.file === maskFile)];
+    const base = rs.images[si];
+    if (!mask || !base) return undefined;
+    const id = `${key}#${hex}`;
+    let t = tinted.get(id);
+    if (t && t.source !== rs.images) { evict(id); t = undefined; }
+    if (!t) {
+      t = { setKey: key, source: rs.images, sheets: new Map(), bytes: 0, lastFrame: frameNo };
+      tinted.set(id, t);
     }
-    const c = crop(base, f);
-    return { setKey: key, source: rs.images, image: c as unknown as CanvasImageSource, bytes, lastFrame: frameNo, close: () => release(c) };
+    t.lastFrame = frameNo;
+    let d = t.sheets.get(si);
+    if (!d) {
+      d = tintSheet(wrap(base), wrap(mask), hexRgb(hex), make);
+      t.sheets.set(si, d);
+      t.bytes += d.bytes;
+      sets.hold(id, t.bytes);
+    }
+    return d.image;
   }
 
   /**
@@ -211,27 +193,17 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (!rs) { skipped++; return null; }
     const fk = frameKey(parts);
     const f = rs.frames[fk];
-    if (!f) { fallbacks.add(`${key}/${fk}`); return undefined; }
-    const ck = tint === null ? `${key}|${fk}` : `${key}|${fk}|${tint}`;
-    let cf = cache.get(ck);
-    if (cf && cf.source !== rs.images) { evict(ck); cf = undefined; }
-    if (!cf) {
-      fitBudget(f.w * f.h * 4);
-      cf = cut(key, rs, fk, f, tint);
-      if (!cf) { fallbacks.add(`${key}/${fk}`); return undefined; }
-      cache.set(ck, cf);
-      cacheBytes += cf.bytes;
-      sets.hold(HOLD_ID, cacheBytes);
-    }
-    cf.lastFrame = frameNo;
-    return { image: cf.image, w: f.w, h: f.h, ox: f.ox, oy: f.oy, scale: rs.density };
+    const si = f ? rs.sheets.findIndex((s) => s.file === f.sheet) : -1;
+    const sheet = rs.images[si];
+    if (!f || !sheet) { fallbacks.add(`${key}/${fk}`); return undefined; }
+    const image = (tint !== null ? tintedSheet(key, rs, si, tint) : undefined) ?? sheet;
+    return { image, sx: f.sx, sy: f.sy, w: f.w, h: f.h, ox: -f.ox, oy: -f.oy, scale: rs.density };
   }
 
   function sweep(): void {
-    for (const [c, f] of [...cache.entries()]) {
-      if (sets.state(f.setKey) !== 'ready' || f.lastFrame < frameNo - KEEP_FRAMES) evict(c);
+    for (const [id, t] of [...tinted.entries()]) {
+      if (sets.state(t.setKey) !== 'ready' || t.lastFrame < frameNo - KEEP_FRAMES) evict(id);
     }
-    sets.hold(HOLD_ID, cacheBytes);
   }
 
   /** Game ids of every item kind built in the world, by RealKind. */
@@ -247,7 +219,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       add('shadow', id);
     };
     for (const r of s.rides) {
-      if (r.kind === 'track') { add('rail', r.defId); add('car', r.defId); }
+      if (r.kind === 'track') { add('rail', r.defId); add('car', r.defId); add('support', r.defId); }
       else withShadow('ride', r.defId);
     }
     for (const st of s.stalls) withShadow('stall', st.defId);
@@ -331,6 +303,10 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     car(trackType, yawStep, pitchStep, rollStep, full, colour) {
       const parts = [`y${mod(yawStep, CAR_YAW_STEPS)}`, `p${mod(pitchStep, CAR_TILT_STEPS)}`, `r${mod(rollStep, CAR_TILT_STEPS)}`, full ? 'full' : 'empty'];
       return sprite('car', realItem(trackType), trackType, curRot, parts, paletteColour(colour));
+    },
+
+    support(trackType, heightStep, rot) {
+      return sprite('support', realItem(trackType), trackType, rot, [`h${heightStep}`], null);
     },
 
     shadow(_kind, defId, rot) {
