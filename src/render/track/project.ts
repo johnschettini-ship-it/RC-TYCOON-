@@ -13,8 +13,8 @@ import type { TrackPieceInstance } from '../../sim/rides/track/types';
 /** Screen px per metre: a 4 m tile is a 64 × 32 px diamond, so (x − y) × 8 across and (x + y) × 4 down. */
 export const PX_X = TILE_W / 2 / TILE_M;
 export const PX_Y = TILE_H / 2 / TILE_M;
-/** Screen px per metre of height. */
-export const PX_Z = STEP_PX;
+/** Screen px per metre of height (live binding of the per-look step). */
+export { STEP_PX as PX_Z };
 
 /** View rotation (quarter turns) and map size in metres. */
 export interface ViewFrame {
@@ -66,7 +66,7 @@ export function isoX(vx: number, vy: number): number {
 
 /** Iso screen y (world px, zoom 1) of a view-space point at absolute height `z` (m). */
 export function isoY(vx: number, vy: number, z: number): number {
-  return (vx + vy) * PX_Y - z * PX_Z;
+  return (vx + vy) * PX_Y - z * STEP_PX;
 }
 
 /** Screen x of a world point (m). With rotation 0 this equals `tileToScreen(wx / 4, wy / 4, z).sx`. */

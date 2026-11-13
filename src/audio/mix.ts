@@ -7,13 +7,13 @@ import {
   PAN_WIDTH,
   VOLUME_EXPONENT,
 } from '../data/tuning/audio';
+import { STEP_PX } from '../render/iso';
 import { mapToViewContinuous } from '../render/view';
 import type { AudioVolumes, Bus, Listener } from './types';
 
-/** Half a tile in world pixels (zoom 1): 64 × 32 px tiles, 8 px per height step (master 6.4). */
+/** Half a tile in world pixels (zoom 1): 64 × 32 px tiles, height step px from render/iso (master 6.4). */
 const HALF_W = 32;
 const HALF_H = 16;
-const STEP_PX = 8;
 
 /** Falloff radius in tiles: `R = 24 / zoom`. */
 export function falloffRadius(zoom: number): number {

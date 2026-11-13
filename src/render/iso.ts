@@ -7,7 +7,12 @@ import { rotateSlopeMask, viewSize, viewToMap, type ViewRotation } from './view'
 
 export const TILE_W = 64;
 export const TILE_H = 32;
-export const STEP_PX = 8;
+/** Screen px per height step; live binding, set once at start-up per look (classic 8, real 9.8). */
+export let STEP_PX = 8;
+
+export function setStepPx(px: number): void {
+  STEP_PX = px;
+}
 
 const HALF_W = TILE_W / 2;
 const HALF_H = TILE_H / 2;
