@@ -1,5 +1,5 @@
 /**
- * Phase 6 §4.6 benchmark scenes (W4-E): three fixed parks saved as schema 3 saves next to this file.
+ * Phase 6 §4.6 benchmark scenes (W4-E): four fixed parks saved as schema 3 saves next to this file.
  *
  * - `build1`: the master §10 Build 1 scene on the 64 × 64 map: 10 Mini Railway loops with 2 trains each (west half),
  *   a footpath grid with 14 flat rides, 4 stalls, bins, and benches (east half), 8 staff, and 2,000 guests.
@@ -21,6 +21,7 @@ import { createWorld } from '../../src/sim/world';
 import { stepTick } from '../../src/sim/tick';
 import type { World } from '../../src/sim/types';
 import type { StaffType } from '../../src/data/catalog/types';
+import { canOpenTrackRide } from '../../src/sim/rides/track/api';
 import { addGuestDirect } from '../helpers/world';
 import type { PerfSceneId } from './sceneInfo';
 
@@ -192,7 +193,80 @@ function buildBuild2(): World {
   return world;
 }
 
+/**
+ * The coaster test park (stage 1 realistic art test): the 64 × 64 map, one Steel Coaster (a 24 m lift and drop:
+ * station, chain lift, steep drop, three curves, supports, 2 trains × 4 cars), a carousel, a snack shack, 20
+ * scenery items, and 600 guests; the camera focuses on the coaster. The coaster is built with the real track
+ * path (gates, test run) and `canOpenTrackRide` returns null.
+ */
+/**
+ * The coaster circuit: R1's block-brake layout with a taller lift and drop. Rail heights step by 1, 2, 4 and 6 m in
+ * pairs (up then back to flat), so a lift is always an even number of metres: 24 m is the closest to the brief's
+ * 25 m. The drop mirrors the lift, 24 m from the 32 m crest to the 8 m ground. The west leg gains 2 straights and the north leg
+ * 2, to close the circuit round the 2 tiles the lift and the drop each gained.
+ */
+const COASTER_PIECES: Array<string | { id: string; chain?: boolean; brakeSpeed?: number }> = [
+  'station', 'station',
+  ...['flat_to_gentle_up', 'gentle_up', 'gentle_to_steep_up', 'steep_up', 'steep_up', 'steep_to_gentle_up', 'gentle_up_to_flat'].map((id) => ({ id, chain: true })),
+  'block_brake', { id: 'straight', chain: true }, 'turn_medium_right',
+  'flat_to_gentle_down', 'gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat',
+  { id: 'brakes', brakeSpeed: 8 }, 'turn_medium_right',
+  'straight', 'straight', 'straight', 'straight', 'block_brake',
+  { id: 'flat_to_gentle_up', chain: true }, { id: 'gentle_up_to_flat', chain: true }, 'flat_to_gentle_down', 'gentle_down_to_flat',
+  'straight', 'straight', 'straight', 'turn_medium_right', 'block_brake',
+  { id: 'flat_to_gentle_up', chain: true }, { id: 'gentle_up_to_flat', chain: true }, 'flat_to_gentle_down', 'gentle_down_to_flat',
+  'straight', 'straight', 'straight', 'turn_medium_right',
+];
+
+function buildCoaster(): World {
+  const world = createWorld({ seed: 5150, parkName: 'Coaster Perf Park' });
+  world.state.park.cash = 100_000_000;
+  // Paths first so the drop's support skips its tile over the footpath (span rule), as in the R1 park.
+  run(world, { type: 'buildPathLine', x0: 31, y0: 59, x1: 31, y1: 6, kind: 'footpath' });
+  run(world, { type: 'buildPathLine', x0: 30, y0: 6, x1: 5, y1: 6, kind: 'footpath' });
+  run(world, { type: 'buildPathLine', x0: 6, y0: 4, x1: 6, y1: 5, kind: 'footpath' });
+  run(world, { type: 'buildPathLine', x0: 4, y0: 4, x1: 4, y1: 6, kind: 'queue' });
+  const id = run(world, { type: 'placeStation', typeId: 'steel_coaster', x: 4, y: 2, dir: 1 });
+  for (const spec of COASTER_PIECES) {
+    const p = typeof spec === 'string' ? { id: spec } : spec;
+    run(world, { type: 'addTrackPiece', rideId: id, defId: p.id, chain: p.chain, brakeSpeed: p.brakeSpeed });
+  }
+  run(world, { type: 'setTrainConfig', rideId: id, trains: 2, carsPerTrain: 4 });
+  run(world, { type: 'placeTrackGate', rideId: id, kind: 'entrance', x: 4, y: 3 });
+  run(world, { type: 'placeTrackGate', rideId: id, kind: 'exit', x: 6, y: 3 });
+  run(world, { type: 'startTestRun', rideId: id });
+  const data = world.state.track.rides[String(id)];
+  if (!data) throw new Error('coaster has no track data');
+  const testTicks = (data.testRun?.ticksLeft ?? 0) + 1;
+  for (let k = 0; k < testTicks; k++) stepTick(world);
+  const ride = world.state.rides.find((r) => r.id === id);
+  const why = ride ? canOpenTrackRide(world, ride) : 'no ride';
+  if (why !== null) throw new Error(`coaster cannot open: ${why}`);
+  run(world, { type: 'setRideOpen', rideId: id, open: true });
+  // A carousel and a snack shack on the main path, 20 scenery items in free east-side tiles.
+  run(world, { type: 'buildPathLine', x0: 32, y0: 30, x1: 44, y1: 30, kind: 'footpath' });
+  const car = run(world, { type: 'placeRide', defId: 'carousel', x: 38, y: 24, rotation: 0 });
+  run(world, { type: 'buildPathLine', x0: 39, y0: 27, x1: 39, y1: 29, kind: 'queue' });
+  run(world, { type: 'setRideOpen', rideId: car, open: true });
+  run(world, { type: 'placeStall', defId: 'snack_shack', x: 32, y: 20, rotation: 3 });
+  const items = ['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'];
+  const rnd = lcg(2468);
+  let placed = 0;
+  for (let tries = 0; tries < 400 && placed < 20; tries++) {
+    const x = 34 + Math.floor(rnd() * 24);
+    const y = 8 + Math.floor(rnd() * 44);
+    const r = executeCommand(world, { type: 'placeScenery', defId: items[placed % items.length] as string, x, y, rotation: 0, edge: -1 }, { setup: true });
+    if (r.ok) placed++;
+  }
+  if (placed < 20) throw new Error(`only ${placed} scenery items placed`);
+  hire(world, { groundskeeper: 2, mechanic: 1 });
+  addGuests(world, 600, 909);
+  for (let k = 0; k < SETTLE_TICKS; k++) stepTick(world);
+  return world;
+}
+
 export function buildPerfScene(id: PerfSceneId): World {
+  if (id === 'coaster') return buildCoaster();
   if (id === 'build2') return buildBuild2();
   return buildBuild1(id === 'phone' ? 800 : 2_000);
 }
