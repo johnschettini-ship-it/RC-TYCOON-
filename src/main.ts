@@ -3,6 +3,7 @@ import './styles/main.css';
 import { Game } from './game';
 import { createCanvasRenderer, type RealOptions } from './render/renderer';
 import { artStyle } from './render/artStyle';
+import { pageStorage, startRealBuild } from './render/real/storagePrefix';
 import { tileToScreen } from './render/iso';
 import { attachInput } from './input';
 import { mountUI } from './ui';
@@ -50,10 +51,11 @@ function boot(real?: RealOptions): void {
 }
 
 // The realistic art test (`?art=real`, stage 1) exists only in a build made with VITE_ART=real (the /real-game/
-// deploy): the compile-time check lets Vite drop the import, the boot chunk and its preload helper from the website
-// build. `bootReal` installs the `tcreal:` storage prefix and sets the realistic height step before the game starts;
-// without baked art it shows one error line and the game starts with today's look.
-if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
+// deploy): the compile-time check lets Vite drop all of it, the boot chunk and its preload helper from the website
+// build. In that build the `tcreal:` storage prefix goes on first, synchronously, for every boot path (`?art=classic`
+// and a failed import included), so it never touches the real game's saves. `bootReal` sets the realistic height
+// step; without baked art it shows one error line and the game starts with today's look.
+if (import.meta.env.VITE_ART === 'real' && startRealBuild(pageStorage(), artStyle())) {
   import('./render/real/boot')
     .then((m) => m.bootReal())
     .catch(() => null)

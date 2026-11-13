@@ -278,7 +278,6 @@ export interface RealOptions {
 
 export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOptions = {}): Renderer {
   // Compile-time gate: the website build (VITE_ART unset) folds every realistic branch away.
-  // Compile-time gate: the website build (VITE_ART unset) folds every realistic branch away.
   const L = import.meta.env.VITE_ART === 'real' ? real.look : undefined;
   const ground = import.meta.env.VITE_ART === 'real' ? real.ground : undefined;
   // Opaque: every frame clears to the sky colour first.

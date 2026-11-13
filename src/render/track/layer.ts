@@ -42,7 +42,7 @@ import { drawGhostIcon } from '../sprites/props';
 import type { ArtBounds } from '../sprites/rides';
 import { SKIN_TONES } from '../sprites/shapes';
 import type { ToolState } from '../types';
-import type { RealLook } from '../real/look';
+import { CAR_TILT_STEPS, CAR_YAW_STEPS, type RealLook } from '../real/look';
 import { paletteColour } from './colours';
 import {
   CAR_BOUNDS,
@@ -885,8 +885,9 @@ export class TrackLayer {
       const start = c.seatStart[i] as number;
       let full = false;
       for (let j = 0; j < (c.seatCount[i] as number); j++) if ((c.seats[start + j] as number) >= 0) full = true;
-      // Steps per radian: 32 / 2π for yaw, 24 / 2π for pitch and roll.
-      const real = look.car(this.carDef[i] as string, Math.round((c.yaw[i] as number) * 5.093), Math.round((c.pitch[i] as number) * 3.8197), Math.round(Math.atan2(c.bankSin[i] as number, c.bankCos[i] as number) * 3.8197), full, colour);
+      const yawK = CAR_YAW_STEPS / (2 * Math.PI);
+      const tiltK = CAR_TILT_STEPS / (2 * Math.PI);
+      const real = look.car(this.carDef[i] as string, Math.round((c.yaw[i] as number) * yawK), Math.round((c.pitch[i] as number) * tiltK), Math.round(Math.atan2(c.bankSin[i] as number, c.bankCos[i] as number) * tiltK), full, colour);
       if (real === null) return;
       if (real) {
         this.blit(ctx, real, projectX(c.x[i] as number, c.y[i] as number, f), projectY(c.x[i] as number, c.y[i] as number, c.z[i] as number, f));

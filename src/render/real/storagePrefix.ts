@@ -1,9 +1,10 @@
 /**
- * The realistic test (`?art=real`) shares its website address with the real game, so it must never read, write or
+ * The realistic test build (VITE_ART=real) shares its website address with the real game, so it must never read, write or
  * clear the game's saved data. After `installStoragePrefix`, every key gets the prefix, `key`/`length` see only
  * prefixed keys, and `clear()` removes only those. Approach of the stage 0b prototype (commit 5b09d2c): the
  * methods are replaced on the storage's prototype (setting own properties on a real `Storage` would store items),
  * and the original `length` getter is kept so the new one does not call itself.
+ * Patching `Storage.prototype` affects `sessionStorage` too: in this build both see only `tcreal:` keys.
  */
 const INSTALLED = Symbol.for('tc.storagePrefix');
 
@@ -47,4 +48,24 @@ export function installStoragePrefix(storage: Storage, prefix: 'tcreal:'): void 
     },
   });
   Object.defineProperty(proto, INSTALLED, { value: prefix });
+}
+
+/**
+ * Start of a VITE_ART=real build (`main.ts`, synchronously, before any boot path): the `tcreal:` prefix goes on
+ * first, whatever `?art=` says and whether or not the realistic code then loads, so this build can never read,
+ * write or clear the real game's saves on the shared website address. Returns true when the realistic look
+ * should load (`?art=real`, via `artStyle`).
+ */
+export function startRealBuild(storage: Storage | null, style: 'classic' | 'real'): boolean {
+  if (storage) installStoragePrefix(storage, 'tcreal:');
+  return style === 'real';
+}
+
+/** `localStorage`, or null where reading it throws (blocked storage). */
+export function pageStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
 }

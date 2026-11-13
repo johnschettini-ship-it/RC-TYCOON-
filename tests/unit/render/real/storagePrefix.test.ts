@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { installStoragePrefix } from '../../../../src/render/real/storagePrefix';
+import { readFileSync } from 'node:fs';
+import { installStoragePrefix, startRealBuild } from '../../../../src/render/real/storagePrefix';
+import { artStyle } from '../../../../src/render/artStyle';
 
 /** A Storage look-alike: methods and the `length` getter on the prototype, as on the real Storage. */
 function makeStorageClass(): { new (): Storage; prototype: Storage } {
@@ -70,5 +72,35 @@ describe('storage prefix for the realistic test (tcreal:)', () => {
     installStoragePrefix(s, 'tcreal:');
     s.setItem('a', '1');
     expect((s as unknown as { raw(): string[] }).raw()).toEqual(['tcreal:a']);
+  });
+
+  it('VITE_ART=real build: ?art=classic is still prefixed', () => {
+    const S = makeStorageClass();
+    const s = new S();
+    s.setItem('tc.save.1', 'real park');
+    expect(startRealBuild(s, artStyle('?art=classic', 'real'))).toBe(false);
+    expect(s.getItem('tc.save.1')).toBeNull();
+    s.clear();
+    expect((s as unknown as { raw(): string[] }).raw()).toEqual(['tc.save.1']);
+  });
+
+  it('VITE_ART=real build: the prefix is on before the realistic code loads, so a failed import stays prefixed', () => {
+    const S = makeStorageClass();
+    const s = new S();
+    s.setItem('tc.settings', 'real');
+    // ?art=real: the prefix goes on synchronously, before `import('./render/real/boot')` is even started.
+    expect(startRealBuild(s, artStyle('?art=real', 'real'))).toBe(true);
+    expect(s.getItem('tc.settings')).toBeNull();
+    // main.ts: the decision runs in the gate itself, ahead of both boot paths (import, its .catch, and plain boot()).
+    const main = readFileSync('src/main.ts', 'utf8');
+    const gate = main.indexOf("if (import.meta.env.VITE_ART === 'real' && startRealBuild(pageStorage(), artStyle()))");
+    expect(gate).toBeGreaterThan(0);
+    expect(main.indexOf("import('./render/real/boot')")).toBeGreaterThan(gate);
+    expect(main.slice(0, gate).match(/^\s*boot\(/m)).toBeNull();
+  });
+
+  it('a build without storage still decides by the style', () => {
+    expect(startRealBuild(null, 'real')).toBe(true);
+    expect(startRealBuild(null, 'classic')).toBe(false);
   });
 });

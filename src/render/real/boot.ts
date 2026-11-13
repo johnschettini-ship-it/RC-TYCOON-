@@ -18,7 +18,7 @@ import { RealGround } from './ground';
 import type { RealIndex } from './indexFormat';
 import { createRealLook } from './look';
 import { SetManager, type Decoded, type SetIO } from './setManager';
-import { installStoragePrefix } from './storagePrefix';
+import { installStoragePrefix, pageStorage } from './storagePrefix';
 
 /** Spec F2 (a): the most decoded picture memory the realistic look may hold. */
 export const REAL_DECODE_BUDGET_BYTES = 128 * 1024 * 1024;
@@ -46,17 +46,10 @@ function showLine(message: string): void {
   document.body.appendChild(el);
 }
 
-function localStore(): Storage | null {
-  try {
-    return globalThis.localStorage ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /** The renderer options of the realistic look, or null (error line shown) to start with today's look. */
 export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOptions | null> {
-  const store = deps.storage === undefined ? localStore() : deps.storage;
+  // Already installed by `main.ts` (`startRealBuild`); kept here so `bootReal` alone is safe too (a no-op twice).
+  const store = deps.storage === undefined ? pageStorage() : deps.storage;
   if (store) installStoragePrefix(store, 'tcreal:');
   const get = deps.fetch ?? ((url: string) => fetch(url));
   let index: RealIndex;

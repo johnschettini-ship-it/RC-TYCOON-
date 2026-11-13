@@ -35,7 +35,8 @@ function build(): Record<string, string | 'classic'> {
 }
 
 /** Every catalog id (rides, track rides, stalls, scenery, path items) → baked item or 'classic'. */
-export const REAL_FALLBACK: Readonly<Record<string, string | 'classic'>> = Object.freeze(build());
+// Pure: modules that only import look.ts constants (track layer) must not keep this table in the website build.
+export const REAL_FALLBACK: Readonly<Record<string, string | 'classic'>> = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ build());
 
 /** The baked item for a game id; ids missing from the catalogs are 'classic' too. */
 export function realItem(id: string): string | 'classic' {
