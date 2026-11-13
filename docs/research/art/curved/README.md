@@ -301,3 +301,135 @@ height, which is also a direct model for the game's terrain: draw a height level
   noise below ~1x and guests compete with flowerbeds for attention. It needs the most production work.
 * **I** has the strongest mood and rides pop, but guests are the hardest to tell apart and night-only play needs
   a daytime counterpart for long sessions.
+
+---
+
+# Round 4: L, M, N, O — four more different looks
+
+Same rule as round 3: each sheet has its **own layout, proportions, shape language, light and content**; only the
+game camera is shared (isometric 2:1, `screen = (ox + (x - y) * 52 * s, oy + (x + y) * 26 * s - z * s)`, four 90 degree
+turns). Every sheet has a coaster, a flat ride, a stall, paths, walking guests, a 2x guest line-up and a style note.
+
+**Riders sit in the cars now.** Round 3 drew riders standing on top of cars. Round 4 treats every car, cup, gondola
+and boat as a **tub**: draw the opening (a dark well), then the riders' upper bodies (arms up) with their hips below
+the rim, then the car's camera-facing walls *over* their laps. Shared helpers in `generate-r4.mjs`:
+`carGeom` (a car on a track by arc length: corners, the side faces the camera can see, seat points) and `cupGeom`
+(an open cylinder plus its **front wall** = side minus the opening). In the game this is the same: ride sprite back
+half, rider sprites, ride sprite front half.
+
+| File | Style |
+| --- | --- |
+| `l-sky.svg` | L: Sky islands |
+| `m-felt.svg` | M: Felt and stitch |
+| `n-glass.svg` | N: Stained glass |
+| `o-retro.svg` | O: Retro-future chrome |
+| `tools/generate-r4.mjs` | Builds L to O (`node tools/generate-r4.mjs`, or `node tools/generate-r4.mjs l n`). Colour/geometry helpers copied from `generate-r3.mjs`; A to K are untouched |
+| `tools/render-r4.cjs` | Renders `concept-curved-{l,m,n,o}.png` (1600 x 1000), `-phone.png` (390 x 520 CSS px at DPR 2, framed on a ride, a path and guests) and `concept-curved-compare-4.png` (same layout as compare-3) |
+| `tools/shrink-r3.py` | Reused: `python3 tools/shrink-r3.py m n compare-4` cut M's phone crop, N's sheet and compare-4 to 256 colours (they were over 1 MB) |
+
+## L: Sky islands
+
+* **Look:** the park floats on three pastel islands (blob tops, hanging rock undersides with strata and vines)
+  joined by sagging rope bridges with plank decks, over a cloud sea. Rides are grown, not built: a **flower-petal
+  spinner** (lily-pad base, a stem, a nine-petal canopy, petal cups with seated riders), a **vine coaster** with
+  curving leaf-stem supports and seed-pod cars, a **mushroom stall** (spotted dome cap, serving window in the stalk).
+  Cotton-candy puff trees, a bell-flower lamp, small floating rocks.
+* **Fills:** soft gradients everywhere: sides go lilac-shade → base → lit (left to right), spheres are radial with
+  the light centre upper right, the grass is a radial mint, the sky a pink → lilac → mint ramp with a pale sun glow.
+* **Outline:** none. Instead a **rim light**: the sun is *behind* the park (upper right), so every silhouette gets a
+  thin white line on its sun side (the back edge of each island top, the right edge of cylinders, balls, guests).
+* **Shade:** mixed toward lilac `#8a74c8`, never grey or black. Shadows are soft lilac blurs.
+* **Guests:** soft bell-shaped cloaks, round heads with rim light, trailing scarves, parasols and heart balloons.
+* **Canvas 2D mapping:** gradients per object in local space (`translate` + cached `CanvasGradient`); the rim line is
+  one extra `stroke()` of a partial arc / edge path with `globalAlpha`. Islands = one `Path2D` each (top, lip band,
+  underside); bridges are lines. Clouds and island glows = pre-blurred sprites.
+* **Phone cost: medium.** No filters, but 2 to 4 gradient fills plus a rim stroke per object, and big translucent
+  cloud layers (overdraw). Pre-draw: clouds, glows, island undersides (static) and the puff trees; rides can be live
+  or cached per rotation. Floating islands also change the game: terrain becomes discrete islands, so paths need
+  bridges and the build grid needs "no ground here" tiles.
+
+## M: Felt and stitch
+
+* **Look:** a plush toy park on a padded patchwork cushion on a gingham cloth. Every panel is felt with a dashed
+  thread seam just inside its edge; the cushion has a piped cord edge. A **plush octopus spinner** (button eyes,
+  stitched smile, yarn arms swinging felt cups with seated riders), a **yarn coaster** on ribbed knitted posts with
+  pillow cars (a button badge on the nose), a **cupcake stall** (pleated wrapper, three frosting puffs, a red button
+  cherry), felt-disc trees with button apples, stitched pines, spool-of-thread lamps, a felt pond with lily pads.
+* **Fills:** flat felt colours, three tones per box (top = base, left x0.88, right x0.74). Warm, cosy palette: rust,
+  berry, mustard, teal, olive, oat, cream.
+* **Puff:** every panel gets an SVG filter (`#mPuff`): inner shadow along its lower-right edge and a soft light along
+  its upper-left edge, so each piece looks stuffed. Guests get a lighter version on the whole figure.
+* **Seams:** dashed thread 1.3 px (`4 3`), drawn on a copy of the shape inset ~4 px. **Yarn** = 3 strokes (dark
+  under-stroke, colour, light dashed ply). **Knit** = a thick stroke with a dashed dark/light rib overlay.
+* **Texture:** one filter over the whole scene: a 2.4 px turbulence displacement (fuzzy felt edges) and a fibre
+  noise multiplied into the colours (arithmetic composite, so translucent shadows stay dark).
+* **Guests:** plush dolls: round felt heads with button eyes and a stitched smile, yarn-loop or braided hair, beanies
+  with pompoms, a seam down the body, sewn-on patches, stubby legs.
+* **Canvas 2D mapping:** shapes are cheap `fill()`s; seams are `setLineDash` strokes. The puff cannot be live
+  (`ctx.filter` / `shadowBlur` per panel per frame is far too slow): bake it. Felt fibre is a tiled noise texture
+  multiplied in (`globalCompositeOperation = 'multiply'` on the sprite, clipped by `source-atop`).
+* **Phone cost: high to draw live, medium if baked.** About 130 puff-filtered panels plus every guest on this one sheet. **Must be
+  pre-drawn:** every ride, tree, stall and guest pose as a sprite per rotation with the puff and fibre baked in;
+  the ground as baked terrain chunks. Shirt recolouring at run time would break the baked fibre, so bake per colour
+  set or keep the fibre as an overlay pass. At phone size it reads very well: the shapes are fat and the colours warm.
+
+## N: Stained glass
+
+* **Look:** the park is a glass window lit from behind, sitting on a dark lead-latticed field. The octagonal deck
+  is a **mosaic**: a jittered lattice of half-tile cells (some split into triangles), each cell coloured by what lies
+  there (emerald grass, topaz/citrine paths, sapphire water, ruby/amethyst flowerbed). Rides: a **swinging boat**
+  on twin sapphire A-frames (the hull cut into ruby/citrine and sapphire/amethyst panes, a sun-disc medallion,
+  seated rows), a **camelback coaster** with ruby glass rails on amber posts banded with lead, a **hexagonal
+  lantern kiosk** with a pyramid roof of jewel triangles. Glass-cut trees and cypresses, diamond lanterns.
+* **Fills:** every piece is one **radial gradient** (light centre `light(col, 0.62)` → body → deep edge
+  `shade(col, 0.72)`): the "light shining through" look. Faces in shade use darker glass; that is the only shading.
+* **Lead:** `#1b1722`, 3 px on objects, 2.4 px on the ground mosaic, 5 px around the deck, ~1 to 2 px on guests.
+  Faces are cut 1 to 3 times by a recursive chord split (`cut()`); cylinders into staves; crowns into leaf pieces.
+* **Light:** four screen-blended sunbeam bands over the whole sheet plus floating motes; the colours the glass throws
+  are blurred jewel pools on the floor below the deck.
+* **Guests:** built from lead-framed glass pieces: two-tone torso (lit half / dark half), legs, arms, a round head,
+  a hair or crown piece, glass balloons.
+* **Canvas 2D mapping:** each piece = `fill()` with a radial gradient + `stroke()` lead. Batch the lead: draw all
+  fills, then ONE `stroke()` of a combined `Path2D` per layer. Gradients are per piece, so cache them per colour
+  and use `setTransform` to place them (or bake). Beams = 4 gradient quads with `'screen'`; floor light = sprites.
+* **Phone cost: medium to high.** About 400 mosaic pieces for the ground alone. **Must be pre-drawn:** the ground
+  mosaic as baked terrain chunks (it only changes when paths change); rides and trees cached per rotation. Guests
+  can be drawn live (8 to 10 pieces each) or baked. Beams and pools are cheap. Readability is good because the
+  lead line separates everything, but the ground is busy: paths read by colour family, not by edges.
+
+## O: Retro-future chrome
+
+* **Look:** a 1960s idea of tomorrow on a rounded cream **terrazzo plaza** (speckled) on an orange band, under a
+  teal sky with a ringed planet, orbit lines and atomic starbursts. A **monorail** (cream beam with an orange stripe,
+  swept chrome cone pylons, a three-car train with seated riders under glass canopies), the **Orbiter** (chrome
+  column, mirror-ball hub, five saucer gondolas under glass domes with seated riders, a starburst platform),
+  the **Comet coaster** (twin chrome tube rails on a teal spine, rocket cars with a chrome tail fin), a **Googie
+  kiosk** (glass drum, boomerang V roof, tilted "SNACKS" sign on a starburst pole), boomerang planters with spiky
+  plants, palms, starburst lamps, a kidney pool, boomerang-curved walkways with orange edging.
+* **Chrome:** a 9-stop vertical **band gradient** on cylinders, pylons and tubes (dark / white / grey / dark /
+  warm ground reflection / light / dark); spheres use a **horizon reflection** (teal sky above, a hard dark horizon
+  line, warm ground below) plus a white specular oval. Tubes = dark under-stroke, grey, and a white highlight
+  stroke nudged up.
+* **Paint:** flat, two tones with a hard split (`c.split`), no texture. **Glass:** 30% pale dome + white rim + one
+  curved highlight stroke.
+* **Shadows:** small soft ink ellipses, one wide soft shadow under the plaza.
+* **Guests:** tall and sleek (small heads, long thin legs, white go-go boots), A-line tunics and dresses with white
+  round collars, bob / beehive / flip / flat hair, a bubble helmet, a saucer balloon.
+* **Canvas 2D mapping:** chrome = a cached `CanvasGradient` per object width, drawn in local space (the bands must
+  move with the object, not the screen); domes = one translucent `fill()` + two `stroke()`s; everything else flat
+  `fill()`. Terrazzo speckle belongs in a pre-rendered ground pattern.
+* **Phone cost: low to medium.** No filters except a few soft shadows; flat fills plus one gradient per chrome part.
+  Pre-draw: the terrazzo ground and shadows (baked chunk), lamp glows. Rides can be drawn live, but caching per
+  rotation is cheap and worth it. Guests are thin: very readable at 1x on the phone crop, but at the smallest zoom
+  their limbs (1.6 to 2 px) will shimmer; a min line width of 1.5 device px is needed.
+
+## Which reads best at phone size (round 4)
+
+* **O** reads best: flat shapes with crisp silhouettes, chrome only where it helps, riders clearly seated in domes
+  and canopies, and the cheapest of the four to draw. Its guests are the most fashionable but the thinnest.
+* **M** is the warmest and its fat plush shapes and big-headed dolls read very well, but it is only practical as
+  pre-baked sprites (the puff and fibre filters).
+* **N** has the most striking mood and its lead lines separate everything, but the mosaic ground is busy and the
+  whole ground has to be baked.
+* **L** is the dreamiest; rides and guests read, but floating islands change the game's terrain model and the
+  pastel-on-pastel palette gives the least contrast between path, grass and guests.
