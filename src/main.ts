@@ -49,10 +49,11 @@ function boot(real?: RealOptions): void {
   game.start();
 }
 
-// The realistic art test (`?art=real`, stage 1): its code loads only here, so the website's first download stays the
-// same. `bootReal` installs the `tcreal:` storage prefix and sets the realistic height step before the game starts;
+// The realistic art test (`?art=real`, stage 1) exists only in a build made with VITE_ART=real (the /real-game/
+// deploy): the compile-time check lets Vite drop the import, the boot chunk and its preload helper from the website
+// build. `bootReal` installs the `tcreal:` storage prefix and sets the realistic height step before the game starts;
 // without baked art it shows one error line and the game starts with today's look.
-if (artStyle() === 'real') {
+if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
   import('./render/real/boot')
     .then((m) => m.bootReal())
     .catch(() => null)

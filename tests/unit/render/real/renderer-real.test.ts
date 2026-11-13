@@ -2,7 +2,7 @@
  * Task 8: the realistic look inside the renderer, with a fake RealLook (no baked art). The rule per object:
  * `undefined` → today's art, `null` → skipped and counted, a Sprite → drawn from its sheet rectangle.
  */
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeCanvas, install, make, type DrawCall } from '../fakeCanvas';
 import { createCanvasRenderer } from '../../../../src/render/renderer';
 import { defaultToolState, type Camera, type ToolState } from '../../../../src/render/types';
@@ -20,6 +20,12 @@ import { buildPerfScene } from '../../../perf/scenes';
 beforeAll(() => {
   install();
   terrainClock.now = () => 0;
+  // The realistic branches exist only in a VITE_ART=real build (compile-time gate).
+  vi.stubEnv('VITE_ART', 'real');
+});
+
+afterAll(() => {
+  vi.unstubAllEnvs();
 });
 
 afterEach(() => {
@@ -293,5 +299,23 @@ describe('track through the look (coaster scene)', () => {
     expect(canvas.draws.filter((d) => d.image === car.image).length * 2).toBe(look.calls.car);
     // Supports answered undefined (not baked): no classic slice is drawn under a real rail either.
     expect(look.calls.support ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe('compile-time gate (website build)', () => {
+  it('without VITE_ART=real a passed look is ignored: today\'s draws exactly', () => {
+    vi.stubEnv('VITE_ART', '');
+    try {
+      const a = render(park());
+      const sp = sheetSprite(80, 60, 40, 50);
+      const log: string[] = [];
+      const look = fakeLook({ stall: () => sp, shadow: () => sp, guest: () => null }, log);
+      const b = render(park(), { look, sets: fakeSets(log) });
+      expect(b.draws.map(shape)).toEqual(a.draws.map(shape));
+      expect(log).toEqual([]);
+      expect(Object.keys(look.calls)).toEqual([]);
+    } finally {
+      vi.stubEnv('VITE_ART', 'real');
+    }
   });
 });

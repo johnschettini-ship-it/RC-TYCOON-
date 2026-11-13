@@ -307,7 +307,7 @@ export class ManagementLayer {
   }
 
   drawEntry(kind: number, sub: number, ax: number, ay: number, skey: number): void {
-    const L = this.look;
+    const L = import.meta.env.VITE_ART === 'real' ? this.look : undefined;
     if (kind === KIND_STAFF) {
       // Realistic look: staff type and walk from the frame (`staffFrame`); costumes and work poses are not baked.
       const fr = sub >> 2;

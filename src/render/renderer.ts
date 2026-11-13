@@ -277,7 +277,10 @@ export interface RealOptions {
 }
 
 export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOptions = {}): Renderer {
-  const L = real.look;
+  // Compile-time gate: the website build (VITE_ART unset) folds every realistic branch away.
+  // Compile-time gate: the website build (VITE_ART unset) folds every realistic branch away.
+  const L = import.meta.env.VITE_ART === 'real' ? real.look : undefined;
+  const ground = import.meta.env.VITE_ART === 'real' ? real.ground : undefined;
   // Opaque: every frame clears to the sky colour first.
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D is not available');
@@ -470,7 +473,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
       const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
       // Realistic frame: the frame's angle and swing bits (`anim.ts` `encodeRideFrame`), occupancy level apart.
-      const rs = L ? L.ride(r.defId, vrot, fr & 255, (fr >> 8) & 7) : undefined;
+      const rs = import.meta.env.VITE_ART === 'real' && L ? L.ride(r.defId, vrot, fr & 255, (fr >> 8) & 7) : undefined;
       rideSprites[ri] = rs === undefined ? bank.ride(r.defId, w, d, vrot, fr, bucket) : rs;
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
@@ -631,7 +634,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
           const sub = list.sub[i] as number;
           const fr = sub >> 2;
           // Realistic guests: shirt colour, walk (3 = sitting) and facing from the frame; the temperament tint stays today's art.
-          const sp = L && !(fr & 256) ? L.guest((s.guests[list.ref[i] as number] as Guest).id, fr & 15, (fr >> 4) & 3, sub & 3, ((fr >> 4) & 3) === 3) : undefined;
+          const sp = import.meta.env.VITE_ART === 'real' && L && !(fr & 256) ? L.guest((s.guests[list.ref[i] as number] as Guest).id, fr & 15, (fr >> 4) & 3, sub & 3, ((fr >> 4) & 3) === 3) : undefined;
           if (sp !== null) blit(sp ?? bank.guest(list.skey[i] as number, (sub & 3) as Dir, fr, bucket), ax, ay);
           break;
         }
@@ -645,7 +648,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         }
         case KIND_STALL: {
           const st = s.stalls[list.ref[i] as number];
-          const sp = st && L ? L.stall(st.defId, (list.sub[i] as number) as Dir) : undefined;
+          const sp = import.meta.env.VITE_ART === 'real' && st && L ? L.stall(st.defId, (list.sub[i] as number) as Dir) : undefined;
           if (st && sp !== null) blit(sp ?? bank.stall(st.defId, (list.sub[i] as number) as Dir, 0, bucket), ax, ay);
           break;
         }
@@ -807,7 +810,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       const gx = (footU - footV) * HW;
       const gy = (footU + footV) * HH - z * STEP_PX;
       // Realistic ghost: the item's real sprite once decoded, today's ghost art meanwhile.
-      const sp = (L && L.ride(g.defId, vrot, 0, 0)) || bank.ride(g.defId, fw, fd, vrot, fr, bucket);
+      const sp = (import.meta.env.VITE_ART === 'real' && L && L.ride(g.defId, vrot, 0, 0)) || bank.ride(g.defId, fw, fd, vrot, fr, bucket);
       c.globalAlpha = 0.85;
       blit(sp, gx, gy);
       c.globalAlpha = 1;
@@ -826,7 +829,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         c.setLineDash([]);
       }
       c.globalAlpha = 0.85;
-      blit((L && L.stall(g.defId, vrot)) || bank.stall(g.defId, vrot, fr, bucket), ax, ay);
+      blit((import.meta.env.VITE_ART === 'real' && L && L.stall(g.defId, vrot)) || bank.stall(g.defId, vrot, fr, bucket), ax, ay);
       c.globalAlpha = 1;
       top = ay + stallArtBounds().top + 4;
       drawGhostIcon(c, devX(ax), devY(top), g.valid, Math.max(8, 12 * Math.min(1.5, scale)));
@@ -1082,8 +1085,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       sc.fillStyle = SKY;
       sc.fillRect(0, 0, w, h);
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
-      real.ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version);
-      staticValid = terrain.complete && (!real.ground || real.ground.complete);
+      ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version);
+      staticValid = terrain.complete && (!ground || ground.complete);
       setKey(staticKey, cam, map);
       statics.set(STATIC_KEY, { image: staticImage.canvas, w, h, ox: 0, oy: 0, scale: 1 });
       c.drawImage(staticImage.canvas, 0, 0);
@@ -1093,7 +1096,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       c.fillStyle = SKY;
       c.fillRect(0, 0, canvas.width, canvas.height);
       chunks = terrain.draw(c, map, env, view, bucket, scale, offX, offY, rot);
-      real.ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version);
+      ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version);
     }
     setKey(lastKey, cam, map);
     return chunks;
@@ -1146,7 +1149,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       frame.width = canvas.width;
       frame.height = canvas.height;
 
-      if (L) {
+      if (import.meta.env.VITE_ART === 'real' && L) {
         real.sets?.beginFrame(frameNo);
         L.prepare(world, rot, view, cam.zoom, dpr);
       }
@@ -1178,12 +1181,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       mgmt.collect(world, alpha, list);
       for (const l of layers) l.collect?.(world, list, tool, frame);
       collectGuests(world, tool, alpha, lod);
-      if (L) drawShadows(world);
+      if (import.meta.env.VITE_ART === 'real' && L) drawShadows(world);
       // Far zoom: guests are dots under the objects (rides and fences in front still cover them).
       if (lod) dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
       list.sort();
       drawList(world);
-      if (L && (L.incomplete() > 0 || (real.ground && !real.ground.complete))) perfProbe.countIncomplete();
+      if (import.meta.env.VITE_ART === 'real' && L && (L.incomplete() > 0 || (ground && !ground.complete))) perfProbe.countIncomplete();
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
       for (const l of layers) l.drawAfterObjects?.(ctx, world, tool, frame);
 
@@ -1215,7 +1218,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         lastFrameAt = t1;
       }
       if (debug) drawDebug(world, chunks);
-      if (L) real.sets?.endFrame();
+      if (import.meta.env.VITE_ART === 'real' && L) real.sets?.endFrame();
       perfProbe.renderEnd();
     },
   };

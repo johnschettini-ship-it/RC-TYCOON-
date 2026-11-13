@@ -322,7 +322,7 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
       key: `${type.id}|${piece.defId}|${piece.x},${piece.y},${piece.z},${piece.dir}|${t.x},${t.y}|${support ? 1 : 0}|${colours.track}|${colours.supports}|${f.rot}`,
       sprites: [null, null, null],
       data,
-      pieceId: piece.defId,
+      pieceId: import.meta.env.VITE_ART === 'real' ? piece.defId : '',
       tile,
     });
   }
@@ -595,7 +595,7 @@ export class TrackLayer {
       const shape = CAR_SHAPES.indexOf(type.render.car);
       const spins = type.vehicle.spins;
       const seatsPerCar = type.vehicle.seatsPerCar;
-      this.curDef = data.typeId;
+      if (import.meta.env.VITE_ART === 'real') this.curDef = data.typeId;
       for (const t of data.trains) {
         if (t.parked) continue;
         const n = Math.max(1, Math.round(t.seats.length / seatsPerCar)) || data.trainConfig.carsPerTrain;
@@ -633,7 +633,7 @@ export class TrackLayer {
     if (ax + CAR_BOUNDS.right < view.x0 || ax + CAR_BOUNDS.left > view.x1 || ay + CAR_BOUNDS.bottom < view.y0 || ay + CAR_BOUNDS.top > view.y1) return;
     const c = this.cars;
     const i = c.add();
-    this.carDef[i] = this.curDef;
+    if (import.meta.env.VITE_ART === 'real') this.carDef[i] = this.curDef;
     const yaw = p.yaw + spin;
     c.x[i] = p.x;
     c.y[i] = p.y;
@@ -666,7 +666,8 @@ export class TrackLayer {
 
   /** Draw one collected track drawable. `look`: the realistic look, when on (rails, supports and cars). */
   drawItem(ctx: CanvasRenderingContext2D, ref: number, sub: number, look?: RealLook): void {
-    this.look = look;
+    // Compile-time gate: the website build (VITE_ART unset) folds the realistic branches away.
+    this.look = import.meta.env.VITE_ART === 'real' ? look : undefined;
     switch (sub) {
       case SUB_SLICE:
         this.drawSlice(ctx, ref);
@@ -699,7 +700,7 @@ export class TrackLayer {
   private drawSlice(ctx: CanvasRenderingContext2D, i: number): void {
     const sl = this.slices[i];
     if (!sl) return;
-    const look = this.look;
+    const look = import.meta.env.VITE_ART === 'real' ? this.look : undefined;
     if (look) {
       // Realistic rail: one picture per (piece, tile, turn) anchored at the slice anchor (tile centre, height 0),
       // plus its support (one picture per 1 m step) anchored at the support's foot.
@@ -878,7 +879,7 @@ export class TrackLayer {
     const rs = rollStep(c.bankSin[i] as number, c.bankCos[i] as number);
     const colour = c.colour[i] as number;
     const front = c.front[i] as number;
-    const look = this.look;
+    const look = import.meta.env.VITE_ART === 'real' ? this.look : undefined;
     if (look) {
       // Realistic car: pose in the bake's steps (yaw 32, pitch and roll 24), riders baked in its `full` frames.
       const start = c.seatStart[i] as number;

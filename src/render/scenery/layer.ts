@@ -145,7 +145,7 @@ export function createSceneryLayer(): WorldLayer {
       const wilted = !def.edge && def.needsWater && item.waterLevel < GARDEN_WILT_BELOW;
       const part = sub === SUB_ARCH_BACK ? 1 : sub === SUB_ARCH_FRONT ? 2 : 0;
       // Realistic look: frame = arch part (0 whole item, 1 back, 2 front); wilting is not baked.
-      const real = f.look ? f.look.scenery(def.id, iv.f, part) : undefined;
+      const real = import.meta.env.VITE_ART === 'real' && f.look ? f.look.scenery(def.id, iv.f, part) : undefined;
       if (real === null) return;
       const sp = real ?? sprites.get(skey, def.id, iv.f, kind === LAYER_KIND.sceneryEdge ? 0 : sceneryFrame(wilted, part, null), f.bucket);
       if (!sp) return;
@@ -157,16 +157,20 @@ export function createSceneryLayer(): WorldLayer {
       blitColumn(ctx, f, sp, ax, ay, colL, colL + HW);
     },
 
-    drawShadow(ctx, world, _kind, ref, sub, ax, ay, f): void {
-      // One shadow per item: with the whole item, the arch's back part, or a multi-tile item's first column.
-      if (sub > 0 || sub === SUB_ARCH_FRONT) return;
-      const item = world.state.scenery[ref];
-      const def = item && getSceneryDef(item.defId);
-      if (!def || !f.look) return;
-      itemView(iv, item, def, f.rotation, world.state.map.width, world.state.map.height);
-      const sp = f.look.shadow('scenery', def.id, iv.f);
-      if (sp) blit(ctx, f, sp, ax, ay);
-    },
+    // Realistic look only (compile-time gate: absent from the website build).
+    drawShadow:
+      import.meta.env.VITE_ART === 'real'
+        ? (ctx, world, _kind, ref, sub, ax, ay, f): void => {
+            // One shadow per item: with the whole item, the arch's back part, or a multi-tile item's first column.
+            if (sub > 0 || sub === SUB_ARCH_FRONT) return;
+            const item = world.state.scenery[ref];
+            const def = item && getSceneryDef(item.defId);
+            if (!def || !f.look) return;
+            itemView(iv, item, def, f.rotation, world.state.map.width, world.state.map.height);
+            const sp = f.look.shadow('scenery', def.id, iv.f);
+            if (sp) blit(ctx, f, sp, ax, ay);
+          }
+        : undefined,
 
     drawOverlay(ctx, world, tool, f): void {
       sprites.trim();
@@ -190,7 +194,7 @@ export function createSceneryLayer(): WorldLayer {
         if (g.mode === 'place') {
           const frame = sceneryFrame(false, 0, g.valid ? 'valid' : 'invalid');
           // Realistic ghost: the real sprite once decoded, today's ghost art meanwhile.
-          const sp = (f.look && f.look.scenery(def.id, iv.f, 0)) || sprites.get(scenerySpriteKey(def.id, iv.f, frame, f.bucket), def.id, iv.f, frame, f.bucket);
+          const sp = (import.meta.env.VITE_ART === 'real' && f.look && f.look.scenery(def.id, iv.f, 0)) || sprites.get(scenerySpriteKey(def.id, iv.f, frame, f.bucket), def.id, iv.f, frame, f.bucket);
           if (sp) {
             ctx.globalAlpha = 0.85;
             blit(ctx, f, sp, ax, ay);
