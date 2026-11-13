@@ -22,7 +22,12 @@
   // ---------------------------------------------------------------- loading
   let M = null;
   const IMG = Object.create(null);
-  const load = { ms: 0, bytes: 0, files: 0, decoded: 0, decodedZ: { 1: 0, 2: 0 }, decodedRot: {} };
+  // Memory mode: "on demand" (default) keeps only the sets the view needs: the sprite zoom's shared set (objects
+  // that need no turn, carousel, guests) and the current turn's set. ?all=1 loads everything up front (result 1).
+  const ALL = /[?&]all=1/.test(location.search);
+  const load = { ms: 0, bytes: 0, files: 0, decoded: 0, decodedZ: { 1: 0, 2: 0 }, decodedRot: {}, resident: 0, peak: 0, setMs: {} };
+  const SETS = Object.create(null); // key -> { files: [], state: 'none'|'loading'|'ready', promise }
+  const setOf = (n) => { const rm = /-r(\d)-/.exec(n); return 'z' + n[1] + (rm ? '-r' + rm[1] : '-shared'); };
   async function bitmap(blob) {
     if (window.createImageBitmap) return createImageBitmap(blob);
     const img = new Image();
@@ -30,37 +35,65 @@
     await img.decode();
     return img;
   }
-  async function loadAll() {
-    const t0 = performance.now();
+  async function fetchManifest() {
     const r = await fetch('dist/manifest.json', { cache: 'no-cache' });
     if (!r.ok) throw new Error('dist/manifest.json not found: run bake.cjs first');
     const txt = await r.text();
     load.bytes += new Blob([txt]).size;
     M = JSON.parse(txt);
-    const names = Object.keys(M.files);
-    let next = 0, done = 0;
-    const worker = async () => {
-      while (next < names.length) {
-        const n = names[next++];
-        const res = await fetch('dist/' + n);
-        if (!res.ok) throw new Error('missing ' + n);
-        const blob = await res.blob();
-        load.bytes += blob.size;
-        const bm = await bitmap(blob);
-        IMG[n] = bm;
-        const px = bm.width * bm.height * 4;
-        load.decoded += px;
-        const z = n[1];
-        load.decodedZ[z] += px;
-        const rm = /-r(\d)-/.exec(n);
-        const key = 'z' + z + (rm ? '-r' + rm[1] : '-shared');
-        load.decodedRot[key] = (load.decodedRot[key] || 0) + px;
-        done++;
-        if (done % 8 === 0) status.textContent = `Loading sprites… ${done} / ${names.length}`;
-      }
-    };
-    await Promise.all(Array.from({ length: 6 }, worker));
-    load.files = names.length + 1;
+    for (const n of Object.keys(M.files)) { const k = setOf(n); (SETS[k] = SETS[k] || { files: [], state: 'none', promise: null }).files.push(n); }
+  }
+  const seen = new Set(); // files downloaded at least once (download bytes counted once; later loads come from the HTTP cache)
+  function ensureSet(k) {
+    const S = SETS[k];
+    if (!S) return Promise.resolve();
+    if (S.state === 'ready') return Promise.resolve();
+    if (S.promise) return S.promise;
+    S.state = 'loading';
+    const t0 = performance.now();
+    S.promise = (async () => {
+      let next = 0;
+      const worker = async () => {
+        while (next < S.files.length) {
+          const n = S.files[next++];
+          const res = await fetch('dist/' + n);
+          if (!res.ok) throw new Error('missing ' + n);
+          const blob = await res.blob();
+          if (!seen.has(n)) { seen.add(n); load.bytes += blob.size; }
+          const bm = await bitmap(blob);
+          IMG[n] = bm;
+          const px = bm.width * bm.height * 4;
+          load.resident += px; load.peak = Math.max(load.peak, load.resident);
+        }
+      };
+      await Promise.all(Array.from({ length: 6 }, worker));
+      let px = 0; for (const n of S.files) px += IMG[n].width * IMG[n].height * 4;
+      if (load.decodedRot[k] === undefined) { load.decodedRot[k] = px; load.decoded += px; load.decodedZ[k[1]] += px; }
+      S.state = 'ready'; S.promise = null;
+      (load.setMs[k] = load.setMs[k] || []).push(Math.round(performance.now() - t0));
+    })();
+    return S.promise;
+  }
+  function releaseSet(k) {
+    const S = SETS[k];
+    if (!S || S.state !== 'ready') return;
+    for (const n of S.files) { const bm = IMG[n]; if (!bm) continue; load.resident -= bm.width * bm.height * 4; if (bm.close) bm.close(); delete IMG[n]; }
+    S.state = 'none';
+  }
+  const needed = (zs, rot) => ['z' + zs + '-shared', 'z' + zs + '-r' + rot];
+  async function ensureView(zs, rot) {
+    await Promise.all(needed(zs, rot).map(ensureSet));
+    if (ALL) return;
+    const keep = new Set(needed(zs, rot));
+    for (const k of Object.keys(SETS)) if (!keep.has(k)) releaseSet(k);
+  }
+  async function loadAll() {
+    const t0 = performance.now();
+    await fetchManifest();
+    status.textContent = 'Loading sprites…';
+    if (ALL) await Promise.all(Object.keys(SETS).map(ensureSet));
+    else await ensureView(view.dpr >= 1.5 ? 2 : 1, 0);
+    load.files = seen.size + 1;
     load.ms = Math.round(performance.now() - t0);
   }
 
@@ -150,7 +183,7 @@
     for (const g of Z.ground[view.rot]) {
       const x0 = Math.round(ox + g.x * k), y0 = Math.round(oy + g.y * k), x1 = Math.round(ox + (g.x + g.w) * k), y1 = Math.round(oy + (g.y + g.h) * k);
       if (x1 < 0 || y1 < 0 || x0 > W || y0 > H) continue;
-      ctx.drawImage(IMG[g.f], x0, y0, x1 - x0, y1 - y0);
+      const im = IMG[g.f]; if (im) ctx.drawImage(im, x0, y0, x1 - x0, y1 - y0);
     }
     // statics are pre-sorted; guests are sorted and merged in
     items.length = 0;
@@ -174,7 +207,8 @@
     let gi = 0;
     const drawGuest = (g) => {
       const fr = Z.guests.frames[(g.o * gn.dirs + g.dir) * gn.frames + g.f];
-      ctx.drawImage(IMG[fr.a], fr.sx, fr.sy, fr.w, fr.h, ox + (g.sx + fr.ox) * k, oy + (g.sy + fr.oy) * k, fr.w * k, fr.h * k);
+      const im = IMG[fr.a]; if (!im) return;
+      ctx.drawImage(im, fr.sx, fr.sy, fr.w, fr.h, ox + (g.sx + fr.ox) * k, oy + (g.sy + fr.oy) * k, fr.w * k, fr.h * k);
     };
     for (const s of statics) {
       while (gi < items.length && items[gi].d < s.d) drawGuest(items[gi++]);
@@ -182,7 +216,8 @@
       if (s.k === 'carousel-ring') { src = ringF; x = s.x + ringF.ox; y = s.y + ringF.oy; }
       const dx = ox + x * k, dy = oy + y * k, dw = src.w * k, dh = src.h * k;
       if (dx + dw < 0 || dy + dh < 0 || dx > W || dy > H) continue;
-      ctx.drawImage(IMG[src.a], src.sx, src.sy, src.w, src.h, dx, dy, dw, dh);
+      const im = IMG[src.a]; if (!im) continue;
+      ctx.drawImage(im, src.sx, src.sy, src.w, src.h, dx, dy, dw, dh);
     }
     while (gi < items.length) drawGuest(items[gi++]);
     lastDrawMs = performance.now() - t0;
@@ -202,15 +237,28 @@
     for (let i = 0; i < view.crowd; i++) stepGuest(GUESTS[i], dt);
     carouselT += dt * 1000;
     draw();
-    if (pendingTurn) turnDrawn = true;
+    if (pendingTurn && turnApplied) { turnDrawn = true; turnApplied = false; }
     fpsAcc += delta; fpsN++;
     if (fpsAcc > 500) { fpsShown = Math.round(1000 * fpsN / fpsAcc); fpsAcc = 0; fpsN = 0; }
     hud.textContent = `${fpsShown} fps  draw ${lastDrawMs.toFixed(1)} ms\n${view.crowd} guests  zoom ${view.zoom}x  turn ${view.rot * 90}°\nsprites ${spriteZoom()}x  canvas ${view.W}×${view.H}`;
     requestAnimationFrame(frame);
   }
-  function doTurn() { pendingTurn = performance.now(); turnDrawn = false; turn(); }
+  let turning = false;
+  function doTurn() {
+    if (turning) return;
+    turning = true; pendingTurn = performance.now(); turnDrawn = false;
+    const nextRot = (view.rot + 1) % 4;
+    ensureView(spriteZoom(), nextRot).then(() => { turn(); turnApplied = true; turning = false; })
+      .catch((e) => { turning = false; pendingTurn = 0; status.style.display = 'block'; status.textContent = 'Could not load a turn: ' + e.message; });
+  }
+  let turnApplied = false;
   function setZoom(z) {
     if (z === view.zoom) return;
+    const zsNew = z === 1 && view.sharp && view.dpr >= 1.5 ? 2 : z;
+    if (!needed(zsNew, view.rot).every((k) => SETS[k] && SETS[k].state === 'ready')) {
+      ensureView(zsNew, view.rot).then(() => setZoom(z));
+      return;
+    }
     view.zoom = z;
     $('z1').setAttribute('aria-pressed', String(z === 1)); $('z2').setAttribute('aria-pressed', String(z === 2));
   }
@@ -254,7 +302,7 @@
   let results = null;
   function finishBench() {
     const b = bench; bench = null;
-    while (view.rot !== b.rot0) turn();
+    if (view.rot !== b.rot0) ensureView(spriteZoom(), b.rot0).then(() => { while (view.rot !== b.rot0) turn(); });
     for (const x of document.querySelectorAll('#controls button')) x.disabled = false;
     if (view.dpr < 1.5) $('sharp').disabled = true;
     const rows = Object.entries(b.buckets).map(([k, arr]) => ({
@@ -262,11 +310,11 @@
       dropped: arr.filter((d) => d > 33.4).length, drawCpuP95: +pct(b.cpu[k], 95).toFixed(1),
     }));
     const key = rows.find((r) => r.bucket === 'z1-300');
-    const decodedMB = mb(load.decoded);
+    const decodedMB = mb(ALL ? load.decoded : load.peak);
     const turnMax = turnTimes.length ? Math.max(...turnTimes) : null;
     const checks = {
       frame: { value: key ? key.p95 : null, unit: 'ms p95 at 300 guests, zoom 1x', band: band(key ? key.p95 : null, BANDS.frame), limits: 'PASS ≤ 33, WARN ≤ 50' },
-      decoded: { value: decodedMB, unit: 'MB decoded (estimate, everything loaded)', band: band(decodedMB, BANDS.decoded), limits: 'PASS ≤ 120, WARN ≤ 200' },
+      decoded: { value: decodedMB, unit: ALL ? 'MB decoded (estimate, everything loaded)' : 'MB peak images in memory (estimate, on demand)', band: band(decodedMB, BANDS.decoded), limits: 'PASS ≤ 120, WARN ≤ 200' },
       turn: { value: turnMax, unit: 'ms slowest turn', band: band(turnMax, BANDS.turn), limits: 'PASS ≤ 250 (no WARN band)' },
     };
     const order = ['PASS', 'WARN', 'FAIL'];
@@ -277,7 +325,8 @@
     results = {
       test: 'Realistic look phone test', look: M.look, verdict, checks,
       device: { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio, viewportCss: [window.innerWidth, window.innerHeight], canvasPx: [view.W, view.H], sharp1x: view.sharp && view.dpr >= 1.5 },
-      load: { ms: load.ms, files: load.files, downloadMB: mb(load.bytes), decodedMB, decodedByZoomMB: residentZ, decodedByZoomAndRotationMB: perRot, note: 'decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less' },
+      mode: ALL ? 'everything loaded' : 'on demand (current zoom and turn only)',
+      load: { ms: load.ms, files: load.files, downloadMB: mb(load.bytes), decodedMB, peakResidentMB: mb(load.peak), residentNowMB: mb(load.resident), setLoadMs: load.setMs, decodedByZoomMB: residentZ, decodedByZoomAndRotationMB: perRot, note: 'decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less' },
       frames: rows, turnMs: turnTimes.slice(), jsHeapMB: heap,
       bake: { seconds: M.bakeSecondsTotal, generated: M.generated },
       when: new Date().toISOString(),
@@ -291,27 +340,28 @@
     const tr = (name, ch) => `<tr><td>${name}</td><td class="n">${ch.value === null ? 'n/a' : ch.value}</td><td>${ch.unit}<br><span class="note">${ch.limits}</span></td><td class="${ch.band}"><b>${ch.band}</b></td></tr>`;
     $('cardBody').innerHTML = `
       <div class="verdict ${r.verdict}">${r.verdict}</div>
+      <p class="note">Mode: ${r.mode}.</p>
       <table><tr><th>Check</th><th>Value</th><th></th><th></th></tr>${tr('Frame time', c.frame)}${tr('Images in memory', c.decoded)}${tr('Turn', c.turn)}</table>
       <table>
         <tr><th>Device pixel ratio</th><td>${r.device.devicePixelRatio}</td></tr>
         <tr><th>Canvas</th><td>${r.device.canvasPx.join(' × ')} px (${r.device.viewportCss.join(' × ')} CSS)${r.device.sharp1x ? ', 1x drawn from 2x sprites' : ''}</td></tr>
         <tr><th>Load</th><td>${r.load.ms} ms, ${r.load.files} files, ${r.load.downloadMB} MB downloaded</td></tr>
-        <tr><th>Decoded images (estimate)</th><td>${r.load.decodedMB} MB total: zoom 1x ${r.load.decodedByZoomMB.zoom1} MB, zoom 2x ${r.load.decodedByZoomMB.zoom2} MB</td></tr>
+        <tr><th>Images in memory (estimate)</th><td>peak ${r.load.peakResidentMB} MB, now ${r.load.residentNowMB} MB; sets loaded: ${Object.entries(r.load.decodedByZoomAndRotationMB).map(([k, v]) => k + ' ' + v + ' MB').join(', ')}</td></tr>
         <tr><th>JS heap</th><td>${typeof r.jsHeapMB === 'number' ? r.jsHeapMB + ' MB (usedJSHeapSize)' : 'not available (Chrome only)'}</td></tr>
         <tr><th>Turns</th><td>${r.turnMs.join(', ')} ms</td></tr>
       </table>
       <table><tr><th>Crowd / zoom</th><th class="n">frames</th><th class="n">p50</th><th class="n">p95</th><th class="n">p99</th><th class="n">&gt;33 ms</th></tr>
         ${r.frames.map((f) => `<tr><td>${f.bucket}</td><td class="n">${f.frames}</td><td class="n">${f.p50}</td><td class="n">${f.p95}</td><td class="n">${f.p99}</td><td class="n">${f.dropped}</td></tr>`).join('')}
       </table>
-      <p class="note">Frame times are the gaps between screen refreshes in ms (16.7 = 60 fps). "&gt;33 ms" counts dropped frames. The first ${WARMUP} ms after each change are not counted. Decoded size is width × height × 4 bytes of every image the page holds (both zooms, all four turns); it is an estimate, not a measurement.</p>`;
+      <p class="note">Frame times are the gaps between screen refreshes in ms (16.7 = 60 fps). "&gt;33 ms" counts dropped frames. The first ${WARMUP} ms after each change are not counted. Image memory is width × height × 4 bytes of the images the page holds (on demand: only the current zoom and turn; a turn loads the next turn first, then frees the old one); it is an estimate, not a measurement. Turn time includes loading and decoding the next turn.</p>`;
     $('copyText').style.display = 'none';
     $('card').classList.add('open');
   }
   function resultsText() {
     const r = results;
-    const lines = [`Realistic look phone test: ${r.verdict}`,
+    const lines = [`Realistic look phone test (${r.mode}): ${r.verdict}`,
       `frame p95 @300 z1: ${r.checks.frame.value} ms (${r.checks.frame.band}); decoded: ${r.checks.decoded.value} MB (${r.checks.decoded.band}); slowest turn: ${r.checks.turn.value} ms (${r.checks.turn.band})`,
-      `DPR ${r.device.devicePixelRatio}, canvas ${r.device.canvasPx.join('x')}, load ${r.load.ms} ms, ${r.load.downloadMB} MB down`, ''];
+      `DPR ${r.device.devicePixelRatio}, canvas ${r.device.canvasPx.join('x')}, load ${r.load.ms} ms, ${r.load.downloadMB} MB down, turns ${r.turnMs.join('/')} ms`, ''];
     return lines.join('\n') + JSON.stringify(r, null, 2);
   }
 
@@ -336,7 +386,11 @@
   $('z2').onclick = () => setZoom(2);
   $('turn').onclick = () => doTurn();
   for (const b of $('crowd').children) b.onclick = () => setCrowd(+b.dataset.n);
-  $('sharp').onclick = () => { view.sharp = !view.sharp; $('sharp').setAttribute('aria-pressed', String(view.sharp)); };
+  $('sharp').onclick = () => {
+    const want = !view.sharp;
+    const zs = view.zoom === 1 && want && view.dpr >= 1.5 ? 2 : view.zoom;
+    ensureView(zs, view.rot).then(() => { view.sharp = want; $('sharp').setAttribute('aria-pressed', String(view.sharp)); });
+  };
   $('bench').onclick = startBench;
   $('close').onclick = () => $('card').classList.remove('open');
   $('copy').onclick = () => {
@@ -349,9 +403,9 @@
   window.__test = { view, startBench, turn: doTurn, setZoom, setCrowd, ready: false };
 
   resize();
+  view.sharp = view.dpr >= 1.5;
   loadAll().then(() => {
     makeGuests();
-    view.sharp = view.dpr >= 1.5;
     $('sharp').setAttribute('aria-pressed', String(view.sharp));
     if (view.dpr < 1.5) $('sharp').disabled = true;
     computeBounds(); clampView();
