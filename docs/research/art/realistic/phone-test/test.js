@@ -25,7 +25,7 @@
   // Memory mode: "on demand" (default) keeps only the sets the view needs: the sprite zoom's shared set (objects
   // that need no turn, carousel, guests) and the current turn's set. ?all=1 loads everything up front (result 1).
   const ALL = /[?&]all=1/.test(location.search);
-  const load = { ms: 0, bytes: 0, files: 0, decoded: 0, decodedZ: { 1: 0, 2: 0 }, decodedRot: {}, resident: 0, peak: 0, setMs: {} };
+  const load = { ms: 0, bytes: 0, files: 0, decoded: 0, decodedZ: { 1: 0, 2: 0 }, decodedRot: {}, resident: 0, peak: 0, setMs: {}, blobBytes: 0 };
   const SETS = Object.create(null); // key -> { files: [], state: 'none'|'loading'|'ready', promise }
   const setOf = (n) => { const rm = /-r(\d)-/.exec(n); return 'z' + n[1] + (rm ? '-r' + rm[1] : '-shared'); };
   async function bitmap(blob) {
@@ -43,7 +43,25 @@
     M = JSON.parse(txt);
     for (const n of Object.keys(M.files)) { const k = setOf(n); (SETS[k] = SETS[k] || { files: [], state: 'none', promise: null }).files.push(n); }
   }
-  const seen = new Set(); // files downloaded at least once (download bytes counted once; later loads come from the HTTP cache)
+  const seen = new Set(); // files downloaded (download bytes counted once)
+  // Compressed files are kept in memory once downloaded (a few MB), so a turn only decodes and never waits on the
+  // network. Result 3 on the owner's phone: a turn waited 6.7 s for a download; decoding alone takes about 0.3 s.
+  const BLOBS = new Map();
+  async function getBlob(n) {
+    if (BLOBS.has(n)) return BLOBS.get(n);
+    const res = await fetch('dist/' + n);
+    if (!res.ok) throw new Error('missing ' + n);
+    const blob = await res.blob();
+    if (!seen.has(n)) { seen.add(n); load.bytes += blob.size; load.blobBytes += blob.size; }
+    BLOBS.set(n, blob);
+    return blob;
+  }
+  async function downloadZoom(zs) {
+    const names = Object.keys(M.files).filter((n) => n[1] === String(zs));
+    let next = 0;
+    const worker = async () => { while (next < names.length) await getBlob(names[next++]); };
+    await Promise.all(Array.from({ length: 6 }, worker));
+  }
   function ensureSet(k) {
     const S = SETS[k];
     if (!S) return Promise.resolve();
@@ -56,10 +74,7 @@
       const worker = async () => {
         while (next < S.files.length) {
           const n = S.files[next++];
-          const res = await fetch('dist/' + n);
-          if (!res.ok) throw new Error('missing ' + n);
-          const blob = await res.blob();
-          if (!seen.has(n)) { seen.add(n); load.bytes += blob.size; }
+          const blob = await getBlob(n);
           const bm = await bitmap(blob);
           IMG[n] = bm;
           const px = bm.width * bm.height * 4;
@@ -97,7 +112,7 @@
     await fetchManifest();
     status.textContent = 'Loading sprites…';
     if (ALL) await Promise.all(Object.keys(SETS).map(ensureSet));
-    else await ensureView(view.dpr >= 1.5 ? 2 : 1, 0);
+    else { const zs = view.dpr >= 1.5 ? 2 : 1; await downloadZoom(zs); await ensureView(zs, 0); }
     load.files = seen.size + 1;
     load.ms = Math.round(performance.now() - t0);
   }
@@ -331,7 +346,7 @@
       test: 'Realistic look phone test', look: M.look, verdict, checks,
       device: { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio, viewportCss: [window.innerWidth, window.innerHeight], canvasPx: [view.W, view.H], sharp1x: view.sharp && view.dpr >= 1.5 },
       mode: ALL ? 'everything loaded' : PREFETCH ? 'on demand (current zoom and turn, next turn loaded ahead)' : 'on demand (current zoom and turn only)',
-      load: { ms: load.ms, files: load.files, downloadMB: mb(load.bytes), decodedMB, peakResidentMB: mb(load.peak), residentNowMB: mb(load.resident), setLoadMs: load.setMs, decodedByZoomMB: residentZ, decodedByZoomAndRotationMB: perRot, note: 'decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less' },
+      load: { ms: load.ms, files: load.files, downloadMB: mb(load.bytes), decodedMB, peakResidentMB: mb(load.peak), compressedHeldMB: mb(load.blobBytes), residentNowMB: mb(load.resident), setLoadMs: load.setMs, decodedByZoomMB: residentZ, decodedByZoomAndRotationMB: perRot, note: 'decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less' },
       frames: rows, turnMs: turnTimes.slice(), jsHeapMB: heap,
       bake: { seconds: M.bakeSecondsTotal, generated: M.generated },
       when: new Date().toISOString(),
