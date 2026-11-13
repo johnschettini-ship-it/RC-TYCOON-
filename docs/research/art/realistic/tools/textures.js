@@ -385,3 +385,196 @@ export function siding(seed = 121) {
   const b = fieldImage(S, (u, v, x, y) => { const local = (y % 64) / 64; const k = local > 0.9 ? 30 : 140 + local * 80; return [k, k, k]; });
   return { map: tex(c), bump: tex(b, { srgb: false }) };
 }
+
+// ================================================================ round 7 additions
+
+// ---------------------------------------------------------------- pine branch card (alpha): a twig with needles, drooping
+export function needles(seed = 141, col = [52, 82, 46]) {
+  const W = 256, H = 256, r = rng(seed);
+  const c = canvas(W, H), ctx = c.getContext('2d');
+  ctx.lineCap = 'round';
+  // main twig along the card's x axis (base at x=0), side twigs, needles on all of them
+  const twig = (x0, y0, ang, len, w) => {
+    ctx.strokeStyle = 'rgb(84,64,44)'; ctx.lineWidth = w;
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x0 + Math.cos(ang) * len, y0 + Math.sin(ang) * len); ctx.stroke();
+    for (let t = 0.05; t < 1; t += 0.018) {
+      const x = x0 + Math.cos(ang) * len * t, y = y0 + Math.sin(ang) * len * t;
+      for (const sd of [-1, 1]) {
+        const a = ang + sd * (0.7 + r() * 0.5), l = (9 + r() * 7) * (1 - t * 0.35);
+        const g = 0.72 + r() * 0.55;
+        ctx.strokeStyle = `rgb(${col[0] * g | 0},${col[1] * g | 0},${col[2] * g | 0})`; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke();
+      }
+    }
+  };
+  twig(4, H / 2, 0, W - 16, 3);
+  for (let i = 0; i < 9; i++) { const t = 0.15 + i * 0.09; twig(4 + (W - 16) * t, H / 2, (i % 2 ? 1 : -1) * (0.6 + r() * 0.3), 60 + r() * 40 * (1 - t), 1.6); }
+  const t = tex(c, { aniso: 4 });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return { map: t };
+}
+
+// ---------------------------------------------------------------- snow (1 texture = 6 m): soft drifts, sparkle, footprints
+export function snow(seed = 151) {
+  const S = 1024, n = makeNoise(seed), r = rng(seed);
+  const c = fieldImage(S, (u, v) => {
+    const a = fbm(n, u, v, 4, 5), b = fbm(n, u + 0.4, v + 0.2, 24, 3);
+    const k = 0.9 + (a - 0.5) * 0.14 + (b - 0.5) * 0.06;
+    return [236 * k, 240 * k, 248 * Math.min(1.04, k + 0.02)];
+  });
+  const ctx = c.getContext('2d');
+  for (let i = 0; i < 260; i++) { // footprint trails: small blue-grey dents
+    const x = r() * S, y = r() * S;
+    wrapDraw(S, x, y, 6, (X, Y) => { ctx.fillStyle = 'rgba(150,165,190,0.25)'; ctx.beginPath(); ctx.ellipse(X, Y, 3, 5, r() * 3, 0, 6.28); ctx.fill(); });
+  }
+  const b = fieldImage(S, (u, v) => { const a = fbm(n, u, v, 8, 4); const k = 128 + (a - 0.5) * 160; return [k, k, k]; });
+  return { map: tex(c), bump: tex(b, { srgb: false }) };
+}
+
+// ---------------------------------------------------------------- sand (1 texture = 4 m): fine grain, ripples, shells
+export function sand(seed = 161) {
+  const S = 1024, n = makeNoise(seed), r = rng(seed);
+  const c = fieldImage(S, (u, v) => {
+    const a = fbm(n, u, v, 4, 5), s = n(u * 512, v * 512, 512);
+    const rip = 0.5 + 0.5 * Math.sin((v * 34 + fbm(n, u, v, 6, 2) * 3) * Math.PI * 2);
+    const k = 0.9 + (a - 0.5) * 0.18 + (s - 0.5) * 0.12 + rip * 0.04;
+    return [222 * k, 198 * k, 156 * k];
+  });
+  const ctx = c.getContext('2d');
+  for (let i = 0; i < 120; i++) { const x = r() * S, y = r() * S; wrapDraw(S, x, y, 4, (X, Y) => { ctx.fillStyle = r() < 0.5 ? '#f1ece2' : '#b9a789'; ctx.beginPath(); ctx.arc(X, Y, 1 + r() * 2, 0, 6.28); ctx.fill(); }); }
+  const b = fieldImage(S, (u, v) => { const rip = Math.sin((v * 34 + fbm(n, u, v, 6, 2) * 3) * Math.PI * 2); const k = 128 + rip * 60 + (n(u * 512, v * 512, 512) - 0.5) * 60; return [k, k, k]; });
+  return { map: tex(c), bump: tex(b, { srgb: false }) };
+}
+
+// ---------------------------------------------------------------- sea surface colour (1 texture = 12 m): swell bands + foam streaks
+export function sea(seed = 171) {
+  const S = 1024, n = makeNoise(seed);
+  const c = fieldImage(S, (u, v) => {
+    const a = fbm(n, u, v, 4, 5), b = fbm(n, u * 2, v, 16, 3);
+    const swell = 0.5 + 0.5 * Math.sin((v * 6 + a * 1.5) * Math.PI * 2);
+    let col = mixc([22, 74, 92], [44, 118, 132], swell * 0.6 + a * 0.4);
+    const foam = clamp((b - 0.68) * 6, 0, 1) * (swell > 0.85 ? 1 : 0.25);
+    col = mixc(col, [214, 230, 232], foam * 0.8);
+    return col;
+  });
+  return { map: tex(c) };
+}
+
+// ---------------------------------------------------------------- ice (1 texture = 8 m): pale blue, scratched by blades, cracks
+export function ice(seed = 181) {
+  const S = 1024, n = makeNoise(seed), r = rng(seed);
+  const c = fieldImage(S, (u, v) => {
+    const a = fbm(n, u, v, 3, 5), b = fbm(n, u, v, 12, 3);
+    const k = 0.86 + (a - 0.5) * 0.2;
+    return [176 * k + b * 20, 206 * k + b * 16, 222 * k + b * 10];
+  });
+  const ctx = c.getContext('2d');
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 380; i++) { // blade scratches: long gentle arcs
+    const x = r() * S, y = r() * S, rad = 60 + r() * 260, a0 = r() * 6.28;
+    ctx.strokeStyle = `rgba(245,250,255,${0.15 + r() * 0.3})`;
+    ctx.beginPath(); ctx.arc(x, y, rad, a0, a0 + 0.3 + r() * 0.6); ctx.stroke();
+  }
+  for (let i = 0; i < 14; i++) { // cracks
+    let x = r() * S, y = r() * S; ctx.strokeStyle = 'rgba(120,150,175,0.45)'; ctx.beginPath(); ctx.moveTo(x, y);
+    for (let k = 0; k < 8; k++) { x += (r() - 0.5) * 60; y += (r() - 0.5) * 60; ctx.lineTo(x, y); } ctx.stroke();
+  }
+  return { map: tex(c) };
+}
+
+// ---------------------------------------------------------------- building facade (1 texture = one bay of floors)
+// floors x bays grid of windows on a wall colour, with sills, lintels and a few lit/curtained panes
+export function facade(seed = 191, { wall = [196, 120, 90], frame = '#f0ece2', glass = [70, 92, 110], floors = 5, bays = 4, brick = true } = {}) {
+  const W = 1024, H = 1024 * floors / bays, n = makeNoise(seed), r = rng(seed);
+  const c = canvas(W, H | 0), ctx = c.getContext('2d');
+  const img = ctx.createImageData(W, H | 0), d = img.data;
+  for (let y = 0; y < (H | 0); y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 4, u = x / W, v = y / H;
+    let k = 0.92 + (fbm(n, u, v * floors / bays, 6, 4) - 0.5) * 0.18;
+    if (brick) { const row = Math.floor(y / 10), off = (row % 2) * 16; if (y % 10 < 1.5 || ((x + off) % 32) < 1.5) k *= 0.78; else k *= 0.92 + ((Math.sin(row * 12.9 + Math.floor((x + off) / 32) * 78.2) * 43758.5) % 1 + 1) % 1 * 0.14; }
+    d[i] = wall[0] * k; d[i + 1] = wall[1] * k; d[i + 2] = wall[2] * k; d[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const bw = W / bays, fh = H / floors;
+  for (let f = 0; f < floors; f++) for (let b = 0; b < bays; b++) {
+    const x = b * bw + bw * 0.22, y = f * fh + fh * 0.2, w = bw * 0.56, h = fh * 0.58;
+    ctx.fillStyle = frame; ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 10, y + h + 6, w + 20, 8);
+    ctx.fillStyle = frame; ctx.fillRect(x - 14, y + h + 4, w + 28, 10); // sill
+    const k = 0.8 + r() * 0.4, lit = r() < 0.12;
+    const gr = ctx.createLinearGradient(x, y, x + w, y + h);
+    gr.addColorStop(0, `rgb(${glass[0] * k * 1.5 | 0},${glass[1] * k * 1.45 | 0},${glass[2] * k * 1.4 | 0})`);
+    gr.addColorStop(1, `rgb(${glass[0] * k | 0},${glass[1] * k | 0},${glass[2] * k | 0})`);
+    ctx.fillStyle = lit ? '#e9d7a8' : gr; ctx.fillRect(x, y, w, h);
+    if (r() < 0.45) { ctx.fillStyle = ['#e8e2d2', '#c9b27a', '#9fb3c2', '#d8c0c0'][(r() * 4) | 0]; ctx.globalAlpha = 0.85; ctx.fillRect(x, y, w * (0.2 + r() * 0.3), h); ctx.globalAlpha = 1; }
+    ctx.fillStyle = frame; ctx.fillRect(x + w / 2 - 3, y, 6, h); ctx.fillRect(x, y + h * 0.35, w, 5);
+  }
+  return { map: tex(c, { aniso: 8 }) };
+}
+
+// ---------------------------------------------------------------- curtain wall glass (office tower / station): mullion grid with sky reflection
+export function glassGrid(seed = 201, { cols = 6, rows = 6, tint = [120, 150, 170] } = {}) {
+  const S = 512, n = makeNoise(seed);
+  const c = fieldImage(S, (u, v) => {
+    const a = fbm(n, u * 0.5 + v * 0.3, v, 3, 3);
+    const k = 0.75 + a * 0.45 + (1 - v) * 0.15;
+    return [tint[0] * k, tint[1] * k, tint[2] * k];
+  });
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#3a4046';
+  for (let i = 0; i <= cols; i++) ctx.fillRect(i * S / cols - 3, 0, 6, S);
+  for (let j = 0; j <= rows; j++) ctx.fillRect(0, j * S / rows - 3, S, 6);
+  return { map: tex(c) };
+}
+
+// ---------------------------------------------------------------- shingles (lodge / hut roofs, 1 texture = 2 m)
+export function shingles(seed = 211, tint = [92, 70, 54]) {
+  const S = 512, r = rng(seed), n = makeNoise(seed);
+  const c = canvas(S), ctx = c.getContext('2d');
+  const b = canvas(S), bx = b.getContext('2d');
+  const rows = 16, rh = S / rows;
+  for (let j = 0; j < rows; j++) {
+    let x = -((j % 2) * 20);
+    while (x < S) {
+      const w = 24 + r() * 26, k = 0.75 + r() * 0.4;
+      ctx.fillStyle = `rgb(${tint[0] * k | 0},${tint[1] * k | 0},${tint[2] * k | 0})`; ctx.fillRect(x + 1, j * rh, w - 2, rh);
+      ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x + 1, j * rh + rh - 3, w - 2, 3);
+      const g = bx.createLinearGradient(0, j * rh, 0, j * rh + rh); g.addColorStop(0, '#606060'); g.addColorStop(1, '#d0d0d0');
+      bx.fillStyle = g; bx.fillRect(x + 1, j * rh, w - 2, rh);
+      x += w;
+    }
+  }
+  const g = fieldImage(S, (u, v) => { const k = 200 + (fbm(n, u, v, 8, 4) - 0.5) * 90; return [k, k, k]; });
+  ctx.globalCompositeOperation = 'multiply'; ctx.drawImage(g, 0, 0); ctx.globalCompositeOperation = 'source-over';
+  return { map: tex(c), bump: tex(b, { srgb: false }) };
+}
+
+// ---------------------------------------------------------------- log wall (lodge): horizontal round logs (1 texture = 2 m)
+export function logs(seed = 221) {
+  const S = 512, n = makeNoise(seed), r = rng(seed);
+  const rows = 8, rh = S / rows, tone = Array.from({ length: rows }, () => 0.85 + r() * 0.25);
+  const c = fieldImage(S, (u, v, x, y) => {
+    const j = Math.floor(y / rh), l = (y % rh) / rh, round = Math.sin(l * Math.PI);
+    const grain = fbm(n, u * 0.3, v * 6 + j, 8, 3);
+    const k = tone[j] * (0.45 + round * 0.6) * (0.85 + grain * 0.3);
+    return [150 * k, 104 * k, 64 * k];
+  });
+  const b = fieldImage(S, (u, v, x, y) => { const l = (y % rh) / rh; const k = 40 + Math.sin(l * Math.PI) * 200; return [k, k, k]; });
+  return { map: tex(c), bump: tex(b, { srgb: false }) };
+}
+
+// ---------------------------------------------------------------- snow lying on a branch (alpha card, same layout as needles: base at x=0)
+export function snowCard(seed = 231) {
+  const W = 256, H = 256, r = rng(seed);
+  const c = canvas(W, H), ctx = c.getContext('2d');
+  for (let i = 0; i < 70; i++) {
+    const t = r(), x = 6 + t * (W - 30), spread = (1 - t * 0.5) * 70;
+    const y = H / 2 + (r() - 0.5) * spread, rad = 10 + r() * 16 * (1 - t * 0.4);
+    const g = ctx.createRadialGradient(x - rad * 0.3, y - rad * 0.3, 1, x, y, rad);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.7, '#eef3fa'); g.addColorStop(1, '#cdd8e8');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rad, 0, 6.28); ctx.fill();
+  }
+  const t = tex(c, { aniso: 4 });
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  return { map: t };
+}

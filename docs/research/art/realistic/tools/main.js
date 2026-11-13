@@ -2,6 +2,7 @@
 // with 2x supersampling, then downsizes and labels on a 2D canvas. Driven by render.cjs via window.renderShot().
 import * as THREE from 'three';
 import { buildPark, TILE } from './park.js';
+import { SCENES } from './scenes.js';
 import { Post } from './post.js';
 
 // 2:1 dimetric: camera pitch 30 deg below the horizon (tile edges then run at atan(0.5) = 26.565 deg on screen),
@@ -40,6 +41,42 @@ export const VARIANTS = {
     hemi: { sky: '#e9edf0', ground: '#b9b7ae', intensity: 0.9 },
     sky: { top: '#d7dde2', horizon: '#f2f2f0', ground: '#a8a79f', sunDisc: 0 }, envIntensity: 1.55,
     post: { exposure: 1.05, aoStrength: 1.0, aoRadius: 1.3, aoIntensity: 1.55, bloom: 0.0, bloomThreshold: 9, saturation: 0.78, contrast: 0.98, vignette: 0.05, lift: [0.012, 0.012, 0.014], gain: [0.99, 1.0, 1.01], bgTop: lin('#eef0f1'), bgBottom: lin('#f7f7f6') },
+  },
+  // ---- round 7: four new settings on 18 x 18 tile plots, all daylight; G = the guest line-up close-up
+  x: {
+    name: 'Seaside pier', label: 'X  Seaside pier', scene: 'pier',
+    sun: { color: '#fff3e0', intensity: 3.4, el: 50, az: 128, soft: 'pcf' },
+    hemi: { sky: '#bfd9f4', ground: '#8a8270', intensity: 0.4 },
+    sky: { top: '#4f8fd8', horizon: '#d4e6f4', ground: '#6f7a78', sunDisc: 1 }, envIntensity: 0.95,
+    post: { exposure: 1.0, aoStrength: 0.7, aoRadius: 0.9, aoIntensity: 1.0, bloom: 0.04, bloomThreshold: 3.5, saturation: 1.06, contrast: 1.04, vignette: 0.12, lift: [0, 0, 0], gain: [1, 1, 1], bgTop: lin('#c4daec'), bgBottom: lin('#eaf0f2') },
+  },
+  y: {
+    name: 'Lakeside forest', label: 'Y  Lakeside forest', scene: 'forest',
+    sun: { color: '#fff1da', intensity: 3.3, el: 47, az: 128, soft: 'pcf' },
+    hemi: { sky: '#bcd6ea', ground: '#56603e', intensity: 0.4 },
+    sky: { top: '#5a90cf', horizon: '#d2e2ec', ground: '#5d6650', sunDisc: 1 }, envIntensity: 0.9,
+    post: { exposure: 1.02, aoStrength: 0.75, aoRadius: 0.9, aoIntensity: 1.0, bloom: 0.04, bloomThreshold: 3.5, saturation: 1.04, contrast: 1.04, vignette: 0.12, lift: [0, 0, 0], gain: [1, 1, 0.99], bgTop: lin('#c6d8e2'), bgBottom: lin('#e8eeec') },
+  },
+  z: {
+    name: 'City plaza', label: 'Z  City plaza', scene: 'city',
+    sun: { color: '#fff5e6', intensity: 3.4, el: 55, az: 128, soft: 'pcf' },
+    hemi: { sky: '#c4d8ee', ground: '#8a8680', intensity: 0.45 },
+    sky: { top: '#5b92d4', horizon: '#d8e6f2', ground: '#7a7872', sunDisc: 1 }, envIntensity: 1.0,
+    post: { exposure: 1.0, aoStrength: 0.8, aoRadius: 0.9, aoIntensity: 1.05, bloom: 0.04, bloomThreshold: 3.5, saturation: 1.04, contrast: 1.05, vignette: 0.12, lift: [0, 0, 0], gain: [1, 1, 1], bgTop: lin('#cad9e6'), bgBottom: lin('#ecf0f2') },
+  },
+  aa: {
+    name: 'Winter festival', label: 'AA  Winter festival', scene: 'winter',
+    sun: { color: '#ffd9b0', intensity: 3.0, el: 21, az: 122, soft: 'pcf' },
+    hemi: { sky: '#b9cdee', ground: '#d8dce6', intensity: 0.55 },
+    sky: { top: '#6f97d0', horizon: '#f2dcc8', ground: '#c9ced8', sunDisc: 1 }, envIntensity: 1.0,
+    post: { exposure: 0.95, aoStrength: 0.7, aoRadius: 0.9, aoIntensity: 1.0, bloom: 0.1, bloomThreshold: 2.2, saturation: 1.04, contrast: 1.05, vignette: 0.14, lift: [0.0, 0.004, 0.012], gain: [1.01, 1.0, 1.0], bgTop: lin('#c9d6e8'), bgBottom: lin('#eef0f4') },
+  },
+  g: {
+    name: 'Guests', label: 'Guest line-up', scene: 'lineup',
+    sun: { color: '#fff4e2', intensity: 3.2, el: 45, az: 128, soft: 'pcf' },
+    hemi: { sky: '#bcd6f2', ground: '#7a7a6a', intensity: 0.5 },
+    sky: { top: '#5d93d6', horizon: '#cfe1f2', ground: '#6f7660', sunDisc: 1 }, envIntensity: 1.0,
+    post: { exposure: 1.0, aoStrength: 0.6, aoRadius: 0.3, aoIntensity: 1.0, bloom: 0.0, bloomThreshold: 9, saturation: 1.04, contrast: 1.03, vignette: 0.08, lift: [0, 0, 0], gain: [1, 1, 1], bgTop: lin('#dfe6ec'), bgBottom: lin('#f2f3f4') },
   },
 };
 
@@ -98,7 +135,7 @@ window.renderShot = async (shot) => {
   const scene = new THREE.Scene();
   const env = skyEnv(v);
   scene.environment = env;
-  const park = buildPark(v);
+  const park = (v.scene ? SCENES[v.scene] : buildPark)(v);
   // rotate the world, not the camera: lighting stays fixed relative to the screen (as a sprite bake would)
   const world = new THREE.Group();
   world.add(park.root);
@@ -106,6 +143,13 @@ window.renderShot = async (shot) => {
   scene.add(world);
   scene.traverse((o) => { if (o.material) for (const m of [].concat(o.material)) if ('envMapIntensity' in m) m.envMapIntensity = v.envIntensity; });
 
+  if (shot.debug) {
+    // report suspiciously large meshes (a broken rod or beam shows up as a long line across the scene)
+    world.updateMatrixWorld(true);
+    const big = [];
+    world.traverse((o) => { if (o.isInstancedMesh) { const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m); const sc = new THREE.Vector3().setFromMatrixScale(m); p.setFromMatrixPosition(m); if (Math.max(sc.x, sc.y, sc.z) > shot.debug || !isFinite(sc.x + sc.y + sc.z)) big.push('inst ' + o.geometry.type + ' #' + i + ' scale ' + sc.toArray().map((v) => v.toFixed(1)) + ' at ' + p.toArray().map((v) => v.toFixed(1))); } return; } if (!o.isMesh) return; const b = new THREE.Box3().setFromObject(o); const s = b.getSize(new THREE.Vector3()); if (Math.max(s.x, s.y, s.z) > shot.debug || !isFinite(s.x + s.y + s.z)) big.push(o.geometry.type + ' ' + s.toArray().map((v) => v.toFixed(1)).join('x') + ' @' + b.min.toArray().map((v) => v.toFixed(1)).join(',')); });
+    window.__big = big;
+  }
   const tb = performance.now();
   // camera: orthographic, looking from +x +z (yaw 45) and 30 deg down
   const ppm = PX_PER_M * zoom; // CSS px per metre
@@ -120,13 +164,15 @@ window.renderShot = async (shot) => {
   // sun: azimuth relative to the camera so shadows always fall to screen right/back
   const sd = sunDir(v);
   const sun = new THREE.DirectionalLight(v.sun.color, v.sun.intensity);
-  sun.position.copy(sd).multiplyScalar(80);
+  sun.position.copy(sd).multiplyScalar(park.extent ? 110 : 80);
   sun.target.position.set(0, 0, 0);
   sun.castShadow = true;
   sun.shadow.mapSize.set(4096, 4096);
-  const sc = sun.shadow.camera; sc.left = -34; sc.right = 34; sc.top = 34; sc.bottom = -34; sc.near = 1; sc.far = 200;
+  const ext = park.extent || 34; // shadow box half-size in metres (bigger plots need a bigger box)
+  const sc = sun.shadow.camera; sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = 1; sc.far = park.extent ? 260 : 200;
   sun.shadow.bias = v.sun.soft === 'vsm' ? -0.0006 : -0.0003;
   sun.shadow.normalBias = 0.035;
+  if (park.shadowTarget) { sun.target.position.copy(park.shadowTarget); sun.position.add(park.shadowTarget); }
   if (v.sun.soft === 'vsm') { sun.shadow.radius = v.sun.radius; sun.shadow.blurSamples = 16; sun.shadow.mapSize.set(2048, 2048); }
   scene.add(sun, sun.target);
   scene.add(new THREE.HemisphereLight(v.hemi.sky, v.hemi.ground, v.hemi.intensity));
@@ -164,6 +210,6 @@ window.renderShot = async (shot) => {
   // dispose GPU resources of this scene so repeated shots do not pile up
   env.dispose();
   const info = renderer.info.render;
-  return { png: out.toDataURL('image/png'), ms: Math.round(t1 - t0), build: Math.round(tb - t0), calls: info.calls, tris: info.triangles };
+  return { big: window.__big, png: out.toDataURL('image/png'), ms: Math.round(t1 - t0), build: Math.round(tb - t0), calls: info.calls, tris: info.triangles };
 };
 window.ready = true;

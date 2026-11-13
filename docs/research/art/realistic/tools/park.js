@@ -4,31 +4,14 @@
 import * as THREE from 'three';
 import * as T from './textures.js';
 import { person, randomLook } from './people.js';
+import { makeKit } from './kit.js';
 
 export const TILE = 3;
 export const HALF = 21;
 
-let TX; // texture set, built once per page
-function textures() {
-  if (TX) return TX;
-  TX = {
-    grass: T.grass(), pavers: T.pavers(21, 'warm'), slabs: T.slabs(), asphalt: T.asphalt(), wood: T.wood(),
-    deck: T.wood(57, [120, 112, 100]), paint: T.paint(), stone: T.stone(), concrete: T.stone(77, [186, 182, 174]),
-    soil: T.soil(), bark: T.bark(), water: T.waterNormal(), leaves: T.leaves(), leaves2: T.leaves(119), foliage: T.leaves(131, '#2c4520'),
-    valance: T.stripes('#b8202a', '#f4efe2', 24), awning: T.stripes('#1f6f5c', '#f4efe2', 10, true),
-    corr: T.corrugated(), siding: T.siding(),
-    menu: T.board(['SNACKS', ['Pretzel', '3.50'], ['Hot corn cob', '3.00'], ['Lemonade', '2.50'], ['Ice tea', '2.50'], ['Soft serve', '3.00']], { w: 512, h: 300 }),
-    sign: T.board(['FRESH SNACKS'], { w: 512, h: 96, bg: '#1f6f5c', title: 52, frame: '#f4efe2', accent: '#ffffff' }),
-    coasterSign: T.board(['COMET RUN'], { w: 512, h: 96, bg: '#1d2b44', title: 54, frame: '#e9e4d6', accent: '#f5c542' }),
-  };
-  return TX;
-}
-
 function rep(t, sx, sy = sx) { const c = t.clone(); c.repeat.set(sx, sy); c.needsUpdate = true; return c; }
 function std(o) { return new THREE.MeshStandardMaterial(o); }
 function M(geo, mat, cast = true, recv = true) { const m = new THREE.Mesh(geo, mat); m.castShadow = cast; m.receiveShadow = recv; return m; }
-
-// world-space UVs on the xz plane (so paving and lawn run continuously across meshes)
 function planarUV(geo, scale) {
   const p = geo.attributes.position, uv = new Float32Array(p.count * 2);
   const v = new THREE.Vector3();
@@ -36,8 +19,6 @@ function planarUV(geo, scale) {
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return geo;
 }
-
-// tube between two points
 const _up = new THREE.Vector3(0, 1, 0);
 function rod(a, b, r, mat, seg = 10) {
   const len = a.distanceTo(b);
@@ -47,65 +28,21 @@ function rod(a, b, r, mat, seg = 10) {
   return m;
 }
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
+let BOARDS;
 
 export function buildPark(variant) {
   const night = variant.night;
-  const tx = textures();
-  const root = new THREE.Group();
-  const lights = []; // night point lights
-  const lightMats = []; // emissive bulbs / glass
-
-  // ---------------------------------------------------------------- materials
-  const mat = {
-    lawn: std({ map: rep(tx.grass.map, 7), bumpMap: rep(tx.grass.bump, 7), bumpScale: 1.2, roughness: 0.95, vertexColors: true }),
-    pavers: std({ map: tx.pavers.map, bumpMap: tx.pavers.bump, bumpScale: 1.5, roughness: 0.82 }),
-    slabs: std({ map: tx.slabs.map, bumpMap: tx.slabs.bump, bumpScale: 1.2, roughness: 0.78 }),
-    asphalt: std({ map: tx.asphalt.map, bumpMap: tx.asphalt.bump, bumpScale: 0.8, roughness: 0.9 }),
-    kerb: std({ map: tx.concrete.map, bumpMap: tx.concrete.bump, bumpScale: 0.6, roughness: 0.75, color: '#d8d6d0' }),
-    soil: std({ map: tx.soil.map, roughness: 1 }),
-    wood: std({ map: tx.wood.map, bumpMap: tx.wood.bump, bumpScale: 0.8, roughness: 0.7 }),
-    deck: std({ map: tx.deck.map, bumpMap: tx.deck.bump, bumpScale: 0.8, roughness: 0.8 }),
-    concrete: std({ map: tx.concrete.map, bumpMap: tx.concrete.bump, bumpScale: 0.5, roughness: 0.85 }),
-    stone: std({ map: tx.stone.map, bumpMap: tx.stone.bump, bumpScale: 1.5, roughness: 0.9 }),
-    steelBlue: new THREE.MeshPhysicalMaterial({ map: tx.paint.map, roughnessMap: tx.paint.rough, color: '#2f6fb5', metalness: 0.35, roughness: 0.45, clearcoat: 0.4, clearcoatRoughness: 0.3 }),
-    steelWhite: new THREE.MeshPhysicalMaterial({ map: tx.paint.map, roughnessMap: tx.paint.rough, color: '#e9e6df', metalness: 0.3, roughness: 0.5, clearcoat: 0.3 }),
-    steelYellow: new THREE.MeshPhysicalMaterial({ map: tx.paint.map, roughnessMap: tx.paint.rough, color: '#f0b323', metalness: 0.3, roughness: 0.45, clearcoat: 0.4 }),
-    darkSteel: std({ map: tx.paint.map, roughnessMap: tx.paint.rough, color: '#2c3133', metalness: 0.5, roughness: 0.5 }),
-    green: std({ map: tx.paint.map, roughnessMap: tx.paint.rough, color: '#1f3b2e', metalness: 0.4, roughness: 0.5 }),
-    stainless: std({ color: '#c9ccd0', metalness: 1, roughness: 0.28 }),
-    brass: std({ color: '#d6a84a', metalness: 1, roughness: 0.25 }),
-    chain: std({ color: '#2a2a2a', metalness: 0.8, roughness: 0.45 }),
-    roofSheet: std({ color: '#9aa3a8', metalness: 0.6, roughness: 0.4, bumpMap: rep(tx.corr.bump, 10), bumpScale: 2 }),
-    carRed: new THREE.MeshPhysicalMaterial({ color: '#c8231e', roughness: 0.3, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.08 }),
-    seat: std({ color: '#262626', roughness: 0.6 }),
-    bark: std({ map: tx.bark.map, bumpMap: tx.bark.bump, bumpScale: 2, roughness: 0.95 }),
-    siding: std({ map: tx.siding.map, bumpMap: tx.siding.bump, bumpScale: 1, roughness: 0.75 }),
-    valance: std({ map: tx.valance.map, roughness: 0.85, alphaTest: 0.5, side: THREE.DoubleSide }),
-    awning: std({ map: tx.awning.map, roughness: 0.85, alphaTest: 0.5, side: THREE.DoubleSide }),
-    roofRed: std({ color: '#a8262a', roughness: 0.6, map: tx.paint.map }),
-    cream: std({ color: '#efe6cf', roughness: 0.55, map: tx.paint.map }),
-    glass: new THREE.MeshPhysicalMaterial({ color: '#c8d8e0', metalness: 0, roughness: 0.05, transmission: 0, transparent: true, opacity: 0.35 }),
-    water: new THREE.MeshPhysicalMaterial({ color: '#1d4a4f', roughness: 0.06, metalness: 0, normalMap: rep(tx.water.normal, 3), normalScale: new THREE.Vector2(0.35, 0.35), clearcoat: 1, clearcoatRoughness: 0.05 }),
-    spray: new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.2, transparent: true, opacity: 0.55, depthWrite: false }),
-    menu: std({ map: tx.menu.map, roughness: 0.5 }),
-    sign: std({ map: tx.sign.map, roughness: 0.5 }),
-    coasterSign: std({ map: tx.coasterSign.map, roughness: 0.5 }),
+  // Round 7: materials, furniture, trees, carousel and horses come from the shared kit (kit.js)
+  const K = makeKit(variant);
+  const { root, lights, lightMats, mat, ringBulb, led, windowGlow, addLight } = K;
+  BOARDS = BOARDS || {
+    menu: T.board(['SNACKS', ['Pretzel', '3.50'], ['Hot corn cob', '3.00'], ['Lemonade', '2.50'], ['Ice tea', '2.50'], ['Soft serve', '3.00']], { w: 512, h: 300 }),
+    sign: T.board(['FRESH SNACKS'], { w: 512, h: 96, bg: '#1f6f5c', title: 52, frame: '#f4efe2', accent: '#ffffff' }),
+    coasterSign: T.board(['COMET RUN'], { w: 512, h: 96, bg: '#1d2b44', title: 54, frame: '#e9e4d6', accent: '#f5c542' }),
   };
-  // warm bulbs: emissive strength depends on the variant
-  const bulb = (color = '#ffd9a0', day = 0.25, nightI = 6) => {
-    const m = std({ color: '#fff4e0', emissive: color, emissiveIntensity: night ? nightI : day, roughness: 0.3 });
-    lightMats.push(m); return m;
-  };
-  const lampGlass = bulb('#ffcf8a', 0.05, 5);
-  const led = bulb('#ffe9c0', 0, 7);
-  const ringBulb = bulb('#ffe2a8', 0.35, 9);
-  const windowGlow = std({ color: night ? '#ffd7a0' : '#8fa6b0', emissive: '#ffbf70', emissiveIntensity: night ? 2.2 : 0, roughness: 0.15, metalness: 0.1 });
-
-  const addLight = (pos, color = '#ffc98a', intensity = 30, dist = 14) => {
-    if (!night) return;
-    const l = new THREE.PointLight(color, intensity, dist, 2);
-    l.position.copy(pos); root.add(l); lights.push(l);
-  };
+  mat.menu = std({ map: BOARDS.menu.map, roughness: 0.5 });
+  mat.sign = std({ map: BOARDS.sign.map, roughness: 0.5 });
+  mat.coasterSign = std({ map: BOARDS.coasterSign.map, roughness: 0.5 });
 
   // ---------------------------------------------------------------- island: lawn + soil sides
   {
@@ -184,38 +121,9 @@ export function buildPark(variant) {
   }
 
   // ---------------------------------------------------------------- street furniture
-  const lampAt = (x, z) => {
-    const g = new THREE.Group();
-    g.add(M(new THREE.CylinderGeometry(0.16, 0.2, 0.35, 12), mat.green).translateY(0.175));
-    g.add(M(new THREE.CylinderGeometry(0.055, 0.075, 3.6, 10), mat.green).translateY(2.0));
-    g.add(M(new THREE.CylinderGeometry(0.13, 0.09, 0.12, 8), mat.green).translateY(3.82));
-    const glass = M(new THREE.CylinderGeometry(0.2, 0.12, 0.42, 8), lampGlass, false, false); glass.position.y = 4.07; g.add(glass);
-    g.add(M(new THREE.ConeGeometry(0.3, 0.26, 8), mat.green).translateY(4.4));
-    g.add(M(new THREE.SphereGeometry(0.05, 8, 6), mat.green).translateY(4.56));
-    g.position.set(x, 0, z);
-    root.add(g);
-    addLight(V(x, 3.9, z), '#ffc98a', 26, 13);
-  };
-  const benchAt = (x, z, rot) => {
-    const g = new THREE.Group();
-    for (const sx of [-0.7, 0.7]) {
-      g.add(M(new THREE.BoxGeometry(0.06, 0.44, 0.5), mat.darkSteel).translateX(sx).translateY(0.22));
-      const back = M(new THREE.BoxGeometry(0.06, 0.5, 0.06), mat.darkSteel); back.position.set(sx, 0.66, -0.24); back.rotation.x = -0.18; g.add(back);
-    }
-    for (let i = 0; i < 4; i++) g.add(M(new THREE.BoxGeometry(1.7, 0.035, 0.1), mat.wood).translateY(0.45).translateZ(-0.18 + i * 0.12));
-    for (let i = 0; i < 3; i++) { const s = M(new THREE.BoxGeometry(1.7, 0.1, 0.03), mat.wood); s.position.set(0, 0.6 + i * 0.13, -0.27 - i * 0.025); s.rotation.x = -0.18; g.add(s); }
-    g.position.set(x, PAVE_Y, z); g.rotation.y = rot;
-    root.add(g);
-    return g;
-  };
-  const binAt = (x, z) => {
-    const g = new THREE.Group();
-    g.add(M(new THREE.CylinderGeometry(0.26, 0.24, 0.85, 16), mat.green).translateY(0.43));
-    g.add(M(new THREE.CylinderGeometry(0.29, 0.29, 0.06, 16), mat.green).translateY(0.88));
-    g.add(M(new THREE.CylinderGeometry(0.12, 0.29, 0.12, 16), mat.green).translateY(0.96));
-    g.position.set(x, PAVE_Y, z);
-    root.add(g);
-  };
+  const lampAt = (x, z) => K.lamp(x, z);
+  const benchAt = (x, z, rot) => K.bench(x, z, rot, PAVE_Y);
+  const binAt = (x, z) => K.bin(x, z, PAVE_Y);
 
   // avenue lamps both sides, benches and bins facing the path
   for (const x of [-18, -10.5, 6, 13.5, 19.5]) lampAt(x, -1.9);
@@ -267,76 +175,8 @@ export function buildPark(variant) {
   }
 
   // ---------------------------------------------------------------- trees: trunk + branches + layered leaf clusters
-  const leafMat = std({ map: tx.leaves.map, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.75 });
-  const leafMat2 = std({ map: tx.leaves2.map, alphaTest: 0.5, side: THREE.DoubleSide, roughness: 0.75, color: '#dfe8c8' });
-  const blobMat = std({ color: '#c8d4b8', roughness: 1, map: rep(tx.foliage.map, 2) });
-  const card = new THREE.PlaneGeometry(1, 1);
-  const treeAt = (x, z, H, seed, crownR = 3.2) => {
-    const r = T.rng(seed);
-    const g = new THREE.Group(); g.position.set(x, 0, z);
-    const trunkH = H * 0.42;
-    const trunk = M(new THREE.CylinderGeometry(0.16 * H / 9, 0.3 * H / 9, trunkH + 0.4, 10), mat.bark); trunk.position.y = trunkH / 2; g.add(trunk);
-    g.add(M(new THREE.CylinderGeometry(0.42 * H / 9, 0.5 * H / 9, 0.18, 10), mat.bark).translateY(0.05));
-    const top = V(0, trunkH, 0);
-    const crownC = V(0, H - crownR * 0.95, 0);
-    // main branches into the crown
-    const clusters = [];
-    const nC = 13 + ((r() * 6) | 0);
-    for (let i = 0; i < nC; i++) {
-      const a = r() * Math.PI * 2, el = (r() * 1.4 - 0.4);
-      const d = crownR * (0.45 + r() * 0.5);
-      const c = V(Math.cos(a) * d * Math.cos(el * 0.6), crownC.y + Math.sin(el) * crownR * 0.6, Math.sin(a) * d * Math.cos(el * 0.6));
-      clusters.push({ c, s: crownR * (0.38 + r() * 0.22) });
-    }
-    clusters.push({ c: V(0, H - crownR * 0.45, 0), s: crownR * 0.55 });
-    for (let i = 0; i < 6; i++) {
-      const tgt = clusters[i].c.clone().multiplyScalar(0.7); tgt.y = clusters[i].c.y * 0.92;
-      g.add(rod(top.clone().add(V(0, -0.3, 0)), tgt, 0.11 * H / 9, mat.bark, 6));
-    }
-    // dense inner volume so the crown is never see-through, then leaf cards on the outside
-    const cards = [];
-    for (const { c, s } of clusters) {
-      const b = M(new THREE.IcosahedronGeometry(s * 0.62, 1), blobMat); b.position.copy(c); b.scale.set(1, 0.8, 1); g.add(b);
-      const n = 52;
-      for (let k = 0; k < n; k++) {
-        const dir = V(r() * 2 - 1, r() * 1.6 - 0.5, r() * 2 - 1).normalize();
-        const p = c.clone().addScaledVector(dir, s * (0.65 + r() * 0.4));
-        cards.push({ p, dir, size: 1.0 + r() * 0.8, tint: 0.8 + r() * 0.35 });
-      }
-    }
-    const im = new THREE.InstancedMesh(card, seed % 2 ? leafMat : leafMat2, cards.length);
-    const q = new THREE.Quaternion(), m4 = new THREE.Matrix4(), col = new THREE.Color();
-    cards.forEach((cd, k) => {
-      const e = new THREE.Euler(r() * Math.PI, r() * Math.PI, r() * Math.PI);
-      q.setFromEuler(e);
-      m4.compose(cd.p, q, V(cd.size, cd.size, cd.size));
-      im.setMatrixAt(k, m4);
-      // outer-top cards lighter (sky light), lower ones darker
-      const sh = cd.tint * (0.85 + Math.max(0, cd.dir.y) * 0.25);
-      im.setColorAt(k, col.setRGB(sh, sh, sh * 0.95));
-    });
-    im.castShadow = true; im.receiveShadow = true;
-    g.add(im);
-    g.rotation.y = r() * 6.28;
-    root.add(g);
-  };
-  const shrubAt = (x, z, s, seed) => {
-    const r = T.rng(seed);
-    const g = new THREE.Group(); g.position.set(x, 0, z);
-    for (let i = 0; i < 4; i++) {
-      const b = M(new THREE.IcosahedronGeometry(s * (0.5 + r() * 0.3), 1), std({ color: ['#3d5a2a', '#466a30', '#36522a'][i % 3], roughness: 0.95, flatShading: false }));
-      b.position.set((r() - 0.5) * s, s * 0.45, (r() - 0.5) * s); b.scale.y = 0.75; g.add(b);
-    }
-    const cards = new THREE.InstancedMesh(card, leafMat, 40);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-    for (let k = 0; k < 40; k++) {
-      const dir = V(r() * 2 - 1, r() * 1.2, r() * 2 - 1).normalize();
-      q.setFromEuler(new THREE.Euler(r() * 3, r() * 3, r() * 3));
-      m4.compose(V(dir.x * s * 0.8, s * 0.4 + dir.y * s * 0.6, dir.z * s * 0.8), q, V(0.6, 0.6, 0.6)); cards.setMatrixAt(k, m4);
-    }
-    cards.castShadow = true; cards.receiveShadow = true; g.add(cards);
-    root.add(g);
-  };
+  const treeAt = (x, z, H, seed, crownR) => K.tree(x, z, H, seed, crownR);
+  const shrubAt = (x, z, s, seed) => K.shrub(x, z, s, seed);
   treeAt(-18, 6, 10, 3, 3.3);
   treeAt(-12.5, 16, 11, 4, 3.6);
   treeAt(-4.5, 17.5, 8, 7, 2.8);
@@ -395,95 +235,7 @@ export function buildPark(variant) {
   }
 
   // ---------------------------------------------------------------- carousel
-  const carousel = new THREE.Group();
-  {
-    const cx = 10.5, cz = -10.5, R = 5.8;
-    carousel.position.set(cx, 0, cz);
-    carousel.add(M(new THREE.CylinderGeometry(R + 0.45, R + 0.55, 0.3, 64), mat.concrete).translateY(0.15));
-    const floor = M(new THREE.CylinderGeometry(R, R, 0.22, 64), [mat.deck, mat.deck, mat.cream]); floor.position.y = 0.41; carousel.add(floor);
-    floor.material = [mat.cream, mat.deck, mat.cream];
-    // radial plank uv on the top cap
-    {
-      const ug = floor.geometry, uv = ug.attributes.uv, p = ug.attributes.position;
-      for (let i = 0; i < uv.count; i++) if (p.getY(i) > 0.1) uv.setXY(i, p.getX(i) / 1.5, p.getZ(i) / 1.5);
-    }
-    const FY = 0.52;
-    // centre drum: panels + mirrors
-    carousel.add(M(new THREE.CylinderGeometry(1.25, 1.25, 3.7, 24), mat.cream).translateY(FY + 1.85));
-    const panels = M(new THREE.CylinderGeometry(1.27, 1.27, 1.8, 12, 1, true), std({ color: '#7a1c22', roughness: 0.4, metalness: 0.2 })); panels.position.y = FY + 1.9; carousel.add(panels);
-    carousel.add(M(new THREE.CylinderGeometry(1.32, 1.32, 0.12, 24), mat.brass).translateY(FY + 1.0));
-    carousel.add(M(new THREE.CylinderGeometry(1.32, 1.32, 0.12, 24), mat.brass).translateY(FY + 2.85));
-    // canopy: cone roof with ribs, valance, finial
-    const roofY = FY + 3.75;
-    const cone = M(new THREE.ConeGeometry(R + 0.35, 2.4, 48, 1, true), std({ color: '#efe6d2', roughness: 0.7, map: tx.paint.map, side: THREE.DoubleSide }));
-    cone.position.y = roofY + 1.2; carousel.add(cone);
-    {
-      // stripe the roof with the valance colours by uv: a second cone, red segments only
-      const g2 = new THREE.ConeGeometry(R + 0.37, 2.41, 48, 1, true);
-      const red = M(g2, std({ color: '#9e1f26', roughness: 0.55, map: tx.paint.map, side: THREE.DoubleSide }));
-      const idx = []; const pos = g2.index.array;
-      for (let i = 0; i < pos.length; i += 6) if (((i / 6) | 0) % 2 === 0) idx.push(pos[i], pos[i + 1], pos[i + 2], pos[i + 3], pos[i + 4], pos[i + 5]);
-      g2.setIndex(idx); red.position.y = roofY + 1.2; carousel.add(red);
-    }
-    for (let i = 0; i < 24; i++) {
-      const a = (i / 24) * Math.PI * 2;
-      carousel.add(rod(V(Math.cos(a) * (R + 0.4), roofY, Math.sin(a) * (R + 0.4)), V(0, roofY + 2.42, 0), 0.04, mat.brass, 6));
-    }
-    const val = M(new THREE.CylinderGeometry(R + 0.4, R + 0.4, 0.75, 96, 1, true), mat.valance);
-    val.geometry.attributes.uv.array.forEach((v, i, a) => { if (i % 2 === 0) a[i] = v * 3; });
-    val.position.y = roofY - 0.3; carousel.add(val);
-    carousel.add(M(new THREE.TorusGeometry(R + 0.42, 0.06, 8, 96), mat.brass).rotateX(Math.PI / 2).translateZ(-(roofY + 0.06)));
-    carousel.add(M(new THREE.SphereGeometry(0.28, 16, 12), mat.brass).translateY(roofY + 2.55));
-    carousel.add(M(new THREE.ConeGeometry(0.12, 0.6, 12), mat.brass).translateY(roofY + 3.0));
-    // ceiling disc under the canopy
-    const ceil = M(new THREE.CylinderGeometry(R + 0.38, R + 0.38, 0.06, 64), mat.cream); ceil.position.y = roofY - 0.0; carousel.add(ceil);
-    // bulbs round the rim
-    const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.055, 8, 6), ringBulb, 72);
-    const m4 = new THREE.Matrix4();
-    for (let i = 0; i < 72; i++) { const a = (i / 72) * Math.PI * 2; m4.makeTranslation(Math.cos(a) * (R + 0.47), roofY + 0.08, Math.sin(a) * (R + 0.47)); bulbs.setMatrixAt(i, m4); }
-    carousel.add(bulbs);
-    const bulbs2 = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 8, 6), ringBulb, 48);
-    for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; m4.makeTranslation(Math.cos(a) * 1.34, FY + 2.95, Math.sin(a) * 1.34); bulbs2.setMatrixAt(i, m4); }
-    carousel.add(bulbs2);
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; addLight(V(cx + Math.cos(a) * 3.6, roofY - 0.3, cz + Math.sin(a) * 3.6), '#ffd49a', 10, 7); }
-    // horses on brass poles, two rings
-    const horseCols = ['#f4f1ea', '#2b2522', '#8a5a36', '#c9c3b8', '#f4f1ea', '#5d4030'];
-    const saddleCols = ['#b8202a', '#1f6f5c', '#2f5fa5', '#d8a32c'];
-    let hn = 0;
-    const riders = [];
-    for (const [ring, count, off] of [[4.6, 10, 0], [3.1, 7, 0.4]]) {
-      for (let i = 0; i < count; i++) {
-        const a = (i / count) * Math.PI * 2 + off;
-        const px = Math.cos(a) * ring, pz = Math.sin(a) * ring;
-        carousel.add(rod(V(px, FY, pz), V(px, roofY, pz), 0.035, mat.brass, 8));
-        const lift = 0.95 + 0.35 * Math.sin(a * 3 + ring);
-        const hg = horse(horseCols[hn % horseCols.length], saddleCols[hn % saddleCols.length], mat);
-        hg.position.set(px, FY + lift, pz);
-        hg.rotation.y = -a; // tangent: nose points along the direction of travel (counter-clockwise seen from above)
-        carousel.add(hg);
-        if ([1, 3, 6, 8, 12, 15].includes(hn)) riders.push({ hg, hn });
-        hn++;
-      }
-    }
-    riders.forEach(({ hg, hn: s }) => {
-      const p = person(randomLook(400 + s, { child: s % 2 === 0, balloon: null, backpack: null }), { kind: 'horse' });
-      p.position.set(0, 0.42, -0.05);
-      hg.add(p);
-    });
-    // low fence ring with a gap facing the entry path
-    const fenceR = R + 1.2;
-    for (let i = 0; i < 40; i++) {
-      const a0 = (i / 40) * Math.PI * 2, a1 = ((i + 1) / 40) * Math.PI * 2;
-      const mid = (a0 + a1) / 2;
-      if (Math.abs(((mid - Math.PI / 2 + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.28) continue; // gap at +z
-      const p0 = V(Math.cos(a0) * fenceR, 0, Math.sin(a0) * fenceR), p1 = V(Math.cos(a1) * fenceR, 0, Math.sin(a1) * fenceR);
-      carousel.add(rod(p0.clone().setY(0.0), p0.clone().setY(1.0), 0.03, mat.green, 6));
-      carousel.add(rod(p0.clone().setY(1.0), p1.clone().setY(1.0), 0.025, mat.green, 6));
-      carousel.add(rod(p0.clone().setY(0.55), p1.clone().setY(0.55), 0.02, mat.green, 6));
-    }
-    carousel.rotation.y = 0;
-    root.add(carousel);
-  }
+  const carousel = K.carousel({ cx: 10.5, cz: -10.5, R: 5.8 });
 
   // ---------------------------------------------------------------- coaster
   const coaster = buildCoaster(mat, root, { led, bulb: ringBulb, addLight, night, signMat: mat.coasterSign, windowGlow });
@@ -555,33 +307,6 @@ export function buildPark(variant) {
   sitOn(54, 13.4, 2.05, Nn);
 
   return { root, lights, lightMats, guests, coaster, carousel };
-}
-
-// ---------------------------------------------------------------- a carousel horse (local: nose to +z, saddle at origin)
-function horse(coat, saddle, mat) {
-  const g = new THREE.Group();
-  const cm = new THREE.MeshPhysicalMaterial({ color: coat, roughness: 0.35, clearcoat: 0.8, clearcoatRoughness: 0.2 });
-  const sm = new THREE.MeshPhysicalMaterial({ color: saddle, roughness: 0.35, clearcoat: 0.6 });
-  const dark = std({ color: '#3a2a20', roughness: 0.6 });
-  const body = M(new THREE.CapsuleGeometry(0.22, 0.75, 6, 14), cm); body.rotation.x = Math.PI / 2; body.scale.set(0.9, 1, 1.05); g.add(body);
-  const neck = M(new THREE.CapsuleGeometry(0.13, 0.42, 4, 10), cm); neck.position.set(0, 0.28, 0.52); neck.rotation.x = 0.6; g.add(neck);
-  const head = M(new THREE.CapsuleGeometry(0.1, 0.32, 4, 10), cm); head.position.set(0, 0.5, 0.75); head.rotation.x = 1.9; g.add(head);
-  for (const s of [-1, 1]) { const ear = M(new THREE.ConeGeometry(0.035, 0.12, 6), cm); ear.position.set(s * 0.06, 0.66, 0.66); g.add(ear); }
-  const mane = M(new THREE.BoxGeometry(0.05, 0.5, 0.12), dark); mane.position.set(0, 0.42, 0.48); mane.rotation.x = 0.6; g.add(mane);
-  const tail = M(new THREE.CapsuleGeometry(0.05, 0.38, 4, 8), dark); tail.position.set(0, -0.05, -0.62); tail.rotation.x = -0.6; g.add(tail);
-  // legs in a gallop pose
-  const legs = [[0.11, 0.38, -0.9, 0.6], [-0.11, 0.38, -0.3, 0.3], [0.11, -0.4, 0.9, -0.5], [-0.11, -0.4, 0.4, -0.2]];
-  for (const [x, z, a1, a2] of legs) {
-    const up = new THREE.Group(); up.position.set(x, -0.1, z); up.rotation.x = a1; g.add(up);
-    const u = M(new THREE.CapsuleGeometry(0.055, 0.26, 4, 8), cm); u.position.y = -0.18; up.add(u);
-    const low = new THREE.Group(); low.position.y = -0.36; low.rotation.x = a2; up.add(low);
-    const l = M(new THREE.CapsuleGeometry(0.04, 0.24, 4, 8), cm); l.position.y = -0.15; low.add(l);
-    const hoof = M(new THREE.CylinderGeometry(0.05, 0.055, 0.06, 8), mat.brass); hoof.position.y = -0.32; low.add(hoof);
-  }
-  const sd = M(new THREE.CylinderGeometry(0.25, 0.25, 0.32, 16, 1, true, -Math.PI / 2 - 1.2, 2.4), sm); sd.rotation.z = Math.PI / 2; sd.position.y = 0.02; g.add(sd);
-  sd.rotation.set(0, 0, Math.PI / 2); sd.rotateX(0);
-  const saddleTop = M(new THREE.BoxGeometry(0.34, 0.06, 0.36), sm); saddleTop.position.y = 0.22; g.add(saddleTop);
-  return g;
 }
 
 // ---------------------------------------------------------------- tubular steel coaster: closed circuit

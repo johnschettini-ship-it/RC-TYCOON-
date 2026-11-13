@@ -1,4 +1,4 @@
-# Realistic art concepts: T to W (round 6)
+# Realistic art concepts: T to W (round 6), X to AA (round 7)
 
 After 19 stylised looks (A to S, see `../curved/README.md`) the brief changed to "back to more real-life concepts":
 real-world materials, proportions and light. SVG cannot do that, so this round builds the park as a **3D scene in
@@ -13,11 +13,15 @@ on the station ("Comet Run") and the kiosk menu are made up.
 
 | File | What |
 | --- | --- |
-| `tools/park.js` | The scene in metres: island, paving + kerbs, pond + fountain, trees, kiosk, carousel, coaster, queue, furniture, guests |
+| `tools/kit.js` | Round 7 shared kit: lazy textures + materials, lamps, benches, bins, planters, broadleaf trees, pines (snowy or not), shrubs, rocks, carousel + horse, guests and crowds, paving grid with kerbs, ground slab |
+| `tools/rides.js` | Round 7 rides: track frames with banking, profile sweeps, instanced beams, timber trestles, wooden track, sit-down / inverted / log / sled cars with riders, Ferris wheel, slide tower, drop tower, monorail, stalls, huts, city buildings, gulls |
+| `tools/scene-pier.js`, `scene-forest.js`, `scene-city.js`, `scene-winter.js` | Round 7 settings X, Y, Z, AA (18 x 18 tile plots) |
+| `tools/scenes.js` | Scene registry + the guest line-up (G) |
+| `tools/park.js` | The round 6 scene in metres: island, paving + kerbs, pond + fountain, kiosk, coaster, queue, guests (furniture, trees, carousel now from `kit.js`) |
 | `tools/people.js` | Guests: jointed low-poly humans with real proportions and poses (walk, stand, wave, sit, ride, horse) |
 | `tools/textures.js` | Procedural canvas textures: grass + clover, clay pavers, concrete slabs, asphalt, wood, paint, stone, soil, bark, water normal map, leaf cards, striped canvas, signs |
 | `tools/post.js` | Hand-written post chain: depth AO, bloom, ACES + grade, tilt-shift (no three.js add-ons needed) |
-| `tools/main.js` | Variants T/U/V/W (sun, sky, exposure, grade), camera, 2x supersampling, label |
+| `tools/main.js` | Variants T/U/V/W/X/Y/Z/AA/G (sun, sky, exposure, grade, scene), camera, 2x supersampling, label |
 | `tools/render.cjs` | Playwright driver, writes `docs/screenshots/concept-real-*.png` |
 | `tools/shrink.py` | Cuts the PNGs to a 256-colour palette (Pillow) so each stays under 1 MB |
 | `tools/vendor/three-0.160.0.module.min.js` | three.js r160, vendored single file (MIT, `three-LICENSE.txt`). Not added to `package.json` |
@@ -25,9 +29,10 @@ on the station ("Comet Run") and the kiosk menu are made up.
 Run (from the repo root, Playwright is already a dev dependency; no `playwright install` needed):
 
 ```
-node docs/research/art/realistic/tools/render.cjs              # all sheets, phone crops, compare, T turns
-node docs/research/art/realistic/tools/render.cjs tv           # only some variants
-node docs/research/art/realistic/tools/render.cjs turns        # only the 2x2 rotation sheet
+node docs/research/art/realistic/tools/render.cjs              # everything: 8 sheets + phones, both compares, T turns, guests
+node docs/research/art/realistic/tools/render.cjs x aa compare2   # some variants (space-separated tokens)
+node docs/research/art/realistic/tools/render.cjs turns guests # only the rotation sheet / the guest line-up
+BIG=20 OUT=/tmp/x.png node docs/research/art/realistic/tools/render.cjs dbg x 0 5 0 0.4    # also lists meshes longer than 20 m (finds stray beams)
 OUT=/tmp/x.png node docs/research/art/realistic/tools/render.cjs dbg t 10.5 2 -9 3   # close-up: variant x y z zoom
 python3 docs/research/art/realistic/tools/shrink.py
 ```
@@ -36,6 +41,113 @@ Outputs: `docs/screenshots/concept-real-{t,u,v,w}.png` (1600 x 1000, whole islan
 `concept-real-{t,u,v,w}-phone.png` (390 x 520 CSS px at DPR 2, carousel + avenue + guests, game zoom 1.4),
 `concept-real-compare.png` (same layout as `concept-curved-compare-5.png`) and `concept-real-t-turns.png`
 (T from all four 90 degree turns).
+
+## Round 7: fixes to the shared parts, four new settings (X to AA)
+
+The owner liked the real-life direction and said "keep going". Round 7 moves everything reusable into
+`tools/kit.js` and `tools/rides.js`, so T/U/V/W and the new settings share one set of people, trees, carousel and
+furniture. **T, U, V, W, the T turns sheet and `concept-real-compare.png` were re-rendered** because the fixes change them.
+
+### What was fixed (shared, so it shows in every sheet)
+
+* **Guests** (`people.js`, see `concept-real-guests.png`): a shaped torso (lathe profile with hips, waist, chest and
+  shoulders) instead of a capsule; thicker tapered limbs; a face on every head (eyes with a glint, brows in the hair
+  colour, nose, mouth, ears, jaw); ten hair styles (short, crop, side parting, curly, afro, long, bun, ponytail, bob,
+  pigtails) and bald; hats (cap, sun hat, bucket hat, beanie with pompom) that sit above the brows so the face shows,
+  with big hair tucked under them; 12 skin tones; dresses, skirts, shorts, trousers, sleeveless / short / long sleeves,
+  winter coats with a zip, scarves and gloves (`season: 'winter'`); backpacks and shoulder bags; children with a bigger
+  head and shorter legs (about 22 % of guests), older adults with grey hair and a slight stoop. New poses: eat (ice
+  cream, drink, candy floss), point, skate, slide (on a mat or toboggan), dangle (open seats), and the horse rider now
+  sits astride with bent knees.
+* **Carousel horses** (`kit.horse`): a carved jumper with barrel, chest and rump volumes, an arched neck, a wedge head
+  angled nose-down with muzzle, nostrils, eyes and ears, bridle bands, a carved mane (gilded on some light horses),
+  forelock, a flowing tail, legs in a gallop pose (front legs curled, hind legs pushing off) with knees and hooves,
+  and a saddle with blanket, pommel, cantle and stirrups on the brass pole.
+* **Tree crowns** (`kit.tree`): the solid core is now small and mid-green, and 64 leaf cards per cluster fill the whole
+  volume at many depths; every card gets its own tint (yellow-green to blue-green) and is lighter towards the outside
+  and the top. The dark balls are gone. New: conifers (`kit.pine`, drooping needle-branch cards round a dark core,
+  optional snow cards on every branch) and shrubs with flowers.
+* **Carousel roof**: one 96-segment cone with the stripes in its texture, so stripe edges are straight and smooth
+  (round 6 used a faceted second cone). Ribs line up with the stripe joins.
+* Also fixed on the way: `Beams` (instanced timber/steel) built a left-handed basis, which turned long rails into
+  lines across the sky; the ground slab's top face hid anything below y = 0 (lakes); a debug option lists any mesh
+  over a size limit so stray geometry is found quickly.
+
+### The four new settings (18 x 18 tiles = 54 m, 1 tile = 3 m, daylight)
+
+| | Rides | Setting and details |
+| --- | --- | --- |
+| **X Seaside pier** | wooden out-and-back coaster on timber trestles (two trains of four cars, lift with chain and catwalk), 16 m Ferris wheel (16 tubs, 2 to 3 riders each, bulbs on the spokes), striped slide tower with a spiral mat slide (riders on mats) | timber deck in two plank tones on cast-iron piles with braces and foam rings, white railings, sea with swell and ripples, sand beach with towels, parasols, a sandcastle and breaking foam, sea wall promenade with flags, four food stalls, a moored launch, buoys, gulls flying and perched |
+| **Y Lakeside forest** | log flume: lift up a wooded hill, run along the crest, big drop down the hillside into a splash pool with a spray fan, return along the shore; six log boats with riders | log-built lodge station with a shingle roof, three wooden footbridges (over the flume, by the splash pool, over a brook), lake with reeds, rocks, a jetty and a canoe, pine forest behind the rides, picnic glade, lakeside lawn with blankets and a kite, paths edged with timber kerbs |
+| **Z City plaza** | inverted steel coaster (cars hang below the track, legs dangling, shoulder bars, cantilever supports), 30 m drop tower (12 seats), monorail on pylons over the street | seven original brick and render buildings with shopfronts at the two back edges, street with markings and crossings, glass-and-steel station, ground jets with children playing, round basin fountain, raised planters with trees and benches, café tables, coffee and pretzel stalls |
+| **AA Winter festival** | covered bobsled coaster (half-pipe trough, high banking, lift, two timber snow sheds over the descent, six sleds), carousel strung with lights (bulbs on every rib, snow on the canopy) | snow ground with drifts and footprints, snowy pines, frozen pond with ten skaters and a skate hire hut, market street of eight timber huts with warm hatches and garlands, string lights over the street, decorated festival tree, snowman, sledging knoll with toboggans, cleared paths with granite kerbs and snow banks, low warm sun (21 degrees) with long shadows |
+
+Each setting has roughly 60 to 80 guests on the ground plus seated riders in every ride car, gondola, boat and sled, paths
+with kerbs (stone, timber or granite), benches, lamps and bins. Names on signs (Shorebird, Timber Run, Skyline,
+Ice Runner, the stall names) are made up. Nothing imitates another game's look, names or art; all textures are drawn
+in code (new: sand, sea, ice, snow, pine needles, snow on branches, shingles, log walls, brick and render facades,
+curtain-wall glass).
+
+Outputs: `docs/screenshots/concept-real-{x,y,z,aa}.png` (1600 x 1000), `concept-real-{x,y,z,aa}-phone.png`
+(390 x 520 CSS px at DPR 2, game zoom 1.4: X slide tower + stalls, Y splash pool + bridge + lake, Z coaster over the
+fountain jets, AA carousel + market street), `concept-real-compare-2.png` (same layout as `concept-real-compare.png`)
+and `concept-real-guests.png` (12 guests in two rows plus a carousel horse with its rider, game zoom 8.4).
+
+**Which reads best at phone size:** AA Winter festival. The white ground makes every guest, hut and light stand out,
+the carousel stripes and the market read at a glance, and the low sun gives strong modelling. X is a close second
+(the slide tower and stalls are bold shapes); Y and Z are busier: trees and coaster supports cover part of the action.
+
+### Render times (headless Chromium, SwiftShader on 4 CPU cores, 2x supersampling)
+
+| | Sheet 1600 x 1000 | Phone 780 x 1040 | Scene build |
+| --- | --- | --- | --- |
+| T (round 6 scene, round 7 kit) | 24 s (was about 20 s) | 10 s | 5 s |
+| X Seaside pier | 13 s | 10 s | 3 s |
+| Y Lakeside forest | 20 s | 9 s | 2 s |
+| Z City plaza | 21 s | 8 s | 5 s |
+| AA Winter festival | 18 s | 9 s | 3 s |
+| Guest line-up | 8 s | - | 0.2 s |
+
+The whole set (8 sheets, 8 phones, turns, two compares, line-up) takes about 6 minutes. On a real GPU each frame is
+well under 100 ms. The bigger plots cost little extra because trees, ties, beams, bulbs and kerbs are instanced.
+
+### Do the memory estimates change for bigger rides?
+
+Yes, for the tall and wide ones; the per-ride numbers above were for a carousel and a mid-size coaster.
+
+| Item | Pixels at zoom 1 | Frames | RGBA, 3 zooms | Compressed |
+| --- | --- | --- | --- | --- |
+| Ferris wheel: frame + legs (2 views: it is mirror-symmetric) | 400 x 460 | 2 | 7.7 MB | 1.9 MB |
+| Ferris wheel: rotating ring (16 tubs repeat every 22.5 degrees, 6 frames per view) | 400 x 400 | 12 | 40 MB | 10 MB |
+| Ferris wheel tubs with riders (placed at run time, hang straight down) | 50 x 60 | 8 colours x 2 | 0.5 MB | 0.1 MB |
+| Log flume trough kit (30 pieces x 4 rotations, incl. trestle) | 104 x 150 avg | 120 | 39 MB | 10 MB |
+| Log boat with riders (16 yaw x 5 pitch: flat, lift, drop) | 70 x 50 | 80 | 6 MB | 1.5 MB |
+| Splash animation | 150 x 150 | 8 | 3.8 MB | 0.9 MB |
+| Drop tower (round: 1 view) + seat ring | 150 x 720 + 120 x 60 | 1 + 1 | 2.4 MB | 0.6 MB |
+| Slide tower (4 views) | 170 x 400 | 4 | 5.7 MB | 1.4 MB |
+| One city building (4 rotations, 6 floors) | 400 x 600 | 4 | 20 MB | 5 MB |
+
+So a **Ferris wheel is about 12 MB compressed** for three zooms (most of it the turning ring; 4 frames instead of 6, or
+drawing the ring live as a rotated sprite, halves it), and a **log flume about 12 MB**, the same order as a coaster
+because the cost is the piece kit, not the boat. Drop and slide towers are cheap. The real surprise is **scenery
+buildings**: a street of seven baked facades is 35 MB compressed, more than any ride, so buildings should be a
+modular kit (floor, bay and corner pieces that tile) or drawn live in 3D. The park-level estimate (60 to 120 MB
+compressed) holds for a modest park; a park with a big wheel, a flume and a city backdrop moves to about 100 to 150 MB
+compressed, which strengthens the case for streaming ride packs and keeping only the current zoom resident.
+
+### What did not come out right (round 7)
+
+* Guests are better but still read as jointed figures close up (visible elbow and knee joints, no fingers); hair is
+  sphere shapes. At game zoom they read as people with clothes, hats and faces only from zoom 2 up.
+* The sea in X uses a colour map with swell bands; from above the light bands read as blotches rather than waves, and
+  the foam lines on the beach are too regular. A real water shader with depth colour would fix both.
+* In Y the brook is partly hidden by trees and reads only near the lake and the plot edge; trees and coaster supports
+  in Y and Z cover some guests and the basin fountain's spray is hard to see.
+* The bobsled trough in AA is very bright inside (white fibreglass in sun); the covered sections are simple pitched
+  roofs, and the sledging knoll is too low to read.
+* The carousel and festival lights hardly read in daylight (they are meant for an evening mode like V).
+* The inverted coaster has no inversions and the wooden coaster no tunnel; both are kept simple to stay readable.
+* All PNGs are cut to 256 colours by `shrink.py` (faint banding in the sky gradients).
 
 ## Scale and camera
 
