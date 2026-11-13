@@ -165,3 +165,139 @@ A, B and C come out byte-for-byte the same as before.
   game time, not per frame; but cached ride sprites must be re-baked (or re-tinted) as the light changes, so keep a few
   pre-baked time-of-day variants. Blurred cast shadows and glow halos must be **pre-blurred sprites**; drawing 50 to
   100 additive halo sprites per frame is fine on phones, live blur is not.
+
+---
+
+# Round 3: H, I, J, K — four different looks
+
+A to G share one scene, one set of shapes and one draw order; only the surface material changes, so they read
+as one look in seven finishes. Round 3 drops that rule. Each of H, I, J and K has **its own scene layout,
+proportions, shape language, lighting and content**: water with a bridge, terrain steps, a bigger ride, trees in
+groups. What stays is the game camera: isometric 2:1, `screen = (ox + (x - y) * 52 * s, oy + (x + y) * 26 * s - z * s)`
+(only the zoom `s` changes per sheet) with the same four 90 degree turns, so any of the four could ship.
+
+| File | Style |
+| --- | --- |
+| `h-toy.svg` | H: Chunky toy diorama |
+| `i-neon.svg` | I: Neon night |
+| `j-lush.svg` | J: Lush premium mobile |
+| `k-minimal.svg` | K: Minimal geometric |
+| `tools/generate-r3.mjs` | Builds H to K (`node tools/generate-r3.mjs`, or `node tools/generate-r3.mjs h j`). Separate from `generate.mjs`, so A to G stay byte-identical |
+| `tools/render-r3.cjs` | Renders `concept-curved-{h,i,j,k}.png` (1600 x 1000), `-phone.png` (390 x 520 CSS px at DPR 2, each framed on a ride, a path and guests) and `concept-curved-compare-3.png` (same layout as compare-2) |
+| `tools/shrink-r3.py` | Cuts only PNGs over ~1 MB to 256 colours, with the fast-octree quantizer (median cut, as in `shrink.py`, averaged away J's small saturated shirt and flower colours). Only J's sheet and compare-3 needed it |
+
+New shared building block: the **rounded slab** (`Ctx.slab`): a rounded rectangle in grid space, extruded; its side
+is the hull of top and bottom outline, filled with a two-colour split at the front corner (lit left, shaded
+right). Every terrain piece in round 3 (tray, land, hill, path, flowerbed, kerb) is one or more slabs stacked by
+height, which is also a direct model for the game's terrain: draw a height level's sides first, then its tops.
+
+## H: Chunky toy diorama
+
+* **Look:** painted wooden toys on a blue plastic tray, photographed close with a tilt-shift lens. Two land
+  pieces and a stacked-block hill sit in the tray's water; a channel with a chunky bridge, a pond with a duck boat.
+  Rides are stubby and fat: a teacup ride on a striped turntable, a short oval coaster with one hump, fat yellow
+  posts and bathtub cars, a popcorn stall topped by a giant bucket. Lollipop and stacked-cone trees.
+* **Guests:** peg dolls. A rounded peg body (shirt painted on top, trousers band below) and a ball head that is
+  ~42% of the height, two dot eyes, cheeks, a hair cap. No legs, stub arms. They are the most readable guests of
+  all eleven sheets at phone size.
+* **Fills:** primaries (red, blue, yellow, green, white) in three flat tones per paint: top = +16% white, left =
+  base, right = x0.74. No gradients on objects. Balls: flat base, flat shade crescent, one white satin highlight.
+* **Outline:** none. Instead a thin light **bevel line** on the front top edge of every slab and box (the
+  rounded toy edge catching light).
+* **Light / shadows:** soft blurred contact shadows in dark blue; one large warm shadow of the tray on the table.
+* **Tilt-shift:** the scene is drawn twice: once blurred (6 px at sheet scale), once sharp through a horizontal
+  band mask (sharp between ~42% and ~66% of the height). Out-of-focus bokeh circles in the backdrop.
+* **Canvas 2D mapping:** shapes are `fill()` only (3 fills + 1 stroke per box). Tilt-shift: render the world to
+  an offscreen canvas, draw it once with `ctx.filter = 'blur(4px)'` into a **half-resolution** buffer, then draw the
+  sharp frame on top through a gradient alpha mask (`destination-in` with a linear gradient). Better: skip the
+  blurred pass on phones and keep only a soft vignette; the toy proportions carry the look by themselves.
+* **Phone cost: low for the art, medium with tilt-shift.** Objects are cheaper than A (no outlines). The
+  full-frame blur is one extra full-screen pass per frame; at DPR 2 on a mid phone that is the most expensive part
+  of this style. Pre-draw: nothing is required, but caching rides per rotation is easy and worth it.
+
+## I: Neon night
+
+* **Look:** night is the base, not a filter. A dark navy park on a black plinth, a canal across the middle with
+  an arched light bridge, a **big Ferris wheel** (two magenta rims, 16 spokes, 12 lit gondolas, bulbs), a coaster
+  with a lift, a drop and a **vertical loop** in yellow, a twister flat ride, a snack stall with a glowing window
+  and a neon roof sign, lamps, dark trees with fairy lights, stars and a crescent moon.
+* **Shape language:** lines, not solids. Rides, path edges and land edges are neon tubes; fill is used only
+  where light falls (light pools on the ground, the stall window, gondola windows). A faint tile lattice shows
+  the game grid.
+* **Neon:** every tube = 3 strokes of the same path: a wide halo (6.5x width, 10% opacity), a glow (2.6x, 32%) and a
+  near-white core. **No blur filter.** Bulbs = a faint disc plus a hot dot.
+* **Guests:** small dark silhouettes, rim-lit: the whole silhouette is drawn in the nearest light's colour, nudged
+  ~1.3 px toward that light, then the dark shape on top, so a thin coloured crescent stays on one side. Each guest
+  carries one glowing item (balloon, headband, glow stick, phone, light-up ears).
+* **Water:** the neon objects are drawn a second time with mirrored height around the water level (a second
+  `Ctx` with `zMirror`), clipped to the canal, slightly blurred and dimmed, plus short ripple streaks.
+* **Canvas 2D mapping:** three `stroke()`s per tube with `globalCompositeOperation = 'lighter'` for halo and glow
+  (additive light, the right look and cheap on GPU canvas). Light pools = pre-rendered radial-gradient sprites
+  drawn with `'lighter'`. Reflection = the neon layer drawn again with a flipped `setTransform` into the canal's
+  clip, at low alpha (blur optional).
+* **Phone cost: medium.** No textures, few fills, but many long strokes and overdraw: every tube is drawn 3x,
+  the reflection doubles the neon layer, and additive blending over large halos costs fill rate. Pre-draw: light
+  pools and bulb glows as sprites; cache each ride's neon per rotation on an offscreen canvas (one `drawImage`
+  instead of ~100 strokes). At phone size the rides read very well (light on dark), but guests are the weakest:
+  they are read by their glow item and rim, not by colour or clothes, so telling guests apart is hard.
+
+## J: Lush premium mobile
+
+* **Look:** rich and polished. A lake washes around three land pieces with a shallow-water halo, a white foam
+  band and a sandy rim; soil sides with a darker base; a rock-sided hill with strata lines and a tree grove on top;
+  a wooden plank bridge to an island; lily pads and water sparkles. Rides: a glossy red tubular coaster on white
+  posts with a coloured train, a **swing ride** (striped canopy, scalloped valance, ten chair swings flung out
+  with riders), a round fruit hut with a thatched cone roof. Flowerbeds with dense blooms, benches, lamps, bushes.
+* **Fills:** soft gradients everywhere: vertical gradients on side faces, a 4-stop "turned" gradient on
+  cylinders, a radial gloss gradient plus a specular oval on every sphere (foliage, balloons, fruit, lamp globes),
+  a back-to-front gradient on the grass, a warm-to-cool gradient on the paving. A soft sunlight/vignette overlay.
+* **Outline:** none. Edges come from tone steps and a 1.4 px white highlight on the front top edges.
+* **Shadows:** soft blurred ambient occlusion under every object (stronger and tighter than A's shadows).
+* **Paths:** kerb stones (a raised light band with stone joints), paving joints every half tile, warm fill.
+* **Guests:** slim chibi (head ~26% of height): shoes, legs that step, a gradient shirt, swinging arms, a radial
+  shaded head, hair with a highlight; hats, backpacks, glossy balloons.
+* **Canvas 2D mapping:** gradients must be created per object in local space (`translate` then a cached
+  `CanvasGradient`); AO, foam and water halo are pre-blurred sprites; grass tufts and paving joints belong in a
+  pre-rendered terrain chunk, never drawn per frame.
+* **Phone cost: high.** It is the most detailed sheet: several gradient fills per face, ~500 tufts, foam and
+  halos, 5 to 7 gloss spheres per tree. It only runs on phones as **pre-rendered sprites**: terrain baked in
+  chunks per rotation, each ride / tree / flowerbed / guest pose baked per rotation and zoom level, which means a
+  sprite atlas, memory per zoom step and re-baking when terrain changes. That is the normal pipeline of polished
+  mobile tycoon games; it is a production cost, not a frame-time cost.
+
+## K: Minimal geometric
+
+* **Look:** calm and premium. A square ground plate, a raised plateau with stairs, a sunken pool, a few flat
+  paths, cone and cylinder trees in groups, a tall **drop tower** (one square column, a ring carriage, a cap), a
+  coaster drawn as a two-plane ribbon on thin posts, a stall = a cube under a tilted roof plane. Lots of empty
+  bone-coloured space and one flat sun disc.
+* **Palette:** exactly five colours: bone `#f3eee5`, sage `#a9c2a4`, coral `#e8735a`, amber `#f2b84b`, slate
+  `#2f4858`. Every face is one of three planes of light: top = the colour, left = mixed 17% toward slate, right =
+  mixed 40% toward slate. No other tones.
+* **Outline, texture, gradients:** none. Cylinders and cones are split into a lit half and a shade half by one
+  hard stop.
+* **Shadows:** hard, flat, cast by height: one slate plane at 20% per object (hull of the footprint and the
+  footprint slid along the sun vector by its height), clipped to the surface it falls on. The tower's shadow runs
+  across the plateau and down to the ground; the coaster's is the track projected onto the ground.
+* **Guests:** capsules: a body capsule and a round head, each split light/shade, a short flat shadow. No faces,
+  no limbs; colour = shirt.
+* **Canvas 2D mapping:** one `fill()` per face with a solid colour (the three planes can be computed once per
+  colour and per rotation: rotating the camera only swaps which tone sits on which face). Cast shadows: one
+  polygon per object, all drawn in one batch with a single `globalAlpha` (overlaps get darker; draw them into an
+  offscreen layer at full alpha and composite once at 20% if that matters).
+* **Phone cost: the lowest of all eleven sheets.** ~1 fill per face, no strokes, no gradients, no blur, no
+  textures. Nothing has to be pre-drawn; everything can be drawn live, even at DPR 2. The price is information:
+  guests are only colour and position (good for crowds, bad for "which guest is that"), and rides must be
+  recognised from silhouette alone.
+
+## Which reads best at phone size
+
+* **H** reads best for the things a tycoon player taps most: guests and rides. The big heads and the flat
+  primaries make every guest distinct at 1x, and the fat ride shapes survive any zoom. Its cost sits in the
+  tilt-shift pass, which can be dropped on phones without losing the look.
+* **K** is the cleanest and cheapest and reads very well for layout (paths, terrain, rides), but its guests are
+  anonymous capsules.
+* **J** looks the most "finished" but is busy at phone size: the detail (tufts, flowers, joints) turns into
+  noise below ~1x and guests compete with flowerbeds for attention. It needs the most production work.
+* **I** has the strongest mood and rides pop, but guests are the hardest to tell apart and night-only play needs
+  a daytime counterpart for long sessions.
