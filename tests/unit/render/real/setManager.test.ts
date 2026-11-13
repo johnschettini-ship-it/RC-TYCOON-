@@ -260,4 +260,69 @@ describe('SetManager', () => {
     expect(m.state(F.key)).toBe('failed');
     expect(errors).toHaveLength(1);
   });
+
+  it('density cap trips on a spike, lifts after the hysteresis window, and records events', async () => {
+    const [A, B, C, E] = [entry('a', 2), entry('b', 2), entry('c', 2), entry('e', 2)];
+    const A4 = entry('a', 4, 2); // density-4 counterpart of A: estimated 200 bytes
+    const budget = 300; // lift threshold: 75% = 225
+    const { io, m } = setup([A, B, C, E, A4], budget);
+    m.beginFrame(1); m.want([A.key, B.key, C.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.use(B.key); m.use(C.key);
+    m.want([A.key, B.key, C.key, E.key], 'now'); m.endFrame();
+    expect(m.densityCap()).toBe(2);
+    expect(m.capEvents()).toEqual([{ frame: 2, capped: true, pressureBytes: 400 }]);
+
+    // The spike passes: only A is wanted, and A at density 4 (200) is under 75% of the budget.
+    const quiet = (f: number, extra: SetKey[] = []): void => {
+      m.beginFrame(f); m.use(A.key); m.want([A.key, ...extra], 'now'); m.endFrame();
+    };
+    for (let f = 3; f <= 30; f++) quiet(f);
+    quiet(31, [B.key]); // density-4 estimate 200 + 100 = 300 >= 225: the window restarts
+    for (let f = 32; f <= 90; f++) quiet(f);
+    expect(m.densityCap()).toBe(2); // 59 quiet frames
+    quiet(91);
+    expect(m.densityCap()).toBe(4); // 60 quiet frames
+    expect(m.capEvents()).toEqual([
+      { frame: 2, capped: true, pressureBytes: 400 },
+      { frame: 91, capped: false, pressureBytes: 200 },
+    ]);
+    m.beginFrame(92); m.want([A4.key], 'now'); m.endFrame();
+    expect(m.state(A4.key)).toBe('loading'); // density-4 wants are accepted again
+    await io.settleAll();
+  });
+
+  it('a density-4 set freed for budget stays freed when re-wanted, without capping', async () => {
+    const [A, D] = [entry('a', 4), entry('d', 4)];
+    const [B, C] = [entry('b', 2), entry('c', 2)];
+    const budget = 300;
+    const { io, m } = setup([A, B, C, D], budget);
+    m.beginFrame(1); m.want([A.key, D.key, B.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.use(B.key); m.want([A.key, D.key, B.key], 'now'); m.endFrame();
+    expect(m.state(D.key)).toBe('ready'); // no pressure yet
+    m.beginFrame(3); m.use(A.key); m.use(B.key); m.want([A.key, D.key, B.key, C.key], 'now'); m.endFrame();
+    expect(m.state(D.key)).toBe('none'); // ladder step 2
+    expect(m.isDemoted(D.key)).toBe(true);
+    await io.settleAll();
+
+    // The caller re-wants D the very next frame: it stays freed and the cap does not trip.
+    for (let f = 4; f <= 5; f++) {
+      m.beginFrame(f); m.use(A.key); m.use(B.key); m.use(C.key);
+      m.want([A.key, B.key, C.key, D.key], 'now'); m.endFrame();
+      await flush();
+      expect(m.state(D.key)).toBe('none');
+      expect(m.densityCap()).toBe(4);
+    }
+    expect(io.decodes.filter((x) => x === file(D))).toHaveLength(1);
+    expect(m.capEvents()).toEqual([]);
+
+    // Demotions clear on the same rule as the cap: 60 frames under 75% of the budget.
+    for (let f = 6; f <= 65; f++) { m.beginFrame(f); m.use(A.key); m.want([A.key], 'now'); m.endFrame(); }
+    expect(m.isDemoted(D.key)).toBe(false);
+    m.beginFrame(66); m.want([A.key, D.key], 'now'); m.endFrame();
+    expect(m.state(D.key)).toBe('loading');
+    await io.settleAll();
+    expect(m.state(D.key)).toBe('ready');
+  });
 });
