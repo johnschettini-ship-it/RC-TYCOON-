@@ -1,6 +1,6 @@
 # Phase 8c: Realistic predrawn art (design)
 
-- **Status:** Draft, revision 1, for owner review (2026-11-13). Not approved. No game code changes before approval.
+- **Status:** Approved by the owner on 2026-11-13 ("Accept all"): revision 1, decisions F1 to F10 as proposed in section 10. Next: the stage 1 plan (section 6).
 - **Build:** Build 5.
 - **Replaces:** the pixel style of `phase-8b-predrawn-art.md` (stopped by the owner on 2026-11-12: "Art needs a better polish"). It keeps 8b's delivery design where this document does not change it: the app wrapper and the website demo (8b §5.3 items 1 to 7, 9 and 10), the round 2 decisions E1 to E10 (8b §11), "today's look stays until the new look is approved" (8b §2 goal 3, decision D3), "no change to saves" (8b §2 goal 4), and the batch approval rule (D9).
 - **Owner direction:** "let's go back to more real life concepts" (2026-11-13); on the realistic concepts of round 7: "Looks good"; then "Proceed to write the spec" after the phone test passed.
@@ -176,7 +176,7 @@ A separate branch, as stage 0b. It answers one question: with this method inside
 | 8b art rules (§5.8, pixel ramps and outlines) | Replaced by a realistic rule table: sun direction and height, colour grade, minimum guest height on screen, contrast of paths against grass, no pure black or white, one accent colour for selectable things. |
 | 8b decode budget 64 MB (D11) | Replaced by F2. |
 
-## 10. Owner decisions (round 3)
+## 10. Owner decisions (round 3): decided 2026-11-13, every row as proposed
 
 | # | Question | Options and what they mean for players | Proposal |
 |---|---|---|---|
