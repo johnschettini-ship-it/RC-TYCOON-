@@ -1,0 +1,203 @@
+{
+ "format": "real/1",
+ "pxPerMetreZoom1": 11.31,
+ "stepPxPerMetre": 9.8,
+ "densities": [
+  2,
+  4
+ ],
+ "sets": [
+  {
+   "key": "ground:grass:d2:rall",
+   "kind": "ground",
+   "item": "grass",
+   "density": 2,
+   "rot": "all",
+   "sheets": [
+    {
+     "file": "ground-grass-d2.webp",
+     "w": 128,
+     "h": 64
+    }
+   ],
+   "frames": {
+    "t0": {
+     "sheet": "ground-grass-d2.webp",
+     "sx": 0,
+     "sy": 0,
+     "w": 32,
+     "h": 16,
+     "ox": -16,
+     "oy": -8
+    }
+   }
+  },
+  {
+   "key": "ride:carousel:d2:r0",
+   "kind": "ride",
+   "item": "carousel",
+   "density": 2,
+   "rot": 0,
+   "sheets": [
+    {
+     "file": "ride-carousel-d2-r0.webp",
+     "w": 256,
+     "h": 128,
+     "mask": "ride-carousel-d2-r0-mask.webp"
+    },
+    {
+     "file": "ride-carousel-d2-r0-mask.webp",
+     "w": 256,
+     "h": 128
+    }
+   ],
+   "frames": {
+    "f0": {
+     "sheet": "ride-carousel-d2-r0.webp",
+     "sx": 0,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    },
+    "f1": {
+     "sheet": "ride-carousel-d2-r0.webp",
+     "sx": 64,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    }
+   }
+  },
+  {
+   "key": "ride:carousel:d2:r1",
+   "kind": "ride",
+   "item": "carousel",
+   "density": 2,
+   "rot": 1,
+   "sheets": [
+    {
+     "file": "ride-carousel-d2-r1.webp",
+     "w": 256,
+     "h": 128,
+     "mask": "ride-carousel-d2-r1-mask.webp"
+    },
+    {
+     "file": "ride-carousel-d2-r1-mask.webp",
+     "w": 256,
+     "h": 128
+    }
+   ],
+   "frames": {
+    "f0": {
+     "sheet": "ride-carousel-d2-r1.webp",
+     "sx": 0,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    },
+    "f1": {
+     "sheet": "ride-carousel-d2-r1.webp",
+     "sx": 64,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    }
+   }
+  },
+  {
+   "key": "ride:carousel:d2:r2",
+   "kind": "ride",
+   "item": "carousel",
+   "density": 2,
+   "rot": 2,
+   "sheets": [
+    {
+     "file": "ride-carousel-d2-r2.webp",
+     "w": 256,
+     "h": 128,
+     "mask": "ride-carousel-d2-r2-mask.webp"
+    },
+    {
+     "file": "ride-carousel-d2-r2-mask.webp",
+     "w": 256,
+     "h": 128
+    }
+   ],
+   "frames": {
+    "f0": {
+     "sheet": "ride-carousel-d2-r2.webp",
+     "sx": 0,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    },
+    "f1": {
+     "sheet": "ride-carousel-d2-r2.webp",
+     "sx": 64,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    }
+   }
+  },
+  {
+   "key": "ride:carousel:d2:r3",
+   "kind": "ride",
+   "item": "carousel",
+   "density": 2,
+   "rot": 3,
+   "sheets": [
+    {
+     "file": "ride-carousel-d2-r3.webp",
+     "w": 256,
+     "h": 128,
+     "mask": "ride-carousel-d2-r3-mask.webp"
+    },
+    {
+     "file": "ride-carousel-d2-r3-mask.webp",
+     "w": 256,
+     "h": 128
+    }
+   ],
+   "frames": {
+    "f0": {
+     "sheet": "ride-carousel-d2-r3.webp",
+     "sx": 0,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    },
+    "f1": {
+     "sheet": "ride-carousel-d2-r3.webp",
+     "sx": 64,
+     "sy": 0,
+     "w": 64,
+     "h": 64,
+     "ox": -32,
+     "oy": -60
+    }
+   }
+  }
+ ],
+ "bytes": {
+  "compressed": 1000,
+  "decodedByDensity": {
+   "2": 4000,
+   "4": 0
+  }
+ }
+}
