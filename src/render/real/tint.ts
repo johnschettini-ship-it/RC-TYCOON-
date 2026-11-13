@@ -43,9 +43,13 @@ function sizeOf(img: CanvasImageSource): { w: number; h: number } {
 }
 
 function read(d: Decoded, make: (w: number, h: number) => CanvasLike, w: number, h: number): ImageData {
-  const ctx = make(w, h).getContext('2d') as Ctx2D;
+  const c = make(w, h);
+  const ctx = c.getContext('2d') as Ctx2D;
   ctx.drawImage(d.image, 0, 0);
-  return ctx.getImageData(0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h);
+  c.width = 0; // free the scratch canvas's pixels now
+  c.height = 0;
+  return img;
 }
 
 /** Tint a decoded sheet with its mask (same size, or this throws). Counted by the set manager under `${setKey}#${hex}`. */

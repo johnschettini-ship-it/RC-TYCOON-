@@ -57,6 +57,8 @@ export interface RealLook {
   support(trackType: string, heightStep: number, rot: ViewRotation): Sprite | null | undefined;
   shadow(kind: 'ride' | 'stall' | 'scenery', defId: string, rot: ViewRotation): Sprite | null | undefined;
   groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation): Sprite | null | undefined;
+  /** Frees every tinted sheet (closes its canvases, releases its hold). The look stays usable. */
+  dispose(): void;
   /** Objects skipped since the last `prepare` because their set was not ready. */
   incomplete(): number;
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
@@ -69,6 +71,8 @@ export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' 
 export interface RealLookOptions {
   /** Canvas factory for tinted sheets. Default: `OffscreenCanvas`, else a DOM canvas. */
   makeCanvas?: (w: number, h: number) => CanvasLike;
+  /** Told once per set whose tint failed (e.g. mask size differs from its sheet); `key` is `${setKey}#${hex}`. */
+  onError?: (key: string, err: unknown) => void;
 }
 
 /** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps. */
@@ -134,6 +138,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   const fallbacks = new Set<string>();
   /** By `${setKey}#${hex}`, which is also the hold id in the set manager. */
   const tinted = new Map<string, Tinted>();
+  /** Sets whose tint failed: drawn with today's art from then on. */
+  const tintFailed = new Set<SetKey>();
 
   /** The set to use for (kind, item) at the current density and `rot`, or undefined when the bake has none. */
   function resolve(kind: RealKind, item: string, rot: ViewRotation): SetKey | undefined {
@@ -155,8 +161,12 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
   const wrap = (image: CanvasImageSource): Decoded => ({ image, bytes: 0, close() {} });
 
-  /** Sheet `si` of a ready set tinted with `hex`, or undefined when the sheet has no mask in the set. */
-  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): CanvasImageSource | undefined {
+  /**
+   * Sheet `si` of a ready set tinted with `hex`; undefined when the sheet has no mask in the set (draw untinted);
+   * null when tinting this set failed (draw today's art).
+   */
+  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): CanvasImageSource | null | undefined {
+    if (tintFailed.has(key)) return null;
     const maskFile = rs.sheets[si]?.mask;
     if (maskFile === undefined) return undefined;
     const mask = rs.images[rs.sheets.findIndex((s) => s.file === maskFile)];
@@ -172,7 +182,14 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     t.lastFrame = frameNo;
     let d = t.sheets.get(si);
     if (!d) {
-      d = tintSheet(wrap(base), wrap(mask), hexRgb(hex), make);
+      try {
+        d = tintSheet(wrap(base), wrap(mask), hexRgb(hex), make);
+      } catch (err) {
+        tintFailed.add(key);
+        evict(id);
+        opts.onError?.(id, err);
+        return null;
+      }
       t.sheets.set(si, d);
       t.bytes += d.bytes;
       sets.hold(id, t.bytes);
@@ -196,7 +213,12 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     const si = f ? rs.sheets.findIndex((s) => s.file === f.sheet) : -1;
     const sheet = rs.images[si];
     if (!f || !sheet) { fallbacks.add(`${key}/${fk}`); return undefined; }
-    const image = (tint !== null ? tintedSheet(key, rs, si, tint) : undefined) ?? sheet;
+    let image = sheet;
+    if (tint !== null) {
+      const t = tintedSheet(key, rs, si, tint);
+      if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
+      if (t !== undefined) image = t;
+    }
     return { image, sx: f.sx, sy: f.sy, w: f.w, h: f.h, ox: -f.ox, oy: -f.oy, scale: rs.density };
   }
 
@@ -316,6 +338,10 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
     groundPiece(terrain, slopeMask, variant, rot) {
       return sprite('ground', terrain, `ground:${terrain}`, rot, [`s${slopeMask}`, `v${variant}`], null);
+    },
+
+    dispose() {
+      for (const id of [...tinted.keys()]) evict(id);
     },
 
     incomplete() {

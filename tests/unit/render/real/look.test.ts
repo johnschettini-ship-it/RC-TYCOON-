@@ -313,4 +313,34 @@ describe('RealLook', () => {
     expect(quantisePose(Math.PI, Math.PI / 12, -Math.PI / 12)).toEqual({ yaw: 16, pitch: 1, roll: 23 });
     expect(quantisePose(2 * Math.PI - 0.01, 0, 0).yaw).toBe(0);
   });
+  it('a bad mask falls back to classic art, reported once, with nothing held', () => {
+    const index = makeIndex();
+    const key = setKey('car', 'steel_coaster', 2, 'all');
+    const car = index.sets.find((e) => e.key === key)!;
+    car.sheets[1] = { file: 'm0', w: 4, h: 4 }; // mask smaller than its 8x8 sheet
+    const sets = new FakeSets(index);
+    const errors: [string, unknown][] = [];
+    const look = createRealLook(index, sets, { makeCanvas: make, onError: (k, e) => errors.push([k, e]) });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(key, 'ready');
+    expect(look.car('steel_coaster', 31, 23, 1, true, 1)).toBeUndefined();
+    expect(look.car('steel_coaster', 31, 23, 1, true, 1)).toBeUndefined();
+    expect(errors).toHaveLength(1);
+    expect(errors[0]![0]).toMatch(new RegExp(`^${key}#`));
+    expect(look.fallbacksUsed()).toContain(errors[0]![0]);
+    expect(sets.held.size).toBe(0);
+    expect(look.incomplete()).toBe(0);
+  });
+
+  it('dispose frees every tinted sheet', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    const a = look.guest(0, 1, 1, 2, false)!.image as unknown as PixCanvas;
+    const b = look.guest(0, 2, 1, 2, false)!.image as unknown as PixCanvas;
+    expect(sets.held.size).toBe(2);
+    look.dispose();
+    expect(sets.held.size).toBe(0);
+    expect([a.width, b.width]).toEqual([0, 0]);
+  });
 });

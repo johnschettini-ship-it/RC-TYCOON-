@@ -96,4 +96,11 @@ describe('tintSheet', () => {
     expect([canvas.width, canvas.height]).toEqual([0, 0]);
     expect(() => out.image).toThrow(/closed/);
   });
+  it('zeroes its scratch canvases once read', () => {
+    const made: PixCanvas[] = [];
+    tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made.push(c); return c; });
+    expect(made).toHaveLength(3);
+    expect(made.slice(0, 2).map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0]]);
+    expect([made[2]!.width, made[2]!.height]).toEqual([2, 2]);
+  });
 });
