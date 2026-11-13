@@ -25,6 +25,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # The owner's phone test of the realistic art look (docs/research/art/realistic/phone-test): the sprites are
+      # baked here with three.js in headless Chromium (SwiftShader, about 10 minutes) because the release check keeps
+      # raster images out of the repository, then served at /real-test/ beside the game. Uses the Playwright that
+      # @playwright/test already pulls in (package.json is unchanged).
+      - name: Install Chromium for the realistic look bake
+        run: npx playwright install --with-deps chromium
+      - name: Bake the realistic look phone test
+        run: node docs/research/art/realistic/phone-test/bake.cjs
+      - name: Copy the realistic look phone test into the site
+        run: |
+          mkdir -p dist/real-test
+          cp docs/research/art/realistic/phone-test/index.html docs/research/art/realistic/phone-test/test.js dist/real-test/
+          cp -r docs/research/art/realistic/phone-test/dist dist/real-test/dist
       # The owner's view of the pixel art test (stage 0b, branch phase8b-stage0b-proto, never merged):
       # built in app mode with the pixel look and the Bench buttons, served at /pixel-test/ beside the game.
       - uses: actions/checkout@v4

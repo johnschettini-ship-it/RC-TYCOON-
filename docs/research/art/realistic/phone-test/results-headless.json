@@ -1,0 +1,301 @@
+{
+  "warning": "Headless Chromium in a container draws Canvas 2D on the CPU (WebGL via SwiftShader). These numbers do NOT represent a real phone; run the page on the phone itself.",
+  "console": "clean (no errors, warnings or failed requests)",
+  "runs": [
+    {
+      "phone": "iPhone 13 emulation (390x664 CSS, DPR 3)",
+      "test": "Realistic look phone test",
+      "look": "T Daylight real (round 6/7)",
+      "verdict": "FAIL",
+      "checks": {
+        "frame": {
+          "value": 416.6,
+          "unit": "ms p95 at 300 guests, zoom 1x",
+          "band": "FAIL",
+          "limits": "PASS ≤ 33, WARN ≤ 50"
+        },
+        "decoded": {
+          "value": 212.7,
+          "unit": "MB decoded (estimate, everything loaded)",
+          "band": "FAIL",
+          "limits": "PASS ≤ 120, WARN ≤ 200"
+        },
+        "turn": {
+          "value": 1116,
+          "unit": "ms slowest turn",
+          "band": "FAIL",
+          "limits": "PASS ≤ 250 (no WARN band)"
+        }
+      },
+      "device": {
+        "userAgent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6 Mobile/15E148 Safari/604.1",
+        "devicePixelRatio": 3,
+        "viewportCss": [
+          390,
+          664
+        ],
+        "canvasPx": [
+          1170,
+          1992
+        ],
+        "sharp1x": true
+      },
+      "load": {
+        "ms": 698,
+        "files": 116,
+        "downloadMB": 7,
+        "decodedMB": 212.7,
+        "decodedByZoomMB": {
+          "zoom1": 54,
+          "zoom2": 158.7
+        },
+        "decodedByZoomAndRotationMB": {
+          "z1-r0": 8,
+          "z2-r0": 18,
+          "z1-r1": 8,
+          "z2-r1": 18,
+          "z1-r2": 8,
+          "z2-r2": 18,
+          "z1-r3": 8,
+          "z2-r3": 18,
+          "z1-shared": 22,
+          "z2-shared": 86.7
+        },
+        "note": "decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less"
+      },
+      "frames": [
+        {
+          "bucket": "z1-100",
+          "frames": 213,
+          "p50": 16.7,
+          "p95": 16.8,
+          "p99": 16.8,
+          "dropped": 0,
+          "drawCpuP95": 1.8
+        },
+        {
+          "bucket": "z1-300",
+          "frames": 64,
+          "p50": 16.7,
+          "p95": 416.6,
+          "p99": 433.4,
+          "dropped": 6,
+          "drawCpuP95": 3.6
+        },
+        {
+          "bucket": "z1-600",
+          "frames": 72,
+          "p50": 16.7,
+          "p95": 383.4,
+          "p99": 483.4,
+          "dropped": 6,
+          "drawCpuP95": 3.2
+        },
+        {
+          "bucket": "z1-1000",
+          "frames": 51,
+          "p50": 16.7,
+          "p95": 550,
+          "p99": 566.7,
+          "dropped": 5,
+          "drawCpuP95": 7.3
+        },
+        {
+          "bucket": "z2-300",
+          "frames": 44,
+          "p50": 16.7,
+          "p95": 466.6,
+          "p99": 566.7,
+          "dropped": 3,
+          "drawCpuP95": 0.9
+        },
+        {
+          "bucket": "z2-1000",
+          "frames": 60,
+          "p50": 16.7,
+          "p95": 383.3,
+          "p99": 550,
+          "dropped": 3,
+          "drawCpuP95": 2.7
+        },
+        {
+          "bucket": "z1-300 while turning",
+          "frames": 46,
+          "p50": 16.7,
+          "p95": 16.8,
+          "p99": 1100,
+          "dropped": 2,
+          "drawCpuP95": 4.2
+        },
+        {
+          "bucket": "z2-600",
+          "frames": 65,
+          "p50": 16.7,
+          "p95": 16.8,
+          "p99": 883.3,
+          "dropped": 3,
+          "drawCpuP95": 2.6
+        }
+      ],
+      "turnMs": [
+        12,
+        1116,
+        5
+      ],
+      "jsHeapMB": 9.5,
+      "bake": {
+        "seconds": 545.9,
+        "generated": "2026-11-13T14:32:07.748Z"
+      },
+      "when": "2026-11-13T14:38:30.136Z"
+    },
+    {
+      "phone": "Android-like 360x800 CSS, DPR 2",
+      "test": "Realistic look phone test",
+      "look": "T Daylight real (round 6/7)",
+      "verdict": "FAIL",
+      "checks": {
+        "frame": {
+          "value": 16.8,
+          "unit": "ms p95 at 300 guests, zoom 1x",
+          "band": "PASS",
+          "limits": "PASS ≤ 33, WARN ≤ 50"
+        },
+        "decoded": {
+          "value": 212.7,
+          "unit": "MB decoded (estimate, everything loaded)",
+          "band": "FAIL",
+          "limits": "PASS ≤ 120, WARN ≤ 200"
+        },
+        "turn": {
+          "value": 17,
+          "unit": "ms slowest turn",
+          "band": "PASS",
+          "limits": "PASS ≤ 250 (no WARN band)"
+        }
+      },
+      "device": {
+        "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+        "devicePixelRatio": 2,
+        "viewportCss": [
+          360,
+          800
+        ],
+        "canvasPx": [
+          720,
+          1600
+        ],
+        "sharp1x": true
+      },
+      "load": {
+        "ms": 640,
+        "files": 116,
+        "downloadMB": 7,
+        "decodedMB": 212.7,
+        "decodedByZoomMB": {
+          "zoom1": 54,
+          "zoom2": 158.7
+        },
+        "decodedByZoomAndRotationMB": {
+          "z1-r0": 8,
+          "z2-r0": 18,
+          "z1-r1": 8,
+          "z2-r1": 18,
+          "z1-r2": 8,
+          "z2-r2": 18,
+          "z1-r3": 8,
+          "z2-r3": 18,
+          "z1-shared": 22,
+          "z2-shared": 86.7
+        },
+        "note": "decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less"
+      },
+      "frames": [
+        {
+          "bucket": "z1-100",
+          "frames": 222,
+          "p50": 16.7,
+          "p95": 16.8,
+          "p99": 16.8,
+          "dropped": 0,
+          "drawCpuP95": 1.6
+        },
+        {
+          "bucket": "z1-300",
+          "frames": 175,
+          "p50": 16.7,
+          "p95": 16.8,
+          "p99": 133.3,
+          "dropped": 7,
+          "drawCpuP95": 3.3
+        },
+        {
+          "bucket": "z1-600",
+          "frames": 109,
+          "p50": 16.7,
+          "p95": 200,
+          "p99": 216.7,
+          "dropped": 10,
+          "drawCpuP95": 2.6
+        },
+        {
+          "bucket": "z1-1000",
+          "frames": 85,
+          "p50": 16.7,
+          "p95": 233.3,
+          "p99": 766.6,
+          "dropped": 8,
+          "drawCpuP95": 7.1
+        },
+        {
+          "bucket": "z2-300",
+          "frames": 104,
+          "p50": 16.7,
+          "p95": 16.8,
+          "p99": 200.1,
+          "dropped": 4,
+          "drawCpuP95": 1
+        },
+        {
+          "bucket": "z2-1000",
+          "frames": 93,
+          "p50": 16.7,
+          "p95": 150.1,
+          "p99": 316.6,
+          "dropped": 5,
+          "drawCpuP95": 1.6
+        },
+        {
+          "bucket": "z1-300 while turning",
+          "frames": 86,
+          "p50": 16.7,
+          "p95": 366.6,
+          "p99": 450,
+          "dropped": 7,
+          "drawCpuP95": 3.9
+        },
+        {
+          "bucket": "z2-600",
+          "frames": 92,
+          "p50": 16.7,
+          "p95": 216.6,
+          "p99": 833.4,
+          "dropped": 5,
+          "drawCpuP95": 1.4
+        }
+      ],
+      "turnMs": [
+        16,
+        5,
+        17,
+        3
+      ],
+      "jsHeapMB": 9.5,
+      "bake": {
+        "seconds": 545.9,
+        "generated": "2026-11-13T14:32:07.748Z"
+      },
+      "when": "2026-11-13T14:39:22.410Z"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>Realistic look phone test</title>
+<style>
+  :root { --ink: #1f2340; --panel: rgba(255, 255, 255, 0.9); --line: #d4d8e6; --accent: #2f5fa5; --pass: #1e7a46; --warn: #a86a00; --fail: #b3261e; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #d8e4ec; color: var(--ink); font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; -webkit-text-size-adjust: 100%; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; height: 100dvh; display: block; touch-action: none; }
+  .bar { position: fixed; left: 0; right: 0; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); pointer-events: none; }
+  .top { top: 0; padding-top: max(8px, env(safe-area-inset-top)); display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+  .bottom { bottom: 0; padding-bottom: max(10px, env(safe-area-inset-bottom)); display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+  .chip { pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  h1 { font-size: 15px; margin: 0; font-weight: 650; }
+  #hud { font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; text-align: right; }
+  button { pointer-events: auto; font: inherit; font-weight: 600; min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+  button[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  button:disabled { opacity: .45; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .group { display: flex; gap: 4px; }
+  #status { position: fixed; left: 50%; top: 45%; transform: translate(-50%, -50%); max-width: calc(100vw - 32px); text-align: center; }
+  #card { position: fixed; inset: 0; display: none; background: rgba(20, 24, 40, .45); padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); overflow: auto; }
+  #card.open { display: block; }
+  .sheet { background: #fff; border-radius: 16px; max-width: 560px; margin: 0 auto; padding: 16px; box-shadow: 0 6px 24px rgba(0,0,0,.25); }
+  .sheet h2 { margin: 0 0 4px; font-size: 18px; }
+  .verdict { font-size: 22px; font-weight: 750; margin: 6px 0 10px; }
+  .PASS { color: var(--pass); } .WARN { color: var(--warn); } .FAIL { color: var(--fail); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 8px 0; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #eceef5; vertical-align: top; }
+  td.n { text-align: right; }
+  .note { font-size: 12px; color: #4b5070; margin: 8px 0; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  textarea { width: 100%; height: 160px; font: 11px ui-monospace, Menlo, monospace; margin-top: 8px; display: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="bar top">
+  <div class="chip"><h1>Realistic look phone test</h1><div class="note" style="margin:2px 0 0">Daylight look T, pre-rendered sprites, Canvas 2D</div></div>
+  <div class="chip" id="hud">loading…</div>
+</div>
+<div class="bar bottom" id="controls">
+  <div class="group"><button id="z1" aria-pressed="true">1x</button><button id="z2" aria-pressed="false">2x</button></div>
+  <button id="turn">Turn</button>
+  <div class="group" id="crowd">
+    <button data-n="100" aria-pressed="false">100</button><button data-n="300" aria-pressed="true">300</button><button data-n="600" aria-pressed="false">600</button><button data-n="1000" aria-pressed="false">1000</button>
+  </div>
+  <button id="sharp" aria-pressed="true" title="At 1x on a high-density screen, draw the 2x sprites at half size">Sharp</button>
+  <button id="bench" class="primary">Run benchmark</button>
+</div>
+<div class="chip" id="status">Loading sprites…</div>
+<div id="card" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+  <div class="sheet">
+    <h2 id="cardTitle">Benchmark results</h2>
+    <div id="cardBody"></div>
+    <div class="row"><button id="copy" class="primary">Copy results</button><button id="close">Close</button></div>
+    <textarea id="copyText" readonly aria-label="Results as text"></textarea>
+  </div>
+</div>
+<script src="test.js"></script>
+</body>
+</html>
