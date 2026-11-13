@@ -45,6 +45,27 @@ describe('checkIndex', () => {
     const i = clone(); i.sets[1]!.sheets[1]!.w = 128;
     expect(problems(i).some((p) => p.includes('mask'))).toBe(true);
   });
+  it('rejects non-finite or negative frame rectangles', () => {
+    for (const [k, v] of [['sx', -1], ['sy', NaN], ['w', -4], ['h', Infinity]] as const) {
+      const i = clone(); (i.sets[0]!.frames['t0'] as unknown as Record<string, number>)[k] = v;
+      expect(problems(i).some((p) => p.includes('frame t0') && p.includes('rectangle')), `${k}=${v}`).toBe(true);
+    }
+  });
+  it('rejects non-finite sheet sizes', () => {
+    const i = clone(); i.sets[0]!.sheets[0]!.h = NaN;
+    expect(problems(i).some((p) => p.includes('size is not finite'))).toBe(true);
+  });
+  it('mask not listed as a sheet', () => {
+    const i = clone(); const s = i.sets[1]!;
+    s.sheets = s.sheets.filter((x) => x.file !== s.sheets[0]!.mask);
+    const f = filesOf(base);
+    expect(problems(i, f).some((p) => p.includes('mask not listed as a sheet'))).toBe(true);
+  });
+  it('validator module does not import node:fs', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../../../../tools/art3d/checkIndex.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/from 'node:/);
+  });
   it('missing rotation', () => {
     const i = clone(); i.sets = i.sets.filter((s) => s.key !== 'ride:carousel:d2:r2');
     expect(problems(i).some((p) => p.includes('missing rotation 2'))).toBe(true);
