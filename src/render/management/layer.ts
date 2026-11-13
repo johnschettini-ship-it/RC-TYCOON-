@@ -30,6 +30,7 @@ import { rideArtBounds } from '../sprites/rides';
 import { COSTUME_CODE, STAFF_TYPE_CODE, staffFrame } from '../sprites/staff';
 import type { ViewRect } from '../terrain';
 import type { ToolState } from '../types';
+import type { RealLook } from '../real/look';
 import { displayPrefs } from '../../a11y/prefs';
 import { viewAffine, viewCornerHeights, viewDir, viewPointSX, viewPointSY, viewSpriteRotation, viewTileSX, viewTileSY, viewTileU, viewTileV, type ViewAffine } from '../view';
 import { litterSlot, messSlot, type DecalSlot } from './litter';
@@ -44,6 +45,9 @@ const TAU = Math.PI * 2;
 /** Draw-list kinds this layer owns (the renderer uses 1–5). */
 export const KIND_STAFF = 6;
 export const KIND_PATH_ITEM = 7;
+/** `STAFF_TYPE_CODE` and `PathItem` codes → ids (realistic look). */
+const STAFF_TYPES = ['groundskeeper', 'mechanic', 'security', 'performer'];
+export const PATH_ITEM_IDS = ['', 'bench', 'bin', 'lamp'];
 
 /** The renderer's draw list (struct of arrays); this layer only pushes into it. */
 export interface DrawSink {
@@ -107,6 +111,8 @@ export class ManagementLayer {
   private readonly rain = new Float32Array(RAIN_MAX * 3);
   /** The frame's view table (rotation 0 until `begin` sets it). */
   private va: ViewAffine = viewAffine(0, 1, 1);
+  /** Realistic look (stage 1), set by the renderer when `?art=real` is on. */
+  look: RealLook | undefined;
   private readonly corners: [number, number, number, number] = [0, 0, 0, 0];
   /** Phase 6 §4.7: reduced motion (W4-F's display prefs: the setting, else the system preference). */
   private get reducedMotion(): boolean {
@@ -301,10 +307,16 @@ export class ManagementLayer {
   }
 
   drawEntry(kind: number, sub: number, ax: number, ay: number, skey: number): void {
+    const L = this.look;
     if (kind === KIND_STAFF) {
-      this.blit(this.bank.staff(skey, (sub & 3) as Dir, sub >> 2, this.bucket), ax, ay);
+      // Realistic look: staff type and walk from the frame (`staffFrame`); costumes and work poses are not baked.
+      const fr = sub >> 2;
+      const sp = L ? L.staff(STAFF_TYPES[fr & 3] as string, sub & 3, (fr >> 4) & 3) : undefined;
+      if (sp !== null) this.blit(sp ?? this.bank.staff(skey, (sub & 3) as Dir, fr, this.bucket), ax, ay);
     } else if (kind === KIND_PATH_ITEM) {
-      this.blit(this.bank.pathItem(skey, sub, this.bucket), ax, ay);
+      // Realistic look: benches and bins are scenery sets, framed by their side (`pathItemFrame`).
+      const sp = L ? L.scenery(PATH_ITEM_IDS[sub & 3] as string, this.va.r, (sub >> 2) & 3) : undefined;
+      if (sp !== null) this.blit(sp ?? this.bank.pathItem(skey, sub, this.bucket), ax, ay);
     }
   }
 

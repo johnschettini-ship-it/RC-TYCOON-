@@ -50,6 +50,9 @@ describe('overlay text (Phase 6 §4.6 list)', () => {
       canvasesMade: 0,
       frames: 120,
       ticks: 40,
+      incompleteFrames: 0,
+      realResidentMB: 0,
+      realPeakMB: 0,
     };
     expect(overlayLines(s, world)).toEqual([
       '59 fps',

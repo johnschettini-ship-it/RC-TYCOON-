@@ -42,6 +42,7 @@ import { drawGhostIcon } from '../sprites/props';
 import type { ArtBounds } from '../sprites/rides';
 import { SKIN_TONES } from '../sprites/shapes';
 import type { ToolState } from '../types';
+import type { RealLook } from '../real/look';
 import { paletteColour } from './colours';
 import {
   CAR_BOUNDS,
@@ -134,6 +135,10 @@ export interface SliceRec {
   colours: TrackColours;
   key: string;
   sprites: Array<Sprite | null>;
+  /** Realistic look: the ride's data (type id, live colours), the piece id, and this slice's number among the piece's rail tiles. */
+  data: TrackRideData;
+  pieceId: string;
+  tile: number;
 }
 
 interface RideSig {
@@ -258,8 +263,12 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
   const look = lookFor(type);
   const colours = coloursOf(data);
   const out: SliceRec[] = [];
+  let lastPiece = -1;
+  let tile = 0;
   for (const t of trackTileSlices(world, rideId)) {
     if (!t.rail) continue;
+    tile = t.pieceIndex === lastPiece ? tile + 1 : 0;
+    lastPiece = t.pieceIndex;
     const piece = data.pieces[t.pieceIndex];
     const def = piece ? getTrackPieceDef(piece.defId) : undefined;
     if (!piece || !def) continue;
@@ -312,6 +321,9 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
       colours,
       key: `${type.id}|${piece.defId}|${piece.x},${piece.y},${piece.z},${piece.dir}|${t.x},${t.y}|${support ? 1 : 0}|${colours.track}|${colours.supports}|${f.rot}`,
       sprites: [null, null, null],
+      data,
+      pieceId: piece.defId,
+      tile,
     });
   }
   return out;
@@ -409,6 +421,10 @@ export class TrackLayer {
   private gateColour: string[] = [];
   private nGates = 0;
   private readonly carCache = new SpriteCache(6_000_000);
+  /** Realistic look: ride type of each collected car, and the look of the current `drawItem`. */
+  private carDef: string[] = [];
+  private curDef = '';
+  private look: RealLook | undefined;
   /** Gate booth sprites by roof colour: [entrance × 3 buckets, exit × 3 buckets]. */
   private readonly gateCache = new Map<string, Array<Sprite | null>>();
   private readonly dash = [0, 0];
@@ -579,6 +595,7 @@ export class TrackLayer {
       const shape = CAR_SHAPES.indexOf(type.render.car);
       const spins = type.vehicle.spins;
       const seatsPerCar = type.vehicle.seatsPerCar;
+      this.curDef = data.typeId;
       for (const t of data.trains) {
         if (t.parked) continue;
         const n = Math.max(1, Math.round(t.seats.length / seatsPerCar)) || data.trainConfig.carsPerTrain;
@@ -616,6 +633,7 @@ export class TrackLayer {
     if (ax + CAR_BOUNDS.right < view.x0 || ax + CAR_BOUNDS.left > view.x1 || ay + CAR_BOUNDS.bottom < view.y0 || ay + CAR_BOUNDS.top > view.y1) return;
     const c = this.cars;
     const i = c.add();
+    this.carDef[i] = this.curDef;
     const yaw = p.yaw + spin;
     c.x[i] = p.x;
     c.y[i] = p.y;
@@ -646,8 +664,9 @@ export class TrackLayer {
     sink.push(KIND_TRACK, i, SUB_CAR, ax, ay, 0, Math.max(d1, d2), p.z, Layer.Guest);
   }
 
-  /** Draw one collected track drawable. */
-  drawItem(ctx: CanvasRenderingContext2D, ref: number, sub: number): void {
+  /** Draw one collected track drawable. `look`: the realistic look, when on (rails, supports and cars). */
+  drawItem(ctx: CanvasRenderingContext2D, ref: number, sub: number, look?: RealLook): void {
+    this.look = look;
     switch (sub) {
       case SUB_SLICE:
         this.drawSlice(ctx, ref);
@@ -673,12 +692,29 @@ export class TrackLayer {
     const y0 = Math.round(this.devY(wy) - sp.oy * f);
     const x1 = Math.round(this.devX(wx) + (sp.w - sp.ox) * f);
     const y1 = Math.round(this.devY(wy) + (sp.h - sp.oy) * f);
-    ctx.drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
+    if (sp.sx === undefined) ctx.drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
+    else ctx.drawImage(sp.image, sp.sx, sp.sy ?? 0, sp.w, sp.h, x0, y0, x1 - x0, y1 - y0);
   }
 
   private drawSlice(ctx: CanvasRenderingContext2D, i: number): void {
     const sl = this.slices[i];
     if (!sl) return;
+    const look = this.look;
+    if (look) {
+      // Realistic rail: one picture per (piece, tile, turn) anchored at the slice anchor (tile centre, height 0),
+      // plus its support (one picture per 1 m step) anchored at the support's foot.
+      const rot = this.frameRef.rot as 0 | 1 | 2 | 3;
+      const type = sl.data.typeId;
+      const rail = look.rail(type, sl.pieceId, sl.tile, rot, sl.data.colours.track);
+      if (rail === null) return;
+      if (rail) {
+        const su = sl.support;
+        const sp = su ? look.support(type, Math.max(0, Math.round(su.top - sl.ground)), rot) : undefined;
+        if (su && sp) this.blit(ctx, sp, projectX(su.wx, su.wy, this.frameRef), projectY(su.wx, su.wy, sl.ground, this.frameRef));
+        this.blit(ctx, rail, sl.ax, sl.ay);
+        return;
+      }
+    }
     const bi = bucketIndex(this.bucket);
     let sp = sl.sprites[bi] ?? null;
     if (!sp) {
@@ -842,6 +878,21 @@ export class TrackLayer {
     const rs = rollStep(c.bankSin[i] as number, c.bankCos[i] as number);
     const colour = c.colour[i] as number;
     const front = c.front[i] as number;
+    const look = this.look;
+    if (look) {
+      // Realistic car: pose in the bake's steps (yaw 32, pitch and roll 24), riders baked in its `full` frames.
+      const start = c.seatStart[i] as number;
+      let full = false;
+      for (let j = 0; j < (c.seatCount[i] as number); j++) if ((c.seats[start + j] as number) >= 0) full = true;
+      // Steps per radian: 32 / 2π for yaw, 24 / 2π for pitch and roll.
+      const real = look.car(this.carDef[i] as string, Math.round((c.yaw[i] as number) * 5.093), Math.round((c.pitch[i] as number) * 3.8197), Math.round(Math.atan2(c.bankSin[i] as number, c.bankCos[i] as number) * 3.8197), full, colour);
+      if (real === null) return;
+      if (real) {
+        this.blit(ctx, real, projectX(c.x[i] as number, c.y[i] as number, f), projectY(c.x[i] as number, c.y[i] as number, c.z[i] as number, f));
+        if (c.spray[i] === 1) this.drawSpray(ctx, i);
+        return;
+      }
+    }
     const bi = bucketIndex(this.bucket);
     const key = (((((shape * 16 + ys) * 24 + ps) * 16 + rs) * 12 + (colour % 12)) * 2 + front) * 3 + bi;
     let sp = this.carCache.get(key);

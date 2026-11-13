@@ -33,8 +33,10 @@ import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles, trackTroubleTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
-import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
+import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer, PATH_ITEM_IDS } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
+import type { RealLook } from './real/look';
+import type { GroundLayer } from './real/ground';
 import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
@@ -262,7 +264,20 @@ function drawCounter(ctx: CanvasRenderingContext2D): () => void {
   };
 }
 
-export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
+/**
+ * The realistic look (`?art=real`, stage 1), all optional: without `look` the renderer draws today's art exactly as
+ * before. Per object the look answers a Sprite (drawn from its sheet rectangle), `null` (set still decoding: skipped,
+ * the frame counted incomplete) or `undefined` (today's art). `sets` brackets every frame (`beginFrame` before
+ * `look.prepare`, `endFrame` after the draws); `ground` lays the realistic ground over today's terrain.
+ */
+export interface RealOptions {
+  look?: RealLook;
+  sets?: { beginFrame(frame: number): void; endFrame(): void };
+  ground?: GroundLayer;
+}
+
+export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOptions = {}): Renderer {
+  const L = real.look;
   // Opaque: every frame clears to the sky colour first.
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D is not available');
@@ -341,10 +356,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     const y0 = Math.round(devY(wy) - sp.oy * f);
     const x1 = Math.round(devX(wx) + (sp.w - sp.ox) * f);
     const y1 = Math.round(devY(wy) + (sp.h - sp.oy) * f);
-    (ctx as CanvasRenderingContext2D).drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
+    if (sp.sx === undefined) (ctx as CanvasRenderingContext2D).drawImage(sp.image, x0, y0, x1 - x0, y1 - y0);
+    else (ctx as CanvasRenderingContext2D).drawImage(sp.image, sp.sx, sp.sy ?? 0, sp.w, sp.h, x0, y0, x1 - x0, y1 - y0);
   }
 
   mgmt = new ManagementLayer(bank, blit);
+  mgmt.look = L;
+  frame.look = L;
 
   /** Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
   function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
@@ -359,7 +377,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     if (s1 <= s0) return;
     const y0 = Math.round(devY(ay) - sp.oy * f);
     const y1 = Math.round(devY(ay) + (sp.h - sp.oy) * f);
-    (ctx as CanvasRenderingContext2D).drawImage(sp.image, s0, 0, s1 - s0, sp.h, dx0, y0, dx1 - dx0, y1 - y0);
+    (ctx as CanvasRenderingContext2D).drawImage(sp.image, (sp.sx ?? 0) + s0, sp.sy ?? 0, s1 - s0, sp.h, dx0, y0, dx1 - dx0, y1 - y0);
   }
 
   function inView(l: number, t: number, r: number, b: number): boolean {
@@ -451,7 +469,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       rideEy[ri] = ev;
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
       const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
-      rideSprites[ri] = bank.ride(r.defId, w, d, vrot, fr, bucket);
+      // Realistic frame: the frame's angle and swing bits (`anim.ts` `encodeRideFrame`), occupancy level apart.
+      const rs = L ? L.ride(r.defId, vrot, fr & 255, (fr >> 8) & 7) : undefined;
+      rideSprites[ri] = rs === undefined ? bank.ride(r.defId, w, d, vrot, fr, bucket) : rs;
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
       for (let k = 0; k < cols.length; k++) {
@@ -570,6 +590,34 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     }
   }
 
+  /**
+   * Realistic look (spec §5.5 item 2): each ride, stall, path item and scenery item in the draw list gets its soft
+   * shadow, drawn after the ground and before every depth-sorted object. A ride cut into columns casts one shadow.
+   */
+  let shadowStamp = new Uint32Array(64);
+  function drawShadows(world: World): void {
+    const s = world.state;
+    const look = L as RealLook;
+    if (shadowStamp.length < s.rides.length) shadowStamp = new Uint32Array(s.rides.length * 2);
+    for (let i = 0; i < list.n; i++) {
+      const kind = list.kind[i] as number;
+      const ref = list.ref[i] as number;
+      let sp: Sprite | null | undefined;
+      if (kind === KIND_RIDE) {
+        if (shadowStamp[ref] === frameNo) continue;
+        shadowStamp[ref] = frameNo;
+        const r = s.rides[ref]!;
+        sp = look.shadow('ride', r.defId, viewSpriteRotation(r.rotation, rot));
+      } else if (kind === KIND_STALL) sp = look.shadow('stall', s.stalls[ref]!.defId, (list.sub[i] as number) as Dir);
+      else if (kind === KIND_PATH_ITEM) sp = look.shadow('scenery', PATH_ITEM_IDS[(list.sub[i] as number) & 3] as string, rot);
+      else {
+        layerByKind.get(kind)?.drawShadow?.(ctx as CanvasRenderingContext2D, world, kind, ref, list.sub[i] as number, list.ax[i] as number, list.ay[i] as number, frame);
+        continue;
+      }
+      if (sp) blit(sp, list.ax[i] as number, list.ay[i] as number);
+    }
+  }
+
   // ------------------------------------------------------------------ drawing
 
   function drawList(world: World): void {
@@ -581,7 +629,10 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       switch (list.kind[i]) {
         case KIND_GUEST: {
           const sub = list.sub[i] as number;
-          blit(bank.guest(list.skey[i] as number, (sub & 3) as Dir, sub >> 2, bucket), ax, ay);
+          const fr = sub >> 2;
+          // Realistic guests: shirt colour, walk (3 = sitting) and facing from the frame; the temperament tint stays today's art.
+          const sp = L && !(fr & 256) ? L.guest((s.guests[list.ref[i] as number] as Guest).id, fr & 15, (fr >> 4) & 3, sub & 3, ((fr >> 4) & 3) === 3) : undefined;
+          if (sp !== null) blit(sp ?? bank.guest(list.skey[i] as number, (sub & 3) as Dir, fr, bucket), ax, ay);
           break;
         }
         case KIND_RIDE: {
@@ -594,7 +645,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         }
         case KIND_STALL: {
           const st = s.stalls[list.ref[i] as number];
-          if (st) blit(bank.stall(st.defId, (list.sub[i] as number) as Dir, 0, bucket), ax, ay);
+          const sp = st && L ? L.stall(st.defId, (list.sub[i] as number) as Dir) : undefined;
+          if (st && sp !== null) blit(sp ?? bank.stall(st.defId, (list.sub[i] as number) as Dir, 0, bucket), ax, ay);
           break;
         }
         case KIND_FENCE:
@@ -608,7 +660,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
           mgmt.drawEntry(list.kind[i] as number, list.sub[i] as number, ax, ay, list.skey[i] as number);
           break;
         case KIND_TRACK:
-          track.drawItem(ctx as CanvasRenderingContext2D, list.ref[i] as number, list.sub[i] as number);
+          track.drawItem(ctx as CanvasRenderingContext2D, list.ref[i] as number, list.sub[i] as number, L);
           break;
         default: {
           const kind = list.kind[i] as number;
@@ -754,7 +806,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       footprintViewOrigin(x, y, ex, ey);
       const gx = (footU - footV) * HW;
       const gy = (footU + footV) * HH - z * STEP_PX;
-      const sp = bank.ride(g.defId, fw, fd, vrot, fr, bucket);
+      // Realistic ghost: the item's real sprite once decoded, today's ghost art meanwhile.
+      const sp = (L && L.ride(g.defId, vrot, 0, 0)) || bank.ride(g.defId, fw, fd, vrot, fr, bucket);
       c.globalAlpha = 0.85;
       blit(sp, gx, gy);
       c.globalAlpha = 1;
@@ -773,7 +826,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         c.setLineDash([]);
       }
       c.globalAlpha = 0.85;
-      blit(bank.stall(g.defId, vrot, fr, bucket), ax, ay);
+      blit((L && L.stall(g.defId, vrot)) || bank.stall(g.defId, vrot, fr, bucket), ax, ay);
       c.globalAlpha = 1;
       top = ay + stallArtBounds().top + 4;
       drawGhostIcon(c, devX(ax), devY(top), g.valid, Math.max(8, 12 * Math.min(1.5, scale)));
@@ -1029,7 +1082,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       sc.fillStyle = SKY;
       sc.fillRect(0, 0, w, h);
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
-      staticValid = terrain.complete;
+      real.ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version);
+      staticValid = terrain.complete && (!real.ground || real.ground.complete);
       setKey(staticKey, cam, map);
       statics.set(STATIC_KEY, { image: staticImage.canvas, w, h, ox: 0, oy: 0, scale: 1 });
       c.drawImage(staticImage.canvas, 0, 0);
@@ -1039,6 +1093,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       c.fillStyle = SKY;
       c.fillRect(0, 0, canvas.width, canvas.height);
       chunks = terrain.draw(c, map, env, view, bucket, scale, offX, offY, rot);
+      real.ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version);
     }
     setKey(lastKey, cam, map);
     return chunks;
@@ -1091,6 +1146,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       frame.width = canvas.width;
       frame.height = canvas.height;
 
+      if (L) {
+        real.sets?.beginFrame(frameNo);
+        L.prepare(world, rot, view, cam.zoom, dpr);
+      }
+
       // Sky and terrain (the static layer when nothing changed).
       terrain.sync(map);
       const chunks = drawStatic(world, cam, map);
@@ -1118,10 +1178,12 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
       mgmt.collect(world, alpha, list);
       for (const l of layers) l.collect?.(world, list, tool, frame);
       collectGuests(world, tool, alpha, lod);
+      if (L) drawShadows(world);
       // Far zoom: guests are dots under the objects (rides and fences in front still cover them).
       if (lod) dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
       list.sort();
       drawList(world);
+      if (L && (L.incomplete() > 0 || (real.ground && !real.ground.complete))) perfProbe.countIncomplete();
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
       for (const l of layers) l.drawAfterObjects?.(ctx, world, tool, frame);
 
@@ -1153,6 +1215,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
         lastFrameAt = t1;
       }
       if (debug) drawDebug(world, chunks);
+      if (L) real.sets?.endFrame();
       perfProbe.renderEnd();
     },
   };

@@ -1,7 +1,8 @@
 /** Boot. Owner: integrator. */
 import './styles/main.css';
 import { Game } from './game';
-import { createCanvasRenderer } from './render/renderer';
+import { createCanvasRenderer, type RealOptions } from './render/renderer';
+import { artStyle } from './render/artStyle';
 import { tileToScreen } from './render/iso';
 import { attachInput } from './input';
 import { mountUI } from './ui';
@@ -13,12 +14,12 @@ import { mountA11y } from './a11y';
 import { mountAudio } from './audio';
 import { registerOffline } from './offline';
 
-function boot(): void {
+function boot(real?: RealOptions): void {
   const canvas = document.getElementById('game') as HTMLCanvasElement | null;
   const uiRoot = document.getElementById('ui');
   if (!canvas || !uiRoot) throw new Error('Missing #game canvas or #ui root');
   const world = createWorld({ seed: (Date.now() & 0x7fffffff) >>> 0, parkName: 'New Park' });
-  const renderer = createCanvasRenderer(canvas);
+  const renderer = createCanvasRenderer(canvas, real);
   // Phase 6 §4.9: settings from `tc.settings` (defaults in memory when storage is missing or the data unreadable).
   const game = new Game(world, renderer, new SettingsStore(browserStore()));
   // Phase 6 §4.8 (W4-G): the language is chosen before any UI text is built.
@@ -48,4 +49,12 @@ function boot(): void {
   game.start();
 }
 
-boot();
+// The realistic art test (`?art=real`, stage 1): its code loads only here, so the website's first download stays the
+// same. `bootReal` installs the `tcreal:` storage prefix and sets the realistic height step before the game starts;
+// without baked art it shows one error line and the game starts with today's look.
+if (artStyle() === 'real') {
+  import('./render/real/boot')
+    .then((m) => m.bootReal())
+    .catch(() => null)
+    .then((real) => boot(real ?? undefined));
+} else boot();

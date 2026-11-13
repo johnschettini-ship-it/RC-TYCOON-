@@ -11,6 +11,8 @@ export interface DrawCall {
   y: number;
   w: number;
   h: number;
+  /** Source rectangle of a 9-argument call (absent for the 5-argument form). */
+  src?: { x: number; y: number; w: number; h: number };
 }
 
 export class FakeCanvas {
@@ -59,7 +61,12 @@ export class FakeCanvas {
             const n = args.length;
             const img = args[0] as FakeCanvas;
             const [x, y, w, h] = (n === 9 ? args.slice(5, 9) : args.slice(1, 5)) as number[];
-            self.draws.push({ image: img, x: x as number, y: y as number, w: w as number, h: h as number });
+            const d: DrawCall = { image: img, x: x as number, y: y as number, w: w as number, h: h as number };
+            if (n === 9) {
+              const [sx, sy, sw, sh] = args.slice(1, 5) as number[];
+              d.src = { x: sx as number, y: sy as number, w: sw as number, h: sh as number };
+            }
+            self.draws.push(d);
           } else if (prop === 'rect') {
             const [x, y, w, h] = args as number[];
             self.rects.push({ x: x as number, y: y as number, w: w as number, h: h as number, fill: String(state.fillStyle) });

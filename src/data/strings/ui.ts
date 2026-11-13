@@ -391,4 +391,6 @@ export const uiStrings: Record<string, string> = {
   'ui.ride.ago': '{time} ago',
   'ui.ride.inspectEvery': 'Inspect every',
   'ui.ride.inspectionOverdue': 'Inspection overdue',
+  // Realistic art test (`?art=real`, stage 1): the baked art could not load, so today's look is shown.
+  'ui.realArt.loadFailed': "The realistic art could not load. Showing today's look",
 };

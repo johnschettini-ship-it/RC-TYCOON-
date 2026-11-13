@@ -16,6 +16,7 @@ import type { Dir } from '../sim/map';
 import type { World } from '../sim/types';
 import type { ZoomBucket } from './camera';
 import type { ToolState } from './types';
+import type { RealLook } from './real/look';
 
 /** Frame facts every layer gets. */
 export interface LayerFrame {
@@ -33,6 +34,8 @@ export interface LayerFrame {
   /** Canvas size in device px. */
   width: number;
   height: number;
+  /** Realistic look (stage 1), when on: a layer draws `look`'s sprite, skips on `null`, today's art on `undefined`. */
+  look?: RealLook;
 }
 
 /** The renderer's depth-sorted draw list. `depth`, `z`, `layer` as in `./depth.ts` (`packDepth`). */
@@ -60,6 +63,8 @@ export interface WorldLayer {
   drawGround?(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame): void;
   collect?(world: World, sink: LayerSink, tool: ToolState, f: LayerFrame): void;
   drawItem?(ctx: CanvasRenderingContext2D, world: World, kind: number, ref: number, sub: number, ax: number, ay: number, skey: number, f: LayerFrame): void;
+  /** Realistic look only: the soft shadow of a collected drawable, before any object draws (called once per drawable). */
+  drawShadow?(ctx: CanvasRenderingContext2D, world: World, kind: number, ref: number, sub: number, ax: number, ay: number, f: LayerFrame): void;
   drawAfterObjects?(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame): void;
   drawOverlay?(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame): void;
 }

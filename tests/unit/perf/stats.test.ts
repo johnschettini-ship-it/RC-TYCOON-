@@ -174,4 +174,23 @@ describe('perf probe (Phase 6 §4.6)', () => {
     expect(s.renderP95).toBe(7);
     expect(s.spriteCacheMb).toBe(3);
   });
+
+  it('realistic look: incomplete frames (reset clears them) and decoded memory in MiB', () => {
+    const p = createPerfProbe(() => 0);
+    p.enabled = true;
+    expect(p.snapshot().incompleteFrames).toBe(0);
+    expect(p.snapshot().realResidentMB).toBe(0);
+    p.countIncomplete();
+    p.countIncomplete();
+    p.realMemory = () => [3 * 1024 * 1024, 5 * 1024 * 1024];
+    const s = p.snapshot();
+    expect(s.incompleteFrames).toBe(2);
+    expect(s.realResidentMB).toBe(3);
+    expect(s.realPeakMB).toBe(5);
+    p.reset();
+    expect(p.snapshot().incompleteFrames).toBe(0);
+    p.enabled = false;
+    p.countIncomplete();
+    expect(p.snapshot().incompleteFrames).toBe(0);
+  });
 });

@@ -41,6 +41,11 @@ export interface PerfSnapshot {
   /** Samples in the window. */
   frames: number;
   ticks: number;
+  /** Realistic look (stage 1): frames since `reset` that skipped an object whose set was still decoding. */
+  incompleteFrames: number;
+  /** Realistic look: decoded bytes the set manager holds now, and its peak, in MiB (0 with today's look). */
+  realResidentMB: number;
+  realPeakMB: number;
 }
 
 export interface PerfProbe {
@@ -57,6 +62,10 @@ export interface PerfProbe {
   snapshot(last?: number): PerfSnapshot;
   /** Forget every sample (the perf run starts its window here). */
   reset(): void;
+  /** Realistic look: one frame skipped an object because its set was not decoded yet. */
+  countIncomplete(): void;
+  /** Realistic look: resident and peak decoded bytes (set by the realistic boot). */
+  realMemory: (() => [number, number]) | null;
 }
 
 /** Nearest-rank percentile (`q` in (0, 1]) of `values`; 0 when empty. Does not change `values`. */
@@ -125,6 +134,7 @@ export function createPerfProbe(
   let longFrames = 0;
   let inFrame = false;
   let madeAtReset = canvasStats.made;
+  let incomplete = 0;
 
   const probe: PerfProbe = {
     enabled: false,
@@ -162,6 +172,10 @@ export function createPerfProbe(
     renderEnd() {
       if (probe.enabled) renders.push(clock() - renderT0);
     },
+    countIncomplete() {
+      if (probe.enabled) incomplete++;
+    },
+    realMemory: null,
     snapshot(last = PROBE_CAPACITY) {
       const f = frames.last(last);
       let total = 0;
@@ -173,6 +187,7 @@ export function createPerfProbe(
       const w = work.last(last);
       const t = ticks.last(last);
       const r = renders.last(last);
+      const real = probe.realMemory?.() ?? [0, 0];
       return {
         fps: total > 0 ? (f.length * 1000) / total : 0,
         frameP50: percentile(f, 0.5),
@@ -192,6 +207,9 @@ export function createPerfProbe(
         canvasesMade: canvasStats.made - madeAtReset,
         frames: f.length,
         ticks: t.length,
+        incompleteFrames: incomplete,
+        realResidentMB: real[0] / (1024 * 1024),
+        realPeakMB: real[1] / (1024 * 1024),
       };
     },
     reset() {
@@ -205,6 +223,7 @@ export function createPerfProbe(
       lastDraws = 0;
       inFrame = false;
       madeAtReset = canvasStats.made;
+      incomplete = 0;
     },
   };
   return probe;
