@@ -10,6 +10,7 @@
  * (like the park entrance), so guests on the path pass between them.
  * The frame loop allocates nothing: scratch objects are reused, sprite keys are numbers.
  */
+import { STEP_PX } from '../heightStep';
 import { getSceneryDef } from '../../data/catalog';
 import { GARDEN_WILT_BELOW } from '../../data/tuning/scenery';
 import { cornerHeights } from '../iso';
@@ -28,7 +29,6 @@ import { sceneryFrame, scenerySpriteKey, ScenerySprites, viewExtent } from './sp
 
 const HW = 32;
 const HH = 16;
-const STEP = 8;
 
 /** `sub` codes for centre items: ≥ 0 = screen column of a multi-tile sprite. */
 const SUB_WHOLE = -1;
@@ -101,10 +101,10 @@ export function createSceneryLayer(): WorldLayer {
         if (!def) continue;
         itemView(iv, item, def, r, map.width, map.height);
         const ax = (iv.u0 - iv.v0) * HW;
-        const ay = (iv.u0 + iv.v0) * HH - item.z * STEP;
+        const ay = (iv.u0 + iv.v0) * HH - item.z * STEP_PX;
         const left = ax - iv.ey * HW - 8;
         const right = ax + iv.ex * HW + 8;
-        const top = ay - def.heightM * STEP - ART_HEADROOM_PX;
+        const top = ay - def.heightM * STEP_PX - ART_HEADROOM_PX;
         const bottom = ay + (iv.ex + iv.ey) * HH + 6;
         if (right < v.x0 || left > v.x1 || bottom < v.y0 || top > v.y1) continue;
         if (def.edge) {
@@ -171,7 +171,7 @@ export function createSceneryLayer(): WorldLayer {
         const fake = { id: -1, defId: def.id, x: g.x, y: g.y, z: map.heights[g.tiles[0]!] ?? 0, rotation: g.rotation, edge: g.edge, waterLevel: 255 };
         itemView(iv, fake, def, r, map.width, map.height);
         const ax = (iv.u0 - iv.v0) * HW;
-        const ay = (iv.u0 + iv.v0) * HH - fake.z * STEP;
+        const ay = (iv.u0 + iv.v0) * HH - fake.z * STEP_PX;
         if (g.mode === 'place') {
           const frame = sceneryFrame(false, 0, g.valid ? 'valid' : 'invalid');
           const sp = sprites.get(scenerySpriteKey(def.id, iv.f, frame, f.bucket), def.id, iv.f, frame, f.bucket);
@@ -184,7 +184,7 @@ export function createSceneryLayer(): WorldLayer {
         if (def.edge) edgeHighlight(ctx, f, iv.u0, iv.v0, fake.z, iv.f, stroke);
         const ve = viewExtent(def, iv.f);
         iconX = ax + ((ve.ex - ve.ey) * HW) / 2;
-        iconY = ay + ((ve.ex + ve.ey) * HH) / 2 - def.heightM * STEP - 14;
+        iconY = ay + ((ve.ex + ve.ey) * HH) / 2 - def.heightM * STEP_PX - 14;
       } else if (g.tiles.length > 0) {
         const t = g.tiles[0]!;
         const x = t % map.width;
@@ -192,7 +192,7 @@ export function createSceneryLayer(): WorldLayer {
         const u = viewU(x, y, r, map.width, map.height);
         const vv = viewV(x, y, r, map.width, map.height);
         iconX = (u - vv) * HW;
-        iconY = (u + vv) * HH + HH - (map.heights[t] ?? 0) * STEP - 14;
+        iconY = (u + vv) * HH + HH - (map.heights[t] ?? 0) * STEP_PX - 14;
       } else {
         return;
       }
@@ -215,7 +215,7 @@ export function createSceneryLayer(): WorldLayer {
       const u = r === 0 ? cx : r === 1 ? map.height - cy : r === 2 ? map.width - cx : cy;
       const vv = r === 0 ? cy : r === 1 ? cx : r === 2 ? map.height - cy : map.width - cx;
       const px = devX(f, (u - vv) * HW);
-      const py = devY(f, (u + vv) * HH - (h[k] as number) * STEP);
+      const py = devY(f, (u + vv) * HH - (h[k] as number) * STEP_PX);
       if (k === 0) ctx.moveTo(px, py);
       else ctx.lineTo(px, py);
     }
@@ -230,7 +230,7 @@ export function createSceneryLayer(): WorldLayer {
   function edgeHighlight(ctx: CanvasRenderingContext2D, f: LayerFrame, u0: number, v0: number, z: number, e: Dir, stroke: string): void {
     const a = e === 0 ? [0, 0] : e === 1 ? [1, 0] : e === 2 ? [0, 1] : [0, 0];
     const b = e === 0 ? [1, 0] : e === 1 ? [1, 1] : e === 2 ? [1, 1] : [0, 1];
-    const p = (q: number[]): [number, number] => [devX(f, (u0 + q[0]! - (v0 + q[1]!)) * HW), devY(f, (u0 + q[0]! + v0 + q[1]!) * HH - z * STEP)];
+    const p = (q: number[]): [number, number] => [devX(f, (u0 + q[0]! - (v0 + q[1]!)) * HW), devY(f, (u0 + q[0]! + v0 + q[1]!) * HH - z * STEP_PX)];
     const [x0, y0] = p(a);
     const [x1, y1] = p(b);
     ctx.beginPath();
