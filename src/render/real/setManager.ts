@@ -62,6 +62,9 @@ export class SetManager {
   private readonly demoted = new Set<SetKey>();
   private roomFrames = 0;
   private readonly events: CapEvent[] = [];
+  /** Bytes the caller made from ready sets (cropped and tinted frames), by holder id. */
+  private readonly held = new Map<string, number>();
+  private heldTotal = 0;
 
   constructor(
     index: RealIndex,
@@ -119,8 +122,19 @@ export class SetManager {
     return this.recs.get(key)?.state ?? 'none';
   }
 
+  /**
+   * Counts `bytes` made outside the set manager (RealLook's cropped and tinted frames) in the budget under `id`,
+   * replacing what `id` held before; 0 releases it. Held bytes are resident, limit new decodes and add pressure.
+   */
+  hold(id: string, bytes: number): void {
+    this.heldTotal -= this.held.get(id) ?? 0;
+    if (bytes > 0) { this.held.set(id, bytes); this.heldTotal += bytes; }
+    else this.held.delete(id);
+    this.peak = Math.max(this.peak, this.residentBytes());
+  }
+
   residentBytes(): number {
-    let n = 0;
+    let n = this.heldTotal;
     for (const r of this.recs.values()) n += r.bytes;
     return n;
   }
@@ -219,7 +233,7 @@ export class SetManager {
 
   /** Bytes held or reserved, including sets on their way out: what a new decode must fit beside. */
   private committed(): number {
-    let n = 0;
+    let n = this.heldTotal;
     for (const r of this.recs.values()) n += r.inFlight ? Math.max(r.estimate, r.bytes) : r.bytes;
     return n;
   }
@@ -230,7 +244,7 @@ export class SetManager {
    * when density 4 is being withheld from it (cap on, or that counterpart demoted).
    */
   private pressure(atDensity4 = false): number {
-    let n = 0;
+    let n = this.heldTotal;
     for (const r of this.recs.values()) {
       if (!this.wanted(r)) continue;
       let need = 0;

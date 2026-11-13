@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { tintPixels, tintSheet, type Decoded } from '../../../../src/render/real/tint';
+import { tintPixels, tintSheet } from '../../../../src/render/real/tint';
+import type { Decoded } from '../../../../src/render/real/setManager';
 
 const px = (...v: number[]): Uint8ClampedArray => new Uint8ClampedArray(v);
 
@@ -79,5 +80,27 @@ describe('tintSheet', () => {
     expect(Math.abs(d[0]! - 100)).toBeLessThanOrEqual(1);
     expect(d[3]!).toBe(255);
     out.close();
+  });
+  const mkD = (w: number, h: number): Decoded => ({ image: new PixCanvas(w, h) as unknown as CanvasImageSource, bytes: w * h * 4, close() {} });
+
+  it('throws when the mask size differs from the base', () => {
+    expect(() => tintSheet(mkD(2, 2), mkD(2, 1), [1, 2, 3], (w, h) => new PixCanvas(w, h))).toThrow(/mask/);
+  });
+
+  it('close() zeroes the result canvas before releasing it', () => {
+    let made: PixCanvas | null = null;
+    const out = tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => (made = new PixCanvas(w, h)));
+    const canvas = out.image as unknown as PixCanvas;
+    expect(canvas).toBe(made);
+    out.close();
+    expect([canvas.width, canvas.height]).toEqual([0, 0]);
+    expect(() => out.image).toThrow(/closed/);
+  });
+  it('zeroes its scratch canvases once read', () => {
+    const made: PixCanvas[] = [];
+    tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made.push(c); return c; });
+    expect(made).toHaveLength(3);
+    expect(made.slice(0, 2).map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0]]);
+    expect([made[2]!.width, made[2]!.height]).toEqual([2, 2]);
   });
 });

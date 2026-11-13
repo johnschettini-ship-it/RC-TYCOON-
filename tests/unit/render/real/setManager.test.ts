@@ -325,4 +325,22 @@ describe('SetManager', () => {
     await io.settleAll();
     expect(m.state(D.key)).toBe('ready');
   });
+  it('held bytes (tinted and cropped frames) count in the budget', async () => {
+    const [A, B] = [entry('a', 2), entry('b', 2)];
+    const { io, m } = setup([A, B], 2 * SHEET_BYTES);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.hold('look', 150);
+    expect(m.residentBytes()).toBe(SHEET_BYTES + 150);
+    expect(m.peakBytes()).toBe(SHEET_BYTES + 150);
+    // A held 150 leaves no room beside A for B: B waits.
+    m.beginFrame(2); m.use(A.key); m.want([A.key, B.key], 'now'); m.endFrame();
+    await flush();
+    expect(io.inFlight()).toEqual([]);
+    m.hold('look', 0);
+    expect(m.residentBytes()).toBe(SHEET_BYTES);
+    m.beginFrame(3); m.use(A.key); m.want([A.key, B.key], 'now'); m.endFrame();
+    await io.settleAll();
+    expect(m.state(B.key)).toBe('ready');
+  });
 });
