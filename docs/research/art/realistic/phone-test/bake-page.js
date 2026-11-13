@@ -501,7 +501,10 @@ window.bake = async (opts = {}) => {
   const pages = {};
   for (const z of [1, 2]) {
     pages[z] = {};
-    for (const k of ['objects', 'ring', 'guests']) pages[z][k] = pack(sprites[z][k], `z${z}-${k}`);
+    // objects are packed per turn (z{z}-objects-r{q}-{i}) so a page can load and free one turn at a time
+    pages[z].objects = [];
+    for (let q = 0; q < 4; q++) pages[z].objects.push(...pack(M.z[z].objects[q].filter((o) => o.canvas), `z${z}-objects-r${q}`));
+    for (const k of ['ring', 'guests']) pages[z][k] = pack(sprites[z][k], `z${z}-${k}`);
     M.z[z].objects = M.z[z].objects.map((list) => list.map((s) => (s.canvas ? strip(s, ['k', 'd', 's', 'x', 'y']) : s)).sort((a, b) => a.d - b.d || a.s - b.s));
     M.z[z].ring = M.z[z].ring.map((s) => strip(s, ['ox', 'oy']));
     M.z[z].guests.frames = M.z[z].guests.frames.map((s) => strip(s, ['ox', 'oy']));

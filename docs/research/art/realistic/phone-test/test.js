@@ -81,11 +81,16 @@
     S.state = 'none';
   }
   const needed = (zs, rot) => ['z' + zs + '-shared', 'z' + zs + '-r' + rot];
+  // The next turn in the Turn button's direction is loaded in the background, so a turn is usually instant.
+  const PREFETCH = !/[?&]prefetch=0/.test(location.search);
+  const ahead = (zs, rot) => 'z' + zs + '-r' + ((rot + 1) % 4);
   async function ensureView(zs, rot) {
     await Promise.all(needed(zs, rot).map(ensureSet));
     if (ALL) return;
     const keep = new Set(needed(zs, rot));
+    if (PREFETCH) keep.add(ahead(zs, rot));
     for (const k of Object.keys(SETS)) if (!keep.has(k)) releaseSet(k);
+    if (PREFETCH) ensureSet(ahead(zs, rot)).catch(() => {});
   }
   async function loadAll() {
     const t0 = performance.now();
@@ -325,7 +330,7 @@
     results = {
       test: 'Realistic look phone test', look: M.look, verdict, checks,
       device: { userAgent: navigator.userAgent, devicePixelRatio: window.devicePixelRatio, viewportCss: [window.innerWidth, window.innerHeight], canvasPx: [view.W, view.H], sharp1x: view.sharp && view.dpr >= 1.5 },
-      mode: ALL ? 'everything loaded' : 'on demand (current zoom and turn only)',
+      mode: ALL ? 'everything loaded' : PREFETCH ? 'on demand (current zoom and turn, next turn loaded ahead)' : 'on demand (current zoom and turn only)',
       load: { ms: load.ms, files: load.files, downloadMB: mb(load.bytes), decodedMB, peakResidentMB: mb(load.peak), residentNowMB: mb(load.resident), setLoadMs: load.setMs, decodedByZoomMB: residentZ, decodedByZoomAndRotationMB: perRot, note: 'decoded = sum of width x height x 4 of every loaded image; an estimate, the browser may hold more (GPU copies) or less' },
       frames: rows, turnMs: turnTimes.slice(), jsHeapMB: heap,
       bake: { seconds: M.bakeSecondsTotal, generated: M.generated },
