@@ -433,3 +433,138 @@ half, rider sprites, ride sprite front half.
   whole ground has to be baked.
 * **L** is the dreamiest; rides and guests read, but floating islands change the game's terrain model and the
   pastel-on-pastel palette gives the least contrast between path, grass and guests.
+
+---
+
+# Round 5: P, Q, R, S — four more different looks
+
+Same rules as rounds 3 and 4: each sheet has its **own scene layout, shape language, light and content**; only the
+game camera is shared (isometric 2:1, `screen = (ox + (x - y) * 52 * s, oy + (x + y) * 26 * s - z * s)`, four 90 degree
+turns). Every sheet has a coaster, a flat ride, a stall, paths, walking guests, a 2x guest line-up and a style note.
+Riders sit **in** every car, seat, gondola and boat (well, then seated riders, then the near walls over their laps,
+using `carGeom` / `cupGeom` copied from round 4). New rule this round: **every guest arm and leg is at least 2.6 screen
+px wide** at the size it is drawn (`LIMB(k)` in the generator), so limbs do not shimmer when the camera moves.
+
+| File | Style |
+| --- | --- |
+| `p-sketch.svg` | P: Sketchbook |
+| `q-comic.svg` | Q: Comic pop |
+| `r-lowpoly.svg` | R: Low-poly crystal |
+| `s-origami.svg` | S: Origami |
+| `tools/generate-r5.mjs` | Builds P to S (`node tools/generate-r5.mjs`, or `node tools/generate-r5.mjs p r`). Helpers copied from `generate-r4.mjs`; A to O are untouched |
+| `tools/render-r5.cjs` | Renders `concept-curved-{p,q,r,s}.png` (1600 x 1000), `-phone.png` (390 x 520 CSS px at DPR 2, framed on a ride, a path and guests) and `concept-curved-compare-5.png` (same layout as compare-4) |
+| `tools/shrink-r3.py` | Reused: `python3 tools/shrink-r3.py p q r s compare-5` cut P's sheet, P's phone crop and compare-5 to 256 colours (the marker streaks pushed them over 1 MB) |
+
+## P: Sketchbook
+
+* **Look:** a page from a designer's sketchbook (spiral binding, dot grid, faint coffee ring, masking tape on the
+  panels). The park is a loose oval vignette of marker on paper, not a board: a **wave swinger** (scalloped
+  red/white canopy, chair-tubs swung out on chains, riders seated), a **wooden out-and-back coaster** with lattice
+  bents drawn like a structure study, a **lemonade cart** with a striped umbrella, scribbled round trees and
+  zig-zag pines, a pond, a bench, lamps. Hand-lettered notes with arrows ("WAVE SWINGER", "LIFT HILL", "QUEUE",
+  "POND?", a ringed "CARS: BLUE/YELLOW/TEAL?"), a dimension line and colour-test marker dabs.
+* **Fills:** alcohol-marker washes at about 60% with `multiply`. Each wash is the shape shrunk ~7% and pushed
+  off-register, so it spills out one side and leaves paper on the other. Shade = a second marker pass on the same
+  face. Big areas (grass, paths, water) are parallel marker strokes clipped to a jittered outline; each stroke is its
+  own path so overlaps darken, like a real marker.
+* **Outline:** 1.5 px pen. Every straight edge is its own stroke that **overshoots** both corners by 1 to 4 px and
+  bows slightly; curves are drawn twice (a confident pass and a faint second pass).
+* **Light / shadows:** no light model; cast shadows are **pen hatching** inside an ellipse.
+* **Construction:** blue pencil iso grid lines, a horizon line, a vertical axis and ellipse guides around the swinger.
+* **Labels:** a single-stroke letter set (`GLYPH`, a 4 x 6 grid per letter) drawn as pen strokes; no font.
+* **Guests:** pen figures with a paper-white underlay (so they read over any wash), an off-register marker shirt,
+  thick pen arms and legs, open-loop heads, scribbled hair.
+* **Canvas 2D mapping:** strokes are cheap; the overshoot needs per-edge random lengths, so generate them **once**
+  and store them with the sprite (re-randomising per frame makes the lines boil). Washes need
+  `globalCompositeOperation = 'multiply'` and per-wash clipping (`clip()` per shape) — the clipped streak fills are the
+  expensive part.
+* **Phone cost: medium if baked, high live.** Several hundred stroke paths and ~40 clip regions on this sheet, plus
+  multiply blending. **Must be pre-drawn:** the ground vignette, path washes and construction lines (one baked layer
+  per rotation), every ride and tree as sprites. Guests can be live (about 15 strokes each). A sketch also needs the
+  same jitter in all four rotations to look like one drawing. Readability at phone size is fair: ink keeps edges,
+  but washes over washes get muddy and the hatching turns grey below ~1x.
+
+## Q: Comic pop
+
+* **Look:** one big comic panel with a heavy black border and white page gutters; the title is a yellow caption box,
+  the line-up and note are inset panels with yellow headers. The ground runs out past the panel border (cropped
+  like a comic frame) under a flat cyan sky with inked clouds and an inked hedge line. A **steel coaster with a
+  vertical loop** (red tube rails, blue columns, a train banking into a turn with action lines and "WHOOSH!"),
+  **bumper cars** (fenced rink, sparking poles, motion arcs, a "BONK!" burst), a **hot dog stand** with a giant hot
+  dog on the roof ("HOT!"), lollipop trees, a bench, lamps. A **speech bubble** ("BEST DAY EVER!!") over one guest.
+* **Fills:** flat bold primaries (red, yellow, blue, cyan, green); top faces 35% lighter; no gradients.
+* **Outline:** black on everything: 3 to 4 px on shapes, 7.5 px under each rail, 1.3 to 2.5 px on guests.
+* **Shadows:** **Ben-Day dots only**: a navy dot pattern (7 px, rotated 30 degrees) on shaded faces and as cast
+  shadows. No darker tints anywhere. White glints on cars and balloons.
+* **Not F (retro poster):** F is muted cream/teal/mustard print with halftone on everything, sun rays and
+  off-register ink. Q is pure saturated primaries, black brush ink, dots only in shadow, panel borders, sound
+  effects and a speech bubble.
+* **Guests:** chunky, big heads, big white eyes, open smiles, inked limbs (black under-stroke + colour stroke),
+  spiky hair, ponytails, caps with a white shine.
+* **Canvas 2D mapping:** every shape = `fill()` + `stroke()`; Ben-Day = a cached `CanvasPattern` from a small dot
+  tile (`createPattern`), filled over the shaded face (`fill()` the same path again). Action lines and sound effects
+  are UI-like overlays drawn last. Text in bubbles uses the system font.
+* **Phone cost: low.** Flat fills, one pattern, no blur, no blending. Pre-draw only to save time (rides per rotation);
+  guests and cars can be live. Thick ink costs fill-rate on big shapes, nothing more. **Reads very well at phone
+  size**: the black line separates everything and guests are the biggest and clearest of the round.
+
+## R: Low-poly crystal
+
+* **Look:** a floating chunk of faceted terrain with a faceted river that falls off the front cliff as a waterfall,
+  gem hills, low-poly pines and gem trees, faceted rocks, pale faceted mountains and polygon clouds, a pale
+  heptagon sun. A **polygon Ferris wheel** (12-sided rims, spokes, hex gondolas with crystal canopies, two riders
+  each), an **angular coaster** (straight track facets, white square posts, faceted cars with a nose wedge), a
+  **crystal ice-cream kiosk** (hex body, gem roof, a cone sign with a gem scoop), a plank bridge.
+* **Fills:** **one flat colour per triangle**, computed from its normal against a cool light from the upper left
+  (`tone()`): the dark side drifts toward slate blue, the lit side toward white. No gradients, no outlines; each
+  facet is stroked in its own colour to hide anti-aliasing seams.
+* **Terrain:** a 0.5-tile triangle grid with 5 px of z jitter on grass (1 px on paths), paths and the river
+  carved by masks; cliffs are three jittered rows of triangles (soil, rock, deep rock), water facets get extra
+  normal jitter to sparkle.
+* **Shadows:** crisp flat footprint shadows pushed away from the light, 20% slate.
+* **Guests:** two-facet bodies (lit half / dark half plus a light shoulder facet), hexagon heads in three facets,
+  angular hair and caps, square limbs, a kite-diamond balloon.
+* **Canvas 2D mapping:** solids are lists of 3D faces; at load, project them per rotation, cull back faces, take the
+  tone, and draw `fill()` per facet. That is cheap to compute **once** but there are many paths: the terrain alone is
+  ~1,000 triangles on this sheet (792 ground, ~240 cliff).
+* **Phone cost: low to medium.** Flat fills only, no blur, but many small paths. **Must be pre-drawn:** the terrain
+  (baked chunks; it only changes when terraforming or paths change). Rides, trees and guests can be live or cached
+  per rotation; the shading is a function of the face normal, so all four rotations come out right automatically
+  (a real plus over hand-painted styles). Readability is good, but the jittered grass competes slightly with
+  guests; paths read by colour.
+
+## S: Origami
+
+* **Look:** the park on a sheet of pre-creased green paper (the ghost of a fold pattern, large triangles each tilted
+  a hair), in front of a six-panel **folding screen** with painted hills and a vermilion sun; paper cranes fly in the
+  sky and stand on a **pleated pond**. A **carousel** with a folded-star deck and a **pleated roof** (28 alternating
+  mountain/valley triangles, red and cream, zig-zag hem), riders seated on **paper cranes**; a **paper-strip coaster**
+  on accordion-folded legs with **paper-boat cars** (riders inside, the centre sail folded up); a **tea stall** shaped
+  like a folded house (creased roof, pennant flaps, a folded fan on the ridge); folded pines and "balloon" trees;
+  diamond lanterns. Paths are cream strips with a lengthwise crease and folded-over ends.
+* **Fills:** each plane takes one tone from its angle to the light plus a soft linear ramp across it (lighter at
+  the crease side). Paper colours: vermilion, indigo, mustard, sakura pink, sage, sky, cream.
+* **Outline:** none. **Creases** instead: a mountain fold is a pale line, a valley fold a dark line; paper edges get a
+  thin white line.
+* **Shadows:** soft blurred shadows under objects and strips (the paper lifts off the sheet).
+* **Not E (cut paper):** E stacks flat cut layers with crisp drop shadows. S has no stacked layers: every object is
+  a few **folded planes**, shaded by their angle, with visible crease lines and pleats.
+* **Guests:** a cone body folded down the middle (lit half / shaded half), a folded collar, a diamond head folded on
+  its diagonal, flap / bob / paper-hat hair, paper-strip limbs, a folded fan or kite.
+* **Canvas 2D mapping:** planes = `fill()` with a cached `CanvasGradient` per tone (set in local space with
+  `setTransform`), creases = one `stroke()` each. Soft shadows = pre-blurred sprites.
+* **Phone cost: medium.** No filters except shadows, but a gradient per plane. **Must be pre-drawn:** the ground
+  sheet, the folding screen and all shadows; the carousel roof (28 gradient planes) and coaster strip per rotation.
+  Guests are live-cheap (about 10 flat triangles). Readability is good for rides (strong shapes and pleats) but
+  guests are small and slim, and the pale cream paths are close to the cream screen.
+
+## Which reads best at phone size (round 5)
+
+* **Q** reads best: thick black ink separates guests, cars and paths at any zoom, the flat primaries survive
+  small sizes, riders in the bumper cars and coaster are obvious, and it is the cheapest of the four to draw.
+  Its risk is noise: sound effects and action lines must be rationed or the screen gets loud.
+* **R** is the cleanest and handles rotation for free (shading from normals), but the jittered terrain is busy
+  behind small guests.
+* **S** is the most charming and the rides read well; guests are the weakest of the four at 1x.
+* **P** has the most personality, but marker over marker gets muddy at phone size and it is the hardest to
+  keep consistent across four rotations and many sprites.
