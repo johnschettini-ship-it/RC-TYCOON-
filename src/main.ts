@@ -47,6 +47,18 @@ function boot(real?: RealOptions): void {
   (window as unknown as { __tc?: Game }).__tc = game;
   const loading = document.getElementById('loading');
   if (loading) loading.style.display = 'none';
+  // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke): VITE_ART=real build with the realistic look
+  // only. S4's first part is the navigation start to the boot's first complete frame, watched from the first frame.
+  if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
+    const bench = new URLSearchParams(location.search).get('bench');
+    if (bench === '1' || bench === 'quick') {
+      let readyMs: number | undefined;
+      game.onFrame(() => {
+        if (readyMs === undefined && (real?.look?.incomplete() ?? 0) === 0) readyMs = performance.now();
+      });
+      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => readyMs, bench === 'quick'));
+    }
+  }
   game.start();
 }
 

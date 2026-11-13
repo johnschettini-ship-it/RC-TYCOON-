@@ -1,0 +1,36 @@
+/**
+ * Stage 1 benchmark (`?art=real&bench=1`, `src/perf/realBenchCard.ts`). Keys start with `ui.realBench.`; no final
+ * period (master R4). `./en.ts` adds them only in the VITE_ART=real build, so the website's string table is unchanged.
+ */
+export const realBenchStrings: Record<string, string> = {
+  'ui.realBench.run': 'Run benchmark',
+  'ui.realBench.running': 'Benchmark running: {scene} ({n} of {total}). Do not touch the screen',
+  'ui.realBench.loading': 'Loading the benchmark parks',
+  'ui.realBench.failed': 'The benchmark stopped: {error}',
+  'ui.realBench.title': 'Benchmark results',
+  'ui.realBench.verdict.pass': 'All limits met',
+  'ui.realBench.verdict.fail': 'A limit was missed',
+  'ui.realBench.copy': 'Copy results',
+  'ui.realBench.copied': 'Copied',
+  'ui.realBench.selectText': 'Select the text and copy it',
+  'ui.realBench.close': 'Close',
+  'ui.realBench.textLabel': 'Results as text',
+  'ui.realBench.notLoaded': 'Did not load: {error}',
+  'ui.realBench.frame': 'Frame time p50 / p95 / p99',
+  'ui.realBench.slowFrames': 'Frames over 33 ms',
+  'ui.realBench.work': 'Work per frame p95',
+  'ui.realBench.memory': 'Picture memory peak / end',
+  'ui.realBench.turns': 'Turns',
+  'ui.realBench.placement': 'Longest frame while placing',
+  'ui.realBench.incomplete': 'Incomplete frames',
+  'ui.realBench.caps': 'Density cap changes',
+  'ui.realBench.start': 'Start time',
+  'ui.realBench.device': 'Device',
+  'ui.realBench.fallbacks': "Drawn with today's art",
+  'ui.realBench.none': 'none',
+  'ui.realBench.band.pass': 'pass',
+  'ui.realBench.band.fail': 'fail',
+  'ui.realBench.band.na': 'n/a',
+  'ui.realBench.note':
+    'Times are in milliseconds, memory in MB. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way, S4 start 4 s. S5 (app size) comes from the bake report',
+};

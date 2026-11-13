@@ -30,6 +30,8 @@ import { perfStrings } from './perf';
 import { offlineStrings } from './offline';
 // Build 3 gate: content names generated from the catalogs (`content.<id>`).
 import { contentStrings } from './content';
+// Stage 1 realistic test: only the VITE_ART=real build has the benchmark, so only it carries its strings.
+import { realBenchStrings } from './realBench';
 import { fillParams, lookupString } from './resolve';
 
 export const en: Record<string, string> = {
@@ -55,6 +57,7 @@ export const en: Record<string, string> = {
   ...perfStrings,
   ...offlineStrings,
   ...contentStrings,
+  ...(import.meta.env.VITE_ART === 'real' ? realBenchStrings : {}),
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {
