@@ -5,7 +5,7 @@
  * shirt colours).
  *
  * - Pages are `TINT_PAGE_PX` wide and `TINT_PAGE_ROWS` tall (1 MiB each), or as tall as a taller frame (a rail tile at
- *   density 4 is up to 348 px), at most `TINT_ATLAS_MAX_PAGES` of them and `TINT_ATLAS_MAX_BYTES` (12 MiB) in all. Each
+ *   density 4 is up to 348 px), at most `TINT_ATLAS_MAX_PAGES` of them and `TINT_ATLAS_MAX_BYTES` (24 MiB) in all. Each
  *   page is admitted to the set manager before it is made (`sets.admit('tint:<page>', bytes)`), so it counts in the
  *   one picture budget (`split().tints`), and released (`hold(id, 0)`) when it is freed.
  * - Frames are shelf-packed: a row ("shelf") as tall as the frame that opened it; a frame goes into a freed slot or the
@@ -30,8 +30,16 @@ export const TINT_PAGE_PX = 1024;
 export const TINT_PAGE_ROWS = 256;
 /** One page: 1 MiB. */
 export const TINT_PAGE_BYTES = TINT_PAGE_PX * TINT_PAGE_ROWS * 4;
-export const TINT_ATLAS_MAX_PAGES = 12;
-/** 12 MiB at most, whatever the pages' heights. */
+/**
+ * 24 pages, 24 MiB at most, whatever the pages' heights (Task 4b; was 12, a plan number sized for guests). The coaster
+ * bench at density 4 stalled at 12: its on-screen frames covered 2.9 MiB of slots, but tall rail tiles (up to
+ * 163 x 347, a 350-row page) and shelf heights spread them over 11 pages, 11.5 MiB, so one more rail page did not
+ * fit; and on a turn the old view's frames are still held (drawn the frame before) while the new view's come in. 24 MiB
+ * holds two such views with room to spare and stays under the 29 MB whole-sheet tints held in that scene. The real
+ * limit is the set manager's budget: every page is admitted to it and reclaimable.
+ */
+export const TINT_ATLAS_MAX_PAGES = 24;
+/** 24 MiB at most, whatever the pages' heights. */
 export const TINT_ATLAS_MAX_BYTES = TINT_ATLAS_MAX_PAGES * TINT_PAGE_BYTES;
 /** Transparent px right of and below every frame in a page (the bake's `PAD`, tools/art3d/bakePage.ts). */
 export const TINT_GUTTER_PX = 2;

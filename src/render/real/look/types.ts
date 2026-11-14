@@ -143,6 +143,11 @@ export interface Resolved {
   sprite: Sprite;
   /** The frame's id in the tint atlas (per ready set), given on its first tinted draw. */
   tid?: number;
+  /**
+   * By tint colour: since which prepare this frame has had no room in the tint atlas, and the last prepare it asked
+   * (Task 4b: per frame, so frames of the same set and colour that do get room do not restart its wait).
+   */
+  noRoom?: Map<string, { from: number; last: number }>;
 }
 
 /**

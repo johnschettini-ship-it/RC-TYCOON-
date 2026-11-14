@@ -176,9 +176,8 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
   let degradedDraws = 0;
   /** Sets a getter wanted this frame (`sprite`, once per set a frame). */
   const lateWanted = new Set<SetKey>();
-  /** Since which prepare a set (its density-2 set) has been starved, or a tint (by set, then colour) refused room. */
+  /** Since which prepare a set (its density-2 set) has been starved. (A tinted frame's wait for room is on its `Resolved`.) */
   const starvedSince = new Map<SetKey, number>();
-  const noRoomSince = new Map<SetKey, Map<string, number>>();
   /** True once `since` (set now when absent) is `DEGRADE_FRAMES` prepares old. */
   const longWait = (m: Map<string, number>, id: string): boolean => {
     const since = m.get(id);
@@ -268,15 +267,19 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     if (tint === null) return r.sprite;
     const t = tinter.tint(drawKey, rs, r, tint);
     if (t === TINT_NO_ROOM) {
-      // No room in the tint atlas: the untinted picture, never nothing; incomplete, then degraded (the last step)
-      // once refused for DEGRADE_FRAMES prepares.
-      let byHex = noRoomSince.get(drawKey);
-      if (!byHex) noRoomSince.set(drawKey, (byHex = new Map()));
-      if (longWait(byHex, tint)) degradedDraws++;
+      // No room in the tint atlas: the untinted picture, never nothing; incomplete, then degraded (the last step) once
+      // THIS frame has been refused for DEGRADE_FRAMES prepares in a row (Task 4b: per frame, so the wait settles
+      // even while other frames of its set and colour get room; a frame off screen for a while starts again).
+      let w = r.noRoom;
+      if (!w) r.noRoom = w = new Map();
+      let since = w.get(tint);
+      if (!since || since.last < frameNo - 1) w.set(tint, (since = { from: frameNo, last: frameNo }));
+      else since.last = frameNo;
+      if (frameNo - since.from >= DEGRADE_FRAMES) degradedDraws++;
       else skipped++;
       return r.sprite;
     }
-    if (noRoomSince.size) noRoomSince.get(drawKey)?.delete(tint);
+    if (r.noRoom) r.noRoom.delete(tint);
     // Queued, not tinted yet (the per-frame budget is spent): the untinted picture this frame, counted incomplete.
     if (t === TINT_WAIT) { skipped++; return r.sprite; }
     if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
@@ -285,9 +288,8 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
 
   function sweep(): void {
     tinter.beginFrame();
-    // Waits of sets that are no longer queued, and refusals of sets no longer ready, are over.
+    // Waits of sets that are no longer queued are over.
     for (const k of starvedSince.keys()) if (sets.state(k) !== 'loading') starvedSince.delete(k);
-    for (const k of noRoomSince.keys()) if (sets.state(k) !== 'ready') noRoomSince.delete(k);
   }
 
   /** Staff of `type`: its record (no sets when not baked: `fallbacksUsed` lists `guest:staff_<type>`). */

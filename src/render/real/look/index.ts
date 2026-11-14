@@ -17,7 +17,7 @@
  *
  * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
  * (sheet with a mask) point into the shared tint atlas (spec §5.7, Task 4, `../tintAtlas.ts`): each (frame, colour)
- * drawn is tinted on its own into a slot of a few shared pages (12 MiB at most), never a whole sheet. Frames are tinted
+ * drawn is tinted on its own into a slot of a few shared pages (24 MiB at most), never a whole sheet. Frames are tinted
  * under a per-frame time budget (`TINT_FRAME_MS`, round 3 item 4); a frame not tinted yet draws its untinted picture
  * meanwhile, counted by `incomplete()`. Atlas pages are admitted before they are made (`SetManager.admit`, held as
  * `tint:<page>`); when the atlas is full the least recently used frame not drawn this frame or the one before is

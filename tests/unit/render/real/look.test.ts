@@ -905,6 +905,49 @@ describe('RealLook: the ladder\'s last step, never nothing (round 3 item 2, spec
   });
 });
 
+describe('RealLook: a tinted frame with no room never stalls (Task 4b)', () => {
+  it('stops counting incomplete after DEGRADE_FRAMES and counts degraded, though other frames of its set and colour get room', () => {
+    // One sheet with a small frame and one wider than an atlas page (never any room).
+    const sheets: RealSetEntry['sheets'] = [{ file: 's0', w: 1100, h: 8, mask: 'm0' }, { file: 'm0', w: 1100, h: 8 }];
+    const frames = { 'f2:w1': { sheet: 's0', sx: 0, sy: 0, w: 3, h: 4, ox: 0, oy: 0 }, 'f0:sit': { sheet: 's0', sx: 0, sy: 0, w: 1100, h: 4, ox: 0, oy: 0 } };
+    const e: RealSetEntry = { key: setKey('guest', 'b0o0', 2, 'all'), kind: 'guest', item: 'b0o0', density: 2, rot: 'all', sheets, frames };
+    const index: RealIndex = { ...makeIndex(), sets: [e] };
+    const sets = new FakeSets(index, { s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    sets.setState(e.key, 'ready');
+    const base = sets.images(e.key)[0];
+    for (let n = 0; n < DEGRADE_FRAMES; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      expect(look.guest(0, 1, 1, 2, false)!.image).not.toBe(base); // the small frame: tinted
+      expect(look.guest(0, 1, 0, 0, true)!.image).toBe(base); // the wide one: untinted, waiting
+      expect(look.incomplete()).toBe(1);
+      expect(look.degraded!()).toBe(0);
+    }
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    look.guest(0, 1, 1, 2, false);
+    expect(look.guest(0, 1, 0, 0, true)!.image).toBe(base); // still drawn, untinted
+    expect(look.incomplete()).toBe(0);
+    expect(look.degraded!()).toBe(1);
+  });
+
+  it('a frame back on screen after a while waits DEGRADE_FRAMES again before it counts degraded', () => {
+    const sheets: RealSetEntry['sheets'] = [{ file: 's0', w: 1100, h: 8, mask: 'm0' }, { file: 'm0', w: 1100, h: 8 }];
+    const frames = { 'f0:sit': { sheet: 's0', sx: 0, sy: 0, w: 1100, h: 4, ox: 0, oy: 0 } };
+    const e: RealSetEntry = { key: setKey('guest', 'b0o0', 2, 'all'), kind: 'guest', item: 'b0o0', density: 2, rot: 'all', sheets, frames };
+    const index: RealIndex = { ...makeIndex(), sets: [e] };
+    const sets = new FakeSets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    sets.setState(e.key, 'ready');
+    for (let n = 0; n <= DEGRADE_FRAMES; n++) { look.prepare(emptyWorld(), 0, VIEW, 1, 1); look.guest(0, 1, 0, 0, true); }
+    expect(look.degraded!()).toBe(1);
+    for (let n = 0; n < 5; n++) look.prepare(emptyWorld(), 0, VIEW, 1, 1); // off screen
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    look.guest(0, 1, 0, 0, true);
+    expect(look.incomplete()).toBe(1);
+    expect(look.degraded!()).toBe(0);
+  });
+});
+
 describe('RealLook: tinting under a per-frame budget (round 3 item 4, Task 4)', () => {
   it('tints frames while the frame has budget left (at least one), the rest draw untinted (incomplete) until a later frame', () => {
     const index = makeIndex();

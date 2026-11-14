@@ -193,7 +193,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     expect(a.pages()).toBe(TINT_ATLAS_MAX_PAGES);
   });
 
-  it('1,000 guests in 12 colours at d4 stay within 12 MB', () => {
+  it('1,000 guests in 12 colours at d4 stay within the atlas cap (24 MiB since Task 4b)', () => {
     const { sets, a } = atlas();
     const base = noise(1280, 640, 13);
     const mask = noise(1280, 640, 14);
@@ -205,7 +205,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
       const rect = { x: (frame % 32) * 40, y: (frame >> 5) * 80, w: 40, h: 80 };
       let sp = a.get(set, frame, colour);
       if (!sp) { a.request(set, frame, colour, base, mask, rect); a.step(Number.POSITIVE_INFINITY); sp = a.get(set, frame, colour); }
-      expect(a.bytes()).toBeLessThanOrEqual(12 * 2 ** 20);
+      expect(a.bytes()).toBeLessThanOrEqual(TINT_ATLAS_MAX_BYTES);
       return sp !== undefined;
     };
     // 1,000 random requests, frame after frame (the worst case: nothing repeats).
@@ -215,19 +215,50 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     }
     expect(a.pages()).toBe(TINT_ATLAS_MAX_PAGES);
     // Then a steady crowd of 1,000 guests on screen (each its own set, facing, walk frame and colour): about 960
-    // different frames, more than the ~900 that fit, so the atlas stays full and the rest draw untinted.
+    // different frames: all fit (the full-atlas case is "evicts least recently used when full" and "refuses ...").
     const crowd = Array.from({ length: 1000 }, () => [rnd(32), rnd(8), rnd(4), rnd(12)] as const);
     let tinted = 0;
     for (let f = 0; f < 6; f++) {
       a.beginFrame();
       tinted = crowd.filter(([s1, fc, w, c]) => draw(s1, fc, w, c)).length;
     }
-    expect(a.bytes()).toBeLessThanOrEqual(12 * 2 ** 20);
+    expect(a.bytes()).toBeLessThanOrEqual(TINT_ATLAS_MAX_BYTES);
     expect(a.pages()).toBeLessThanOrEqual(TINT_ATLAS_MAX_PAGES);
     expect(sets.total()).toBe(a.bytes() + a.scratchBytes());
-    // The crowd's frames evicted the random ones (least recently used) and fill the atlas (864 slots); none thrash.
-    expect(tinted).toBeGreaterThanOrEqual(800);
-    expect(tinted).toBeLessThan(1000);
+    // The crowd's frames evicted the random ones (least recently used); its ~960 frames fit the 1,728 slots of 24 pages.
+    expect(tinted).toBe(1000);
+  });
+
+  it('a coaster-like d4 view and the turn after it fit without refusal (Task 4b: the coaster bench stall)', () => {
+    // Sizes from the coaster bench at density 4: rail tiles up to 163 x 347 (a 350-row page each 6), rail tiles of
+    // 163 x 269, guests about 72 x 71, cars 191 x 85. On a turn, the old view's frames are still protected (drawn the
+    // frame before) while the new view's are asked for, so both views are held for a moment.
+    const { a } = atlas();
+    const base = noise(1200, 400, 31);
+    const mask = noise(1200, 400, 32);
+    const view = (from: number): [number, { x: number; y: number; w: number; h: number }][] => {
+      const v: [number, { x: number; y: number; w: number; h: number }][] = [];
+      let id = from;
+      for (let i = 0; i < 12; i++) v.push([id++, { x: 0, y: 0, w: 163, h: 347 }]);
+      for (let i = 0; i < 6; i++) v.push([id++, { x: 0, y: 0, w: 163, h: 269 }]);
+      for (let i = 0; i < 100; i++) v.push([id++, { x: 0, y: 0, w: 72, h: 71 }]);
+      for (let i = 0; i < 10; i++) v.push([id++, { x: 0, y: 0, w: 191, h: 85 }]);
+      return v;
+    };
+    const draw = (v: ReturnType<typeof view>): number => {
+      let refused = 0;
+      for (const [f, rect] of v) if (!a.get(1, f, 0) && !a.request(1, f, 0, base, mask, rect)) refused++;
+      a.step(Infinity);
+      return refused;
+    };
+    const before = view(0);
+    const after = view(1000);
+    for (let f = 0; f < 3; f++) { a.beginFrame(); expect(draw(before)).toBe(0); }
+    // The turn: the new view's frames come in while the old view's were drawn the frame before.
+    for (let f = 0; f < 3; f++) { a.beginFrame(); expect(draw(after)).toBe(0); }
+    expect(a.bytes()).toBeLessThanOrEqual(TINT_ATLAS_MAX_BYTES);
+    // Below the 29 MB the whole-sheet tints held in the same scene.
+    expect(TINT_ATLAS_MAX_BYTES).toBeLessThan(29 * 2 ** 20);
   });
 
   it('a page refused by the set manager is not made; the request says no room', () => {
