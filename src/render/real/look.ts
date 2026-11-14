@@ -186,6 +186,16 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     return resolveAt(kind, item, rot, density);
   }
 
+  /**
+   * The density-2 twin to draw (and want) while `key`, the density-4 set for (kind, item, rot), is not ready; undefined
+   * when `key` is not a density-4 set or for ground pieces (a chunk is built once, so it waits for its own density).
+   */
+  function twinOf(kind: RealKind, item: string, rot: ViewRotation, key: SetKey): SetKey | undefined {
+    if (kind === 'ground') return undefined;
+    const t = resolveAt(kind, item, rot, 2);
+    return t !== key ? t : undefined;
+  }
+
   /** As `resolve`, at density `want` (the density-4 set steps down when demoted or failed). */
   function resolveAt(kind: RealKind, item: string, rot: ViewRotation, want: 2 | 4): SetKey | undefined {
     let d = want;
@@ -266,14 +276,17 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (key === undefined) { fallbacks.add(`${kind}:${item}`); return undefined; }
     if (sets.state(key) === 'failed') { fallbacks.add(key); return undefined; }
     let rs = sets.use(key);
+    /** The set actually drawn from (the twin on the soft path): tinted sheets are cached and swept under it. */
+    let drawKey = key;
     if (!rs) {
       // Spec §5.4: never stop drawing, lower density first. A density-4 set not decoded yet draws from its density-2
       // twin when that one is ready (the ahead turn is wanted at density 2), scaled up, and the frame is not
       // incomplete. Not for ground pieces: a chunk is built once, so it waits for its own density.
-      const twin = kind !== 'ground' && key.includes(':d4:') ? resolveAt(kind, item, rot, 2) : undefined;
+      const twin = twinOf(kind, item, rot, key);
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
       if (!low) { skipped++; return null; }
       rs = low;
+      drawKey = twin as SetKey;
       softDraws++;
     }
     const fk = frameKey(parts);
@@ -283,7 +296,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (!f || !sheet) { fallbacks.add(`${key}/${fk}`); return undefined; }
     let image = sheet;
     if (tint !== null) {
-      const t = tintedSheet(key, rs, si, tint);
+      const t = tintedSheet(drawKey, rs, si, tint);
       if (t === NO_ROOM) { skipped++; return null; }
       if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
       if (t !== undefined) image = t;
@@ -360,17 +373,25 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       const ahead = ((rot + 1) % 4) as ViewRotation;
       const now = new Set<SetKey>();
       const later = new Set<SetKey>();
+      // While a density-4 set is not ready, its density-2 twin is wanted too, first (a quarter of the size, so it
+      // decodes first): the object draws from it at once (a turn the other way, a zoom in), and if the budget caps
+      // the density, the sets it then needs are already there. Not for ground pieces (they never step down).
+      const twins = new Set<SetKey>();
+      const addNow = (kind: RealKind, item: string, r: ViewRotation): void => {
+        const k = resolve(kind, item, r);
+        if (k === undefined) return;
+        now.add(k);
+        if (sets.state(k) === 'ready') return;
+        const tw = twinOf(kind, item, r, k);
+        if (tw !== undefined) twins.add(tw);
+      };
       for (const { kind, item, everyTurn, turn } of builtItems(world)) {
         if (everyTurn) {
-          for (let r = 0; r < 4; r++) {
-            const k = resolve(kind, item, r as ViewRotation);
-            if (k !== undefined) now.add(k);
-          }
+          for (let r = 0; r < 4; r++) addNow(kind, item, r as ViewRotation);
           continue;
         }
         const t = turn ?? 0;
-        const k = resolve(kind, item, ((t + rot) % 4) as ViewRotation);
-        if (k !== undefined) now.add(k);
+        addNow(kind, item, ((t + rot) % 4) as ViewRotation);
         // The ahead turn at density 2 only (cheap): after a turn its objects show at once from these sets and
         // sharpen when the turn's density-4 sets land. A set for every turn (rot 'all') is already wanted now.
         const ar = ((t + ahead) % 4) as ViewRotation;
@@ -382,17 +403,9 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       }
       // The card pictures: one small set, always loaded (src/render/real/cards.ts).
       if (keys.has(CARD_SET)) now.add(CARD_SET);
-      // While a density-4 set is not ready, its density-2 twin is wanted too, first (a quarter of the size, so it
-      // decodes first): the object draws from it at once (a turn the other way, a zoom in), and if the budget caps
-      // the density, the sets it then needs are already there. Not for ground pieces (they never step down).
-      const twins: SetKey[] = [];
-      for (const k of now) {
-        if (!k.includes(':d4:') || k.startsWith('ground:') || sets.state(k) === 'ready') continue;
-        const t = k.replace(':d4:', ':d2:');
-        if (keys.has(t)) twins.push(t);
-      }
+      for (const k of twins) now.delete(k);
       for (const k of [...now, ...twins]) later.delete(k);
-      if (twins.length) sets.want(twins, 'now');
+      if (twins.size) sets.want([...twins], 'now');
       sets.want([...now], 'now');
       sets.want([...later], 'ahead');
     },

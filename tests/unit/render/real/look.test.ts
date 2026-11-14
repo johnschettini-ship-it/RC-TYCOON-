@@ -536,6 +536,31 @@ describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
     expect(sets.wanted('ahead')).not.toContain(setKey('stall', 'snack_shack', 2, 1));
   });
 
+  it('the soft path tints the density-2 twin once and keeps it: no re-tint per frame, never incomplete (review 1)', () => {
+    const index = makeIndex();
+    const sets = new FakeSets(index);
+    let canvases = 0;
+    const look = createRealLook(index, sets, { makeCanvas: (w, h) => { canvases++; return make(w, h); } });
+    let admits = 0;
+    const admit = sets.admit.bind(sets);
+    sets.admit = (id, bytes) => { admits++; return admit(id, bytes); };
+    sets.setState(setKey('guest', 'b0o0', 4, 'all'), 'loading');
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    const world = emptyWorld();
+    look.prepare(world, 0, VIEW, 2, 2.625);
+    expect(look.guest(0, 0, 1, 2, false)!.scale).toBe(2);
+    expect(look.incomplete()).toBe(0);
+    const made = canvases;
+    expect(made).toBeGreaterThan(0);
+    look.prepare(world, 0, VIEW, 2, 2.625);
+    expect(look.guest(0, 0, 1, 2, false)!.scale).toBe(2);
+    expect(look.incomplete()).toBe(0);
+    expect(canvases).toBe(made);
+    expect(admits).toBe(1);
+    // Held under the twin's key, which the sweep sees as ready.
+    expect([...sets.held.keys()].every((k) => k.startsWith('guest:b0o0:d2:rall#'))).toBe(true);
+  });
+
   it('with neither ready it is null and incomplete; ground pieces never step down', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 2, 2.625);

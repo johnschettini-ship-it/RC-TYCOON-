@@ -599,7 +599,7 @@ export function splitText(m: MemorySplit | null): string {
 
 /** The copied results: a few summary lines, then the result as JSON (as the phone test). */
 export function resultsText(r: RealBenchResult): string {
-  const lines = [`Realistic look stage 1 bench: ${r.verdict}`, `look: ${r.look === 'real' ? 'realistic' : "today's"}`];
+  const lines = [`Stage 1 bench (${r.look === 'real' ? 'realistic' : "today's"} look): ${r.verdict}`, `look: ${r.look === 'real' ? 'realistic' : "today's"}`];
   lines.push(`start (S4) ${r.startMs ?? 'n/a'} ms; DPR ${r.device.devicePixelRatio}; canvas ${r.device.canvasPx.join('x')}; ${r.device.userAgent}`);
   const dl = r.artDownload;
   lines.push(`art download ${dl ? `${dl.MB} MB, ${dl.files} files in ${dl.ms} ms` : 'n/a'} (before the run, not in S4); boot to first complete frame ${r.bootCompleteMs ?? 'n/a'} ms (network included)`);

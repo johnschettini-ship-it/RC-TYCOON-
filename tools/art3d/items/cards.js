@@ -5,9 +5,9 @@
 // Framing follows today's previews (src/render/renderer.ts drawPreview, scenery/preview.ts, track/preview.ts): the
 // game's three-quarter view; a ride at rotation 0 and a stall at service direction 2 (its counter towards the
 // viewer), and a scenery item at sprite rotation 2, each on the grass of its footprint (so a small item stays small
-// against its tile, as in today's picker); a path item at side 0 (facing the viewer), with no ground; the steel
-// coaster as today's track preview scene (station, small turn, small hill) with a two-car train in the type's default
-// colours.
+// against its tile, as in today's picker); the steel coaster as today's track preview scene (station, small turn,
+// small hill) with a two-car train in the type's default colours. Path items have no card picture (their tool shows
+// icons).
 //
 // The models come from the items' own bake modules: each module's `bake` runs against a stand-in API that renders
 // nothing except the one shot wanted for the card (the first picture of the wanted set), which it re-frames: the
@@ -29,21 +29,18 @@ import shrub_round from './shrub_round.js';
 import boulder from './boulder.js';
 import lamp_globe from './lamp_globe.js';
 import bunting_pole from './bunting_pole.js';
-import bench from './bench.js';
-import bin from './bin.js';
 
 /** The box a card picture fits, in density-2 px (about the card preview's 168 x 120 CSS px, less its padding). */
 export const CARD_W = 160;
 export const CARD_H = 114;
 
-const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin };
+const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole };
 
 /** The set (kind, rot) whose first picture is the card, by card kind. */
 const WANT = {
   ride: { kind: 'ride', rots: [0, 'all'] },
   stall: { kind: 'stall', rots: [2] },
   scenery: { kind: 'scenery', rots: [2] },
-  path: { kind: 'scenery', rots: ['all'] },
 };
 
 function grassPatch(w, d) {

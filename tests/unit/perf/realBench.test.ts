@@ -431,12 +431,14 @@ describe("today's look in the same bench (round 2, change 1)", () => {
     expect(row.peakSplitMB).toBeNull();
     const text = resultsText(result);
     expect(text.split('\n')[1]).toBe("look: today's");
+    expect(text.split('\n')[0]).toBe("Stage 1 bench (today's look): pass");
   });
 
   it('a run with the realistic look says so', { timeout: 60_000 }, async () => {
     const { result } = await quick(() => undefined);
     expect(result.look).toBe('real');
     expect(resultsText(result).split('\n')[1]).toBe('look: realistic');
+    expect(resultsText(result).split('\n')[0]).toMatch(/^Stage 1 bench \(realistic look\): (pass|fail)$/);
   });
 });
 

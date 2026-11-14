@@ -21,12 +21,14 @@ export const COASTER_PIECES = [
   'turn_medium_right', 'turn_medium_left',
 ];
 
-/** Card pictures (items/cards.js): `kind` says how the item is framed (ride and stall on their footprint's grass). */
+/**
+ * Card pictures (items/cards.js): `kind` says how the item is framed (ride, stall and scenery on their footprint's
+ * grass). Path items (bench, bin) have none: their tool shows icons, not pictures.
+ */
 export const CARD_ITEMS = [
   { id: 'carousel', kind: 'ride' }, { id: 'swing_tower', kind: 'ride' }, { id: 'big_wheel', kind: 'ride' },
   { id: 'snack_shack', kind: 'stall' },
   ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
-  { id: 'bench', kind: 'path' }, { id: 'bin', kind: 'path' },
   { id: 'steel_coaster', kind: 'track' },
 ];
 
