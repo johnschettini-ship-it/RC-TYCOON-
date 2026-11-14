@@ -123,6 +123,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.sharpen'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.sharpenMs ?? text('ui.realBench.band.na') })).join(' ')),
         row(text('ui.realBench.placement'), `${s.placementLongestFrameMs} (${s.placements})`),
         row(text('ui.realBench.incomplete'), `${s.incompleteFrames}`),
+        row(text('ui.realBench.degraded'), text('ui.realBench.degradedValue', { frames: s.degradedFrames, most: s.degradedMax })),
         row(text('ui.realBench.caps'), `${s.capEvents}`),
         row(text('ui.realBench.cappedAtStart'), text(s.cappedAtStart ? 'ui.realBench.yes' : 'ui.realBench.no')),
         row(text('ui.realBench.stalls'), s.stalls.map((x) => x.at).join(', ') || text('ui.realBench.none')),

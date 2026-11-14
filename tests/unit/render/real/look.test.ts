@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { createRealLook, pickDensity, quantisePose, type RealSets } from '../../../../src/render/real/look';
+import { createRealLook, DEGRADE_FRAMES, pickDensity, quantisePose, type RealSets } from '../../../../src/render/real/look';
 import { REAL_FALLBACK, realItem } from '../../../../src/render/real/fallbacks';
 import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
 import { createWorld } from '../../../../src/sim/world';
@@ -102,6 +102,9 @@ class FakeSets implements RealSets {
   state(key: SetKey): SetState { return this.states.get(key) ?? 'none'; }
   densityCap(): 2 | 4 { return this.cap; }
   isDemoted(key: SetKey): boolean { return this.demoted.has(key); }
+  /** Sets the test says cannot fit (round 3 item 2). */
+  starvedKeys = new Set<SetKey>();
+  starved(key: SetKey): boolean { return this.starvedKeys.has(key); }
   /** Room for held bytes (tinted sheets) in total; Infinity by default. */
   room = Number.POSITIVE_INFINITY;
   refused: string[] = [];
@@ -735,5 +738,81 @@ describe('RealLook: view-scoped loading (round 3 item 1, spec §5.4.2(d))', () =
     sets.setState(setKey('ride', 'big_wheel', 2, 0), 'loading');
     look.ride('big_wheel', 0, 0, 0);
     expect(sets.wanted('now')).toEqual([]);
+  });
+});
+
+describe('RealLook: the ladder\'s last step, never nothing (round 3 item 2, spec §5.4.4)', () => {
+  it('an object whose density-2 set has had no room for DEGRADE_FRAMES prepares draws today\'s art and counts as degraded', () => {
+    const { sets, look } = setup();
+    const key = setKey('ride', 'big_wheel', 2, 0);
+    sets.setState(key, 'loading');
+    sets.starvedKeys.add(key);
+    for (let n = 0; n < DEGRADE_FRAMES; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      expect(look.ride('big_wheel', 0, 0, 0)).toBeNull();
+      expect(look.incomplete()).toBe(1);
+    }
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.ride('big_wheel', 0, 0, 0)).toBeUndefined();
+    expect(look.degraded!()).toBe(1);
+    expect(look.incomplete()).toBe(0);
+    // Not in fallbacksUsed: the ride is baked, it only has no room now.
+    expect(look.fallbacksUsed()).not.toContain('big_wheel');
+    // Room again (decoding): back to not ready, then the real picture.
+    sets.starvedKeys.delete(key);
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.ride('big_wheel', 0, 0, 0)).toBeNull();
+    expect(look.degraded!()).toBe(0);
+    sets.setState(key, 'ready');
+    expect(look.ride('big_wheel', 0, 0, 0)).toBeTruthy();
+  });
+
+  it('at density 4 the floor is the density-2 twin: degraded only when that one cannot fit', () => {
+    const { sets, look } = setup();
+    const k4 = setKey('stall', 'snack_shack', 4, 0);
+    const k2 = setKey('stall', 'snack_shack', 2, 0);
+    sets.setState(k4, 'loading');
+    sets.setState(k2, 'loading');
+    sets.starvedKeys.add(k4);
+    for (let n = 0; n <= DEGRADE_FRAMES; n++) look.prepare(emptyWorld(), 0, VIEW, 2, 2);
+    expect(look.stall('snack_shack', 0)).toBeNull();
+    sets.starvedKeys.add(k2);
+    for (let n = 0; n <= DEGRADE_FRAMES; n++) { look.prepare(emptyWorld(), 0, VIEW, 2, 2); look.stall('snack_shack', 0); }
+    expect(look.stall('snack_shack', 0)).toBeUndefined();
+    expect(look.degraded!()).toBeGreaterThan(0);
+  });
+
+  it('a set merely waiting in the queue never degrades; ground pieces never do', () => {
+    const { sets, look } = setup();
+    sets.setState(setKey('ride', 'big_wheel', 2, 0), 'loading');
+    sets.setState(setKey('ground', 'grass', 2, 0), 'loading');
+    sets.starvedKeys.add(setKey('ground', 'grass', 2, 0));
+    for (let n = 0; n < DEGRADE_FRAMES * 3; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      expect(look.ride('big_wheel', 0, 0, 0)).toBeNull();
+      expect(look.groundPiece('grass', 0, 1, 0)).toBeNull();
+    }
+    expect(look.degraded!()).toBe(0);
+  });
+
+  it('a tinted sheet refused room for DEGRADE_FRAMES prepares draws the untinted picture (degraded), never nothing', () => {
+    const { sets, look } = setup({ s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    const key = setKey('guest', 'b0o0', 2, 'all');
+    sets.setState(key, 'ready');
+    sets.room = 0;
+    for (let n = 0; n < DEGRADE_FRAMES; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      expect(look.guest(0, 1, 1, 2, false)).toBeNull();
+    }
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const sp = look.guest(0, 1, 1, 2, false)!;
+    expect(sp.image).toBe(sets.images(key)[0]);
+    expect(look.degraded!()).toBe(1);
+    expect(look.incomplete()).toBe(0);
+    // Room again: tinted.
+    sets.room = Number.POSITIVE_INFINITY;
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.guest(0, 1, 1, 2, false)!.image).not.toBe(sets.images(key)[0]);
+    expect(look.degraded!()).toBe(0);
   });
 });

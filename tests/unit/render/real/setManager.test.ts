@@ -483,3 +483,26 @@ describe('SetManager: memory held outside it (final review C1, I3, T5)', () => {
     await io.settleAll();
   });
 });
+
+describe('SetManager: the ladder\'s last step (round 3 item 2)', () => {
+  it('starved: a queued set that cannot fit after the ladder ran; not one that only waits, is in flight or fits', async () => {
+    const [A, Big, S] = [entry('a', 2, 2), entry('big', 2, 3), entry('s', 2)];
+    const { io, m } = setup([A, Big, S], 400);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    // A (200) is drawn every frame, so the ladder cannot free it: Big (300) never fits beside it.
+    m.beginFrame(2); m.use(A.key); m.want([A.key, Big.key, S.key], 'now'); m.endFrame();
+    expect(m.starved(Big.key)).toBe(true);
+    expect(m.starved(S.key)).toBe(false); // in flight
+    expect(m.starved(A.key)).toBe(false); // ready
+    await io.settleAll();
+    m.beginFrame(3); m.use(A.key); m.use(S.key); m.want([A.key, Big.key, S.key], 'now'); m.endFrame();
+    expect(m.starved(Big.key)).toBe(true);
+    // A is no longer drawn or wanted: freed, and Big fits and starts.
+    m.beginFrame(4); m.want([Big.key], 'now'); m.endFrame();
+    m.beginFrame(5); m.want([Big.key], 'now'); m.endFrame();
+    expect(m.starved(Big.key)).toBe(false);
+    await io.settleAll();
+    expect(m.state(Big.key)).toBe('ready');
+  });
+});

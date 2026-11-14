@@ -83,7 +83,7 @@ export interface MemorySplit { sets: number; tints: number; ground: number }
 
 export interface BenchOptions {
   /** The realistic look (absent with today's look: every frame counts as complete). */
-  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number; soft?(): number } | null;
+  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number; soft?(): number; degraded?(): number } | null;
   /** The realistic ground: a frame with it not laid is incomplete. */
   ground?: { complete: boolean } | null;
   sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown; densityCap?(): number; resetPressure?(): void } | null;
@@ -167,6 +167,12 @@ export interface BenchRow {
   workP95: number;
   /** Measured frames that skipped an object whose set was still decoding. */
   incompleteFrames: number;
+  /**
+   * Measured frames with an object drawn by the ladder's last step (its set had no room even at density 2: today's
+   * art or its untinted picture, `look.degraded()`), and the most such objects in one frame. 0 without the count.
+   */
+  degradedFrames: number;
+  degradedMax: number;
   /** Decoded picture memory: the scene's peak and its value at the end, MiB. */
   peakMB: number;
   endMB: number;
@@ -296,7 +302,7 @@ export function placementSpots(world: World, focus: number): number[] {
 
 function emptyRow(id: string, error: string): BenchRow {
   return {
-    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, peakMB: 0, endMB: 0,
+    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, degradedFrames: 0, degradedMax: 0, peakMB: 0, endMB: 0,
     turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, cappedAtStart: false, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
     bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150) },
   };
@@ -334,7 +340,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   let waiters: Array<() => void> = [];
   let lastT = -1;
   /** The scene's measurement, or null in the warm-up. */
-  let rec: { gaps: number[]; hidden: number; incomplete: number; placing: boolean; placeMax: number } | null = null;
+  let rec: { gaps: number[]; hidden: number; incomplete: number; degraded: number; degradedMax: number; placing: boolean; placeMax: number } | null = null;
   let sampleMem = false;
   let scenePeakBytes = 0;
   let scenePeakSplit: MemorySplit | null = null;
@@ -355,6 +361,11 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       }
     }
     if (rec && incomplete() > 0) rec.incomplete++;
+    const deg = rec ? look?.degraded?.() ?? 0 : 0;
+    if (rec && deg > 0) {
+      rec.degraded++;
+      if (deg > rec.degradedMax) rec.degradedMax = deg;
+    }
     hiddenSinceFrame = false;
     if (sampleMem && sets) {
       const now = sets.residentBytes();
@@ -425,7 +436,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       // Warm-up (not counted).
       await waitUntil(loadAt + WARMUP_MS);
       probe.reset();
-      const r = { gaps: [] as number[], hidden: 0, incomplete: 0, placing: false, placeMax: 0 };
+      const r = { gaps: [] as number[], hidden: 0, incomplete: 0, degraded: 0, degradedMax: 0, placing: false, placeMax: 0 };
       rec = r;
 
       // Pan: right, down, left, up.
@@ -540,6 +551,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         droppedHiddenGaps: r.hidden,
         workP95: r1(snap.workP95),
         incompleteFrames: r.incomplete,
+        degradedFrames: r.degraded,
+        degradedMax: r.degradedMax,
         peakMB: r1(peakBytes / MB),
         endMB: r1(endBytes / MB),
         turns,
@@ -613,7 +626,7 @@ export function resultsText(r: RealBenchResult): string {
       `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
-        `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
+        `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; degraded ${s.degradedFrames} frames (most ${s.degradedMax}); caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,
     );

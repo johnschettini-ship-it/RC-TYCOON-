@@ -104,6 +104,8 @@ export class SetManager {
   private refused = 0;
   private readonly reclaimers: Reclaimer[] = [];
   private readonly tooBigReported = new Set<SetKey>();
+  /** Room for a new decode when the last `endFrame` ended (after its ladder and pump): see `starved`. */
+  private lastRoom = Number.POSITIVE_INFINITY;
 
   constructor(
     index: RealIndex,
@@ -170,6 +172,16 @@ export class SetManager {
 
   state(key: SetKey): SetState {
     return this.recs.get(key)?.state ?? 'none';
+  }
+
+  /**
+   * True when `key` is queued and could not start at the last `endFrame` because it does not fit beside what is held,
+   * decoded or in flight, after the whole ladder ran (spec §5.4.4's last step: the caller draws today's art for it
+   * rather than nothing). A set that only waits its turn in the queue is not starved.
+   */
+  starved(key: SetKey): boolean {
+    const r = this.recs.get(key);
+    return !!r && r.state === 'loading' && !r.inFlight && r.estimate > this.lastRoom;
   }
 
   /**
@@ -335,6 +347,7 @@ export class SetManager {
     if (this.capped) for (const r of this.recs.values()) if (r.entry.density === 4) this.drop(r);
 
     this.pump();
+    this.lastRoom = this.budgetBytes - this.committed();
   }
 
   /**

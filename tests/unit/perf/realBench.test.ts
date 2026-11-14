@@ -601,3 +601,22 @@ describe('every park from the same start (re-review 1)', () => {
     expect(resultsText(result)).toContain('caps 0 (capped at start: yes)');
   });
 });
+
+describe('degraded objects (round 3 item 2)', () => {
+  it('counts measured frames with an object drawn by the last ladder step, and the most in one frame', { timeout: 60_000 }, async () => {
+    // The look degrades 3 objects on every 10th frame.
+    let n = 0;
+    const look = { incomplete: () => 0, fallbacksUsed: () => [] as string[], degraded: () => (n++ % 10 === 0 ? 3 : 0) };
+    const { result } = await quick(() => undefined, { look });
+    const row = result.scenes[0]!;
+    expect(row.degradedFrames).toBeGreaterThan(0);
+    expect(row.degradedFrames).toBeLessThan(row.frames);
+    expect(row.degradedMax).toBe(3);
+    expect(resultsText(result)).toMatch(/degraded \d+ frames \(most 3\)/);
+  });
+
+  it('is 0 without the look\'s count', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined);
+    expect(result.scenes[0]).toMatchObject({ degradedFrames: 0, degradedMax: 0 });
+  });
+});

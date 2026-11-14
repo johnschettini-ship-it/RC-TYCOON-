@@ -6,7 +6,9 @@
  * a getter wants a set nobody wanted yet, so an object outside that scope never waits forever), then `sets.endFrame()`.
  * A getter returns
  *   - a `Sprite`: draw it with `blit`/`blitColumn` as today (its `scale` is the density of the set it came from);
- *   - `null`: the set is still loading; skip the object this frame (counted by `incomplete()`);
+ *   - `null`: the set is still loading; skip the object this frame (counted by `incomplete()`). The ladder's last step
+ *     (spec §5.4.4): once its density-2 set has had no room to decode for `DEGRADE_FRAMES` prepares, the object
+ *     draws today's art instead (`undefined`, counted by `degraded()`), so no object is skipped for ever;
  *   - `undefined`: draw today's art (item mapped to 'classic', set failed, or the bake lacks the set or frame).
  * At density 4, an object whose density-4 set is still loading draws from its density-2 set when that one is ready
  * (scaled; counted by `soft()`, not by `incomplete()`), so a turn or a zoom never waits for density 4 (spec §5.4).
@@ -105,6 +107,12 @@ export interface RealLook {
    * density chosen for it.
    */
   soft(): number;
+  /**
+   * Objects drawn since the last `prepare` by the ladder's last step (spec §5.4.4, round 3 item 2): their set has had
+   * no room to decode even at density 2 for `DEGRADE_FRAMES` prepares, so they draw today's art (undefined), or, for
+   * a tinted sheet with no room, the untinted picture, rather than nothing. Not counted by `incomplete()`.
+   */
+  degraded?(): number;
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
   fallbacksUsed(): string[];
   /**
@@ -119,7 +127,7 @@ export interface RealLook {
 export type SupportPart = 'foot' | 'seg' | 'top';
 
 /** The part of `SetManager` RealLook uses (a structural type, so tests can pass a fake). */
-export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'>;
+export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'> & Partial<Pick<SetManager, 'starved'>>;
 
 export interface RealLookOptions {
   /** Canvas factory for tinted sheets. Default: `OffscreenCanvas`, else a DOM canvas. */
@@ -133,6 +141,13 @@ export { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from './pose';
 
 /** Tinted sheets unused for this many prepares are freed. */
 const KEEP_FRAMES = 120;
+
+/**
+ * The ladder's last step (spec §5.4.4: never drop an object): an object whose density-2 set has had no room to decode
+ * (`starved`), or whose tinted sheet no room to be made, for this many prepares in a row draws today's art (or its
+ * untinted picture) and counts in `degraded()`.
+ */
+export const DEGRADE_FRAMES = 30;
 
 /** View scope (spec §5.4.2(d)): objects inside the view plus this many screens on each side are wanted. */
 const SCOPE_MARGIN = 1;
@@ -347,6 +362,16 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   let frameNo = 0;
   let skipped = 0;
   let softDraws = 0;
+  let degradedDraws = 0;
+  /** Since which prepare a set (its density-2 set) has been starved, or a tint (by set, then colour) refused room. */
+  const starvedSince = new Map<SetKey, number>();
+  const noRoomSince = new Map<SetKey, Map<string, number>>();
+  /** True once `since` (set now when absent) is `DEGRADE_FRAMES` prepares old. */
+  const longWait = (m: Map<string, number>, id: string): boolean => {
+    const since = m.get(id);
+    if (since === undefined) { m.set(id, frameNo); return DEGRADE_FRAMES <= 0; }
+    return frameNo - since >= DEGRADE_FRAMES;
+  };
   const fallbacks = new Set<string>();
   /** By `${setKey}#${hex}`, which is also the hold id in the set manager. */
   const tinted = new Map<string, Tinted>();
@@ -463,11 +488,22 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       // incomplete. Not for ground pieces: a chunk is built once, so it waits for its own density.
       const twin = twinOf(rec, rot, key);
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
-      if (!low) { skipped++; return null; }
+      if (!low) {
+        // The last step: the density-2 set this object would step down to has had no room for DEGRADE_FRAMES
+        // prepares (the ladder ran and still cannot fit it): today's art, never nothing. Ground pieces wait (today's
+        // terrain is drawn under them anyway).
+        const floor = twin ?? key;
+        if (kind !== 'ground' && sets.starved?.(floor)) {
+          if (longWait(starvedSince, floor)) { degradedDraws++; return undefined; }
+        } else if (starvedSince.size) starvedSince.delete(floor);
+        skipped++;
+        return null;
+      }
       rs = low;
       drawKey = twin as SetKey;
       softDraws++;
     }
+    if (starvedSince.size) { starvedSince.delete(drawKey); starvedSince.delete(key); }
     const meta = metaOf(rs);
     let r: Resolved | string | undefined;
     if (piece === null) {
@@ -482,7 +518,15 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (typeof r === 'string') { fallbacks.add(r); return undefined; }
     if (tint === null) return r.sprite;
     const t = tintedSheet(drawKey, rs, r.si, tint);
-    if (t === NO_ROOM) { skipped++; return null; }
+    if (t === NO_ROOM) {
+      // No room for the tinted sheet for DEGRADE_FRAMES prepares: the untinted picture (the last step), not nothing.
+      let byHex = noRoomSince.get(drawKey);
+      if (!byHex) noRoomSince.set(drawKey, (byHex = new Map()));
+      if (longWait(byHex, tint)) { degradedDraws++; return r.sprite; }
+      skipped++;
+      return null;
+    }
+    if (noRoomSince.size) noRoomSince.get(drawKey)?.delete(tint);
     if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
     if (t === undefined) return r.sprite;
     let sp = t.sprites.get(r);
@@ -494,6 +538,9 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     for (const [id, t] of [...tinted.entries()]) {
       if (sets.state(t.setKey) !== 'ready' || t.lastFrame < frameNo - KEEP_FRAMES) evict(id);
     }
+    // Waits of sets that are no longer queued, and refusals of sets no longer ready, are over.
+    for (const k of starvedSince.keys()) if (sets.state(k) !== 'loading') starvedSince.delete(k);
+    for (const k of noRoomSince.keys()) if (sets.state(k) !== 'ready') noRoomSince.delete(k);
   }
 
   // ---- View scope (spec §5.4.2(d), round 3 item 1). The park's objects are indexed once per change of its object
@@ -672,6 +719,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       frameNo++;
       skipped = 0;
       softDraws = 0;
+      degradedDraws = 0;
       density = look.density(zoom, dpr);
       curRot = rot;
       sweep();
@@ -803,6 +851,10 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
     soft() {
       return softDraws;
+    },
+
+    degraded() {
+      return degradedDraws;
     },
 
     fallbacksUsed() {

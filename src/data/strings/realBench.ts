@@ -30,6 +30,8 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.sharpen': 'Turns until sharp (every object at its density)',
   'ui.realBench.placement': 'Longest frame while placing',
   'ui.realBench.incomplete': 'Incomplete frames',
+  'ui.realBench.degraded': "Objects in today's art for want of memory",
+  'ui.realBench.degradedValue': '{frames} frames, at most {most} objects',
   'ui.realBench.caps': 'Density cap changes',
   'ui.realBench.start': 'Start time',
   'ui.realBench.look': 'Look',
