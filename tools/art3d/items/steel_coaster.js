@@ -11,9 +11,13 @@
 //                             foot  anchored at the column axis on the ground (a concrete footing 0.25 m high);
 //                             seg   a 1 m column segment anchored at its bottom centre on the axis: segment i goes at
 //                                   height i m above the ground (i = 0 .. h - 1); drawn 1.1 m tall so stacks overlap;
-//                             top   the saddle across the track heading t, anchored on the axis at the column's top
-//                                   (h m up), its plate 0.22 m high with a 0.45 m post to the rail spine.
-//                             Support mask (not the footing).
+//                             top   the saddle across the track heading t, anchored on the axis at the plate's
+//                                   bottom: plate 0.22 m high, then a 0.45 m post (0.67 m in all). The game puts this
+//                                   anchor SUPPORT_TOP_BELOW_RAIL = 1.2 m under the rail line (src/render/real/
+//                                   supportStack.ts), so the post ends 0.53 m under it, just inside the bottom face of
+//                                   the spine (0.27-0.57 m under the rail line); segments stop under the plate.
+//                             The saddle heading t is the track's heading in the view at the support point.
+//                             Support mask (not the footing): the game tints it with the ride's support colour.
 // No shadows for rails, supports or cars in stage 1 (controller ruling; moving cars cast none, as today).
 //   car:steel_coaster:rall    frames [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] for every reached pose.
 //                             Anchor: the car's centre on the rail line (the sampled track point). Car-body mask.

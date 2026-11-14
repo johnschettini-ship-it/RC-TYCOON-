@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { reachedPoses } from '../../../tools/art3d/poses';
 
 describe('reachedPoses', () => {
@@ -23,5 +24,18 @@ describe('reachedPoses', () => {
   });
   it('rejects pieces the track type cannot use', () => {
     expect(() => reachedPoses('steel_coaster', ['no_such_piece'])).toThrow();
+  });
+});
+
+describe('one source for pose quantisation (Task 9b)', () => {
+  it('the bake uses the game reader\'s quantisePose and steps, with no copy of its own', async () => {
+    const bake = await import('../../../tools/art3d/poses');
+    const pose = await import('../../../src/render/real/pose');
+    const look = await import('../../../src/render/real/look');
+    expect(bake.quantisePose).toBe(pose.quantisePose);
+    expect(look.quantisePose).toBe(pose.quantisePose);
+    expect([look.CAR_YAW_STEPS, look.CAR_TILT_STEPS]).toEqual([pose.CAR_YAW_STEPS, pose.CAR_TILT_STEPS]);
+    const src = readFileSync(new URL('../../../tools/art3d/poses.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/function quantisePose|Math\.round/);
   });
 });

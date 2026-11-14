@@ -6,6 +6,7 @@ import type { ReadySet, SetState } from '../../../../src/render/real/setManager'
 import { createWorld } from '../../../../src/sim/world';
 import type { Ride } from '../../../../src/sim/rides/types';
 import type { Stall } from '../../../../src/sim/stalls/types';
+import type { World } from '../../../../src/sim/types';
 import { PathItem } from '../../../../src/sim/map';
 import { SHIRT_COLOURS } from '../../../../src/render/palette';
 
@@ -65,7 +66,8 @@ function makeIndex(): RealIndex {
       sets.push(entry('scenery', 'bench', d, r, { 'bench:f0': FRAME }));
       sets.push(entry('rail', 'steel_coaster', d, r, { 'flat:t0': FRAME }, true));
       sets.push(entry('ground', 'grass', d, r, { 's0:v1': FRAME }));
-      sets.push(entry('support', 'steel_coaster', d, r, { h3: FRAME }));
+      sets.push(entry('support', 'steel_coaster', d, r, { foot: FRAME, seg: FRAME, top: FRAME }, true));
+      sets.push(entry('shadow', 'bench', d, r, { bench: FRAME }));
     }
     sets.push(entry('car', 'steel_coaster', d, 'all', { 'y31:p23:r1:full': FRAME }, true));
     for (let b = 0; b < 2; b++) for (let o = 0; o < 4; o++) sets.push(entry('guest', `b${b}o${o}`, d, 'all', { 'f2:w1': FRAME, 'f0:sit': FRAME }, true));
@@ -202,22 +204,24 @@ describe('RealLook', () => {
     look.prepare(world, 3, VIEW, 1, 1);
     const k = (kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all') => setKey(kind, item, 2, rot);
     const guests = Array.from({ length: 8 }, (_, i) => k('guest', `b${i >> 2}o${i & 3}`, 'all'));
+    // Rails, supports and path-item shadows are keyed by a heading in the view (the piece's, the saddle's, the
+    // item's side), not the view turn, so every heading is wanted now.
+    const every = (kind: RealKind, item: string) => ROTS.map((r) => k(kind, item, r));
     expect(sets.wanted('now')).toEqual([
       k('car', 'steel_coaster', 'all'),
       k('ground', 'grass', 3),
       ...guests,
-      k('rail', 'steel_coaster', 3),
-      k('support', 'steel_coaster', 3),
+      ...every('rail', 'steel_coaster'),
+      ...every('support', 'steel_coaster'),
       k('ride', 'carousel', 'all'),
       k('scenery', 'bench', 3),
       k('shadow', 'carousel', 'all'),
+      ...every('shadow', 'bench'),
       k('shadow', 'snack_shack', 3),
       k('stall', 'snack_shack', 3),
     ].sort());
     expect(sets.wanted('ahead')).toEqual([
       k('ground', 'grass', 0),
-      k('rail', 'steel_coaster', 0),
-      k('support', 'steel_coaster', 0),
       k('scenery', 'bench', 0),
       k('shadow', 'snack_shack', 0),
       k('stall', 'snack_shack', 0),
@@ -225,6 +229,25 @@ describe('RealLook', () => {
     // Nothing for unbuilt kinds (big_wheel, oak_round) nor for classic ones (drop_tower).
     const all = sets.wants.flatMap((w) => w.keys).join(' ');
     expect(all).not.toMatch(/big_wheel|oak_round|drop_tower/);
+  });
+
+  it('prepare wants each turned object\'s own sprite turn, not the view turn (Task 9b)', () => {
+    const { sets, look } = setup();
+    const world = emptyWorld();
+    // Stall facing map 2, big wheel at map 1, tree at map 3; view turn 3 → sprite turns 1, 0 and 2.
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', rotation: 2 } as Stall);
+    world.state.rides.push({ id: 5, kind: 'flat', defId: 'big_wheel', rotation: 1 } as Ride);
+    world.state.scenery.push({ id: 6, defId: 'oak_round', rotation: 3, edge: -1 } as World['state']['scenery'][number]);
+    look.prepare(world, 3, VIEW, 1, 1);
+    const k = (kind: RealKind, item: string, rot: 0 | 1 | 2 | 3) => setKey(kind, item, 2, rot);
+    const now = sets.wanted('now');
+    const ahead = sets.wanted('ahead');
+    for (const key of [k('stall', 'snack_shack', 1), k('shadow', 'snack_shack', 1), k('ride', 'big_wheel', 0), k('scenery', 'oak_round', 2)]) expect(now).toContain(key);
+    for (const key of [k('stall', 'snack_shack', 2), k('shadow', 'snack_shack', 2), k('ride', 'big_wheel', 1), k('scenery', 'oak_round', 3)]) expect(ahead).toContain(key);
+    expect(now).not.toContain(k('stall', 'snack_shack', 3));
+    // And the getters resolve those sets once ready.
+    sets.setState(k('stall', 'snack_shack', 1), 'ready');
+    expect(look.stall('snack_shack', 1)).toBeTruthy();
   });
 
   it('prepare wants the density-2 set for a demoted density-4 set', () => {
@@ -298,14 +321,36 @@ describe('RealLook', () => {
     sets.setState(setKey('car', 'steel_coaster', 2, 'all'), 'ready');
     sets.setState(setKey('ground', 'grass', 2, 2), 'ready');
     sets.setState(setKey('support', 'steel_coaster', 2, 2), 'ready');
-    expect(look.support('mini_railway', 3, 2)).toBeTruthy();
-    expect(look.support('steel_coaster', 4, 2)).toBeUndefined(); // no such frame
-    expect(look.support('go_karts', 3, 2)).toBeUndefined();
+    expect(look.support('mini_railway', 'seg', 2, 3)).toBeTruthy();
+    expect(look.support('steel_coaster', 'top', 2, 3)).toBeTruthy();
+    expect(look.support('steel_coaster', 'foot', 2, 3)).toBeTruthy();
+    expect(look.support('go_karts', 'seg', 2, 3)).toBeUndefined();
     expect(look.rail('mini_railway', 'flat', 0, 2, 3)).toBeTruthy();
     expect(look.car('steel_coaster', -1, -1, 25, true, 1)).toBeTruthy(); // wraps to y31 p23 r1
     expect(look.groundPiece('grass', 0, 1, 2)).toBeTruthy();
     expect(look.groundPiece('lava', 0, 1, 2)).toBeUndefined();
     expect(look.staff('handyman', 0, 0)).toBeUndefined();
+  });
+
+  it('supports: one set per saddle heading, tinted with the support colour by their mask', () => {
+    const { sets, look } = setup({ s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    // The heading is the set's turn, whatever the view turn.
+    sets.setState(setKey('support', 'steel_coaster', 2, 3), 'ready');
+    const sp = look.support('steel_coaster', 'seg', 3, 5)!;
+    expect(sp).toBeTruthy();
+    expect(sets.used).toContain(setKey('support', 'steel_coaster', 2, 3));
+    // Tinted: a whole tinted copy of the sheet, not the sheet itself.
+    expect(sp.image).not.toBe(sets.images(setKey('support', 'steel_coaster', 2, 3))[0]);
+    expect([...sets.held.keys()][0]).toMatch(/^support:steel_coaster:d2:r3#/);
+  });
+
+  it('path-item shadows resolve by the item\'s side', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(setKey('shadow', 'bench', 2, 2), 'ready');
+    expect(look.shadow('scenery', 'bench', 2)).toBeTruthy();
+    expect(sets.used).toContain(setKey('shadow', 'bench', 2, 2));
   });
 
   it('quantises car poses like the bake', () => {

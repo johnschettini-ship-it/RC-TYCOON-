@@ -42,7 +42,10 @@ import { drawGhostIcon } from '../sprites/props';
 import type { ArtBounds } from '../sprites/rides';
 import { SKIN_TONES } from '../sprites/shapes';
 import type { ToolState } from '../types';
-import { CAR_TILT_STEPS, CAR_YAW_STEPS, type RealLook } from '../real/look';
+import type { RealLook } from '../real/look';
+import type { ViewRotation } from '../view';
+import { quantisePose } from '../real/pose';
+import { supportStack, type SupportPiece } from '../real/supportStack';
 import { paletteColour } from './colours';
 import {
   CAR_BOUNDS,
@@ -327,6 +330,35 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
     });
   }
   return out;
+}
+
+/**
+ * Realistic rail of a slice (Task 9b, the bake's contract): the set's turn is the piece's heading in the view,
+ * `(piece.dir + view turn) mod 4`, and the picture is anchored at the tile's centre at the piece's ENTRY rail height
+ * (`piece.z`), where today's slice anchor is at height 0.
+ */
+export function realRailPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRotation; ax: number; ay: number } {
+  const piece = sl.data.pieces[sl.pieceIndex];
+  const cx = (sl.x + 0.5) * TILE_M;
+  const cy = (sl.y + 0.5) * TILE_M;
+  return {
+    heading: (((piece?.dir ?? 0) + f.rot) % 4) as ViewRotation,
+    ax: projectX(cx, cy, f),
+    ay: projectY(cx, cy, piece?.z ?? 0, f),
+  };
+}
+
+/**
+ * Realistic support of a slice (Task 9b): the saddle's heading is the track's at the support point, in the view; the
+ * pieces (`supportStack`) stand on the support point, each anchored at its own height. Null without a support.
+ */
+export function realSupportPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRotation; ax: number; pieces: (SupportPiece & { ay: number })[] } | null {
+  const su = sl.support;
+  if (!su) return null;
+  const q = Math.round(viewYaw(su.yaw, f) / (Math.PI / 2));
+  // `top` is the rail line less the look's drop (buildRideSlices), so the rail line is top + drop.
+  const pieces = supportStack(su.top + sl.look.drop, sl.ground).map((p) => ({ ...p, ay: projectY(su.wx, su.wy, p.z, f) }));
+  return { heading: (((q % 4) + 4) % 4) as ViewRotation, ax: projectX(su.wx, su.wy, f), pieces };
 }
 
 /** Paint one slice around its anchor (world px). */
@@ -702,17 +734,22 @@ export class TrackLayer {
     if (!sl) return;
     const look = import.meta.env.VITE_ART === 'real' ? this.look : undefined;
     if (look) {
-      // Realistic rail: one picture per (piece, tile, turn) anchored at the slice anchor (tile centre, height 0),
-      // plus its support (one picture per 1 m step) anchored at the support's foot.
-      const rot = this.frameRef.rot as 0 | 1 | 2 | 3;
+      // Realistic rail (Task 9b): one picture per (piece, rail tile, heading in the view), anchored at the tile centre
+      // at the piece's entry height; its support stacked from foot, 1 m segments and top, drawn first.
+      const f = this.frameRef;
       const type = sl.data.typeId;
-      const rail = look.rail(type, sl.pieceId, sl.tile, rot, sl.data.colours.track);
+      const rp = realRailPlacement(sl, f);
+      const rail = look.rail(type, sl.pieceId, sl.tile, rp.heading, sl.data.colours.track);
       if (rail === null) return;
       if (rail) {
-        const su = sl.support;
-        const sp = su ? look.support(type, Math.max(0, Math.round(su.top - sl.ground)), rot) : undefined;
-        if (su && sp) this.blit(ctx, sp, projectX(su.wx, su.wy, this.frameRef), projectY(su.wx, su.wy, sl.ground, this.frameRef));
-        this.blit(ctx, rail, sl.ax, sl.ay);
+        const su = realSupportPlacement(sl, f);
+        if (su) {
+          for (const p of su.pieces) {
+            const sp = look.support(type, p.part, su.heading, sl.data.colours.supports);
+            if (sp) this.blit(ctx, sp, su.ax, p.ay);
+          }
+        }
+        this.blit(ctx, rail, rp.ax, rp.ay);
         return;
       }
     }
@@ -885,9 +922,8 @@ export class TrackLayer {
       const start = c.seatStart[i] as number;
       let full = false;
       for (let j = 0; j < (c.seatCount[i] as number); j++) if ((c.seats[start + j] as number) >= 0) full = true;
-      const yawK = CAR_YAW_STEPS / (2 * Math.PI);
-      const tiltK = CAR_TILT_STEPS / (2 * Math.PI);
-      const real = look.car(this.carDef[i] as string, Math.round((c.yaw[i] as number) * yawK), Math.round((c.pitch[i] as number) * tiltK), Math.round(Math.atan2(c.bankSin[i] as number, c.bankCos[i] as number) * tiltK), full, colour);
+      const q = quantisePose(c.yaw[i] as number, c.pitch[i] as number, Math.atan2(c.bankSin[i] as number, c.bankCos[i] as number));
+      const real = look.car(this.carDef[i] as string, q.yaw, q.pitch, q.roll, full, colour);
       if (real === null) return;
       if (real) {
         this.blit(ctx, real, projectX(c.x[i] as number, c.y[i] as number, f), projectY(c.x[i] as number, c.y[i] as number, c.z[i] as number, f));

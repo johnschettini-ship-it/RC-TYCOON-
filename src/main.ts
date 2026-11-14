@@ -50,6 +50,8 @@ function boot(real?: RealOptions): void {
   // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke): VITE_ART=real build with the realistic look
   // only. S4's first part is the navigation start to the boot's first complete frame, watched from the first frame.
   if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
+    // Debug hook for the realistic art check (Task 9b, headless): the look, set manager and ground of this boot.
+    (window as unknown as { __tcReal?: RealOptions }).__tcReal = real;
     const bench = new URLSearchParams(location.search).get('bench');
     if (bench === '1' || bench === 'quick') {
       let readyMs: number | undefined;

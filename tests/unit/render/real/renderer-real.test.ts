@@ -170,6 +170,32 @@ describe('renderer with the realistic look (Task 8)', () => {
     expect(hits.reduce((n, d) => n + d.src!.w, 0)).toBeCloseTo(256, 5);
   });
 
+  it('a trimmed ride frame narrower than its columns is not stretched (Task 9b)', () => {
+    // The bake trims frames to their pixels: a ride picture can start inside the footprint's first column.
+    const world = park();
+    const sp = sheetSprite(150, 200, 40, 150, 300, 40);
+    const canvas = render(world, { look: fakeLook({ ride: () => sp }) });
+    const hits = canvas.draws.filter((d) => d.image === sp.image);
+    expect(hits.length).toBeGreaterThan(1);
+    // Sprite scale 2 at device scale 1: every column is drawn at half its source width, and the columns tile the
+    // sprite's screen box [anchor − ox/2, anchor + (w − ox)/2] exactly.
+    for (const d of hits) expect(Math.abs(d.w - d.src!.w / 2)).toBeLessThanOrEqual(1);
+    const left = Math.min(...hits.map((d) => d.x));
+    const right = Math.max(...hits.map((d) => d.x + d.w));
+    expect(right - left).toBeCloseTo(75, -0.5);
+  });
+
+  it('a trimmed multi-tile scenery frame is not stretched either (Task 9b)', () => {
+    const world = park();
+    const map = world.state.map;
+    world.state.scenery.push({ id: 2, defId: 'tent_red', x: 10, y: 4, z: map.heights[tileIndex(map, 10, 4)] ?? 0, rotation: 0, edge: -1, waterLevel: 255 } as World['state']['scenery'][number]);
+    const sp = sheetSprite(90, 120, 30, 110, 10, 10);
+    const canvas = render(world, { look: fakeLook({ scenery: (id) => (id === 'tent_red' ? sp : undefined) }) });
+    const hits = canvas.draws.filter((d) => d.image === sp.image);
+    expect(hits.length).toBeGreaterThan(1);
+    for (const d of hits) expect(Math.abs(d.w - d.src!.w / 2)).toBeLessThanOrEqual(1);
+  });
+
   it('skips and counts when not ready', () => {
     const world = park();
     world.state.guests.length = 0;
@@ -200,6 +226,26 @@ describe('renderer with the realistic look (Task 8)', () => {
     // Asked once per object and frame (two frames rendered).
     expect(look.calls.shadow).toBe(8);
     expect(Math.max(...shadows)).toBeLessThan(iStall);
+  });
+
+  it('a path item\'s shadow is asked for the side it stands on (Task 9b), at every view turn', () => {
+    for (const r of [0, 1, 2, 3] as ViewRotation[]) {
+      const world = park();
+      // A second bench on a path running the other way, so its side differs from the first one's.
+      const map = world.state.map;
+      for (let y = 15; y <= 19; y++) placeFootpath(world, 12, y);
+      map.pathItem[tileIndex(map, 12, 17)] = PathItem.Bench;
+      const sides: unknown[] = [];
+      const shadowRots: unknown[] = [];
+      const look = fakeLook({
+        scenery: (id, _rot, frame) => { if (id === 'bench') sides.push(frame); return undefined; },
+        shadow: (kind, id, rot) => { if (kind === 'scenery' && id === 'bench') shadowRots.push(rot); return undefined; },
+      });
+      render(world, { look }, defaultToolState(), camAt(world, r));
+      expect(sides.length).toBe(4);
+      expect(new Set(sides).size).toBe(2);
+      expect([...shadowRots].sort()).toEqual([...sides].sort());
+    }
   });
 
   it('ghost falls back while set decodes', () => {
@@ -299,6 +345,39 @@ describe('track through the look (coaster scene)', () => {
     expect(canvas.draws.filter((d) => d.image === car.image).length * 2).toBe(look.calls.car);
     // Supports answered undefined (not baked): no classic slice is drawn under a real rail either.
     expect(look.calls.support ?? 0).toBeGreaterThan(0);
+  });
+});
+
+describe('track through the look: the bake\'s contract (Task 9b)', () => {
+  it('rails are asked by heading in the view; supports are stacked foot, segments, top, before their rail', () => {
+    const world = buildPerfScene('coaster');
+    const rail = sheetSprite(64, 48, 32, 24);
+    const sup = sheetSprite(10, 20, 5, 18);
+    const railHeadings = new Set<unknown>();
+    const parts: string[] = [];
+    const look = fakeLook({
+      rail: (...a) => { railHeadings.add(a[3]); return rail; },
+      support: (...a) => { parts.push(a[1] as string); return sup; },
+    });
+    const map = world.state.map;
+    const p = mapToViewContinuous(16, 20, 0, map.width, map.height);
+    const cam: Camera = { centerX: (p.u - p.v) * 32, centerY: (p.u + p.v) * 16 - 64, zoom: 0.6, rotation: 0 };
+    const canvas = render(world, { look }, defaultToolState(), cam);
+    // View turn 0, yet rails of every heading are asked for.
+    expect([...railHeadings].sort()).toEqual([0, 1, 2, 3]);
+    // Each support: foot, then segments, then top.
+    const stacks = parts.join(' ').split('top').filter((x) => x.trim()).map((x) => x.trim().split(' '));
+    expect(stacks.length).toBeGreaterThan(3);
+    for (const st of stacks) {
+      expect(st[0]).toBe('foot');
+      expect(st.slice(1).every((x) => x === 'seg')).toBe(true);
+    }
+    // The support pieces of a slice are drawn before its rail.
+    const firstSup = canvas.draws.findIndex((d) => d.image === sup.image);
+    const firstRail = canvas.draws.findIndex((d) => d.image === rail.image);
+    expect(firstSup).toBeGreaterThanOrEqual(0);
+    expect(firstSup).toBeLessThan(canvas.draws.length);
+    expect(firstRail).toBeGreaterThan(-1);
   });
 });
 

@@ -369,14 +369,16 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   /** Draw the vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
   function blitColumn(sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
     const f = scale / sp.scale;
+    let s0 = sp.ox + (colL - ax) * sp.scale;
+    let s1 = sp.ox + (colR - ax) * sp.scale;
+    // A sprite narrower than its columns (a trimmed baked frame): clip the strip to the sprite and move its screen
+    // edges with it, so the picture is never stretched across the empty part of the column.
+    if (s0 < 0) { colL -= s0 / sp.scale; s0 = 0; }
+    if (s1 > sp.w) { colR -= (s1 - sp.w) / sp.scale; s1 = sp.w; }
+    if (s1 <= s0) return;
     const dx0 = Math.round(devX(colL));
     const dx1 = Math.round(devX(colR));
     if (dx1 <= dx0) return;
-    let s0 = sp.ox + (colL - ax) * sp.scale;
-    let s1 = sp.ox + (colR - ax) * sp.scale;
-    if (s0 < 0) s0 = 0;
-    if (s1 > sp.w) s1 = sp.w;
-    if (s1 <= s0) return;
     const y0 = Math.round(devY(ay) - sp.oy * f);
     const y1 = Math.round(devY(ay) + (sp.h - sp.oy) * f);
     (ctx as CanvasRenderingContext2D).drawImage(sp.image, (sp.sx ?? 0) + s0, sp.sy ?? 0, s1 - s0, sp.h, dx0, y0, dx1 - dx0, y1 - y0);
@@ -611,7 +613,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         const r = s.rides[ref]!;
         sp = look.shadow('ride', r.defId, viewSpriteRotation(r.rotation, rot));
       } else if (kind === KIND_STALL) sp = look.shadow('stall', s.stalls[ref]!.defId, (list.sub[i] as number) as Dir);
-      else if (kind === KIND_PATH_ITEM) sp = look.shadow('scenery', PATH_ITEM_IDS[(list.sub[i] as number) & 3] as string, rot);
+      // A path item's shadow is baked per side (`shadow:<item>:r<side>`): the side in the view, frame bits 2-3.
+      else if (kind === KIND_PATH_ITEM) sp = look.shadow('scenery', PATH_ITEM_IDS[(list.sub[i] as number) & 3] as string, (((list.sub[i] as number) >> 2) & 3) as Dir);
       else {
         layerByKind.get(kind)?.drawShadow?.(ctx as CanvasRenderingContext2D, world, kind, ref, list.sub[i] as number, list.ax[i] as number, list.ay[i] as number, frame);
         continue;

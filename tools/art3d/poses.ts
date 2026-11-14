@@ -1,22 +1,18 @@
 /**
  * Car poses a track type reaches (phase 8c stage 1 bake). The bake renders one car picture per reached pose, so the
  * list comes from the real track geometry: `pieceWorldSamples` of each piece, at each of the 4 headings (a piece
- * can be built facing any way, and the view turns add quarter turns too), quantised like the game reader
- * (src/render/real/look.ts quantisePose): yaw in 32 steps, pitch and roll in 15° steps (24 per turn).
+ * can be built facing any way, and the view turns add quarter turns too), quantised by the game reader's own
+ * `quantisePose` (src/render/real/pose.ts): yaw in 32 steps, pitch and roll in 15° steps (24 per turn).
  */
 import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
+import { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from '../../src/render/real/pose';
 
 export interface CarPose { yaw: number; pitch: number; roll: number }
 
-export const YAW_STEPS = 32;
-export const TILT_STEPS = 24;
-
-const step = (rad: number, n: number): number => ((Math.round((rad / (2 * Math.PI)) * n) % n) + n) % n;
-
-export function quantisePose(yaw: number, pitch: number, roll: number): CarPose {
-  return { yaw: step(yaw, YAW_STEPS), pitch: step(pitch, TILT_STEPS), roll: step(roll, TILT_STEPS) };
-}
+export { quantisePose };
+export const YAW_STEPS = CAR_YAW_STEPS;
+export const TILT_STEPS = CAR_TILT_STEPS;
 
 /** Unique quantised poses of `pieceIds` on `trackType`, sorted by yaw, pitch, roll. */
 export function reachedPoses(trackType: string, pieceIds: string[]): CarPose[] {

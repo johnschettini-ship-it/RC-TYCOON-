@@ -12,21 +12,33 @@
  * (spec §5.7), cached per `${setKey}#${hex}` and held in the set manager's budget (`SetManager.hold`) under that key;
  * it is freed when its set is freed or goes unused for `KEEP_FRAMES` prepares.
  *
- * Contract with the bake (Task 9), frame keys via `frameKey`:
+ * Contract with the bake (Task 9, tools/art3d/items/*.js), frame keys via `frameKey`; "turn" below is the set's rot:
  *   ride     set ride:<item>        frame [item, `f<frame>`, `occ0` | `occ1`]   (occupancy > 0 → occ1, full)
- *   stall    set stall:<item>       frame [item]
- *   scenery  set scenery:<item>     frame [item, `f<frame>`]                    (bench and bin are scenery items)
- *   shadow   set shadow:<item>      frame [item]
- *   guest    set guest:b<B>o<O>     frame [`f<facing 0-3>`, `w<walk>` | `sit`]  (rot 'all'; shirt mask)
+ *            anchor: top corner of the footprint's view-origin tile at base height; drawn in depth columns
+ *   stall    set stall:<item>       frame [item]                                anchor: the tile's top corner
+ *   scenery  set scenery:<item>     frame [item, `f<frame>`]                    (bench and bin are scenery items,
+ *            frame = the side they stand on in the view; anchor: their base point on the path)
+ *   shadow   set shadow:<item>      frame [item]                                anchor and turn of its object; a
+ *            path item's shadow set is turned by its side (`shadow:bench:r<side>`), not by the view turn
+ *   guest    set guest:b<B>o<O>     frame [`f<facing 0-3>`, `w<walk>` | `sit`]  (rot 'all'; shirt mask; anchor: feet)
  *   staff    set guest:staff_<type> frame [`f<facing 0-3>`, `w<walk>`]          (not baked in stage 1)
- *   rail     set rail:<item>        frame [pieceId, `t<tile>`]                  (track-colour mask, optional)
+ *   rail     set rail:<item>        frame [pieceId, `t<tile>`]                  (track-colour mask)
+ *            turn = the piece's heading in the view, (piece.dir + view turn) mod 4; tile = the slice's number among
+ *            the piece's rail tiles; anchor: the tile's centre at the piece's ENTRY rail height (piece.z)
  *   car      set car:<item>         frame [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (car-colour mask)
- *   support  set support:<item>     frame [`h<heightStep>`]                     (one per 1 m step)
- *   ground   set ground:<terrain>   frame [`s<slopeMask>`, `v<variant>`]
- * A set with `rot: 'all'` serves every view rotation and is wanted once. A sheet's tint mask is listed as another
- * sheet of the same set (`sheets[i].mask` names its file); a sheet without a mask is drawn untinted.
- * Frame `ox`/`oy` follow the index format (offset from the game anchor to the frame's top-left, density px); the
- * sprite takes their negation, because `blit` puts the top-left at anchor − sprite.ox.
+ *            steps from `quantisePose` (./pose.ts, shared with the bake); anchor: the car centre on the rail line
+ *   support  set support:<item>     frames [`foot`], [`seg`], [`top`]           (support-colour mask)
+ *            turn = the saddle's (track's) heading in the view. Stacked by the track layer (`supportStack`):
+ *            `foot` at the ground point; `seg` (1 m, anchored at its bottom centre, drawn 1.1 m tall) once per
+ *            metre of column; `top` (plate + post, 0.67 m) anchored `SUPPORT_TOP_BELOW_RAIL` m under the rail line
+ *   ground   set ground:<terrain>   frame [`s<slopeMask>`, `v<variant>`]        anchor: the tile's top corner
+ * A set with `rot: 'all'` serves every view rotation and is wanted once. Rail, support and path-item shadow sets are
+ * keyed by a heading, so every turn of them is wanted. A sheet's tint mask is listed as another sheet of the same set
+ * (`sheets[i].mask` names its file); a sheet without a mask is drawn untinted.
+ * Anchors and offsets: a frame's `ox`/`oy` in the index are the offset FROM the game anchor TO the frame's top-left
+ * corner, in density px (so they are usually negative: the top-left is up and left of the anchor). A Sprite's
+ * `ox`/`oy` are the anchor's position inside the image, the other way round: `sprite.ox = −frame.ox`,
+ * `sprite.oy = −frame.oy`, because `blit` puts the top-left at anchor − sprite.ox.
  */
 import { SHIRT_COLOURS } from '../palette';
 import type { Sprite } from '../spriteCache';
@@ -35,7 +47,9 @@ import { paletteColour } from '../track/colours';
 import type { ViewRotation } from '../view';
 import type { World } from '../../sim/types';
 import { PathItem } from '../../sim/map';
+import { getSceneryDef } from '../../data/catalog/scenery';
 import { realItem } from './fallbacks';
+import { CAR_TILT_STEPS, CAR_YAW_STEPS } from './pose';
 import { frameKey, setKey, type RealIndex, type RealKind, type SetKey } from './indexFormat';
 import type { Decoded, ReadySet, SetManager } from './setManager';
 import { tintSheet, type CanvasLike } from './tint';
@@ -52,9 +66,12 @@ export interface RealLook {
   scenery(defId: string, rot: ViewRotation, frame: number): Sprite | null | undefined;
   guest(guestId: number, shirt: number, walk: number, facing: number, sitting: boolean): Sprite | null | undefined;
   staff(staffType: string, facing: number, walk: number): Sprite | null | undefined;
-  rail(trackType: string, pieceId: string, tile: number, rot: ViewRotation, colour: number): Sprite | null | undefined;
+  /** A rail tile; `heading` is the piece's heading in the view, `(piece.dir + view turn) mod 4` (not the view turn). */
+  rail(trackType: string, pieceId: string, tile: number, heading: ViewRotation, colour: number): Sprite | null | undefined;
   car(trackType: string, yawStep: number, pitchStep: number, rollStep: number, full: boolean, colour: number): Sprite | null | undefined;
-  support(trackType: string, heightStep: number, rot: ViewRotation): Sprite | null | undefined;
+  /** One piece of a stacked support (`foot`, `seg`, `top`), for the saddle's heading in the view (0-3). */
+  support(trackType: string, part: SupportPart, heading: ViewRotation, colour: number): Sprite | null | undefined;
+  /** An object's soft shadow; for a path item (bench, bin) `rot` is the side it stands on, in view terms. */
   shadow(kind: 'ride' | 'stall' | 'scenery', defId: string, rot: ViewRotation): Sprite | null | undefined;
   groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation): Sprite | null | undefined;
   /** Frees every tinted sheet (closes its canvases, releases its hold). The look stays usable. */
@@ -64,6 +81,9 @@ export interface RealLook {
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
   fallbacksUsed(): string[];
 }
+
+/** The stacked pieces of a baked support (see the header). */
+export type SupportPart = 'foot' | 'seg' | 'top';
 
 /** The part of `SetManager` RealLook uses (a structural type, so tests can pass a fake). */
 export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold'>;
@@ -75,9 +95,8 @@ export interface RealLookOptions {
   onError?: (key: string, err: unknown) => void;
 }
 
-/** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps. */
-export const CAR_YAW_STEPS = 32;
-export const CAR_TILT_STEPS = 24;
+/** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps (one source: `./pose`). */
+export { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from './pose';
 
 /** Tinted sheets unused for this many prepares are freed. */
 const KEEP_FRAMES = 120;
@@ -89,15 +108,6 @@ export function pickDensity(zoom: number, dpr: number, cap: 2 | 4): 2 | 4 {
 }
 
 const mod = (n: number, m: number): number => ((Math.round(n) % m) + m) % m;
-
-/** Quantise a car pose in radians to the baked steps. */
-export function quantisePose(yaw: number, pitch: number, roll: number): { yaw: number; pitch: number; roll: number } {
-  return {
-    yaw: mod((yaw / (2 * Math.PI)) * CAR_YAW_STEPS, CAR_YAW_STEPS),
-    pitch: mod((pitch / (2 * Math.PI)) * CAR_TILT_STEPS, CAR_TILT_STEPS),
-    roll: mod((roll / (2 * Math.PI)) * CAR_TILT_STEPS, CAR_TILT_STEPS),
-  };
-}
 
 function hexRgb(hex: string): [number, number, number] {
   const n = parseInt(hex.slice(1, 7), 16);
@@ -120,6 +130,13 @@ interface Tinted {
   sheets: Map<number, Decoded>;
   bytes: number;
   lastFrame: number;
+}
+
+interface BuiltItem {
+  kind: RealKind;
+  item: string;
+  everyTurn?: boolean;
+  turn?: number;
 }
 
 const PATH_ITEM_IDS: Record<number, string> = { [PathItem.Bench]: 'bench', [PathItem.Bin]: 'bin', [PathItem.Lamp]: 'lamp' };
@@ -229,23 +246,29 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   }
 
   /** Game ids of every item kind built in the world, by RealKind. */
-  function builtItems(world: World): { kind: RealKind; item: string }[] {
+  /**
+   * Built items: `turn` is the object's map rotation (its sprite turn is `(turn + view turn) mod 4`, as the renderer
+   * draws it); `everyTurn` marks sets keyed by a heading that may be any turn (rails, supports, path-item shadows).
+   */
+  function builtItems(world: World): BuiltItem[] {
     const s = world.state;
-    const out: { kind: RealKind; item: string }[] = [];
-    const add = (kind: RealKind, id: string): void => {
+    const out: BuiltItem[] = [];
+    const add = (kind: RealKind, id: string, everyTurn = false, turn = 0): void => {
       const item = realItem(id);
-      if (item !== 'classic') out.push({ kind, item });
+      if (item !== 'classic') out.push({ kind, item, everyTurn, turn });
     };
-    const withShadow = (kind: 'ride' | 'stall' | 'scenery', id: string): void => {
-      add(kind, id);
-      add('shadow', id);
+    const withShadow = (kind: 'ride' | 'stall' | 'scenery', id: string, turn = 0): void => {
+      add(kind, id, false, turn);
+      add('shadow', id, false, turn);
     };
     for (const r of s.rides) {
-      if (r.kind === 'track') { add('rail', r.defId); add('car', r.defId); add('support', r.defId); }
-      else withShadow('ride', r.defId);
+      // Rails and supports are keyed by a heading in the view (piece, saddle), so any turn may be drawn.
+      if (r.kind === 'track') { add('rail', r.defId, true); add('car', r.defId); add('support', r.defId, true); }
+      else withShadow('ride', r.defId, r.rotation ?? 0);
     }
-    for (const st of s.stalls) withShadow('stall', st.defId);
-    for (const sc of s.scenery) withShadow('scenery', sc.defId);
+    for (const st of s.stalls) withShadow('stall', st.defId, st.rotation ?? 0);
+    // Scenery turns like `itemView`: an edge item by its edge (0 when unset), any other by its rotation.
+    for (const sc of s.scenery) withShadow('scenery', sc.defId, getSceneryDef(sc.defId)?.edge ? Math.max(0, sc.edge) : sc.rotation ?? 0);
     const seen = new Set<number>();
     const pi = s.map.pathItem;
     for (let i = 0; i < pi.length && seen.size < 3; i++) {
@@ -253,7 +276,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       if (code !== 0 && !seen.has(code)) {
         seen.add(code);
         const id = PATH_ITEM_IDS[code];
-        if (id) withShadow('scenery', id);
+        // A path item's shadow is keyed by the side it stands on, which may be any turn.
+        if (id) { add('scenery', id); add('shadow', id, true); }
       }
     }
     for (const item of guestItems) out.push({ kind: 'guest', item });
@@ -281,10 +305,18 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       const ahead = ((rot + 1) % 4) as ViewRotation;
       const now = new Set<SetKey>();
       const later = new Set<SetKey>();
-      for (const { kind, item } of builtItems(world)) {
-        const k = resolve(kind, item, rot);
+      for (const { kind, item, everyTurn, turn } of builtItems(world)) {
+        if (everyTurn) {
+          for (let r = 0; r < 4; r++) {
+            const k = resolve(kind, item, r as ViewRotation);
+            if (k !== undefined) now.add(k);
+          }
+          continue;
+        }
+        const t = turn ?? 0;
+        const k = resolve(kind, item, ((t + rot) % 4) as ViewRotation);
         if (k !== undefined) now.add(k);
-        const a = resolve(kind, item, ahead);
+        const a = resolve(kind, item, ((t + ahead) % 4) as ViewRotation);
         if (a !== undefined) later.add(a);
       }
       for (const k of now) later.delete(k);
@@ -318,8 +350,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       return sprite('guest', `staff_${staffType}`, `staff:${staffType}`, curRot, [`f${mod(facing, 4)}`, `w${walk}`], null);
     },
 
-    rail(trackType, pieceId, tile, rot, colour) {
-      return sprite('rail', realItem(trackType), trackType, rot, [pieceId, `t${tile}`], paletteColour(colour));
+    rail(trackType, pieceId, tile, heading, colour) {
+      return sprite('rail', realItem(trackType), trackType, heading, [pieceId, `t${tile}`], paletteColour(colour));
     },
 
     car(trackType, yawStep, pitchStep, rollStep, full, colour) {
@@ -327,8 +359,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       return sprite('car', realItem(trackType), trackType, curRot, parts, paletteColour(colour));
     },
 
-    support(trackType, heightStep, rot) {
-      return sprite('support', realItem(trackType), trackType, rot, [`h${heightStep}`], null);
+    support(trackType, part, heading, colour) {
+      return sprite('support', realItem(trackType), trackType, heading, [part], paletteColour(colour));
     },
 
     shadow(_kind, defId, rot) {

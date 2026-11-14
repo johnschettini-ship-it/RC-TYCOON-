@@ -70,14 +70,15 @@ export function createSceneryLayer(): WorldLayer {
   /** The vertical strip [colL, colR) (world x) of a sprite anchored at (ax, ay). */
   function blitColumn(ctx: CanvasRenderingContext2D, f: LayerFrame, sp: Sprite, ax: number, ay: number, colL: number, colR: number): void {
     const s = f.scale / sp.scale;
+    let s0 = sp.ox + (colL - ax) * sp.scale;
+    let s1 = sp.ox + (colR - ax) * sp.scale;
+    // A sprite narrower than its columns (a trimmed baked frame): clip the strip and move its screen edges with it.
+    if (s0 < 0) { colL -= s0 / sp.scale; s0 = 0; }
+    if (s1 > sp.w) { colR -= (s1 - sp.w) / sp.scale; s1 = sp.w; }
+    if (s1 <= s0) return;
     const dx0 = Math.round(devX(f, colL));
     const dx1 = Math.round(devX(f, colR));
     if (dx1 <= dx0) return;
-    let s0 = sp.ox + (colL - ax) * sp.scale;
-    let s1 = sp.ox + (colR - ax) * sp.scale;
-    if (s0 < 0) s0 = 0;
-    if (s1 > sp.w) s1 = sp.w;
-    if (s1 <= s0) return;
     const y0 = Math.round(devY(f, ay) - sp.oy * s);
     const y1 = Math.round(devY(f, ay) + (sp.h - sp.oy) * s);
     ctx.drawImage(sp.image, (sp.sx ?? 0) + s0, sp.sy ?? 0, s1 - s0, sp.h, dx0, y0, dx1 - dx0, y1 - y0);
