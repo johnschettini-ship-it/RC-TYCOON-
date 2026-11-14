@@ -66,7 +66,7 @@ import type { RealIndex } from '../indexFormat';
 import type { RealLook, RealLookOptions, RealSets } from './types';
 
 export type { RealLook, RealLookOptions, RealSets, SupportPart } from './types';
-export { DEGRADE_FRAMES, pickDensity } from './core';
+export { DEGRADE_FRAMES, NO_ROOM_GAP, pickDensity } from './core';
 export { TINT_FRAME_MS } from './tint';
 /** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps (one source: `./pose`). */
 export { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from '../pose';

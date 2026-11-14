@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   TINT_ATLAS_MAX_BYTES, TINT_ATLAS_MAX_PAGES, TINT_GUTTER_PX, TINT_PAGE_BYTES, TINT_PAGE_PX, TINT_SCRATCH_HOLD, TINT_STALE_FRAMES, TintAtlas,
+  TINT_CANVAS_FAIL_LIMIT,
 } from '../../../../src/render/real/tintAtlas';
 import { tintPixels, type CanvasLike } from '../../../../src/render/real/tint';
 import type { Decoded } from '../../../../src/render/real/setManager';
@@ -350,6 +351,59 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     expect(a.request(5, 0, 0x123456, noise(8, 8, 1), noise(8, 8, 2), { x: 0, y: 0, w: 4, h: 4 })).toBe(true);
     a.step(Infinity);
     expect(a.get(5, 0, 0x123456)).toBeTruthy();
+  });
+
+  it('pages that never get a 2D context stop the atlas after TINT_CANVAS_FAIL_LIMIT tries: requests say no room, reported once (final review minor 3)', () => {
+    const errors: unknown[] = [];
+    const sets = new FakeSets();
+    let pagesMade = 0;
+    const mk = (w: number, h: number): CanvasLike => {
+      const c = new PixCanvas(w, h);
+      if (w === TINT_PAGE_PX) { pagesMade++; (c as unknown as { getContext: () => null }).getContext = () => null; }
+      return c as unknown as CanvasLike;
+    };
+    const a = new TintAtlas(sets, mk, { onCanvasError: (e) => errors.push(e) });
+    expect(TINT_CANVAS_FAIL_LIMIT).toBe(3);
+    const ask = (): boolean => a.request(5, 0, 0x123456, noise(8, 8, 1), noise(8, 8, 2), { x: 0, y: 0, w: 4, h: 4 });
+    for (let f = 0; f < TINT_CANVAS_FAIL_LIMIT; f++) {
+      a.beginFrame();
+      expect(ask()).toBe(true);
+      a.step(Infinity);
+    }
+    expect(a.stopped()).toBe(true);
+    expect(errors).toHaveLength(TINT_CANVAS_FAIL_LIMIT);
+    expect(String(errors.at(-1))).toMatch(/tinting stopped/);
+    for (let f = 0; f < 10; f++) {
+      a.beginFrame();
+      expect(ask()).toBe(false);
+      a.step(Infinity);
+    }
+    expect(errors).toHaveLength(TINT_CANVAS_FAIL_LIMIT);
+    expect(pagesMade).toBe(TINT_CANVAS_FAIL_LIMIT);
+    expect(a.failed(5)).toBe(false);
+    expect(sets.pages()).toEqual([]);
+  });
+
+  it('a tinted frame between canvas failures resets the count', () => {
+    let broken = true;
+    const mk = (w: number, h: number): CanvasLike => {
+      const c = new PixCanvas(w, h);
+      if (broken && w === TINT_PAGE_PX) (c as unknown as { getContext: () => null }).getContext = () => null;
+      return c as unknown as CanvasLike;
+    };
+    const a = new TintAtlas(new FakeSets(), mk, {});
+    // A whole page per frame, so every request makes a new page.
+    const base = noise(1100, 300, 3);
+    const mask = noise(1100, 300, 4);
+    const ask = (frame: number): boolean => a.request(5, frame, 0x123456, base, mask, { x: 0, y: 0, w: TINT_PAGE_PX - TINT_GUTTER_PX, h: 256 - TINT_GUTTER_PX });
+    for (const [n, b] of [[0, true], [1, true], [2, false], [3, true], [4, true]] as const) {
+      broken = b;
+      a.beginFrame();
+      expect(ask(n)).toBe(true);
+      a.step(Infinity);
+      expect(!!a.get(5, n, 0x123456)).toBe(!b);
+    }
+    expect(a.stopped()).toBe(false);
   });
 
   it('a sheet that cannot be read (mask read throws) fails that sheet, reported once, and frees what it made', () => {

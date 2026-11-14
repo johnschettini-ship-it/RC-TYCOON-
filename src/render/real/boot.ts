@@ -6,7 +6,8 @@
  *    website address with the real game and must never touch its saves (`./storagePrefix.ts`).
  * 2. Fetch `art/real/index.json` relative to the page. On any failure (no baked art, bad index): one plain error
  *    line (`ui.realArt.loadFailed`) and `null`, so the game starts with today's look and today's height step.
- * 3. Build the set manager (decode off the main thread with `createImageBitmap`, decode budget F2 (a) 128 MB),
+ * 3. Build the set manager (decode off the main thread with `createImageBitmap`, decode budget F2 (a) 128 MB, of which
+ *    `HOLD_RESERVE_BYTES` is kept for the holds that grow without asking),
  *    the look, and the ground, with the ground's chunks and the look's tint-atlas pages admitted to and reclaimed by
  *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
  * 4. Decode the card picture set (when the bake has it) and give the card previews its drawer (`setCardArt`).
@@ -25,7 +26,7 @@ import { createRealLook } from './look';
 import { FLAT_RIDES } from '../../data/catalog/flatRides';
 import { aliasItemMap, withAliasSets } from './aliases';
 import { benchMode } from './benchParam';
-import { SetManager, type Decoded, type SetIO } from './setManager';
+import { HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO } from './setManager';
 import { installStoragePrefix, pageStorage } from './storagePrefix';
 
 /** Spec F2 (a): the most decoded picture memory the realistic look may hold. */
@@ -87,7 +88,7 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
     decode: deps.decode ?? bitmap,
   };
   const report = (key: string, err: unknown): void => console.warn('[art=real]', key, err);
-  const sets = new SetManager(index, io, REAL_DECODE_BUDGET_BYTES, report);
+  const sets = new SetManager(index, io, REAL_DECODE_BUDGET_BYTES, report, HOLD_RESERVE_BYTES);
   const look = createRealLook(index, sets, { onError: report });
   const ground = new RealGround(look, {
     hold: (id, bytes, up) => sets.hold(id, bytes, up),

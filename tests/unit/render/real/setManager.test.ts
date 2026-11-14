@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { SetManager, type Decoded, type SetIO } from '../../../../src/render/real/setManager';
+import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO } from '../../../../src/render/real/setManager';
+
+const TINT_SCRATCH = 'tint:scratch';
 
 /** Each sheet is 5x5 px, so 5*5*4 = 100 decoded bytes. */
 const SHEET_BYTES = 100;
@@ -583,3 +585,80 @@ describe('a view turn near the budget (Task 3 fix round 3)', () => {
   });
 });
 
+
+describe('a reserve for holds that grow without asking (final review I1)', () => {
+  const MiB = 2 ** 20;
+  /** 130 sets of 1 MiB each (one 512 × 512 sheet), decoded at once. */
+  function full(reserve: number) {
+    const sets = Array.from({ length: 130 }, (_, i): RealSetEntry => ({
+      key: setKey('ride', `r${i}`, 2, 0), kind: 'ride', item: `r${i}`, density: 2, rot: 0,
+      sheets: [{ file: `r${i}.webp`, w: 512, h: 512 }], frames: {},
+    }));
+    const io: SetIO = {
+      read: (f) => Promise.resolve(new Blob([f])),
+      decode: () => Promise.resolve({ image: {} as CanvasImageSource, bytes: MiB, close: () => undefined }),
+    };
+    const m = new SetManager(index(sets), io, 128 * MiB, () => undefined, reserve);
+    return { m, keys: sets.map((s) => s.key) };
+  }
+
+  async function pumpFull(m: SetManager, keys: SetKey[]): Promise<void> {
+    for (let f = 1; f <= 40; f++) {
+      m.beginFrame(f);
+      m.want(keys, 'now');
+      for (const k of keys) m.use(k);
+      m.hold(CLASSIC_HOLD, 5 * MiB); // today's static layer, steady
+      m.endFrame();
+      await flush();
+    }
+  }
+
+  it('a classic jump and a scratch growth after a full pump keep resident memory within 128 MiB', async () => {
+    expect(HOLD_RESERVE_BYTES).toBe(2 * MiB);
+    const { m, keys } = full(HOLD_RESERVE_BYTES);
+    await pumpFull(m, keys);
+    // Full: decodes filled the budget less the reserve, and an admit that would cross it is refused.
+    expect(m.snapshot().committed).toBe(126 * MiB);
+    expect(m.admit('tint:0', MiB)).toBe(false);
+    // After the frame: today's sprites grow 1.5 MiB, the tint scratch canvas 0.4 MiB, both without asking.
+    m.beginFrame(41);
+    m.hold(TINT_SCRATCH, 0.4 * MiB);
+    m.hold(CLASSIC_HOLD, 6.5 * MiB);
+    expect(m.residentBytes()).toBeLessThanOrEqual(128 * MiB);
+    expect(m.peakBytes()).toBeLessThanOrEqual(128 * MiB);
+  });
+
+  it('without the reserve the same growth lands above 128 MiB', async () => {
+    const { m, keys } = full(0);
+    await pumpFull(m, keys);
+    expect(m.snapshot().committed).toBe(128 * MiB);
+    m.hold(TINT_SCRATCH, 0.4 * MiB);
+    m.hold(CLASSIC_HOLD, 6.5 * MiB);
+    expect(m.residentBytes()).toBeGreaterThan(128 * MiB);
+  });
+});
+
+describe('room beside the outgoing sets (final review minor 1)', () => {
+  it('a set drawn this frame without a want is not outgoing: its twin still counts as pressure', async () => {
+    const X = entry('x', 2, 2);
+    const A2 = entry('a', 2, 2);
+    const A4 = entry('a', 4, 4);
+    const run = async (drawX: boolean): Promise<number> => {
+      // 600 B: X (200) and the twin (200) leave 200 B, too little for the density-4 set (400).
+      const { io, m } = setup([X, A2, A4], 600);
+      m.beginFrame(1);
+      m.want([X.key, A2.key], 'now');
+      m.endFrame();
+      await io.settleAll();
+      m.beginFrame(2);
+      m.want([A2.key, A4.key], 'now');
+      if (drawX) m.use(X.key); // a late draw: drawn, not wanted
+      m.use(A2.key);
+      return m.snapshot().pressure;
+    };
+    // X not drawn: on its way out, so the density-4 set can start once it goes and the twin is not counted.
+    expect(await run(false)).toBe(400);
+    // X drawn: it stays, the density-4 set has no room beside it, so the twin counts and the ladder sees all 600 B.
+    expect(await run(true)).toBe(600);
+  });
+});

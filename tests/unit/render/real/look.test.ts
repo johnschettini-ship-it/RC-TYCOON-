@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { createRealLook, DEGRADE_FRAMES, pickDensity, quantisePose, TINT_FRAME_MS, type RealSets } from '../../../../src/render/real/look';
+import { createRealLook, DEGRADE_FRAMES, NO_ROOM_GAP, pickDensity, quantisePose, TINT_FRAME_MS, type RealSets } from '../../../../src/render/real/look';
 import { REAL_FALLBACK, realItem } from '../../../../src/render/real/fallbacks';
 import { SetManager, type Decoded, type ReadySet, type SetState } from '../../../../src/render/real/setManager';
 import type { Sprite } from '../../../../src/render/spriteCache';
@@ -940,11 +940,54 @@ describe('RealLook: a tinted frame with no room never stalls (Task 4b)', () => {
     sets.setState(e.key, 'ready');
     for (let n = 0; n <= DEGRADE_FRAMES; n++) { look.prepare(emptyWorld(), 0, VIEW, 1, 1); look.guest(0, 1, 0, 0, true); }
     expect(look.degraded!()).toBe(1);
-    for (let n = 0; n < 5; n++) look.prepare(emptyWorld(), 0, VIEW, 1, 1); // off screen
+    for (let n = 0; n < NO_ROOM_GAP; n++) look.prepare(emptyWorld(), 0, VIEW, 1, 1); // off screen, longer than the gap
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     look.guest(0, 1, 0, 0, true);
     expect(look.incomplete()).toBe(1);
     expect(look.degraded!()).toBe(0);
+  });
+
+  it('a frame drawn every other prepare (a walk cycle) still reaches degraded after DEGRADE_FRAMES (final review I2)', () => {
+    const sheets: RealSetEntry['sheets'] = [{ file: 's0', w: 1100, h: 8, mask: 'm0' }, { file: 'm0', w: 1100, h: 8 }];
+    const frames = { 'f0:sit': { sheet: 's0', sx: 0, sy: 0, w: 1100, h: 4, ox: 0, oy: 0 } };
+    const e: RealSetEntry = { key: setKey('guest', 'b0o0', 2, 'all'), kind: 'guest', item: 'b0o0', density: 2, rot: 'all', sheets, frames };
+    const index: RealIndex = { ...makeIndex(), sets: [e] };
+    const sets = new FakeSets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    sets.setState(e.key, 'ready');
+    let last = { incomplete: 0, degraded: 0 };
+    for (let n = 0; n <= DEGRADE_FRAMES + 1; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      if (n % 2 === 1) continue; // another walk frame this prepare
+      look.guest(0, 1, 0, 0, true);
+      last = { incomplete: look.incomplete(), degraded: look.degraded!() };
+      if (n < DEGRADE_FRAMES) expect(last).toEqual({ incomplete: 1, degraded: 0 });
+    }
+    expect(last).toEqual({ incomplete: 0, degraded: 1 });
+  });
+});
+
+describe('RealLook: tint pages with no 2D context (final review minor 3)', () => {
+  it('the look degrades instead of waiting for ever, and the failure is reported a bounded number of times', () => {
+    const index = makeIndex();
+    const sets = new FakeSets(index, { s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    const errors: string[] = [];
+    const broken = (w: number, h: number) => {
+      const c = new PixCanvas(w, h);
+      if (w === TINT_PAGE_PX) (c as unknown as { getContext: () => null }).getContext = () => null;
+      return c;
+    };
+    const look = createRealLook(index, sets, { makeCanvas: broken, onError: (k) => errors.push(k) });
+    const key = setKey('guest', 'b0o0', 2, 'all');
+    sets.setState(key, 'ready');
+    const base = sets.images(key)[0];
+    for (let n = 0; n < DEGRADE_FRAMES + 5; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      expect(look.guest(0, 1, 1, 2, false)!.image).toBe(base); // untinted, never nothing
+    }
+    expect(look.degraded!()).toBe(1);
+    expect(look.incomplete()).toBe(0);
+    expect(errors.filter((k) => k === 'tint:canvas').length).toBe(3);
   });
 });
 

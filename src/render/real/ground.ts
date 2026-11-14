@@ -13,15 +13,15 @@
  * - Cover (Task 3): today's terrain frees every image of a chunk this ground covers (`covers`), so a covered chunk is
  *   never left empty, not even for one frame: a chunk known to have a baked piece for every tile (built full, or every
  *   tile in view drawn from a piece) stays covered across view turns, zoom steps, density changes (a cap, a demotion
- *   lifting) and terrain changes elsewhere. While its own picture is not ready it draws a stand-in: its smaller chunk
- *   of the old scale (a zoom in), scaled; else, within the frame's first-build budget, its tiles directly, each from
+ *   lifting) and terrain changes elsewhere. While its own picture is not ready it draws a stand-in: its chunk of the
+ *   old scale (a zoom step either way), scaled; else, within the frame's first-build budget, its tiles directly, each from
  *   its piece, the same piece of the other density (`look.groundStandIn`: the density-2 twin on a zoom in) or a flat
  *   placeholder diamond; else one flat placeholder for the chunk. A stand-in leaves the ground incomplete. A new map,
  *   a changed tile or a piece the bake lacks uncovers the chunk (today's terrain draws it).
  * - Chunks are built at `groundScale`: the screen scale (zoom × dpr) rounded up to a step, never above the look's
- *   density, so a chunk holds no pixel the screen cannot show. Chunks of another rotation or a larger scale are freed
- *   as soon as the ground draws at a new one; a smaller chunk stays only as the stand-in until its replacement is
- *   built (freed at the end of the first frame it does not stand in).
+ *   density, so a chunk holds no pixel the screen cannot show. Chunks of another rotation are freed as soon as the
+ *   ground draws at a new one. A chunk of another scale (a zoom step in either direction, or into direct tiles) stays
+ *   only as the stand-in until its replacement is built (freed at the end of the first frame it does not stand in).
  * - Above `DIRECT_ABOVE_SCALE` (a phone at zoom 2: screen scale 4) no chunk is made (round 3 item 3): an 8 × 8 chunk
  *   at scale 4 is about 2048 × 1100 px, and the view's chunks took about 60 MB of the 128 MB budget. The tiles in the
  *   view are drawn straight into the target (the static layer when the view is still, the screen while it moves),
@@ -33,7 +33,7 @@
  * - Memory (spec §5.4 item 4): a chunk is admitted against the decode budget before it is made (`admit`); with no
  *   room it stays unbuilt and the ground incomplete. Chunk canvases are held as `hold('ground', bytes)`.
  *   `endFrame` runs every frame (the static layer drawn or reused): chunks not on screen for `KEEP_FRAMES` frames are
- *   freed; `reclaim` frees chunks not on screen at once when the set manager needs the room.
+ *   freed; `reclaim` frees chunks not on screen at once, then old-scale stand-ins, when the set manager needs the room.
  * - A canvas that cannot be made (no 2D context, too big) leaves the chunk unbuilt and the ground incomplete:
  *   `draw` never throws.
  */
@@ -381,9 +381,9 @@ export class RealGround implements GroundLayer {
     const upScale = groundScale(scale, pickDensity(scale, 1, 4));
     // Chunks of another rotation are never drawn again at this one: free them now. A chunk of another scale (a zoom
     // step either way, or into direct tiles) becomes the stand-in until its replacement is built or, for direct
-    // tiles, until every tile in view draws from its own piece. Stand-ins are held in the budget and given back first
-    // under pressure: `reclaim` frees them before any chunk (even ones drawn this frame), a refused admit frees the
-    // chunk's own, and `endFrame` frees one as soon as a frame did not draw it.
+    // tiles, until every tile in view draws from its own piece. Stand-ins are held in the budget and given back under
+    // pressure: `reclaim` frees them right after the chunks off screen (even ones drawn this frame), a refused admit
+    // frees the chunk's own, and `endFrame` frees one as soon as a frame did not draw it.
     for (const [k, c] of [...this.old]) if (c.rot !== rot) this.free(this.old, k, c);
     for (const [k, c] of [...this.chunks]) {
       if (c.rot !== rot) this.free(this.chunks, k, c);
@@ -658,25 +658,27 @@ export class RealGround implements GroundLayer {
   }
 
   /**
-   * The set manager's reclaimer (it runs in the set manager's `endFrame`, after the frame's draws): frees old-scale
-   * stand-ins first, least recently drawn first, even ones drawn this frame (their pixels are already in the target,
-   * and a frame that drew one was not complete, so the static layer is not kept; the next frame draws tiles, the
-   * other density's piece or a placeholder there instead), then chunks not on screen in the frame just ended
-   * (`endFrame` ran), least recently on screen first, until about `needBytes` are freed. Returns the bytes freed.
+   * The set manager's reclaimer (it runs in the set manager's `endFrame`, after the frame's draws): frees chunks not on
+   * screen in the frame just ended (`endFrame` ran) first, least recently on screen first, then old-scale stand-ins,
+   * least recently drawn first, even ones drawn this frame (their pixels are already in the target, and a frame that
+   * drew one was not complete, so the static layer is not kept; the next frame draws tiles, the other density's piece
+   * or a placeholder there instead), until about `needBytes` are freed. Off-screen chunks go first because freeing them
+   * shows nothing, while a stand-in freed on screen flashes to tiles or placeholders on a zoom (final review I3).
+   * Returns the bytes freed.
    */
   reclaim(needBytes: number): number {
     let freed = 0;
-    const old = [...this.old.entries()].sort((a, b) => a[1].lastFrame - b[1].lastFrame);
-    for (const [k, c] of old) {
-      if (freed >= needBytes) break;
-      freed += c.bytes;
-      this.free(this.old, k, c);
-    }
     const idle = [...this.chunks.entries()].filter(([, c]) => c.lastFrame < this.frame - 1).sort((a, b) => a[1].lastFrame - b[1].lastFrame);
     for (const [k, c] of idle) {
       if (freed >= needBytes) break;
       freed += c.bytes;
       this.free(this.chunks, k, c);
+    }
+    const old = [...this.old.entries()].sort((a, b) => a[1].lastFrame - b[1].lastFrame);
+    for (const [k, c] of old) {
+      if (freed >= needBytes) break;
+      freed += c.bytes;
+      this.free(this.old, k, c);
     }
     if (freed > 0) this.holdNow();
     return freed;

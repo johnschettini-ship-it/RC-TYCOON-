@@ -8,7 +8,7 @@
  *   people                  STAFF
  *   show                    SHOW_SITES
  * Anything in the index that is not a catalogue item (ground, shadows, guests, facade, card pictures) is a fixed cost:
- * it is in the baked total and is never multiplied. A catalogue kind with no baked item yet has no mean and adds 0.
+ * it is in the baked total and is never multiplied. A catalogue kind with no baked item yet uses its assumed mean (below).
  * Track is projected from the pieces: bytes per piece measured on the baked track item (its rail sets / distinct baked
  * pieces), times each type's piece count from the track defs, plus the baked supports and cars once per type. A
  * kind with no baked item uses ASSUMED_MEAN_BYTES (basis 'assumed', listed in assumedKinds); it never fails the gate.
