@@ -8,6 +8,7 @@ import { getTrackPieceDef, getTrackTypeDef } from '../../data/track';
 import { pieceWorldSamples } from '../../sim/rides/track/api';
 import type { TrackPieceInstance } from '../../sim/rides/track/types';
 import type { Ctx } from '../sprites/shapes';
+import { drawCardArt } from '../cardArt';
 import { paletteColour } from './colours';
 import { lookFor, paintCar, paintRun, paintSupport, Projector, type TrackColours } from './paint';
 import { trackFrame, viewFrame } from './project';
@@ -50,6 +51,8 @@ export function previewPieces(typeId: string): TrackPieceInstance[] {
 }
 
 export function drawTrackPreview(ctx: CanvasRenderingContext2D, typeId: string, w: number, h: number): void {
+  // The realistic test build draws the type's baked card picture when it has one (folded away in the website build).
+  if (import.meta.env.VITE_ART === 'real' && drawCardArt(ctx, typeId, w, h, Math.min(w, h) * 0.06)) return;
   const type = getTrackTypeDef(typeId);
   ctx.clearRect(0, 0, w, h);
   if (!type) return;

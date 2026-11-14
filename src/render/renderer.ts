@@ -17,6 +17,7 @@ import type { Guest } from '../sim/guests/types';
 import type { World } from '../sim/types';
 import { coarseRideFrame, GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
 import { clampCameraToMap, ZOOM_BUCKETS, zoomBucket, type ZoomBucket } from './camera';
+import { drawCardArt } from './cardArt';
 import { makeCanvas, type AnyCanvas } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
@@ -1237,6 +1238,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
  * the generic fallback), fitted into a w × h box in the context's current coordinate space.
  */
 export function drawPreview(ctx: CanvasRenderingContext2D, defId: string, w: number, h: number): void {
+  // The realistic test build draws the item's baked card picture when it has one (folded away in the website build).
+  if (import.meta.env.VITE_ART === 'real' && drawCardArt(ctx, defId, w, h, Math.min(w, h) * 0.06)) return;
   const ride = getFlatRideDef(defId);
   const stall = ride ? undefined : getStallDef(defId);
   let fw = 1;

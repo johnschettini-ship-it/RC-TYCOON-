@@ -9,12 +9,15 @@
  * 3. Build the set manager (decode off the main thread with `createImageBitmap`, decode budget F2 (a) 128 MB),
  *    the look, and the ground, with the ground's chunks and the look's tinted sheets admitted to and reclaimed by
  *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
+ * 4. Decode the card picture set (when the bake has it) and give the card previews its drawer (`setCardArt`).
  */
 import { t } from '../../data/strings';
 import { perfProbe } from '../../perf/stats';
 import { REAL_STEP_PX } from '../artStyle';
 import { setStepPx } from '../heightStep';
 import type { RealOptions } from '../renderer';
+import { setCardArt } from '../cardArt';
+import { CARD_SET, cardPicture } from './cards';
 import { RealGround } from './ground';
 import type { RealIndex } from './indexFormat';
 import { createRealLook } from './look';
@@ -23,6 +26,8 @@ import { installStoragePrefix, pageStorage } from './storagePrefix';
 
 /** Spec F2 (a): the most decoded picture memory the realistic look may hold. */
 export const REAL_DECODE_BUDGET_BYTES = 128 * 1024 * 1024;
+/** The longest the boot waits for the card pictures before the game starts (they are small: well under this). */
+const CARD_WAIT_MS = 3000;
 /** Where the baked art lives, relative to the page. */
 export const REAL_ART_BASE = 'art/real/';
 
@@ -84,6 +89,16 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
   sets.addReclaimer((n) => ground.reclaim(n));
   sets.addReclaimer((n) => look.reclaim(n));
   perfProbe.realMemory = () => [sets.residentBytes(), sets.peakBytes()];
+  // Card pictures: their set decodes now (small), so the cards the UI draws first show them; a card drawn before it
+  // is ready, or without it, shows today's preview.
+  if (index.sets.some((e) => e.key === CARD_SET)) {
+    sets.beginFrame(0);
+    sets.want([CARD_SET], 'now');
+    sets.endFrame();
+    const t0 = Date.now();
+    while (sets.state(CARD_SET) === 'loading' && Date.now() - t0 < CARD_WAIT_MS) await new Promise((r) => setTimeout(r, 10));
+    setCardArt(cardPicture(sets));
+  }
   setStepPx(REAL_STEP_PX);
   return { look, sets, ground };
 }

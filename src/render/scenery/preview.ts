@@ -1,6 +1,7 @@
 /** Picker preview of one scenery item (Phase 4 §7 item grid): the art scaled to fit a card canvas. Owner: W3-D. */
 import { getSceneryDef } from '../../data/catalog';
 import type { Dir } from '../../sim/map';
+import { drawCardArt } from '../cardArt';
 import { drawSceneryArt, sceneryArtBounds } from './art';
 import { viewExtent } from './sprites';
 
@@ -8,6 +9,9 @@ import { viewExtent } from './sprites';
 export function drawSceneryPreview(ctx: CanvasRenderingContext2D, defId: string, w: number, h: number, facing: Dir = 2): void {
   const def = getSceneryDef(defId);
   if (!def) return;
+  // The realistic test build draws the item's baked card picture when it has one (facing the viewer, as `facing` 2;
+  // folded away in the website build).
+  if (import.meta.env.VITE_ART === 'real' && facing === 2 && drawCardArt(ctx, defId, w, h, Math.min(w, h) * 0.02)) return;
   const { ex, ey } = viewExtent(def, facing);
   const b = sceneryArtBounds(def, ex, ey);
   const bw = b.right - b.left;

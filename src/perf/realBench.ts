@@ -10,7 +10,9 @@
  * to draw shows. Every gap counts, a visible stall of seconds included; only a gap that spans a hidden page is left
  * out (and counted in `droppedHiddenGaps`). A turn's time runs from the Turn action (`rotateView`, as the Turn button calls it) to the first
  * complete frame at the new rotation: `look.incomplete() === 0` and the realistic ground laid (`ground.complete`), as
- * the renderer counts incomplete frames.
+ * the renderer counts incomplete frames. At density 4 that frame may draw objects from their density-2 sets (the
+ * ahead turn is wanted at density 2); `sharpenMs` runs on to the first frame with every object at its chosen density
+ * (`look.soft() === 0`). S3 stays on the turn time.
  *
  * Art is local before anything is measured (spec §5.4 item 1, as in the app): the card reads every compressed file
  * into the set manager first and passes the time as `artDownload`, reported apart. S4 is the app's start to its
@@ -32,6 +34,10 @@
  * S4 app start to the first complete park frame 4 s (first row only), S5 app size: not measurable in the game
  * (the bake report gives it), always `n/a`. A missing instrument gives `n/a`, never a pass: S2 without the set
  * manager, S3 and S4 without the realistic look (their times are still recorded).
+ *
+ * Today's look runs the same sequence for comparison (`?art=classic&bench=1` in the VITE_ART=real build): no look, set
+ * manager or ground, so S2, S3 and S4 read n/a and the frame times are measured as for the realistic look. The result
+ * says which look ran (`look`).
  *
  * The bench never saves: autosave is off for the run (`game.settings`, put back after), and every perf save also
  * starts more than `BENCH_MAX_SCENE_MS` of 1× ticks before a month start (unit test).
@@ -77,7 +83,7 @@ export interface MemorySplit { sets: number; tints: number; ground: number }
 
 export interface BenchOptions {
   /** The realistic look (absent with today's look: every frame counts as complete). */
-  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number } | null;
+  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number; soft?(): number } | null;
   /** The realistic ground: a frame with it not laid is incomplete. */
   ground?: { complete: boolean } | null;
   sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown; densityCap?(): number; resetPressure?(): void } | null;
@@ -125,6 +131,13 @@ export interface TurnTime {
   band: BandResult;
   /** No complete frame within `TURN_TIMEOUT_MS`: `ms` is the time waited. */
   timedOut: boolean;
+  /**
+   * Turn action → first frame with every object at its chosen density (complete, and nothing drawn from a density-2
+   * set in place of density 4: `look.soft() === 0`), ms. null without the realistic look's count, or when the view
+   * was not sharp within `TURN_TIMEOUT_MS` (`sharpenTimedOut`). S3 stays on `ms`.
+   */
+  sharpenMs: number | null;
+  sharpenTimedOut: boolean;
 }
 
 /** A wait that timed out, with the set manager's state at that moment (R1). */
@@ -181,6 +194,8 @@ export interface BenchRow {
 export interface RealBenchResult {
   format: 'tc-real-bench/1';
   verdict: 'pass' | 'fail';
+  /** Which look ran: 'real' with the realistic look, 'classic' with today's (no look: `?art=classic`, or no art). */
+  look: 'real' | 'classic';
   /** S4: navigation start to the first complete park frame, ms (null when no scene loaded). */
   startMs: number | null;
   /** Reading every compressed art file before the run (null when the card did not). */
@@ -451,10 +466,26 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
           }
         }
         const ms = clock() - t0;
+        // Then on to the first frame with every object at its chosen density (often the same frame).
+        let sharpenMs: number | null = null;
+        let sharpenTimedOut = false;
+        if (look?.soft && !timedOut) {
+          for (;;) {
+            if (cam.rotation === target && incomplete() === 0 && look.soft() === 0) {
+              sharpenMs = r1(clock() - t0);
+              break;
+            }
+            if (clock() - t0 >= TURN_TIMEOUT_MS) {
+              sharpenTimedOut = true;
+              break;
+            }
+            await frame();
+          }
+        }
         const limitMs = dir === 1 ? BENCH_LIMITS.turnMs : BENCH_LIMITS.turnOtherMs;
         // Without the realistic look there is nothing to wait for: the time is recorded, the band is n/a.
         const verdict: BandResult = look === null ? 'n/a' : ms <= limitMs && !timedOut ? 'pass' : 'fail';
-        turns.push({ dir, ms: r1(ms), limitMs, band: verdict, timedOut });
+        turns.push({ dir, ms: r1(ms), limitMs, band: verdict, timedOut, sharpenMs, sharpenTimedOut });
         await waitUntil(t0 + TURN_EVERY_MS);
       }
       if (look?.currentDensity) densities.push(look.currentDensity());
@@ -550,6 +581,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   return {
     format: 'tc-real-bench/1',
     verdict: failed ? 'fail' : 'pass',
+    look: look === null ? 'classic' : 'real',
     startMs: startMs === null ? null : r1(startMs),
     artDownload: opts.artDownload ? { ms: r1(opts.artDownload.ms), MB: r1(opts.artDownload.bytes / MB), files: opts.artDownload.files } : null,
     bootCompleteMs: opts.bootCompleteMs === undefined ? null : r1(opts.bootCompleteMs),
@@ -567,7 +599,7 @@ export function splitText(m: MemorySplit | null): string {
 
 /** The copied results: a few summary lines, then the result as JSON (as the phone test). */
 export function resultsText(r: RealBenchResult): string {
-  const lines = [`Realistic look stage 1 bench: ${r.verdict}`];
+  const lines = [`Stage 1 bench (${r.look === 'real' ? 'realistic' : "today's"} look): ${r.verdict}`, `look: ${r.look === 'real' ? 'realistic' : "today's"}`];
   lines.push(`start (S4) ${r.startMs ?? 'n/a'} ms; DPR ${r.device.devicePixelRatio}; canvas ${r.device.canvasPx.join('x')}; ${r.device.userAgent}`);
   const dl = r.artDownload;
   lines.push(`art download ${dl ? `${dl.MB} MB, ${dl.files} files in ${dl.ms} ms` : 'n/a'} (before the run, not in S4); boot to first complete frame ${r.bootCompleteMs ?? 'n/a'} ms (network included)`);
@@ -580,6 +612,7 @@ export function resultsText(r: RealBenchResult): string {
     lines.push(
       `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
+        `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,

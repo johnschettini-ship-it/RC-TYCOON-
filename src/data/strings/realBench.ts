@@ -27,10 +27,14 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.work': 'Work per frame p95',
   'ui.realBench.memory': 'Picture memory peak / end',
   'ui.realBench.turns': 'Turns',
+  'ui.realBench.sharpen': 'Turns until sharp (every object at its density)',
   'ui.realBench.placement': 'Longest frame while placing',
   'ui.realBench.incomplete': 'Incomplete frames',
   'ui.realBench.caps': 'Density cap changes',
   'ui.realBench.start': 'Start time',
+  'ui.realBench.look': 'Look',
+  'ui.realBench.look.real': 'realistic',
+  'ui.realBench.look.classic': "today's",
   'ui.realBench.device': 'Device',
   'ui.realBench.fallbacks': "Drawn with today's art",
   'ui.realBench.none': 'none',
@@ -49,5 +53,5 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.band.fail': 'fail',
   'ui.realBench.band.na': 'n/a',
   'ui.realBench.note':
-    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way, S4 start 4 s, counted with all art already downloaded (the download is shown apart). S5 (app size) comes from the bake report. Numbers from a desktop or headless browser are not phone numbers: a phone draws at most 2 device pixels per CSS pixel, so it uses density 2 at zoom 1 and density 4 at zoom 2',
+    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way (a turn may first show at density 2; turns until sharp is the time to full density, not in S3), S4 start 4 s, counted with all art already downloaded (the download is shown apart). S5 (app size) comes from the bake report. Numbers from a desktop or headless browser are not phone numbers: a phone draws at most 2 device pixels per CSS pixel, so it uses density 2 at zoom 1 and density 4 at zoom 2',
 };

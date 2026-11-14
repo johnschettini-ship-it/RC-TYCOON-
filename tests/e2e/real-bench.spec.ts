@@ -67,4 +67,30 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
     const unexpected = errors.filter((e) => !(/404/.test(e) && /art\/real\/index\.json/.test(e)));
     expect(unexpected).toEqual([]);
   });
+
+  test("today's look runs the same bench (?art=classic): n/a memory, turn and start bands, frame times measured", async ({ page }) => {
+    test.setTimeout(240_000);
+    const errors: string[] = [];
+    page.on('console', (m) => {
+      if (m.type() === 'error') errors.push(`${m.text()} @ ${m.location().url}`);
+    });
+    page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto('/?art=classic&bench=quick');
+    const run = page.getByTestId('real-bench-run');
+    await expect(run).toBeVisible();
+    await run.click();
+    const card = page.getByTestId('real-bench-card');
+    await expect(card).toBeVisible({ timeout: 220_000 });
+    await expect(card.locator('tr[data-look="classic"]')).toBeVisible();
+    for (const check of ['S2', 'S3']) for (const cell of await card.locator(`tr[data-check="${check}"] td[data-band]`).all()) await expect(cell).toHaveAttribute('data-band', 'n/a');
+    const result = await page.evaluate(() => (window as unknown as { __tcBench: { look: string; scenes: Array<{ frames: number; frameP95: number }> } }).__tcBench);
+    expect(result.look).toBe('classic');
+    for (const s of result.scenes) {
+      expect(s.frames).toBeGreaterThan(0);
+      expect(s.frameP95).toBeGreaterThan(0);
+    }
+    // Every key the test build writes carries its prefix.
+    expect((await page.evaluate(() => Object.keys(localStorage))).every((k) => k.startsWith('tcreal:'))).toBe(true);
+    expect(errors).toEqual([]);
+  });
 });

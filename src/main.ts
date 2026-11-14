@@ -62,24 +62,28 @@ function boot(real?: RealOptions): void {
   (window as unknown as { __tc?: Game }).__tc = game;
   const loading = document.getElementById('loading');
   if (loading) loading.style.display = 'none';
-  // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke): VITE_ART=real build with the realistic look
-  // only.
-  if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
-    // Debug hook for the realistic art check (headless screenshots, Task 9b): the look, set manager and ground of this
-    // boot, and `load`, which loads a save text through the game (never through storage) and frames it like the bench.
-    (window as unknown as { __tcReal?: RealDebug }).__tcReal = {
-      ...real,
-      load(json, focus, zoom = 1, rotation = 0) {
-        const loaded = deserialize(json);
-        if (!loaded.ok) return loaded.error;
-        game.setWorld(loaded.world);
-        const m = loaded.world.state.map;
-        game.camera.rotation = rotation;
-        game.camera.zoom = zoom;
-        centerOnTile(game.camera, m, focus.y * m.width + focus.x);
-        return null;
-      },
-    };
+  if (import.meta.env.VITE_ART === 'real') {
+    if (artStyle() === 'real') {
+      // Debug hook for the realistic art check (headless screenshots, Task 9b): the look, set manager and ground of
+      // this boot, and `load`, which loads a save text through the game (never through storage) and frames it like
+      // the bench.
+      (window as unknown as { __tcReal?: RealDebug }).__tcReal = {
+        ...real,
+        load(json, focus, zoom = 1, rotation = 0) {
+          const loaded = deserialize(json);
+          if (!loaded.ok) return loaded.error;
+          game.setWorld(loaded.world);
+          const m = loaded.world.state.map;
+          game.camera.rotation = rotation;
+          game.camera.zoom = zoom;
+          centerOnTile(game.camera, m, focus.y * m.width + focus.x);
+          return null;
+        },
+      };
+    }
+    // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke), in the VITE_ART=real build only: with the
+    // realistic look (`?art=real`), or with today's look for comparison (`?art=classic`: no look, set manager or
+    // ground, so the memory, turn and start bands read n/a while the frame times are measured the same way).
     const bench = new URLSearchParams(location.search).get('bench');
     if (bench === '1' || bench === 'quick') {
       // S4's first part: the boot's first drawn frame (art not awaited: in the app it is local, here it downloads).
