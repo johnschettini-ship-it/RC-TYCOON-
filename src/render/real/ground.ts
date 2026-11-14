@@ -13,6 +13,11 @@
  * - Chunks are built at `groundScale`: the screen scale (zoom × dpr) rounded up to a step, never above the look's
  *   density, so a chunk holds no pixel the screen cannot show. Chunks of another rotation or scale are freed as soon
  *   as the ground draws at a new one.
+ * - Above `DIRECT_ABOVE_SCALE` (a phone at zoom 2: screen scale 4) no chunk is made (round 3 item 3): an 8 × 8 chunk
+ *   at scale 4 is about 2048 × 1100 px, and the view's chunks took about 60 MB of the 128 MB budget. The tiles in the
+ *   view are drawn straight into the target (the static layer when the view is still, the screen while it moves),
+ *   chunk by chunk in the same back-to-front order as the chunks, at the screen's scale. The tiles are few at that
+ *   scale (a phone screen shows about 100), and nothing is held.
  * - New chunks are built while the frame has spent less than `FIRST_BUILD_BUDGET_MS` on them (at least one per
  *   frame), as the terrain layer does. A terrain change rebuilds only the chunks whose tiles (or the ring of tiles
  *   around them, for path joins) changed.
@@ -43,6 +48,8 @@ const PAD = 2;
 const KEEP_FRAMES = 120;
 /** Chunk scales: the screen scale is rounded up to one of these (so a pinch does not rebuild every frame). */
 const SCALE_STEPS = [1, 1.5, 2, 3, 4] as const;
+/** Above this screen scale (zoom × dpr) the tiles in the view are drawn straight into the target, with no chunk. */
+export const DIRECT_ABOVE_SCALE = 2;
 
 /** The scale chunks are built at for screen scale `scale` (zoom × dpr) and look density `density`. */
 export function groundScale(scale: number, density: number): number {
@@ -133,6 +140,10 @@ export class RealGround implements GroundLayer {
   /** Chunk indices back to front (v0, then u0) for `orderRot`, as the terrain layer draws. */
   private order: number[] = [];
   private orderRot = -1;
+  /** Direct tiles: path and queue join masks (map terms) by map tile (−1: not known yet), cleared on a terrain change. */
+  private joins = new Int16Array(0);
+  /** Tiles drawn by the last direct `draw` (tests, bench). */
+  tilesDrawn = 0;
 
   constructor(
     private readonly look: Pick<RealLook, 'groundPiece' | 'density'>,
@@ -260,14 +271,18 @@ export class RealGround implements GroundLayer {
     // A terrain change: drop the chunks whose tiles changed.
     const changed = version !== this.version;
     this.version = version;
-    const cs = groundScale(scale, this.look.density(scale, 1));
+    if (changed || this.joins.length !== map.width * map.height) this.joins = new Int16Array(map.width * map.height).fill(-1);
+    const direct = scale > DIRECT_ABOVE_SCALE + 1e-6;
+    const cs = direct ? 0 : groundScale(scale, this.look.density(scale, 1));
     const upScale = groundScale(scale, pickDensity(scale, 1, 4));
-    // Chunks of another rotation or scale are never drawn again at this one: free them now.
+    // Chunks of another rotation or scale are never drawn again at this one: free them now (all of them when the
+    // tiles are drawn directly).
     for (const [k, c] of [...this.chunks]) if (c.rot !== rot || c.scale !== cs) this.free(k, c);
     let complete = true;
     let drawn = 0;
     let t0 = 0;
     let firstBuilds = 0;
+    this.tilesDrawn = 0;
     if (this.orderRot !== rot || changed) {
       const keys: number[] = [];
       for (let c = 0; c < cxN * cyN; c++) {
@@ -288,6 +303,11 @@ export class RealGround implements GroundLayer {
       }
       const g = chunkBounds(map, cx, cy, rot);
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      if (direct) {
+        if (!this.drawTiles(ctx, map, cx, cy, view, scale, offX, offY, rot, env)) complete = false;
+        drawn++;
+        continue;
+      }
       if (!ch) {
         if (firstBuilds === 0) t0 = terrainClock.now();
         if (firstBuilds > 0 && terrainClock.now() - t0 >= FIRST_BUILD_BUDGET_MS) {
@@ -326,6 +346,46 @@ export class RealGround implements GroundLayer {
     this.holdNow();
     this.complete = complete;
     return drawn;
+  }
+
+  /**
+   * Direct tiles (screen scale above `DIRECT_ABOVE_SCALE`): the tiles of chunk (cx, cy) inside `view`, back to front,
+   * straight into `ctx` at the screen's scale. False when a piece is not decoded yet (the ground is incomplete).
+   */
+  private drawTiles(ctx: CanvasRenderingContext2D, map: MapState, cx: number, cy: number, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, env: GroundEnv | undefined): boolean {
+    const vr = chunkViewRect(map, cx, cy, rot);
+    let complete = true;
+    for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
+      for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
+        const v = s - u;
+        const m = viewToMap(u, v, rot, map.width, map.height);
+        const i = m.y * map.width + m.x;
+        const hz = (map.heights[i] as number) * STEP_PX;
+        const ax = (u - v) * HW;
+        const ay = (u + v) * HH - hz;
+        // A piece spans its tile (64 × 32 px at zoom 1) and hangs at most its height down (cliff faces).
+        if (ax + HW + 8 < view.x0 || ax - HW - 8 > view.x1 || ay + 2 * HH + hz + 8 < view.y0 || ay - 16 > view.y1) continue;
+        const terrain = groundTerrain(map, i);
+        let join: number | undefined;
+        if (env && (terrain === 'path' || terrain === 'queue')) {
+          let raw = this.joins[i] as number;
+          if (raw < 0) this.joins[i] = raw = pathJoinMask(map, i, env.rides, env.stalls);
+          join = rotateSlopeMask(raw, rot);
+        }
+        const sp = this.look.groundPiece(terrain, rotateSlopeMask(map.slope[i] as number, rot), groundVariant(m.x, m.y), rot, join);
+        if (sp === null) {
+          complete = false;
+          continue;
+        }
+        if (!sp) continue;
+        const k = scale / sp.scale;
+        const x0 = Math.round(offX + ax * scale - sp.ox * k);
+        const y0 = Math.round(offY + ay * scale - sp.oy * k);
+        ctx.drawImage(sp.image, sp.sx ?? 0, sp.sy ?? 0, sp.w, sp.h, x0, y0, Math.round(offX + ax * scale + (sp.w - sp.ox) * k) - x0, Math.round(offY + ay * scale + (sp.h - sp.oy) * k) - y0);
+        this.tilesDrawn++;
+      }
+    }
+    return complete;
   }
 
   /**

@@ -134,14 +134,14 @@ describe('RealGround memory (final review C1, I6, M1)', () => {
     expect(groundScale(5.5, 4)).toBe(4);
     terrainClock.now = () => 0;
     const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
-    // Phone: zoom 1 at DPR 2.75 is density 4, but chunks are built at 3.
-    const t = setupWith(() => 4);
-    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2.75, 0, 0, 0, 1);
-    const at3 = t.made.reduce((n, c) => n + c.width * c.height, 0);
-    const t4 = setupWith(() => 4);
-    t4.ground.draw(t4.ctx, world.state.map, VIEW_ALL, 4, 0, 0, 0, 1);
-    const at4 = t4.made.reduce((n, c) => n + c.width * c.height, 0);
-    expect(at3 / at4).toBeLessThan(0.6);
+    // Screen scale 1.375 builds chunks at 1.5, under 0.6 of the bytes at 2 (above 2 no chunk is made: round 3 item 3).
+    const t = setupWith(() => 2);
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 1.375, 0, 0, 0, 1);
+    const at15 = t.made.reduce((n, c) => n + c.width * c.height, 0);
+    const t2 = setupWith(() => 2);
+    t2.ground.draw(t2.ctx, world.state.map, VIEW_ALL, 2, 0, 0, 0, 1);
+    const at2 = t2.made.reduce((n, c) => n + c.width * c.height, 0);
+    expect(at15 / at2).toBeLessThan(0.6);
   });
 
   it('chunks of another rotation or scale are freed as soon as the ground draws at a new one (C1 a)', () => {
@@ -205,13 +205,13 @@ describe('RealGround memory (final review C1, I6, M1)', () => {
     let room = 0;
     const asks: [number, number | undefined][] = [];
     const t = setupWith(() => 2, { admit: (_id, b, up) => { asks.push([b, up]); return b <= room; } });
-    expect(t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2.75, 0, 0, 0, 1)).toBe(0);
+    expect(t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2, 0, 0, 0, 1)).toBe(0);
     expect(t.ground.complete).toBe(false);
     expect(t.made).toHaveLength(0);
-    // Scale 2.75 with the density capped to 2: chunks at 2; uncapped they would be at 3, (3 / 2)^2 as big.
-    expect(asks[0]![1]).toBe(Math.round(asks[0]![0] * 2.25));
+    // Chunks are made at screen scale 2 at most (density 2 either way), so their density-4 size is the same.
+    expect(asks[0]![1]).toBe(asks[0]![0]);
     room = Number.POSITIVE_INFINITY;
-    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2.75, 0, 0, 0, 1);
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2, 0, 0, 0, 1);
     expect(t.ground.complete).toBe(true);
   });
 
@@ -257,5 +257,73 @@ describe('RealGround memory (final review C1, I6, M1)', () => {
     map.content[tileIndex(map, 8, 2)] = Content.Footpath; // in the next chunk
     t.ground.draw(t.ctx, map, VIEW_ALL, 1, 0, 0, 0, 2, { rides: [], stalls: [] });
     expect(t.ground.builds).toBe(2);
+  });
+});
+
+describe('RealGround at high zoom: tiles straight into the target, no chunk (round 3 item 3)', () => {
+  it('above screen scale 2 draws each tile in the view from the sheet rectangle, makes and holds nothing', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const holds: number[] = [];
+    const t = setupWith(() => 4, { hold: (_id, b) => holds.push(b) }, () => ({ image: new FakeCanvas(1, 1) as unknown as CanvasImageSource, sx: 8, sy: 4, w: 256, h: 128, ox: 128, oy: 0, scale: 4 }));
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 4, 0, 0, 0, 1);
+    expect(t.made).toHaveLength(0);
+    expect(t.ground.heldBytes()).toBe(0);
+    expect(holds.every((b) => b === 0)).toBe(true);
+    expect(t.ground.complete).toBe(true);
+    expect(t.ground.tilesDrawn).toBe(16 * 16);
+    expect(t.asked).toHaveLength(16 * 16);
+    // Every frame draws again (nothing is kept), and only the tiles inside the view.
+    t.asked.length = 0;
+    t.ground.draw(t.ctx, world.state.map, { x0: -40, y0: -40, x1: 40, y1: 40 }, 4, 0, 0, 0, 1);
+    expect(t.ground.tilesDrawn).toBeGreaterThan(0);
+    expect(t.ground.tilesDrawn).toBeLessThan(32);
+  });
+
+  it('draws at the screen scale: a density-4 piece 1:1 at scale 4, a density-2 piece (density capped) scaled up 2×', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 8 });
+    for (const [d, w] of [[4, 256], [2, 128]] as const) {
+      const sheet = new FakeCanvas(512, 512);
+      const t = setupWith(() => d, {}, () => ({ image: sheet as unknown as CanvasImageSource, sx: 8, sy: 4, w, h: w / 2, ox: w / 2, oy: 0, scale: d }));
+      const target = new FakeCanvas(4000, 4000);
+      t.ground.draw(target.getContext() as CanvasRenderingContext2D, world.state.map, VIEW_ALL, 4, 0, 0, 0, 1);
+      const first = target.draws[0]!;
+      expect(first.src).toEqual({ x: 8, y: 4, w, h: w / 2 });
+      expect([first.w, first.h]).toEqual([256, 128]);
+    }
+  });
+
+  it('a piece not decoded yet leaves the ground incomplete (today\'s terrain shows there); switching from chunks frees them', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    let ready = true;
+    const t = setupWith(() => 2, {}, () => (ready ? piece() : null));
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2, 0, 0, 0, 1);
+    expect(t.made).toHaveLength(4);
+    ready = false;
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 4, 0, 0, 0, 1);
+    expect(t.made.every((c) => c.width === 0)).toBe(true);
+    expect(t.ground.heldBytes()).toBe(0);
+    expect(t.ground.complete).toBe(false);
+  });
+
+  it('path joins are asked in view terms at every turn (cached in map terms)', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const map = world.state.map;
+    map.content[tileIndex(map, 5, 5)] = Content.Footpath;
+    map.content[tileIndex(map, 6, 5)] = Content.Footpath;
+    const joinsAt = (rot: 0 | 1) => {
+      const t = setupWith(() => 4);
+      t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, rot, 1, { rides: [], stalls: [] });
+      return t.asked.filter((a) => a.startsWith('path')).sort();
+    };
+    const t = setupWith(() => 4);
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1, { rides: [], stalls: [] });
+    t.asked.length = 0;
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 1, 1, { rides: [], stalls: [] });
+    expect(t.asked.filter((a) => a.startsWith('path')).sort()).toEqual(joinsAt(1));
+    expect(joinsAt(1)).not.toEqual(joinsAt(0));
   });
 });
