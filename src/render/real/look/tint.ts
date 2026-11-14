@@ -70,6 +70,8 @@ export function createTinter(sets: RealSets, metaOf: (rs: ReadySet) => SetMeta, 
       failed.add(key);
       opts.onError?.(`${key}#${hexOf.get(colour) ?? colour.toString(16)}`, err);
     },
+    // A page or the scratch canvas failed: no set is to blame; its frames are asked for again on later draws.
+    onCanvasError: (err) => opts.onError?.('tint:canvas', err),
   });
 
   function colourOf(hex: string): number {

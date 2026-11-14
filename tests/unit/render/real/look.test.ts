@@ -110,7 +110,7 @@ class FakeSets implements RealSets {
   /** Sets the test says cannot fit (round 3 item 2). */
   starvedKeys = new Set<SetKey>();
   starved(key: SetKey): boolean { return this.starvedKeys.has(key); }
-  /** Room for held bytes (tinted sheets) in total; Infinity by default. */
+  /** Room for held bytes (tint-atlas pages, its scratch canvas) in total; Infinity by default. */
   room = Number.POSITIVE_INFINITY;
   refused: string[] = [];
   hold(id: string, bytes: number): void { if (bytes > 0) this.held.set(id, bytes); else this.held.delete(id); }
@@ -130,6 +130,8 @@ class FakeSets implements RealSets {
 }
 
 const make = (w: number, h: number) => new PixCanvas(w, h);
+/** The tint atlas's page holds (`tint:<page>`), without its scratch canvas (`tint:scratch`). */
+const pageHolds = (sets: FakeSets): string[] => [...sets.held.keys()].filter((k) => k !== 'tint:scratch');
 
 function setup(fill?: Record<string, number[]>) {
   const index = makeIndex();
@@ -319,7 +321,7 @@ describe('RealLook', () => {
         for (let c = 0; c < 3; c++) expect(Math.abs(page.data[at + c]! - rgb[c]! * 128 / 255)).toBeLessThanOrEqual(1);
       }
     }
-    expect([...sets.held.entries()]).toEqual([['tint:0', TINT_PAGE_BYTES]]);
+    expect([...sets.held.entries()]).toEqual([['tint:0', TINT_PAGE_BYTES], ['tint:scratch', FRAME.w * FRAME.h * 4]]);
     // Same colour, another frame: tinted on its own, into the same page; no new hold. Drawn again: the same sprite.
     const sit = look.guest(5, 3, 0, 0, true)!;
     expect(sit).not.toBe(a);
@@ -329,7 +331,7 @@ describe('RealLook', () => {
     const b = look.guest(5, 4, 1, 2, false)!;
     expect(b.image).toBe(a.image);
     expect([b.sx, b.sy]).not.toEqual([a.sx, a.sy]);
-    expect(sets.held.size).toBe(1);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
   });
 
   it('an untinted frame draws the base, counted incomplete', () => {
@@ -354,16 +356,16 @@ describe('RealLook', () => {
     expect(look.incomplete()).toBe(0);
   });
 
-  it('frees tinted sheets when their set is no longer ready', () => {
+  it('frees tinted frames (and their emptied atlas page) when their set is no longer ready', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
     const img = look.guest(0, 1, 1, 2, false)!.image as unknown as PixCanvas;
-    expect(sets.held.size).toBe(1);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
     expect(img.width).toBe(TINT_PAGE_PX);
     sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'none');
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
-    expect(sets.held.size).toBe(0);
+    expect(pageHolds(sets)).toEqual([]);
     expect(img.width).toBe(0);
   });
 
@@ -396,7 +398,7 @@ describe('RealLook', () => {
     // Tinted: the frame in an atlas page, not the sheet itself.
     expect(sp.image).not.toBe(sets.images(setKey('support', 'steel_coaster', 2, 3))[0]);
     expect((sp.image as unknown as PixCanvas).width).toBe(TINT_PAGE_PX);
-    expect([...sets.held.keys()]).toEqual(['tint:0']);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
   });
 
   it('path-item shadows resolve by the item\'s side', () => {
@@ -431,14 +433,14 @@ describe('RealLook', () => {
     expect(look.incomplete()).toBe(0);
   });
 
-  it('dispose frees every tinted sheet', () => {
+  it('dispose frees the tint atlas: every page and the scratch canvas', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
     const a = look.guest(0, 1, 1, 2, false)!.image as unknown as PixCanvas;
     const b = look.guest(0, 2, 1, 2, false)!.image as unknown as PixCanvas;
     expect(b).toBe(a); // one shared page
-    expect(sets.held.size).toBe(1);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
     look.dispose();
     expect(sets.held.size).toBe(0);
     expect(a.width).toBe(0);
@@ -462,7 +464,7 @@ describe('RealLook: memory (final review C1, M1)', () => {
     // Room again: made and held.
     sets.room = Number.POSITIVE_INFINITY;
     expect(counting.guest(0, 1, 1, 2, false)!.image).not.toBe(sets.images(key)[0]);
-    expect(sets.held.size).toBe(1);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
   });
 
   it('reclaim frees atlas pages not drawn since the last prepare', () => {
@@ -474,7 +476,7 @@ describe('RealLook: memory (final review C1, M1)', () => {
     expect(look.reclaim(1)).toBe(0);
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     expect(look.reclaim(1)).toBe(TINT_PAGE_BYTES);
-    expect(sets.held.size).toBe(0);
+    expect(pageHolds(sets)).toEqual([]);
     expect(page.width).toBe(0);
   });
 
@@ -598,7 +600,7 @@ describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
     expect(canvases).toBe(made);
     expect(admits).toBe(1);
     // One atlas page; the frame stays while the twin (the set drawn from, which the sweep sees as ready) does.
-    expect([...sets.held.keys()]).toEqual(['tint:0']);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
   });
 
   it('with neither ready it is null and incomplete; ground pieces never step down', () => {
@@ -668,7 +670,7 @@ describe('RealLook: per-draw cost (round 3 item 5)', () => {
     expect(frameReads).toBe(reads + 1);
   });
 
-  it('a reloaded set (new images) is looked up again, and its tinted sheet is made again', () => {
+  it('a reloaded set (new images) is looked up again, and its tinted frame is made again', () => {
     const { sets, look } = setup({ s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
     const key = setKey('guest', 'b0o0', 2, 'all');
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
@@ -681,7 +683,7 @@ describe('RealLook: per-draw cost (round 3 item 5)', () => {
     expect(b === a).toBe(false);
     expect(b.image === a.image).toBe(false);
     expect((a.image as unknown as PixCanvas).width).toBe(0); // the old frame's page was freed with it
-    expect(sets.held.size).toBe(1);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
   });
 });
 
@@ -923,7 +925,7 @@ describe('RealLook: tinting under a per-frame budget (round 3 item 4, Task 4)', 
     const second = [1, 2, 3, 4].map((c) => look.guest(0, c, 1, 2, false)!);
     expect(second.every((sp) => sp.image !== base)).toBe(true);
     expect(look.incomplete()).toBe(0);
-    expect(sets.held.size).toBe(1);
+    expect(pageHolds(sets)).toEqual(['tint:0']);
   });
 });
 

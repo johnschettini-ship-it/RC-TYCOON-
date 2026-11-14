@@ -9,9 +9,12 @@
  *   page is admitted to the set manager before it is made (`sets.admit('tint:<page>', bytes)`), so it counts in the
  *   one picture budget (`split().tints`), and released (`hold(id, 0)`) when it is freed.
  * - Frames are shelf-packed: a row ("shelf") as tall as the frame that opened it; a frame goes into a freed slot or the
- *   end of a shelf about its height, else a new shelf, else a new page.
- * - Full: the least recently used frame is evicted first, and its slot reused. A frame drawn this frame or the frame
- *   before is never evicted (no thrash when more frames are on screen than fit): the request is refused instead and
+ *   end of a shelf about its height, else a new shelf, else a new page. Each slot is the frame plus a `TINT_GUTTER_PX`
+ *   gutter right and below (as the bake pads its sheets): sprites draw scaled with smoothing, which samples outside the
+ *   frame's rectangle. A slot is cleared, gutter included, every time it is (re)used.
+ * - One scratch canvas (as big as the biggest frame tinted so far) is held in the set manager as `tint:scratch`.
+ * - Before a new page is asked of the set manager, frames idle over `TINT_STALE_FRAMES` are evicted (least recently
+ *   used first) and their slots reused. Full: the least recently used frame is evicted first, and its slot reused. A frame drawn this frame or the frame before is never evicted (no thrash when more frames are on screen than fit): the request is refused instead and
  *   the caller draws the frame untinted. A page left empty is freed.
  * - `request` only reserves the slot; `step(budgetMs)` tints queued frames while the frame's tint time is under the
  *   budget (at least one a frame, so every queue drains). Until then `get` returns undefined.
@@ -30,6 +33,10 @@ export const TINT_PAGE_BYTES = TINT_PAGE_PX * TINT_PAGE_ROWS * 4;
 export const TINT_ATLAS_MAX_PAGES = 12;
 /** 12 MiB at most, whatever the pages' heights. */
 export const TINT_ATLAS_MAX_BYTES = TINT_ATLAS_MAX_PAGES * TINT_PAGE_BYTES;
+/** Transparent px right of and below every frame in a page (the bake's `PAD`, tools/art3d/bakePage.ts). */
+export const TINT_GUTTER_PX = 2;
+/** The scratch canvas's hold id in the set manager. */
+export const TINT_SCRATCH_HOLD = 'tint:scratch';
 /** Hold ids in the set manager: `tint:<page>`. Every hold id but `ground` is counted as tints by `split()`. */
 export const TINT_HOLD_PREFIX = 'tint:';
 
@@ -37,6 +44,12 @@ export const TINT_HOLD_PREFIX = 'tint:';
 const FRAME_SPAN = 2 ** 28;
 /** Frames drawn this many frames back or later are never evicted. */
 const KEEP_RECENT = 1;
+/**
+ * Before a new page is asked of the set manager, frames idle longer than this are evicted first (fix round 1, item 4:
+ * no refusal, so no pressure, for room the atlas can find itself). Longer than KEEP_RECENT so a walk frame not drawn
+ * for a few frames is not thrown out (and re-tinted, untinted meanwhile) while the atlas could still grow.
+ */
+export const TINT_STALE_FRAMES = 30;
 /** A frame may go in a shelf up to this much taller than itself (px, or a quarter of its height if more). */
 const SHELF_SLACK = 4;
 
@@ -48,7 +61,14 @@ export interface TintAtlasOptions {
   now?: () => number;
   /** Told once per sheet whose tint failed (a canvas without a 2D context); the sheet is refused from then on. */
   onError?: (sheetKey: number, colour: number, err: unknown) => void;
+  /**
+   * Told when a page or the scratch canvas fails (no 2D context): not the sheet's fault, so only the frames on that page
+   * (or the one request) are dropped and asked for again later; the page is freed.
+   */
+  onCanvasError?: (err: unknown) => void;
 }
+
+interface Ctx2DClear { clearRect?(x: number, y: number, w: number, h: number): void }
 
 interface Shelf { y: number; h: number; x: number; free: { x: number; w: number }[]; count: number }
 interface Page { id: number; canvas: CanvasLike; w: number; h: number; bytes: number; shelves: Shelf[]; nextY: number; entries: Set<Entry>; used: number }
@@ -125,7 +145,7 @@ export class TintAtlas {
     let byColour = this.frames.get(key);
     const had = byColour?.get(colour);
     if (had) { this.touch(had); return true; }
-    if (rect.w > TINT_PAGE_PX || rect.h > TINT_PAGE_PX || rect.w <= 0 || rect.h <= 0) return false;
+    if (rect.w + TINT_GUTTER_PX > TINT_PAGE_PX || rect.h + TINT_GUTTER_PX > TINT_PAGE_PX || rect.w <= 0 || rect.h <= 0) return false;
     let at: Place | null;
     try {
       at = this.alloc(rect.w, rect.h);
@@ -159,15 +179,22 @@ export class TintAtlas {
       const e = this.queue[this.qHead++] as Entry;
       if (e.gone) continue;
       const t0 = this.now();
+      const { w, h } = e.rect;
+      // Canvases first: a page or scratch canvas without a 2D context is not the sheet's fault.
+      const scratch = this.scratchFor(w, h);
+      const pageCtx = e.page.canvas.getContext('2d') as Ctx2DClear | null;
+      if (!scratch || !pageCtx) {
+        if (!pageCtx) this.dropPage(e.page);
+        else this.evict(e);
+        this.opts.onCanvasError?.(new Error(`no 2D context for a tint ${scratch ? 'page' : 'scratch canvas'}`));
+        this.ranOne = true;
+        this.spent += this.now() - t0;
+        continue;
+      }
       try {
-        const { w, h } = e.rect;
-        const s = this.scratch;
-        if (!s || s.width < w || s.height < h) {
-          if (s) s.width = s.height = 0;
-          this.scratch = null;
-          this.scratch = this.make(Math.max(w, s?.width ?? 0), Math.max(h, s?.height ?? 0));
-        }
-        tintRect(e.base as Decoded, e.mask as Decoded, e.rect, rgbOf(e.colour), e.page.canvas, e.x, e.shelf.y, this.scratch as CanvasLike);
+        // The whole slot, gutter included: a reused slot may hold a bigger frame's pixels.
+        pageCtx.clearRect?.(e.x, e.shelf.y, e.slotW, e.shelf.h);
+        tintRect(e.base as Decoded, e.mask as Decoded, e.rect, rgbOf(e.colour), e.page.canvas, e.x, e.shelf.y, scratch);
         e.sprite = {
           image: e.page.canvas as unknown as CanvasImageSource, sx: e.x, sy: e.shelf.y, w, h,
           ox: e.rect.ox ?? 0, oy: e.rect.oy ?? 0, scale: e.rect.scale ?? 1,
@@ -180,6 +207,46 @@ export class TintAtlas {
       this.spent += this.now() - t0;
     }
     if (this.qHead >= this.queue.length) { this.queue = []; this.qHead = 0; }
+  }
+
+  /**
+   * The scratch canvas, at least w × h (grown to the bigger of each side, so alternating shapes do not remake it), held
+   * as `tint:scratch`; null when it has no 2D context (it is then freed).
+   */
+  private scratchFor(w: number, h: number): CanvasLike | null {
+    let s = this.scratch;
+    if (!s || s.width < w || s.height < h) {
+      const sw = Math.max(w, s?.width ?? 0);
+      const sh = Math.max(h, s?.height ?? 0);
+      if (s) s.width = s.height = 0;
+      this.scratch = null;
+      this.sets.hold(TINT_SCRATCH_HOLD, 0);
+      try {
+        s = this.make(sw, sh);
+      } catch {
+        return null;
+      }
+      this.scratch = s;
+      this.sets.hold(TINT_SCRATCH_HOLD, sw * sh * 4);
+    }
+    if (!s.getContext('2d', { willReadFrequently: true })) {
+      s.width = s.height = 0;
+      this.scratch = null;
+      this.sets.hold(TINT_SCRATCH_HOLD, 0);
+      return null;
+    }
+    return s;
+  }
+
+  /** Bytes of the scratch canvas (held as `tint:scratch`, not in `bytes()`). */
+  scratchBytes(): number {
+    return this.scratch ? this.scratch.width * this.scratch.height * 4 : 0;
+  }
+
+  /** Frees a page and every frame on it. */
+  private dropPage(p: Page): void {
+    for (const e of [...p.entries]) this.evict(e);
+    this.freePage(p);
   }
 
   /** Frees every frame of a sheet (its set was freed or decoded again); pages left empty are freed. */
@@ -202,8 +269,7 @@ export class TintAtlas {
     for (const p of idle) {
       if (freed >= needBytes) break;
       freed += p.bytes;
-      for (const e of [...p.entries]) this.evict(e);
-      if (this.pageList.includes(p)) this.freePage(p);
+      this.dropPage(p);
     }
     return freed;
   }
@@ -228,6 +294,7 @@ export class TintAtlas {
     for (const p of [...this.pageList]) this.freePage(p);
     if (this.scratch) this.scratch.width = this.scratch.height = 0;
     this.scratch = null;
+    this.sets.hold(TINT_SCRATCH_HOLD, 0);
     this.queue = [];
     this.qHead = 0;
   }
@@ -279,12 +346,22 @@ export class TintAtlas {
     this.sets.hold(TINT_HOLD_PREFIX + p.id, 0);
   }
 
-  /** A slot for a w × h frame, evicting least recently used frames (not drawn this frame or the one before) as needed. */
+  /**
+   * A slot for a w × h frame (plus its gutter). Evicts least recently used frames idle over `TINT_STALE_FRAMES` BEFORE
+   * asking the set manager for a new page, so stale frames never cost a refusal (pressure) in the global budget; then a
+   * new page; then, with none to be had, any frame not drawn this frame or the one before.
+   */
   private alloc(w: number, h: number): Place | null {
+    const pw = w + TINT_GUTTER_PX;
+    const ph = h + TINT_GUTTER_PX;
     for (;;) {
-      const at = this.fit(w, h) ?? this.newPage(w, h);
+      const at = this.fit(pw, ph);
       if (at) return at;
       const lru = this.head;
+      if (lru && lru.used < this.tick - TINT_STALE_FRAMES) { this.evict(lru); continue; }
+      const page = this.newPage(pw, ph);
+      if (page) return page;
+      // No new page (caps, or the set manager refused it): any frame not drawn this frame or the one before goes.
       if (!lru || lru.used >= this.tick - KEEP_RECENT) return null;
       this.evict(lru);
     }

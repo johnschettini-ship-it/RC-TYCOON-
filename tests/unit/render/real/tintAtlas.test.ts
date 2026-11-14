@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  TINT_ATLAS_MAX_BYTES, TINT_ATLAS_MAX_PAGES, TINT_PAGE_BYTES, TINT_PAGE_PX, TintAtlas,
+  TINT_ATLAS_MAX_BYTES, TINT_ATLAS_MAX_PAGES, TINT_GUTTER_PX, TINT_PAGE_BYTES, TINT_PAGE_PX, TINT_SCRATCH_HOLD, TINT_STALE_FRAMES, TintAtlas,
 } from '../../../../src/render/real/tintAtlas';
 import { tintPixels, type CanvasLike } from '../../../../src/render/real/tint';
 import type { Decoded } from '../../../../src/render/real/setManager';
@@ -54,15 +54,18 @@ function noise(w: number, h: number, seed: number): Decoded {
 class FakeSets {
   held = new Map<string, number>();
   room = Number.POSITIVE_INFINITY;
+  refused: string[] = [];
   hold(id: string, bytes: number): void { if (bytes > 0) this.held.set(id, bytes); else this.held.delete(id); }
   admit(id: string, bytes: number): boolean {
     let total = bytes;
     for (const [k, v] of this.held) if (k !== id) total += v;
-    if (total > this.room) return false;
+    if (total > this.room) { this.refused.push(id); return false; }
     this.hold(id, bytes);
     return true;
   }
   total(): number { let n = 0; for (const v of this.held.values()) n += v; return n; }
+  /** Page holds only (`tint:<page>`), without the scratch canvas. */
+  pages(): string[] { return [...this.held.keys()].filter((k) => k !== TINT_SCRATCH_HOLD); }
 }
 
 const made: PixCanvas[] = [];
@@ -84,7 +87,8 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     a.step(Number.POSITIVE_INFINITY);
     // One page, admitted to the set manager under `tint:<page>`.
     expect(a.bytes()).toBe(TINT_PAGE_BYTES);
-    expect([...sets.held.entries()]).toEqual([['tint:0', TINT_PAGE_BYTES]]);
+    // The scratch canvas the frame was read through is held too (all picture memory counts).
+    expect([...sets.held.entries()]).toEqual([['tint:0', TINT_PAGE_BYTES], [TINT_SCRATCH_HOLD, 40 * 80 * 4]]);
     const sp = a.get(7, 3, rgb)!;
     expect(sp).toBeTruthy();
     expect([sp.w, sp.h]).toEqual([40, 80]);
@@ -134,8 +138,8 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     const { a } = atlas();
     const base = noise(1024, 256, 7);
     const mask = noise(1024, 256, 8);
-    // One full-page frame per request: 12 pages.
-    const rect = { x: 0, y: 0, w: TINT_PAGE_PX, h: 256 };
+    // One full-page frame per request (with its gutter it fills the page): 12 pages.
+    const rect = { x: 0, y: 0, w: TINT_PAGE_PX - TINT_GUTTER_PX, h: 256 - TINT_GUTTER_PX };
     for (let i = 0; i < TINT_ATLAS_MAX_PAGES; i++) {
       a.beginFrame();
       expect(a.request(1, 0, i, base, mask, rect)).toBe(true);
@@ -161,7 +165,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     const { a } = atlas();
     const base = noise(1024, 256, 9);
     const mask = noise(1024, 256, 10);
-    const rect = { x: 0, y: 0, w: TINT_PAGE_PX, h: 256 };
+    const rect = { x: 0, y: 0, w: TINT_PAGE_PX - TINT_GUTTER_PX, h: 256 - TINT_GUTTER_PX };
     a.beginFrame();
     for (let i = 0; i < TINT_ATLAS_MAX_PAGES; i++) a.request(1, 0, i, base, mask, rect);
     expect(a.request(1, 0, 99, base, mask, rect)).toBe(false);
@@ -175,8 +179,8 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     const { a } = atlas();
     const base = noise(512, 512, 11);
     const mask = noise(512, 512, 12);
-    // 12 pages of 75 guest frames (3 shelves of 80 rows, 25 frames of 40 a shelf).
-    const n = TINT_ATLAS_MAX_PAGES * 75;
+    // 12 pages of 72 guest frames: slots of 42 x 82 with the gutter, 3 shelves of 24.
+    const n = TINT_ATLAS_MAX_PAGES * 72;
     a.beginFrame();
     for (let i = 0; i < n; i++) expect(a.request(1, i, 0, base, mask, { x: 0, y: 0, w: 40, h: 80 })).toBe(true);
     a.step(Number.POSITIVE_INFINITY);
@@ -220,9 +224,9 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     }
     expect(a.bytes()).toBeLessThanOrEqual(12 * 2 ** 20);
     expect(a.pages()).toBeLessThanOrEqual(TINT_ATLAS_MAX_PAGES);
-    expect(sets.total()).toBe(a.bytes());
-    // The crowd's frames evicted the random ones (least recently used) and fill the atlas; none thrash.
-    expect(tinted).toBeGreaterThanOrEqual(850);
+    expect(sets.total()).toBe(a.bytes() + a.scratchBytes());
+    // The crowd's frames evicted the random ones (least recently used) and fill the atlas (864 slots); none thrash.
+    expect(tinted).toBeGreaterThanOrEqual(800);
     expect(tinted).toBeLessThan(1000);
   });
 
@@ -242,7 +246,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     const { sets, a } = atlas();
     const base = noise(1024, 256, 15);
     const mask = noise(1024, 256, 16);
-    const rect = { x: 0, y: 0, w: TINT_PAGE_PX, h: 256 };
+    const rect = { x: 0, y: 0, w: TINT_PAGE_PX - TINT_GUTTER_PX, h: 256 - TINT_GUTTER_PX };
     const pages: PixCanvas[] = [];
     for (let i = 0; i < 3; i++) { a.beginFrame(); a.request(1, 0, i, base, mask, rect); a.step(Infinity); pages.push(a.get(1, 0, i)!.image as unknown as PixCanvas); }
     // Colour 2 is drawn this frame: kept.
@@ -251,7 +255,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     expect(pages[0]!.width).toBe(0);
     expect(a.reclaim(1e12)).toBe(TINT_PAGE_BYTES);
     expect(a.get(1, 0, 2)).toBeTruthy();
-    expect(sets.total()).toBe(TINT_PAGE_BYTES);
+    expect(sets.total() - a.scratchBytes()).toBe(TINT_PAGE_BYTES);
   });
 
   it('drop frees the frames of one sheet and empty pages; sweep frees frames unused for a while', () => {
@@ -270,7 +274,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     a.sweep(3);
     expect(a.get(2, 0, 0)).toBeUndefined();
     expect(a.pages()).toBe(0);
-    expect(sets.held.size).toBe(0);
+    expect(sets.pages()).toEqual([]);
   });
 
   it('a frame taller than a page row band gets a taller page; one bigger than a page is refused', () => {
@@ -281,24 +285,177 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     expect(a.request(1, 0, 0, base, mask, { x: 0, y: 0, w: 256, h: 348 })).toBe(true);
     a.step(Infinity);
     const sp = a.get(1, 0, 0)!;
-    expect((sp.image as unknown as PixCanvas).height).toBe(348);
-    expect(a.bytes()).toBe(TINT_PAGE_PX * 348 * 4);
+    expect((sp.image as unknown as PixCanvas).height).toBe(348 + TINT_GUTTER_PX);
+    expect(a.bytes()).toBe(TINT_PAGE_PX * (348 + TINT_GUTTER_PX) * 4);
     expect(a.request(1, 1, 0, base, mask, { x: 0, y: 0, w: 1100, h: 10 })).toBe(false);
+    // With its gutter a 1023-px frame no longer fits a page.
+    expect(a.request(1, 2, 0, base, mask, { x: 0, y: 0, w: TINT_PAGE_PX - 1, h: 10 })).toBe(false);
   });
 
-  it('a canvas failure marks the sheet failed, reports it once and frees what it made', () => {
-    const errors: [number, number, unknown][] = [];
+  it('a page without a 2D context is freed and only that request fails; the sheet is not blamed (fix round 1, item 5)', () => {
+    const errors: unknown[] = [];
+    const sheetErrors: number[] = [];
     const sets = new FakeSets();
-    const bad = (w: number, h: number): CanvasLike => { const c = new PixCanvas(w, h); (c as unknown as { getContext: () => null }).getContext = () => null; return c as unknown as CanvasLike; };
-    const a = new TintAtlas(sets, bad, { onError: (k, c, e) => errors.push([k, c, e]) });
+    let broken = true;
+    const mk = (w: number, h: number): CanvasLike => {
+      const c = new PixCanvas(w, h);
+      if (broken && w === TINT_PAGE_PX) (c as unknown as { getContext: () => null }).getContext = () => null;
+      return c as unknown as CanvasLike;
+    };
+    const a = new TintAtlas(sets, mk, { onError: (k) => sheetErrors.push(k), onCanvasError: (e) => errors.push(e) });
     a.beginFrame();
-    a.request(5, 0, 0x123456, noise(8, 8, 1), noise(8, 8, 2), { x: 0, y: 0, w: 4, h: 4 });
+    expect(a.request(5, 0, 0x123456, noise(8, 8, 1), noise(8, 8, 2), { x: 0, y: 0, w: 4, h: 4 })).toBe(true);
+    a.step(Infinity);
+    expect(errors).toHaveLength(1);
+    expect(sheetErrors).toEqual([]);
+    expect(a.failed(5)).toBe(false);
+    expect(a.get(5, 0, 0x123456)).toBeUndefined();
+    expect(a.pages()).toBe(0);
+    expect(a.bytes()).toBe(0);
+    expect(sets.pages()).toEqual([]);
+    // Asked again with a working canvas: tinted.
+    broken = false;
+    a.beginFrame();
+    expect(a.request(5, 0, 0x123456, noise(8, 8, 1), noise(8, 8, 2), { x: 0, y: 0, w: 4, h: 4 })).toBe(true);
+    a.step(Infinity);
+    expect(a.get(5, 0, 0x123456)).toBeTruthy();
+  });
+
+  it('a sheet that cannot be read (mask read throws) fails that sheet, reported once, and frees what it made', () => {
+    const errors: [number, number][] = [];
+    const sets = new FakeSets();
+    const a = new TintAtlas(sets, make, { onError: (k, c) => errors.push([k, c]) });
+    // A mask image with no pixels to copy: drawImage throws on it.
+    const badMask: Decoded = { image: { width: 8, height: 8 } as unknown as CanvasImageSource, bytes: 0, close() {} };
+    a.beginFrame();
+    a.request(5, 0, 0x123456, noise(8, 8, 1), badMask, { x: 0, y: 0, w: 4, h: 4 });
+    a.request(5, 1, 0x123456, noise(8, 8, 1), badMask, { x: 0, y: 0, w: 4, h: 4 });
     a.step(Infinity);
     expect(a.failed(5)).toBe(true);
-    expect(errors.map(([k, c]) => [k, c])).toEqual([[5, 0x123456]]);
+    expect(errors).toEqual([[5, 0x123456]]);
     expect(a.get(5, 0, 0x123456)).toBeUndefined();
+    expect(a.request(5, 2, 0, noise(8, 8, 1), noise(8, 8, 2), { x: 0, y: 0, w: 4, h: 4 })).toBe(false);
     expect(a.bytes()).toBe(0);
-    expect(sets.held.size).toBe(0);
+    expect(sets.pages()).toEqual([]);
+  });
+
+  it('frames are packed with a transparent gutter between them (fix round 1, item 1)', () => {
+    const { a } = atlas();
+    // Fully opaque sheet: every tinted pixel has alpha 255.
+    const base = noise(64, 64, 21);
+    const mask = noise(64, 64, 22);
+    for (let i = 3; i < (base.image as unknown as PixCanvas).data.length; i += 4) (base.image as unknown as PixCanvas).data[i] = 255;
+    a.beginFrame();
+    a.request(1, 0, 0, base, mask, { x: 0, y: 0, w: 10, h: 12 });
+    a.request(1, 1, 0, base, mask, { x: 10, y: 0, w: 10, h: 12 });
+    a.request(1, 2, 0, base, mask, { x: 20, y: 0, w: 10, h: 20 }); // a new shelf below
+    a.step(Infinity);
+    const [p, q, r] = [0, 1, 2].map((f) => a.get(1, f, 0)!);
+    const page = p!.image as unknown as PixCanvas;
+    const alpha = (x: number, y: number) => page.data[(y * page.width + x) * 4 + 3]!;
+    // Side by side on one shelf, TINT_GUTTER_PX apart; the next shelf TINT_GUTTER_PX below.
+    expect(q!.sy).toBe(p!.sy);
+    expect(q!.sx! - (p!.sx! + p!.w)).toBe(TINT_GUTTER_PX);
+    expect(r!.sy! - (p!.sy! + p!.h)).toBe(TINT_GUTTER_PX);
+    for (let y = p!.sy!; y < p!.sy! + p!.h + TINT_GUTTER_PX; y++) {
+      for (let x = p!.sx! + p!.w; x < q!.sx!; x++) expect(alpha(x, y)).toBe(0);
+    }
+    for (let y = p!.sy! + p!.h; y < r!.sy!; y++) for (let x = 0; x < 40; x++) expect(alpha(x, y)).toBe(0);
+    expect(alpha(p!.sx!, p!.sy!)).toBe(255);
+  });
+
+  it('a reused slot holds no pixels of the frame before it outside the new frame (fix round 1, item 1)', () => {
+    const { a } = atlas();
+    const base = noise(600, 200, 23);
+    const mask = noise(600, 200, 24);
+    for (let i = 3; i < (base.image as unknown as PixCanvas).data.length; i += 4) (base.image as unknown as PixCanvas).data[i] = 255;
+    a.beginFrame();
+    // A wide frame, then a small one on the same shelf (kept drawn, so the page stays).
+    a.request(1, 0, 0, base, mask, { x: 0, y: 0, w: 500, h: 100 });
+    a.request(1, 1, 0, base, mask, { x: 0, y: 0, w: 40, h: 80 });
+    a.step(Infinity);
+    const big = a.get(1, 0, 0)!;
+    const page = big.image as unknown as PixCanvas;
+    for (let f = 0; f < 4; f++) { a.beginFrame(); a.get(1, 1, 0); }
+    a.sweep(2); // the wide frame goes; its slot is free
+    expect(a.get(1, 0, 0)).toBeUndefined();
+    a.request(1, 2, 0, base, mask, { x: 0, y: 0, w: 40, h: 80 });
+    a.step(Infinity);
+    const small = a.get(1, 2, 0)!;
+    expect([small.sx, small.sy]).toEqual([big.sx, big.sy]);
+    // The new slot (frame + gutter, the shelf's full height) holds only the new frame's pixels.
+    let stale = 0;
+    for (let y = big.sy!; y < big.sy! + big.h + TINT_GUTTER_PX; y++) {
+      for (let x = small.sx!; x < small.sx! + small.w + TINT_GUTTER_PX; x++) {
+        const inside = x < small.sx! + small.w && y < small.sy! + small.h;
+        if (!inside && page.data[(y * page.width + x) * 4 + 3]) stale++;
+      }
+    }
+    expect(stale).toBe(0);
+  });
+
+  it('the scratch canvas grows to the biggest frame once: alternating shapes make it at most twice (fix round 1, item 2)', () => {
+    const sets = new FakeSets();
+    const scratches: [number, number][] = [];
+    const mk = (w: number, h: number): CanvasLike => { if (w !== TINT_PAGE_PX) scratches.push([w, h]); return new PixCanvas(w, h) as unknown as CanvasLike; };
+    const a = new TintAtlas(sets, mk);
+    const base = noise(300, 400, 25);
+    const mask = noise(300, 400, 26);
+    a.beginFrame();
+    // 40 x 80 guests and 256 x 348 rail tiles; then shapes that each grow only one side (wide-short, narrow-tall),
+    // which remade the scratch on every switch when its old size was read after zeroing it.
+    for (let i = 0; i < 6; i++) {
+      const rect = i % 2 ? { x: 0, y: 0, w: 256, h: 348 } : { x: 0, y: 0, w: 40, h: 80 };
+      a.request(1, i, 0, base, mask, rect);
+      a.step(Infinity);
+      expect(a.get(1, i, 0)).toBeTruthy();
+    }
+    expect(scratches).toEqual([[40, 80], [256, 348]]);
+    const b = new TintAtlas(sets, mk);
+    scratches.length = 0;
+    b.beginFrame();
+    for (let i = 0; i < 6; i++) {
+      const rect = i % 2 ? { x: 0, y: 0, w: 40, h: 348 } : { x: 0, y: 0, w: 256, h: 80 };
+      b.request(2, i, 0, base, mask, rect);
+      b.step(Infinity);
+      expect(b.get(2, i, 0)).toBeTruthy();
+    }
+    expect(scratches).toEqual([[256, 80], [256, 348]]);
+  });
+
+  it('the scratch canvas is held in the set manager as tint:scratch, updated when it grows, released on dispose (fix round 1, item 3)', () => {
+    const { sets, a } = atlas();
+    const base = noise(300, 400, 27);
+    const mask = noise(300, 400, 28);
+    a.beginFrame();
+    a.request(1, 0, 0, base, mask, { x: 0, y: 0, w: 40, h: 80 });
+    a.step(Infinity);
+    expect(sets.held.get(TINT_SCRATCH_HOLD)).toBe(40 * 80 * 4);
+    a.request(1, 1, 0, base, mask, { x: 0, y: 0, w: 30, h: 120 });
+    a.step(Infinity);
+    expect(sets.held.get(TINT_SCRATCH_HOLD)).toBe(40 * 120 * 4);
+    expect(a.scratchBytes()).toBe(40 * 120 * 4);
+    a.dispose();
+    expect(sets.held.has(TINT_SCRATCH_HOLD)).toBe(false);
+  });
+
+  it('stale frames are evicted before a new page is asked of a full budget: no refusal counted (fix round 1, item 4)', () => {
+    const { sets, a } = atlas();
+    const base = noise(1024, 256, 29);
+    const mask = noise(1024, 256, 30);
+    a.beginFrame();
+    a.request(1, 0, 0, base, mask, { x: 0, y: 0, w: TINT_PAGE_PX - TINT_GUTTER_PX, h: 256 - TINT_GUTTER_PX });
+    a.step(Infinity);
+    // The global budget is full: nothing more than what is held fits.
+    sets.room = sets.total();
+    // The full-page frame is now stale (not drawn for more than TINT_STALE_FRAMES frames).
+    for (let f = 0; f <= TINT_STALE_FRAMES; f++) a.beginFrame();
+    expect(a.request(1, 1, 0, base, mask, { x: 0, y: 0, w: 40, h: 80 })).toBe(true);
+    a.step(Infinity);
+    expect(a.get(1, 1, 0)).toBeTruthy();
+    expect(a.get(1, 0, 0)).toBeUndefined();
+    expect(sets.refused).toEqual([]);
+    expect(a.pages()).toBe(1);
   });
 
   it('dispose frees every page', () => {
