@@ -1,9 +1,9 @@
 # Phase 8c stage 1: owner gate report
 
-**Status: TEMPLATE. Phone rows are empty until the owner runs the bench.** Build rows (S5 to S8) are filled from the bake and build evidence. Decision rule: see the kill rules S1 to S8 in `phase-8c-realistic-art.md`. The full build starts only after the owner says yes.
+**Status: phone 1 filled (owner runs 1–3, 2026-11-14). Phones 2 and 3 not run. Owner decision pending.** Build rows (S5 to S8) are filled from the bake and build evidence. Decision rule: see the kill rules S1 to S8 in `phase-8c-realistic-art.md`. The full build starts only after the owner says yes.
 
 **Test link:** `/real-game/?art=real&bench=1` on the deployed site (deploy workflow, branch `ccr-6f420895-3xt45j`, builds `phase8c-stage1`). Play the parks at `/real-game/?art=real`.
-**Build under test:** branch `phase8c-stage1` (commit: fill in from the deploy log).
+**Build under test:** branch `phase8c-stage1` (round 3 head `f59f10b`; evidence commit `d80917e`).
 
 ## Phone results
 
@@ -16,21 +16,23 @@ How the bench measures (final fix wave):
 - **Each park's table** also shows the density chosen at each zoom step (2, 1, 0.5, 2, then after the turns), picture memory at the peak split into sets / tinted sheets / ground chunks, and any wait that timed out. A timed-out wait carries the set manager's state in the copied JSON (`stalls`).
 - **Phones and densities.** The game draws at most 2 device pixels per CSS pixel on a phone (`PHONE_MAX_RENDER_SCALE`), so a phone uses density 2 at zoom 1 and density 4 at zoom 2, whatever its DPR. A desktop with DPR above 2 uses density 4 at zoom 1. Headless and desktop numbers (DPR 2, zoom 1, density 2) do not carry over to phones.
 
-### Phone 1: owner's Android 10 phone (model: ______ , browser: ______ )
+### Phone 1: owner's Android 10 phone (model: "K" in the user agent, browser: Chrome 157, DPR 2.625)
+
+Run 2, round 3 build, render ratio 2 (evidence `owner-phone-2.md`; run 1 on the round 1 build failed, `owner-phone-1.md`).
 
 | # | Measure | Limit | Value | Band |
 |---|---|---|---|---|
-| S1 | `build2` frame p95 | at most 33 ms | | |
-| S2 | Peak decoded memory, three parks | at most 128 MB | | |
-| S3 | Turn time, Turn button direction / other direction | at most 250 ms / 500 ms | | |
-| S4 | App start to first complete park frame | at most 4 s | | |
+| S1 | `build2` frame p95 (all five parks 21.1–22.6) | at most 33 ms | 22.4 ms | pass |
+| S2 | Peak managed memory, parks | at most 128 MB | 127.7 MB (coaster); all-picture 145–160 MB | pass, no margin |
+| S3 | Turn time, Turn button direction / other direction | at most 250 ms / 500 ms | slowest 76.2 ms (scale park 150.9, info only) | pass |
+| S4 | App start to first complete park frame | at most 4 s | 1.59 s | pass |
 | S5 | App size, all art (build measure, same on every phone) | at most 150 MB | see build table | |
 | S6 | Today's look unchanged | no change | see build table | |
 | S7 | Website unchanged | no change | see build table | |
 | S8 | Bake time | at most 60 min warm / 4 h cold | see build table | |
 
-Fallbacks used (ids drawn with today's art): ______
-Notes from playing the parks: ______
+Fallbacks used (ids drawn with today's art): staff only (not baked).
+Today's look on the same phone (run 3, `owner-phone-3-classic.md`): build1 S1 38.9 ms FAIL (pan p95 50.7), then `auto` quality most likely dropped it to ratio 1; the other parks passed at 21–22.5 ms on a quarter of the pixels. Picture memory 64 MB. On this phone, at full sharpness, realistic is the faster look and costs about 2.4x the memory.
 
 ### Phone 2: older Android (model: ______ , browser: ______ )
 
@@ -111,7 +113,7 @@ Final fix wave, phone path headless (390x844, DPR 2.75, touch: the game draws at
 
 ## What was not tested
 
-- Any real phone: S1 to S4 have no measured value yet.
+- An older Android and an iPhone (phones 2 and 3 of F10).
 - View turns 2 and 3 at zoom 2; `build1` and phone-size scenes; the mini railway stand-in rails; the inverted and hanging support path (no baked type uses it).
 - Baked art through the bench on a phone. Headless runs with baked art (quick bench and the phone path script) are code checks only.
 - Safari and iOS memory behaviour of decoded WebP sheets.
