@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { FakeCanvas, install } from '../fakeCanvas';
 import { groundScale, groundTerrain, groundVariant, RealGround, type RealGroundOptions } from '../../../../src/render/real/ground';
 import type { Sprite } from '../../../../src/render/spriteCache';
-import { FIRST_BUILD_BUDGET_MS, terrainClock } from '../../../../src/render/terrain';
+import { chunkBounds, chunkViewRect, FIRST_BUILD_BUDGET_MS, terrainClock } from '../../../../src/render/terrain';
 import { createWorld } from '../../../../src/sim/world';
 import { Content, tileIndex } from '../../../../src/sim/map';
 import { SetManager } from '../../../../src/render/real/setManager';
@@ -660,7 +660,7 @@ describe('RealGround never leaves an empty tile (Task 3: today\'s terrain is fre
 });
 
 describe('stand-ins give their memory back first (Task 3 fix round 2)', () => {
-  it('reclaim frees old-scale stand-ins first, even ones drawn this frame', () => {
+  it('reclaim frees old-scale stand-ins, even ones drawn this frame (none off screen to free first)', () => {
     terrainClock.now = () => 0;
     const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
     let density: 2 | 4 = 2;
@@ -683,6 +683,47 @@ describe('stand-ins give their memory back first (Task 3 fix round 2)', () => {
     ground.beginCover(map, 4, 0, 1);
     ground.draw(ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
     expect(ground.placeholders).toBe(16 * 16);
+  });
+
+  it('reclaim frees chunks off screen before stand-ins on screen: no flash on a zoom (final review I3)', () => {
+    let now = 0;
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 32 }).state.map;
+    const made: FakeCanvas[] = [];
+    const look = { density: () => 2 as const, groundPiece: () => piece() };
+    const ground = new RealGround(look, { makeCanvas: (w, h) => { const c = new FakeCanvas(w, h); made.push(c); return c as never; } });
+    const ctx = new FakeCanvas(800, 600).getContext() as CanvasRenderingContext2D;
+    // Scale 1: all 16 chunks built in one frame, in back-to-front order.
+    ground.draw(ctx, map, VIEW_ALL, 1, 0, 0, 0, 1);
+    ground.endFrame();
+    const scale1 = [...made];
+    expect(scale1.length).toBe(16);
+    const keys = [...Array(16).keys()].map((c) => { const r = chunkViewRect(map, c % 4, Math.floor(c / 4), 0); return r.v0 * 65536 + r.u0; });
+    const order = [...Array(16).keys()].sort((x, y) => keys[x]! - keys[y]!);
+    // From here one chunk build a frame (every clock read is a whole first-build budget on).
+    terrainClock.now = () => (now += FIRST_BUILD_BUDGET_MS);
+    // A zoom step to scale 2: the first chunk is built, the other 15 stand in.
+    ground.draw(ctx, map, VIEW_ALL, 2, 0, 0, 0, 1);
+    ground.endFrame();
+    expect(made.length).toBe(17);
+    const built = made[16]!;
+    expect(scale1[0]!.width).toBe(0);
+    // Pan down so the built chunk is off screen: one more is built, the rest in view stand in.
+    const top = chunkBounds(map, order[0]! % 4, Math.floor(order[0]! / 4), 0);
+    ground.draw(ctx, map, { ...VIEW_ALL, y0: top.bottom + 1 }, 2, 0, 0, 0, 1);
+    ground.endFrame();
+    expect(built.width).toBeGreaterThan(0);
+    const standIns = scale1.filter((c) => c.width > 0).length;
+    expect(standIns).toBeGreaterThan(0);
+    // A little pressure: the off-screen chunk goes first; every stand-in on screen stays.
+    const builtBytes = built.width * built.height * 4;
+    expect(ground.reclaim(1)).toBe(builtBytes);
+    expect(built.width).toBe(0);
+    expect(scale1.filter((c) => c.width > 0).length).toBe(standIns);
+    // More pressure: then the stand-ins.
+    ground.reclaim(Number.POSITIVE_INFINITY);
+    expect(scale1.filter((c) => c.width > 0).length).toBe(0);
+    terrainClock.now = () => 0;
   });
 
   it('with the real set manager: pressure while stand-ins are held frees them before any demotion or cap', () => {
