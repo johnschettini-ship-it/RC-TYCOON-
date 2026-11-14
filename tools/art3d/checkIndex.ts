@@ -41,6 +41,18 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
   }
   for (const f of files) if (f !== 'index.json' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
 
+  // every item at every density the index lists, and no other density
+  const listed = new Set<number>(index.densities as readonly number[]);
+  const dens = new Map<string, Set<number>>();
+  for (const set of index.sets) {
+    if (!listed.has(set.density)) problems.push(`${set.key}: density ${set.density} not in the index densities`);
+    const id = `${set.kind}:${set.item}`;
+    const d = dens.get(id) ?? new Set<number>();
+    d.add(set.density);
+    dens.set(id, d);
+  }
+  for (const [id, d] of dens) for (const x of listed) if (!d.has(x)) problems.push(`${id}: missing density ${x}`);
+
   const groups = new Map<string, { kind: RealKind; item: string; density: number; rots: Set<string> }>();
   for (const set of index.sets) {
     if (!NEEDS_ALL_ROTS.has(set.kind)) continue;

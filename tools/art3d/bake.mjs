@@ -2,14 +2,17 @@
 // tint masks and index.json (src/render/real/indexFormat.ts) for the game.
 //
 //   node tools/art3d/bake.mjs --out dist-art/real [--only <item>[,<item>...]] [--density 2|4] [--no-cache]
+// index.json lists the densities this run baked (`densities`), and checkIndex requires every item at each of them.
 //
 // Bundling: rolldown (Vite's bundler, already a dependency) builds two bundles into dist-art/.build/:
 //   bakePage.js  the in-browser bake (tools/art3d/bakePage.ts + the kit + items), `three` aliased to the vendored build
 //   bakeNode.mjs catalogue specs, content hashes, track geometry, car poses and checkIndex for this driver
-// Cache: every item's sets and files go to dist-art/cache/<item>-<hash>/, keyed by a content hash of the files it is
-// built from (items/registry.js), its catalogue spec and the densities. An unchanged item is copied, not re-baked.
+// Cache: every item's sets and files go to dist-art/cache/<item>-<hash>/, keyed by cacheKey.ts: a content hash of the
+// files it is built from (items/registry.js SHARED + its module + its code deps) and the full computed input (spec,
+// track geometry, poses) with the densities. An unchanged item is copied, not re-baked.
+// --only bakes just those items; the output folder and index still hold every other item whose cache entry is valid
+// for the current code and input (so a partial bake never deletes the rest of a full bake).
 // Chromium runs WebGL2 on SwiftShader (the flags of the phone-test bake); `playwright install` is not needed.
-import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -69,7 +72,8 @@ const mb = (n) => (n / 1e6).toFixed(2);
   mkdirSync(cacheDir, { recursive: true });
   const N = await bundle(buildDir);
   const { ITEM_LIST, SHARED } = await import(pathToFileURL(join(HERE, 'items/registry.js')).href);
-  const list = o.only ? ITEM_LIST.filter((it) => o.only.includes(it.id)) : ITEM_LIST;
+  const list = ITEM_LIST;
+  const chosen = (id) => !o.only || o.only.includes(id);
   if (o.only) for (const id of o.only) if (!ITEM_LIST.some((it) => it.id === id)) throw new Error(`unknown item ${id}`);
 
   // inputs and cache keys
@@ -82,7 +86,7 @@ const mb = (n) => (n / 1e6).toFixed(2);
     }
     const files = [...SHARED, it.file, ...(it.deps ?? [])].map((f) => join(HERE, f));
     for (const f of files) if (!existsSync(f)) throw new Error(`${it.id}: missing file ${f}`);
-    const hash = createHash('sha256').update(N.contentHash(files)).update(JSON.stringify({ spec: input.spec ?? null, densities: o.densities, track: it.track ?? null })).digest('hex');
+    const hash = N.cacheKey(files, input, o.densities);
     return { it, input, hash, dir: join(cacheDir, `${it.id}-${hash.slice(0, 16)}`) };
   });
 
@@ -113,7 +117,9 @@ const mb = (n) => (n / 1e6).toFixed(2);
   for (const job of jobs) {
     const ti = Date.now();
     const meta = join(job.dir, 'sets.json');
-    let cached = o.cache && existsSync(meta);
+    const valid = existsSync(meta);
+    let cached = valid && (o.cache || !chosen(job.it.id));
+    if (!cached && !chosen(job.it.id)) continue; // --only: other items join the index only from a valid cache entry
     if (!cached) {
       if (!page) await openPage();
       rmSync(job.dir, { recursive: true, force: true });
@@ -134,7 +140,7 @@ const mb = (n) => (n / 1e6).toFixed(2);
   // assemble the output folder and the index
   rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
-  const index = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
+  const index = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: o.densities, sets: [], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
   const counts = {};
   for (const r of report) {
     for (const s of r.sets) {

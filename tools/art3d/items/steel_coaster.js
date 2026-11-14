@@ -7,8 +7,14 @@
 //                             Anchor: the tile's centre at the piece's entry rail height (piece.z), so the game adds
 //                             piece.z × the height step to today's slice anchor (track/layer.ts projects z = 0).
 //                             Track-colour mask: rails, spine and ties.
-//   support:steel_coaster:r<t> frames [`h<metres 1-40>`]: a round column from the ground to `h` m up with a saddle
-//                             across the track heading t. Anchor: the column's foot on the ground. Support mask.
+//   support:steel_coaster:r<t> frames [`foot`], [`seg`], [`top`], stacked by the game (one picture per heading t):
+//                             foot  anchored at the column axis on the ground (a concrete footing 0.25 m high);
+//                             seg   a 1 m column segment anchored at its bottom centre on the axis: segment i goes at
+//                                   height i m above the ground (i = 0 .. h - 1); drawn 1.1 m tall so stacks overlap;
+//                             top   the saddle across the track heading t, anchored on the axis at the column's top
+//                                   (h m up), its plate 0.22 m high with a 0.45 m post to the rail spine.
+//                             Support mask (not the footing).
+// No shadows for rails, supports or cars in stage 1 (controller ruling; moving cars cast none, as today).
 //   car:steel_coaster:rall    frames [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] for every reached pose.
 //                             Anchor: the car's centre on the rail line (the sampled track point). Car-body mask.
 // Chain lift dashes are not baked (the game draws them per frame over the rail, track/layer.ts).
@@ -63,17 +69,22 @@ function railModel(K, s, special, mats) {
   return g;
 }
 
-function supportModel(K, h, t, mat) {
+// Support pieces, stacked by the game: the foot on the ground, one 1 m segment per metre of height, the saddle on top.
+const SEG_H = 1.1; // a segment is drawn 10 cm taller (upward) so stacked segments overlap and never show a gap
+function supportPiece(K, part, t, mat) {
   const g = new THREE.Group();
-  const top = Math.max(0.3, h - 0.55);
-  g.add(M(new THREE.CylinderGeometry(0.34, 0.4, 0.25, 16), K.mat.concrete).translateY(0.125));
-  g.add(M(new THREE.CylinderGeometry(0.2, 0.22, top, 16), mat).translateY(top / 2));
-  // saddle across the track: the track runs along +x at t = 0 (three x), +z (game +y) at t = 1
-  const across = M(new THREE.BoxGeometry(0.3, 0.22, 1.3), mat);
-  across.position.y = top;
-  across.rotation.y = (-t * Math.PI) / 2;
-  g.add(across);
-  g.add(M(new THREE.CylinderGeometry(0.12, 0.12, 0.45, 12), mat).translateY(top + 0.3));
+  if (part === 'foot') {
+    g.add(M(new THREE.CylinderGeometry(0.34, 0.4, 0.25, 16), K.mat.concrete).translateY(0.125));
+  } else if (part === 'seg') {
+    g.add(M(new THREE.CylinderGeometry(0.2, 0.2, SEG_H, 16), mat).translateY(SEG_H / 2));
+  } else {
+    // saddle across the track: the track runs along +x at t = 0 (three x), +z (game +y) at t = 1
+    const across = M(new THREE.BoxGeometry(0.3, 0.22, 1.3), mat);
+    across.position.y = 0.11;
+    across.rotation.y = (-t * Math.PI) / 2;
+    g.add(across);
+    g.add(M(new THREE.CylinderGeometry(0.12, 0.12, 0.45, 12), mat).translateY(0.22 + 0.22));
+  }
   return g;
 }
 
@@ -107,14 +118,14 @@ export default {
       B.log(`rail r${t} done`);
     }
 
-    // ---- supports per heading and 1 m height step
+    // ---- supports per heading: foot, 1 m segment, top (the game stacks them)
     for (let t = 0; t < 4; t++) {
       const set = B.set('support', item, t, true);
-      for (let h = 1; h <= 40; h++) {
-        const m = supportModel(K, h, t, supMat);
+      for (const part of ['foot', 'seg', 'top']) {
+        const m = supportPiece(K, part, t, supMat);
         bs.world.add(m);
         B.setEnv(m);
-        set.add([frameKey([`h${h}`])], B.shoot(bs, { target: m, masked: (x) => x.material === supMat }));
+        set.add([frameKey([part])], B.shoot(bs, { target: m, masked: (x) => x.material === supMat, noGround: part !== 'foot' }));
         bs.world.remove(m);
       }
       B.log(`support r${t} done`);

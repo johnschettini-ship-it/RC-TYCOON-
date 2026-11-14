@@ -66,6 +66,15 @@ describe('checkIndex', () => {
     const src = readFileSync(new URL('../../../../tools/art3d/checkIndex.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/from 'node:/);
   });
+  it('missing density', () => {
+    const i = clone(); i.densities = [2, 4];
+    expect(problems(i).some((p) => p.includes('ride:carousel: missing density 4'))).toBe(true);
+  });
+  it('density not listed in the index', () => {
+    const i = clone();
+    const s = structuredClone(i.sets[0]!); s.density = 4; s.key = s.key.replace(':d2:', ':d4:'); i.sets.push(s);
+    expect(problems(i).some((p) => p.includes('not in the index densities'))).toBe(true);
+  });
   it('missing rotation', () => {
     const i = clone(); i.sets = i.sets.filter((s) => s.key !== 'ride:carousel:d2:r2');
     expect(problems(i).some((p) => p.includes('missing rotation 2'))).toBe(true);

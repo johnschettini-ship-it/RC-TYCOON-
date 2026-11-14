@@ -1,10 +1,11 @@
 // The stage 1 bake list, readable by Node without three.js (tools/art3d/bake.mjs). Paths are relative to
-// tools/art3d/. `catalog` names the game catalogue entry the footprint and height come from (catalog.ts itemSpec);
-// `deps` are extra files whose content goes into the item's cache key (contentHash), next to SHARED and `file`.
+// tools/art3d/. `catalog` names the game catalogue entry the footprint and height come from (catalog.ts itemSpec).
+// The cache key (cacheKey.ts) hashes SHARED, `file`, `deps` (code an item module imports, beyond SHARED) and the
+// full computed input (spec, track geometry, poses), so game data needs no entry here.
 
 /** Files every item's pictures depend on. */
 export const SHARED = [
-  'kit.js', 'textures.js', 'people.js', 'rides.js', 'post.js', 'bakeView.js', 'camera.ts', 'bakePage.ts',
+  'vendor/three-0.160.0.module.min.js', 'kit.js', 'textures.js', 'people.js', 'rides.js', 'post.js', 'bakeView.js', 'camera.ts', 'bakePage.ts',
   'items/common.js', '../../src/render/real/indexFormat.ts', '../../src/render/artStyle.ts', '../../src/render/iso.ts',
 ];
 
@@ -38,8 +39,6 @@ export const ITEM_LIST = [
   { id: 'bench', file: 'items/bench.js', deps: PATH_ITEM_DEPS },
   { id: 'bin', file: 'items/bin.js', deps: PATH_ITEM_DEPS },
   {
-    id: 'steel_coaster', file: 'items/steel_coaster.js', track: { type: 'steel_coaster', pieces: COASTER_PIECES },
-    deps: ['rides.js', 'poses.ts', '../../src/data/track/pieces.ts', '../../src/data/track/trackTypes.ts', '../../src/sim/rides/track/geometry.ts', '../../src/sim/rides/track/api.ts'],
-  },
+    id: 'steel_coaster', file: 'items/steel_coaster.js', track: { type: 'steel_coaster', pieces: COASTER_PIECES } },
   { id: 'facade', file: 'items/facade.js' },
 ];

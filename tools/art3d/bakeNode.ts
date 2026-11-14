@@ -5,12 +5,13 @@
  */
 import { itemSpec, contentHash, type ItemKind } from './catalog';
 import { checkIndex } from './checkIndex';
+import { cacheKey } from './cacheKey';
 import { reachedPoses } from './poses';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
 import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
 import { getTrackPieceDef } from '../../src/data/track';
 
-export { itemSpec, contentHash, checkIndex, reachedPoses };
+export { itemSpec, contentHash, checkIndex, reachedPoses, cacheKey };
 export type { ItemKind };
 
 /** Per piece and heading (0-3): rail samples and the piece's tiles, for a piece entering tile (0, 0) at height 0. */

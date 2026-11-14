@@ -346,6 +346,8 @@ export interface ShootOpts {
   margin?: number;
   /** Keep the object's own contact shadow in the picture (guests): the shadow catcher replaces the hold-out. */
   ownShadow?: boolean;
+  /** No hold-out ground (pieces stacked in the air, e.g. support segments: no ground AO at their ends). */
+  noGround?: boolean;
 }
 
 /** Render the visible models of `bs` (anchor at the origin) and cut one picture per density. */
@@ -367,7 +369,7 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
     let restore: (() => void) | null = null;
     if (shadow) restore = swap(o.target, ghost);
     const catcher = shadow || !!o.ownShadow;
-    bs.ground.visible = !catcher;
+    bs.ground.visible = !catcher && !o.noGround;
     bs.catcher.visible = catcher;
     const src = render(bs, rect, 'color');
     if (restore) restore();
