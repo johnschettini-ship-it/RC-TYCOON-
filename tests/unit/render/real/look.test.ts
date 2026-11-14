@@ -134,7 +134,10 @@ function emptyWorld() {
   return createWorld({ seed: 1, parkName: 'Look Park', mapSize: 16 });
 }
 
-const VIEW = { x0: 0, y0: 0, x1: 100, y1: 100 };
+/** A view over the whole 16 × 16 test map at any turn (round 3: prepare wants only objects in the view plus a screen). */
+const VIEW = { x0: -560, y0: -100, x1: 560, y1: 560 };
+/** Map position for a test object (inside VIEW at every turn). */
+const AT = { x: 6, y: 6 };
 
 describe('fallbacks', () => {
   it('maps baked, mapped and classic ids', () => {
@@ -206,10 +209,11 @@ describe('RealLook', () => {
   it('prepare wants only built kinds, the current turn and the ahead turn', () => {
     const { sets, look } = setup();
     const world = emptyWorld();
-    world.state.rides.push({ id: 1, kind: 'flat', defId: 'teacup_twirl' } as Ride);
-    world.state.rides.push({ id: 2, kind: 'flat', defId: 'drop_tower' } as Ride);
-    world.state.rides.push({ id: 3, kind: 'track', defId: 'mini_railway' } as Ride);
-    world.state.stalls.push({ id: 4, defId: 'restrooms' } as Stall);
+    world.state.rides.push({ id: 1, kind: 'flat', defId: 'teacup_twirl', ...AT } as Ride);
+    world.state.rides.push({ id: 2, kind: 'flat', defId: 'drop_tower', ...AT } as Ride);
+    world.state.rides.push({ id: 3, kind: 'track', defId: 'mini_railway', ...AT } as Ride);
+    world.state.track.rides['3'] = { pieces: [{ defId: 'station', x: 6, y: 6, z: 8, dir: 1 }] } as unknown as World['state']['track']['rides'][string];
+    world.state.stalls.push({ id: 4, defId: 'restrooms', ...AT } as Stall);
     world.state.map.pathItem[5] = PathItem.Bench;
     look.prepare(world, 3, VIEW, 1, 1);
     const k = (kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all') => setKey(kind, item, 2, rot);
@@ -245,9 +249,9 @@ describe('RealLook', () => {
     const { sets, look } = setup();
     const world = emptyWorld();
     // Stall facing map 2, big wheel at map 1, tree at map 3; view turn 3 → sprite turns 1, 0 and 2.
-    world.state.stalls.push({ id: 4, defId: 'snack_shack', rotation: 2 } as Stall);
-    world.state.rides.push({ id: 5, kind: 'flat', defId: 'big_wheel', rotation: 1 } as Ride);
-    world.state.scenery.push({ id: 6, defId: 'oak_round', rotation: 3, edge: -1 } as World['state']['scenery'][number]);
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', rotation: 2, ...AT } as Stall);
+    world.state.rides.push({ id: 5, kind: 'flat', defId: 'big_wheel', rotation: 1, ...AT } as Ride);
+    world.state.scenery.push({ id: 6, defId: 'oak_round', rotation: 3, edge: -1, ...AT } as World['state']['scenery'][number]);
     look.prepare(world, 3, VIEW, 1, 1);
     const k = (kind: RealKind, item: string, rot: 0 | 1 | 2 | 3) => setKey(kind, item, 2, rot);
     const now = sets.wanted('now');
@@ -263,7 +267,7 @@ describe('RealLook', () => {
   it('prepare wants the density-2 set for a demoted density-4 set', () => {
     const { sets, look } = setup();
     const world = emptyWorld();
-    world.state.stalls.push({ id: 4, defId: 'snack_shack' } as Stall);
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', ...AT } as Stall);
     sets.demoted.add(setKey('stall', 'snack_shack', 4, 0));
     look.prepare(world, 0, VIEW, 2, 2);
     expect(sets.wanted('now')).toContain(setKey('stall', 'snack_shack', 2, 0));
@@ -522,7 +526,7 @@ describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
   it('while a density-4 set is not ready its density-2 twin is wanted now, first; not once the density-4 set is ready', () => {
     const { sets, look } = setup();
     const world = emptyWorld();
-    world.state.stalls.push({ id: 4, defId: 'snack_shack' } as Stall);
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', ...AT } as Stall);
     look.prepare(world, 1, VIEW, 2, 2.625);
     const nowWants = sets.wants.filter((w) => w.priority === 'now');
     expect(nowWants[0]!.keys).toContain(setKey('stall', 'snack_shack', 2, 1));
@@ -575,8 +579,8 @@ describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
   it('prepare at density 4 wants the current turn at density 4 (now) and the ahead turn at density 2 only', () => {
     const { sets, look } = setup();
     const world = emptyWorld();
-    world.state.stalls.push({ id: 4, defId: 'snack_shack' } as Stall);
-    world.state.rides.push({ id: 5, kind: 'flat', defId: 'carousel' } as Ride);
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', ...AT } as Stall);
+    world.state.rides.push({ id: 5, kind: 'flat', defId: 'carousel', ...AT } as Ride);
     look.prepare(world, 2, VIEW, 2, 2.625);
     const now = sets.wanted('now');
     const ahead = sets.wanted('ahead');
@@ -640,5 +644,96 @@ describe('RealLook: per-draw cost (round 3 item 5)', () => {
     expect(b).not.toBe(a);
     expect(b.image).not.toBe(a.image);
     expect(sets.held.size).toBe(1);
+  });
+});
+
+describe('RealLook: view-scoped loading (round 3 item 1, spec §5.4.2(d))', () => {
+  /** A 64 × 64 park: a snack shack near (4, 4), a big wheel near (4, 56) and an oak near (56, 4), far apart on screen. */
+  function farWorld() {
+    const world = createWorld({ seed: 1, parkName: 'Scope Park', mapSize: 64 });
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', rotation: 0, x: 4, y: 4 } as Stall);
+    world.state.rides.push({ id: 5, kind: 'flat', defId: 'big_wheel', rotation: 0, x: 4, y: 56 } as Ride);
+    world.state.scenery.push({ id: 6, defId: 'oak_round', rotation: 0, edge: -1, x: 56, y: 4, z: 0 } as World['state']['scenery'][number]);
+    return world;
+  }
+  /** A 390 × 844 phone view at zoom 1 centred on map tile (x, y) at turn 0. */
+  const viewAt = (x: number, y: number) => {
+    const cx = (x - y) * 32;
+    const cy = (x + y) * 16;
+    return { x0: cx - 195, x1: cx + 195, y0: cy - 422, y1: cy + 422 };
+  };
+  const k2 = (kind: RealKind, item: string, rot: 0 | 1 | 2 | 3) => setKey(kind, item, 2, rot);
+
+  it('wants the sets of objects inside the view plus one screen only; ground and guests always', () => {
+    const { sets, look } = setup();
+    look.prepare(farWorld(), 0, viewAt(4, 4), 1, 1);
+    const now = sets.wanted('now');
+    expect(now).toContain(k2('stall', 'snack_shack', 0));
+    expect(now).toContain(k2('shadow', 'snack_shack', 0));
+    expect(sets.wanted('ahead')).toContain(k2('stall', 'snack_shack', 1));
+    for (const far of [k2('ride', 'big_wheel', 0), k2('scenery', 'oak_round', 0), k2('ride', 'big_wheel', 1)]) {
+      expect(now).not.toContain(far);
+      expect(sets.wanted('ahead')).not.toContain(far);
+    }
+    expect(now).toContain(k2('ground', 'grass', 0));
+    expect(now).toContain(setKey('guest', 'b0o0', 2, 'all'));
+    expect(look.scope!()).toMatchObject({ objects: 3, inScope: 1 });
+    // The view moves to the big wheel: now its sets are wanted, the shack's are not.
+    sets.wants = [];
+    look.prepare(farWorld(), 0, viewAt(4, 56), 1, 1);
+    expect(sets.wanted('now')).toContain(k2('ride', 'big_wheel', 0));
+    expect(sets.wanted('now')).not.toContain(k2('stall', 'snack_shack', 0));
+  });
+
+  it('one screen of margin: an object just past the view edge is wanted, one two screens away is not', () => {
+    const { sets, look } = setup();
+    const world = farWorld();
+    // The shack's screen point is (0, 128 + 16) at turn 0; a view one screen width to its right still wants it.
+    const v = viewAt(4, 4);
+    look.prepare(world, 0, { ...v, x0: v.x0 + 390 + 100, x1: v.x1 + 390 + 100 }, 1, 1);
+    expect(sets.wanted('now')).toContain(k2('stall', 'snack_shack', 0));
+    sets.wants = [];
+    const { sets: s2, look: l2 } = setup();
+    l2.prepare(world, 0, { ...v, x0: v.x0 + 3 * 390, x1: v.x1 + 3 * 390 }, 1, 1);
+    expect(s2.wanted('now')).not.toContain(k2('stall', 'snack_shack', 0));
+    void sets;
+  });
+
+  it('does not walk the objects each frame: only when the park\'s objects change or the view leaves the scoped rectangle', () => {
+    const { look } = setup();
+    const world = farWorld();
+    look.prepare(world, 0, viewAt(4, 4), 1, 1);
+    const walks = look.scope!().walks;
+    for (let n = 0; n < 30; n++) look.prepare(world, 0, viewAt(4, 4), 1, 1);
+    // A small pan stays in the rectangle (found with a quarter screen of slack).
+    const v = viewAt(4, 4);
+    look.prepare(world, 0, { ...v, x0: v.x0 + 40, x1: v.x1 + 40 }, 1, 1);
+    expect(look.scope!().walks).toBe(walks);
+    // A placement: walked again once.
+    world.state.scenery.push({ id: 7, defId: 'pine_tall', rotation: 0, edge: -1, x: 5, y: 4, z: 0 } as World['state']['scenery'][number]);
+    look.prepare(world, 0, viewAt(4, 4), 1, 1);
+    look.prepare(world, 0, viewAt(4, 4), 1, 1);
+    expect(look.scope!().walks).toBe(walks + 2); // the index, then the scope
+    expect(look.scope!()).toMatchObject({ objects: 4, inScope: 2 });
+    // A turn or a zoom (the view's size) finds the scope again.
+    look.prepare(world, 1, viewAt(4, 4), 1, 1);
+    expect(look.scope!().walks).toBe(walks + 3);
+    const z = viewAt(4, 4);
+    look.prepare(world, 1, { x0: z.x0 / 2, x1: z.x1 / 2, y0: z.y0 / 2, y1: z.y1 / 2 }, 2, 1);
+    expect(look.scope!().walks).toBe(walks + 4);
+  });
+
+  it('a set a getter asks for that nobody wanted (outside the scope, a ghost) is wanted then, with its density-2 twin', () => {
+    const { sets, look } = setup();
+    look.prepare(farWorld(), 0, viewAt(4, 4), 2, 2);
+    sets.wants = [];
+    expect(look.ride('big_wheel', 0, 0, 0)).toBeNull();
+    expect(sets.wanted('now')).toEqual([setKey('ride', 'big_wheel', 2, 0), setKey('ride', 'big_wheel', 4, 0)].sort());
+    // Already loading: not wanted again by the getter (prepare's list stands).
+    sets.wants = [];
+    sets.setState(setKey('ride', 'big_wheel', 4, 0), 'loading');
+    sets.setState(setKey('ride', 'big_wheel', 2, 0), 'loading');
+    look.ride('big_wheel', 0, 0, 0);
+    expect(sets.wanted('now')).toEqual([]);
   });
 });

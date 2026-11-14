@@ -1,8 +1,10 @@
 /**
  * RealLook: turns world objects into `Sprite`s cut from the baked realistic-art sets.
  *
- * Per frame the caller runs: `sets.beginFrame(n)`, `look.prepare(...)` (wants every set the frame may draw), the
- * draw calls (`look.ride(...)` etc.), then `sets.endFrame()`. A getter returns
+ * Per frame the caller runs: `sets.beginFrame(n)`, `look.prepare(...)` (wants the sets of the objects inside the view
+ * plus one screen, of the guests, the ground and the path items: spec §5.4.2(d)), the draw calls (`look.ride(...)` etc.;
+ * a getter wants a set nobody wanted yet, so an object outside that scope never waits forever), then `sets.endFrame()`.
+ * A getter returns
  *   - a `Sprite`: draw it with `blit`/`blitColumn` as today (its `scale` is the density of the set it came from);
  *   - `null`: the set is still loading; skip the object this frame (counted by `incomplete()`);
  *   - `undefined`: draw today's art (item mapped to 'classic', set failed, or the bake lacks the set or frame).
@@ -55,6 +57,9 @@ import type { ViewRotation } from '../view';
 import type { World } from '../../sim/types';
 import { PathItem } from '../../sim/map';
 import { getSceneryDef } from '../../data/catalog/scenery';
+import { getFlatRideDef } from '../../data/catalog/flatRides';
+import { STEP_PX } from '../heightStep';
+import { viewAffine, viewPointSX, viewPointSY, type ViewAffine } from '../view';
 import { CARD_SET } from './cards';
 import { realItem } from './fallbacks';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from './pose';
@@ -102,6 +107,12 @@ export interface RealLook {
   soft(): number;
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
   fallbacksUsed(): string[];
+  /**
+   * View scope of the last `prepare` (spec §5.4.2(d)): built objects in the park, those inside the view plus one
+   * screen of margin, and how many times the objects were walked to find them (a walk only when the park's objects
+   * changed or the view left the scoped rectangle).
+   */
+  scope?(): { objects: number; inScope: number; walks: number };
 }
 
 /** The stacked pieces of a baked support (see the header). */
@@ -122,6 +133,21 @@ export { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from './pose';
 
 /** Tinted sheets unused for this many prepares are freed. */
 const KEEP_FRAMES = 120;
+
+/** View scope (spec §5.4.2(d)): objects inside the view plus this many screens on each side are wanted. */
+const SCOPE_MARGIN = 1;
+/**
+ * The scoped objects are found for this much more on each side (screens), and reused while the view with its margin
+ * stays inside that rectangle and the view's size is within `SCOPE_RESIZE` of the size it was found for.
+ */
+const SCOPE_SLACK = 0.25;
+const SCOPE_RESIZE = 0.2;
+/** How often (prepares) the park is scanned for path item kinds (a new kind is also wanted when it is first drawn). */
+const PATH_ITEM_SCAN_EVERY = 60;
+/** Screen px (zoom 1) above an object's footprint that its picture may reach: rides, stalls; scenery uses its height. */
+const RIDE_UP_PX = 420;
+const STALL_UP_PX = 120;
+const PX_PER_M = 11.31;
 
 /** F1: the smallest of {2, 4} ≥ zoom × dpr, else 4; then no more than the set manager's cap. */
 export function pickDensity(zoom: number, dpr: number, cap: 2 | 4): 2 | 4 {
@@ -159,10 +185,28 @@ interface Tinted {
   lastFrame: number;
 }
 
-interface BuiltItem {
+/** A set group `prepare` wants: an item record at a map turn (its sprite turn is `(turn + view turn) mod 4`), or at every heading. */
+interface Combo {
   rec: ItemRec;
-  everyTurn?: boolean;
-  turn?: number;
+  everyTurn: boolean;
+  turn: number;
+}
+
+/**
+ * A built object for the view scope: its footprint centre (continuous map point), how far its picture reaches
+ * around that point in screen px at zoom 1 (`rx` sideways, `up` above, `down` below; height in steps `z`), and the
+ * combos it needs (`a`, `b`, `c`; −1 for none).
+ */
+interface ScopeObject {
+  fx: number;
+  fy: number;
+  z: number;
+  rx: number;
+  up: number;
+  down: number;
+  a: number;
+  b: number;
+  c: number;
 }
 
 const PATH_ITEM_IDS: Record<number, string> = { [PathItem.Bench]: 'bench', [PathItem.Bin]: 'bin', [PathItem.Lamp]: 'lamp' };
@@ -407,6 +451,13 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     /** The set actually drawn from (the twin on the soft path): tinted sheets are cached and swept under it. */
     let drawKey = key;
     if (!rs) {
+      // A set nobody wanted this frame (an object outside the scoped rectangle, a placement ghost, a path item kind
+      // not scanned yet): wanted now, with its density-2 twin, so it decodes instead of waiting forever.
+      if (sets.state(key) === 'none') {
+        sets.want([key], 'now');
+        const tw = twinOf(rec, rot, key);
+        if (tw !== undefined && sets.state(tw) === 'none') sets.want([tw], 'now');
+      }
       // Spec §5.4: never stop drawing, lower density first. A density-4 set not decoded yet draws from its density-2
       // twin when that one is ready (the ahead turn is wanted at density 2), scaled up, and the frame is not
       // incomplete. Not for ground pieces: a chunk is built once, so it waits for its own density.
@@ -445,49 +496,163 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     }
   }
 
-  /** Game ids of every item kind built in the world, by RealKind. */
-  /**
-   * Built items: `turn` is the object's map rotation (its sprite turn is `(turn + view turn) mod 4`, as the renderer
-   * draws it); `everyTurn` marks sets keyed by a heading that may be any turn (rails, supports, path-item shadows).
-   */
-  function builtItems(world: World): BuiltItem[] {
-    const s = world.state;
-    const out: BuiltItem[] = [];
-    const add = (kind: RealKind, id: string, everyTurn = false, turn = 0): void => {
-      const rec = gameRec(kind, id);
-      if (rec) out.push({ rec, everyTurn, turn });
-    };
-    // Ground first: its sets decode first, so the ground (whose chunks are the largest holding, and without which
-    // no frame is complete) is laid, and its memory known to the budget, before the objects' sets.
-    for (const item of groundItems) out.push({ rec: recOf('ground', item) as ItemRec });
-    const withShadow = (kind: 'ride' | 'stall' | 'scenery', id: string, turn = 0): void => {
-      add(kind, id, false, turn);
-      add('shadow', id, false, turn);
-    };
-    for (const r of s.rides) {
-      // Rails and supports are keyed by a heading in the view (piece, saddle), so any turn may be drawn.
-      if (r.kind === 'track') { add('rail', r.defId, true); add('car', r.defId); add('support', r.defId, true); }
-      else withShadow('ride', r.defId, r.rotation ?? 0);
+  // ---- View scope (spec §5.4.2(d), round 3 item 1). The park's objects are indexed once per change of its object
+  // lists (`objectSig`), each with the set groups (combos) it needs; the objects inside the view plus one screen are
+  // found again only when the view leaves the rectangle they were found for, so `prepare` does not walk every object
+  // (or build any string) each frame. Guests, ground and path items are always wanted; a set first asked for by a
+  // getter (an object outside the scoped rectangle, a placement ghost) is wanted then, so nothing is left waiting.
+  const combos: Combo[] = [];
+  const comboIds = new Map<ItemRec, number[]>();
+  function combo(rec: ItemRec, turn: number, everyTurn = false): number {
+    let byTurn = comboIds.get(rec);
+    if (!byTurn) comboIds.set(rec, (byTurn = []));
+    const slot = everyTurn ? 4 : turn & 3;
+    let id = byTurn[slot];
+    if (id === undefined) {
+      id = combos.length;
+      combos.push({ rec, turn: turn & 3, everyTurn });
+      byTurn[slot] = id;
     }
-    for (const st of s.stalls) withShadow('stall', st.defId, st.rotation ?? 0);
-    // Scenery turns like `itemView`: an edge item by its edge (0 when unset), any other by its rotation.
-    for (const sc of s.scenery) withShadow('scenery', sc.defId, getSceneryDef(sc.defId)?.edge ? Math.max(0, sc.edge) : sc.rotation ?? 0);
+    return id;
+  }
+  const gameCombo = (kind: RealKind, defId: string, turn: number, everyTurn = false): number => {
+    const rec = gameRec(kind, defId);
+    return rec ? combo(rec, turn, everyTurn) : -1;
+  };
+  let objects: ScopeObject[] = [];
+  /** Always wanted: ground (first: its sets decode first, so the ground is laid before the objects), guests, staff, path items. */
+  let always: number[] = [];
+  let objectSig: unknown[] = [];
+  let lastPathScan = -PATH_ITEM_SCAN_EVERY;
+  let pathCombos: number[] = [];
+  let scopeWalks = 0;
+  /** The scoped combos, the rectangle they were found for, its view size and rotation. */
+  let scoped: number[] = [];
+  let scopedRect = { x0: 0, y0: 0, x1: -1, y1: -1 };
+  let scopedSize = { w: 0, h: 0 };
+  let scopedRot = -1;
+  let scopedObjects = 0;
+  let marks = new Uint8Array(0);
+  const affine: ViewAffine = viewAffine(0, 1, 1);
+
+  /** What changes when the park's built objects change (not guests): lists, their last ids, track piece counts. */
+  function sigOf(world: World): unknown[] {
+    const s = world.state;
+    let pieces = 0;
+    for (const r of s.rides) if (r.kind === 'track') pieces += s.track.rides[String(r.id)]?.pieces.length ?? 0;
+    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, pieces, s.staff.members.length];
+  }
+
+  function indexObjects(world: World): void {
+    const s = world.state;
+    objects = [];
+    const obj = (fx: number, fy: number, z: number, span: number, up: number, a: number, b: number, c = -1): void => {
+      if (a < 0 && b < 0 && c < 0) return;
+      if (!Number.isFinite(fx) || !Number.isFinite(fy)) return;
+      objects.push({ fx, fy, z: Number.isFinite(z) ? z : 0, rx: span * 16 + 16, up: span * 8 + up, down: span * 8 + 16, a, b, c });
+    };
+    const zAt = (x: number, y: number): number => (s.map.heights[y * s.map.width + x] as number | undefined) ?? 0;
+    for (const r of s.rides) {
+      if (r.kind === 'track') {
+        // Rails and supports are keyed by a heading in the view (piece, saddle), so every heading of them is wanted.
+        const pieces = s.track.rides[String(r.id)]?.pieces ?? [];
+        if (!pieces.length) continue;
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, top = 0;
+        for (const p of pieces) {
+          x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x + 1); y1 = Math.max(y1, p.y + 1); top = Math.max(top, p.z);
+        }
+        // Pieces reach a tile or two past their entry tile; heights are metres.
+        x0 -= 2; y0 -= 2; x1 += 2; y1 += 2;
+        obj((x0 + x1) / 2, (y0 + y1) / 2, 0, x1 - x0 + y1 - y0, top * PX_PER_M + 64, gameCombo('rail', r.defId, 0, true), gameCombo('car', r.defId, 0), gameCombo('support', r.defId, 0, true));
+        continue;
+      }
+      const def = getFlatRideDef(r.defId);
+      const w = def?.w ?? 3;
+      const d = def?.d ?? 3;
+      const t = r.rotation ?? 0;
+      obj(r.x + w / 2, r.y + d / 2, zAt(r.x, r.y), w + d, RIDE_UP_PX, gameCombo('ride', r.defId, t), gameCombo('shadow', r.defId, t));
+    }
+    for (const st of s.stalls) {
+      const t = st.rotation ?? 0;
+      obj(st.x + 0.5, st.y + 0.5, zAt(st.x, st.y), 2, STALL_UP_PX, gameCombo('stall', st.defId, t), gameCombo('shadow', st.defId, t));
+    }
+    for (const sc of s.scenery) {
+      const def = getSceneryDef(sc.defId);
+      // Scenery turns like `itemView`: an edge item by its edge (0 when unset), any other by its rotation.
+      const t = def?.edge ? Math.max(0, sc.edge) : sc.rotation ?? 0;
+      const w = def?.w ?? 1;
+      const d = def?.d ?? 1;
+      obj(sc.x + w / 2, sc.y + d / 2, sc.z ?? zAt(sc.x, sc.y), w + d, (def?.heightM ?? 4) * PX_PER_M + 16, gameCombo('scenery', sc.defId, t), gameCombo('shadow', sc.defId, t));
+    }
+    always = [];
+    for (const item of groundItems) always.push(combo(recOf('ground', item) as ItemRec, 0));
+    for (const item of guestItems) always.push(combo(recOf('guest', item) as ItemRec, 0));
+    const staffSeen = new Set<string>();
+    for (const m of s.staff.members) {
+      if (staffSeen.has(m.type)) continue;
+      staffSeen.add(m.type);
+      const rec = staffRec(m.type);
+      if (rec.k2.length || rec.k4.length) always.push(combo(rec, 0));
+    }
+    if (marks.length < combos.length) marks = new Uint8Array(combos.length * 2);
+    scopedRot = -1;
+    scopeWalks++;
+  }
+
+  /** Path item kinds in the park (bench, bin, lamp), scanned every `PATH_ITEM_SCAN_EVERY` prepares. */
+  function scanPathItems(world: World): void {
     const seen = new Set<number>();
-    const pi = s.map.pathItem;
+    const pi = world.state.map.pathItem;
+    pathCombos = [];
     for (let i = 0; i < pi.length && seen.size < 3; i++) {
       const code = pi[i] as number;
       if (code !== 0 && !seen.has(code)) {
         seen.add(code);
         const id = PATH_ITEM_IDS[code];
         // A path item's shadow is keyed by the side it stands on, which may be any turn.
-        if (id) { add('scenery', id); add('shadow', id, true); }
+        if (id) for (const c of [gameCombo('scenery', id, 0), gameCombo('shadow', id, 0, true)]) if (c >= 0) pathCombos.push(c);
       }
     }
-    for (const item of guestItems) out.push({ rec: recOf('guest', item) as ItemRec });
-    for (const m of s.staff.members) {
-      const rec = staffRec(m.type);
-      if (rec.k2.length || rec.k4.length) out.push({ rec });
+    if (marks.length < combos.length) marks = new Uint8Array(combos.length * 2);
+  }
+
+  /** The combos of the objects inside `view` plus `SCOPE_MARGIN` screens, reused while the view stays in the found rectangle. */
+  function scope(world: World, rot: ViewRotation, view: ViewRect): number[] {
+    const vw = view.x1 - view.x0;
+    const vh = view.y1 - view.y0;
+    const nx0 = view.x0 - vw * SCOPE_MARGIN;
+    const ny0 = view.y0 - vh * SCOPE_MARGIN;
+    const nx1 = view.x1 + vw * SCOPE_MARGIN;
+    const ny1 = view.y1 + vh * SCOPE_MARGIN;
+    const fits = scopedRot === rot && nx0 >= scopedRect.x0 && ny0 >= scopedRect.y0 && nx1 <= scopedRect.x1 && ny1 <= scopedRect.y1
+      && Math.abs(vw / scopedSize.w - 1) <= SCOPE_RESIZE && Math.abs(vh / scopedSize.h - 1) <= SCOPE_RESIZE;
+    if (fits) return scoped;
+    const m = SCOPE_MARGIN + SCOPE_SLACK;
+    const x0 = view.x0 - vw * m;
+    const y0 = view.y0 - vh * m;
+    const x1 = view.x1 + vw * m;
+    const y1 = view.y1 + vh * m;
+    const map = world.state.map;
+    viewAffine(rot, map.width, map.height, affine);
+    marks.fill(0);
+    let n = 0;
+    const out: number[] = [];
+    for (const o of objects) {
+      const sx = viewPointSX(affine, o.fx, o.fy);
+      const sy = viewPointSY(affine, o.fx, o.fy, o.z);
+      if (sx + o.rx < x0 || sx - o.rx > x1 || sy + o.down < y0 || sy - o.up > y1) continue;
+      n++;
+      const { a, b, c } = o;
+      if (a >= 0 && !marks[a]) { marks[a] = 1; out.push(a); }
+      if (b >= 0 && !marks[b]) { marks[b] = 1; out.push(b); }
+      if (c >= 0 && !marks[c]) { marks[c] = 1; out.push(c); }
     }
+    scopeWalks++;
+    scoped = out;
+    scopedObjects = n;
+    scopedRect = { x0, y0, x1, y1 };
+    scopedSize = { w: vw, h: vh };
+    scopedRot = rot;
     return out;
   }
 
@@ -503,15 +668,24 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       return pickDensity(zoom, dpr, sets.densityCap());
     },
 
-    // `view` is accepted for the interface: every built kind may be on screen after a scroll, and the set
-    // manager's ladder (ahead first, then off-screen density 4) handles memory pressure.
-    prepare(world, rot, _view, zoom, dpr) {
+    prepare(world, rot, view, zoom, dpr) {
       frameNo++;
       skipped = 0;
       softDraws = 0;
       density = look.density(zoom, dpr);
       curRot = rot;
       sweep();
+      const sig = sigOf(world);
+      if (sig.length !== objectSig.length || sig.some((v, i) => v !== objectSig[i])) {
+        objectSig = sig;
+        indexObjects(world);
+        lastPathScan = -PATH_ITEM_SCAN_EVERY;
+      }
+      if (frameNo - lastPathScan >= PATH_ITEM_SCAN_EVERY) {
+        lastPathScan = frameNo;
+        scanPathItems(world);
+      }
+      const inView = scope(world, rot, view);
       const ahead = ((rot + 1) % 4) as ViewRotation;
       const now = new Set<SetKey>();
       const later = new Set<SetKey>();
@@ -527,22 +701,29 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
         const tw = twinOf(rec, r, k);
         if (tw !== undefined) twins.add(tw);
       };
-      for (const { rec, everyTurn, turn } of builtItems(world)) {
-        if (everyTurn) {
-          for (let r = 0; r < 4; r++) addNow(rec, r as ViewRotation);
-          continue;
+      const want = (ids: readonly number[]): void => {
+        for (const id of ids) {
+          const { rec, everyTurn, turn } = combos[id] as Combo;
+          if (everyTurn) {
+            for (let r = 0; r < 4; r++) addNow(rec, r as ViewRotation);
+            continue;
+          }
+          addNow(rec, ((turn + rot) % 4) as ViewRotation);
+          // The ahead turn at density 2 only (cheap), for the same objects: after a turn they show at once from these
+          // sets and sharpen when the turn's density-4 sets land. A set for every turn (rot 'all') is already wanted.
+          const ar = ((turn + ahead) % 4) as ViewRotation;
+          const a = resolveAt(rec, ar, density);
+          if (a !== undefined && !now.has(a)) {
+            const low = density === 4 ? resolveAt(rec, ar, 2) : a;
+            if (low !== undefined) later.add(low);
+          }
         }
-        const t = turn ?? 0;
-        addNow(rec, ((t + rot) % 4) as ViewRotation);
-        // The ahead turn at density 2 only (cheap): after a turn its objects show at once from these sets and
-        // sharpen when the turn's density-4 sets land. A set for every turn (rot 'all') is already wanted now.
-        const ar = ((t + ahead) % 4) as ViewRotation;
-        const a = resolveAt(rec, ar, density);
-        if (a !== undefined && !now.has(a)) {
-          const low = density === 4 ? resolveAt(rec, ar, 2) : a;
-          if (low !== undefined) later.add(low);
-        }
-      }
+      };
+      // Ground first (its sets decode first), then the objects in scope, then guests, staff and path items.
+      want(always.slice(0, groundItems.length));
+      want(inView);
+      want(always.slice(groundItems.length));
+      want(pathCombos);
       // The card pictures: one small set, always loaded (src/render/real/cards.ts).
       if (keys.has(CARD_SET)) now.add(CARD_SET);
       for (const k of twins) now.delete(k);
@@ -626,6 +807,10 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
     fallbacksUsed() {
       return [...fallbacks].sort();
+    },
+
+    scope() {
+      return { objects: objects.length, inScope: scopedObjects, walks: scopeWalks };
     },
   };
   return look;
