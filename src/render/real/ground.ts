@@ -1,54 +1,93 @@
 /**
  * RealGround (spec §5.5 item 1): the realistic look's ground, laid at play time from baked ground pieces into one
- * canvas per 8 × 8 tile chunk and view rotation, at the look's density.
+ * canvas per 8 × 8 tile chunk, for the current view rotation, at the screen's scale.
  *
- * - Each tile gets one piece, `look.groundPiece(terrain, slopeMask, variant, rot)`: terrain `water` (water above
- *   the ground), `queue`, `path` or `grass`; slope mask as seen in the view (`rotateSlopeMask`); variant 0–3 from a
- *   hash of the tile position. The piece is anchored at the tile's top corner at its base height, the point
- *   `viewTileSX/SY` give (the bake's ground anchor, Task 9).
+ * - Each tile gets one piece, `look.groundPiece(terrain, slopeMask, variant, rot, join)`: terrain `water` (water
+ *   above the ground), `queue`, `path` or `grass`; slope mask as seen in the view (`rotateSlopeMask`); variant 0–3
+ *   from a hash of the tile position; for path and queue tiles the join mask in view terms (`pathJoinMask`, as
+ *   today's paths), which picks the kerb piece. The piece is anchored at the tile's top corner at its base height,
+ *   the point `viewTileSX/SY` give (the bake's ground anchor, Task 9).
  * - A piece that answers `undefined` (no such set in the bake) is left out of the chunk: today's terrain, drawn
  *   underneath by the renderer, shows through there. A piece that answers `null` (set still decoding) leaves the
  *   chunk unbuilt this frame (today's terrain shows) and the ground incomplete.
+ * - Chunks are built at `groundScale`: the screen scale (zoom × dpr) rounded up to a step, never above the look's
+ *   density, so a chunk holds no pixel the screen cannot show. Chunks of another rotation or scale are freed as soon
+ *   as the ground draws at a new one.
  * - New chunks are built while the frame has spent less than `FIRST_BUILD_BUDGET_MS` on them (at least one per
- *   frame), as the terrain layer does. A terrain change rebuilds only the chunks whose tiles changed.
- * - Chunk canvases count toward the decode budget through `hold('ground', bytes)` (spec §5.4 item 4).
+ *   frame), as the terrain layer does. A terrain change rebuilds only the chunks whose tiles (or the ring of tiles
+ *   around them, for path joins) changed.
+ * - Memory (spec §5.4 item 4): a chunk is admitted against the decode budget before it is made (`admit`); with no
+ *   room it stays unbuilt and the ground incomplete. Chunk canvases are held as `hold('ground', bytes)`.
+ *   `endFrame` runs every frame (the static layer drawn or reused): chunks not on screen for `KEEP_FRAMES` frames are
+ *   freed; `reclaim` frees chunks not on screen at once when the set manager needs the room.
+ * - A canvas that cannot be made (no 2D context, too big) leaves the chunk unbuilt and the ground incomplete:
+ *   `draw` never throws.
  */
 import { STEP_PX } from '../heightStep';
 import type { MapState } from '../../sim/map';
 import { Content } from '../../sim/map';
+import type { Ride } from '../../sim/rides/types';
+import type { Stall } from '../../sim/stalls/types';
+import { pathJoinMask } from '../paths';
 import type { Sprite } from '../spriteCache';
 import { chunkBounds, chunkViewRect, FIRST_BUILD_BUDGET_MS, terrainClock, type ViewRect } from '../terrain';
 import { CHUNK_SIZE } from '../terrainTracker';
 import { rotateSlopeMask, viewToMap, type ViewRotation } from '../view';
-import type { RealLook } from './look';
+import { pickDensity, type RealLook } from './look';
 import type { CanvasLike } from './tint';
 
 const HW = 32;
 const HH = 16;
 const PAD = 2;
-/** Chunk canvases not drawn for this many frames are freed. */
+/** Chunk canvases not on screen for this many frames are freed. */
 const KEEP_FRAMES = 120;
+/** Chunk scales: the screen scale is rounded up to one of these (so a pinch does not rebuild every frame). */
+const SCALE_STEPS = [1, 1.5, 2, 3, 4] as const;
 
-/** What the renderer needs from a ground: draw the visible chunks; `complete` when all of them drew their image. */
+/** The scale chunks are built at for screen scale `scale` (zoom × dpr) and look density `density`. */
+export function groundScale(scale: number, density: number): number {
+  const s = SCALE_STEPS.find((x) => x >= scale - 1e-6) ?? 4;
+  return Math.min(s, density);
+}
+
+/** Rides and stalls, for path join masks (entrance and exit gates). */
+export interface GroundEnv {
+  rides: readonly Ride[];
+  stalls: readonly Stall[];
+}
+
+/**
+ * What the renderer needs from a ground: draw the visible chunks; `complete` when all of them drew their image;
+ * `endFrame` every frame, before the set manager's `endFrame`.
+ */
 export interface GroundLayer {
   complete: boolean;
-  draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number): number;
+  draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number;
+  endFrame?(): void;
 }
 
 export interface RealGroundOptions {
   makeCanvas?: (w: number, h: number) => CanvasLike;
-  /** Bytes held by the chunk canvases, for the set manager's budget. */
-  hold?: (id: string, bytes: number) => void;
+  /** Bytes held by the chunk canvases, and what they would take at density 4, for the set manager's budget. */
+  hold?: (id: string, bytes: number, upBytes?: number) => void;
+  /** Asks the budget for room before a chunk is made (default: always room). */
+  admit?: (id: string, bytes: number, upBytes?: number) => boolean;
+  /** Told when a chunk canvas could not be made (once per error message). */
+  onError?: (err: unknown) => void;
 }
 
 interface Chunk {
   canvas: CanvasLike;
   sprite: Sprite;
-  density: number;
+  rot: ViewRotation;
+  /** The scale it was built at (`groundScale`). */
+  scale: number;
   /** Fingerprint of the chunk's tiles when built. */
   sig: number;
   lastFrame: number;
   bytes: number;
+  /** `bytes` at the scale density 4 would give. */
+  upBytes: number;
 }
 
 function defaultCanvas(w: number, h: number): CanvasLike {
@@ -82,10 +121,15 @@ export class RealGround implements GroundLayer {
   builds = 0;
   private readonly chunks = new Map<number, Chunk>();
   private readonly make: (w: number, h: number) => CanvasLike;
+  private readonly reported = new Set<string>();
   private version = -1;
   private map: MapState | null = null;
-  private frame = 0;
+  /** Frames counted by `endFrame`; chunks on screen carry the current one. */
+  private frame = 1;
+  /** The frame of the last `draw`: on a frame without one (static layer reused) its chunks are still on screen. */
+  private lastDraw = 0;
   private bytes = 0;
+  private upBytes = 0;
   /** Chunk indices back to front (v0, then u0) for `orderRot`, as the terrain layer draws. */
   private order: number[] = [];
   private orderRot = -1;
@@ -97,17 +141,27 @@ export class RealGround implements GroundLayer {
     this.make = opts.makeCanvas ?? defaultCanvas;
   }
 
-  /** Fingerprint of chunk (cx, cy): heights, slopes, water and content of its tiles. */
+  /** Bytes held by chunk canvases now. */
+  heldBytes(): number {
+    return this.bytes;
+  }
+
+  /** Fingerprint of chunk (cx, cy): heights, slopes, water and content of its tiles, and content of the ring around. */
   private sig(map: MapState, cx: number, cy: number): number {
     let h = 0x811c9dc5;
-    const x1 = Math.min(map.width, (cx + 1) * CHUNK_SIZE);
-    const y1 = Math.min(map.height, (cy + 1) * CHUNK_SIZE);
-    for (let y = cy * CHUNK_SIZE; y < y1; y++) {
-      for (let x = cx * CHUNK_SIZE; x < x1; x++) {
+    const x0 = cx * CHUNK_SIZE;
+    const y0 = cy * CHUNK_SIZE;
+    const x1 = Math.min(map.width, x0 + CHUNK_SIZE);
+    const y1 = Math.min(map.height, y0 + CHUNK_SIZE);
+    for (let y = Math.max(0, y0 - 1); y < Math.min(map.height, y1 + 1); y++) {
+      for (let x = Math.max(0, x0 - 1); x < Math.min(map.width, x1 + 1); x++) {
         const i = y * map.width + x;
-        h = Math.imul(h ^ (map.heights[i] as number), 0x01000193);
-        h = Math.imul(h ^ ((map.slope[i] as number) | ((map.content[i] as number) << 4)), 0x01000193);
-        h = Math.imul(h ^ (map.water[i] as number), 0x01000193);
+        const inside = x >= x0 && x < x1 && y >= y0 && y < y1;
+        if (inside) {
+          h = Math.imul(h ^ (map.heights[i] as number), 0x01000193);
+          h = Math.imul(h ^ ((map.slope[i] as number) | ((map.content[i] as number) << 4)), 0x01000193);
+          h = Math.imul(h ^ (map.water[i] as number), 0x01000193);
+        } else h = Math.imul(h ^ ((map.content[i] as number) + 0x100), 0x01000193);
       }
     }
     return h >>> 0;
@@ -117,51 +171,85 @@ export class RealGround implements GroundLayer {
     c.canvas.width = 0;
     c.canvas.height = 0;
     this.bytes -= c.bytes;
+    this.upBytes -= c.upBytes;
     this.chunks.delete(key);
   }
 
-  /** The chunk image, or null when one of its pieces is not decoded yet. */
-  private build(map: MapState, cx: number, cy: number, rot: ViewRotation, density: number, sig: number): Chunk | null {
-    const g = chunkBounds(map, cx, cy, rot);
-    const vr = chunkViewRect(map, cx, cy, rot);
-    const w = Math.ceil((g.right - g.left) * density) + PAD * 2;
-    const h = Math.ceil((g.bottom - g.top) * density) + PAD * 2;
-    const ox = PAD - g.left * density;
-    const oy = PAD - g.top * density;
-    let canvas: CanvasLike | null = null;
-    let ctx: CanvasRenderingContext2D | null = null;
-    // Back to front by u + v.
-    for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
-      for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
-        const v = s - u;
-        const m = viewToMap(u, v, rot, map.width, map.height);
-        const i = m.y * map.width + m.x;
-        const sp = this.look.groundPiece(groundTerrain(map, i), rotateSlopeMask(map.slope[i] as number, rot), groundVariant(m.x, m.y), rot);
-        if (sp === null) {
-          if (canvas) canvas.width = canvas.height = 0;
-          return null;
-        }
-        if (!sp) continue;
-        if (!canvas) {
-          canvas = this.make(w, h);
-          ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
-        }
-        const k = density / sp.scale;
-        const ax = (u - v) * HW * density + ox;
-        const ay = ((u + v) * HH - (map.heights[i] as number) * STEP_PX) * density + oy;
-        (ctx as CanvasRenderingContext2D).drawImage(sp.image, sp.sx ?? 0, sp.sy ?? 0, sp.w, sp.h, Math.round(ax - sp.ox * k), Math.round(ay - sp.oy * k), Math.round(sp.w * k), Math.round(sp.h * k));
-      }
-    }
-    // A chunk with no baked piece at all: an empty 1 × 1 image, so it is not asked again until it changes.
-    if (!canvas) canvas = this.make(1, 1);
-    const cw = canvas.width;
-    const ch = canvas.height;
-    return { canvas, sprite: { image: canvas as unknown as CanvasImageSource, w: cw, h: ch, ox, oy, scale: density }, density, sig, lastFrame: this.frame, bytes: cw * ch * 4 };
+  private holdNow(): void {
+    this.opts.hold?.('ground', this.bytes, this.upBytes);
   }
 
-  draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number): number {
-    this.frame++;
+  private report(err: unknown): void {
+    const m = err instanceof Error ? err.message : String(err);
+    if (this.reported.has(m)) return;
+    this.reported.add(m);
+    this.opts.onError?.(err);
+  }
+
+  /** The chunk image, or null when one of its pieces is not decoded yet or its canvas could not be made. */
+  private build(map: MapState, cx: number, cy: number, rot: ViewRotation, scale: number, upScale: number, sig: number, env: GroundEnv | undefined): Chunk | null {
+    const g = chunkBounds(map, cx, cy, rot);
+    const vr = chunkViewRect(map, cx, cy, rot);
+    const w = Math.ceil((g.right - g.left) * scale) + PAD * 2;
+    const h = Math.ceil((g.bottom - g.top) * scale) + PAD * 2;
+    const ox = PAD - g.left * scale;
+    const oy = PAD - g.top * scale;
+    let canvas: CanvasLike | null = null;
+    let ctx: CanvasRenderingContext2D | null = null;
+    const drop = (): null => {
+      if (canvas) canvas.width = canvas.height = 0;
+      return null;
+    };
+    try {
+      // Back to front by u + v.
+      for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
+        for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
+          const v = s - u;
+          const m = viewToMap(u, v, rot, map.width, map.height);
+          const i = m.y * map.width + m.x;
+          const terrain = groundTerrain(map, i);
+          const join = env && (terrain === 'path' || terrain === 'queue') ? rotateSlopeMask(pathJoinMask(map, i, env.rides, env.stalls), rot) : undefined;
+          const sp = this.look.groundPiece(terrain, rotateSlopeMask(map.slope[i] as number, rot), groundVariant(m.x, m.y), rot, join);
+          if (sp === null) return drop();
+          if (!sp) continue;
+          if (!canvas) {
+            canvas = this.make(w, h);
+            ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
+            if (!ctx) throw new Error('no 2D context for a ground chunk canvas');
+          }
+          const k = scale / sp.scale;
+          const ax = (u - v) * HW * scale + ox;
+          const ay = ((u + v) * HH - (map.heights[i] as number) * STEP_PX) * scale + oy;
+          (ctx as CanvasRenderingContext2D).drawImage(sp.image, sp.sx ?? 0, sp.sy ?? 0, sp.w, sp.h, Math.round(ax - sp.ox * k), Math.round(ay - sp.oy * k), Math.round(sp.w * k), Math.round(sp.h * k));
+        }
+      }
+      // A chunk with no baked piece at all: an empty 1 × 1 image, so it is not asked again until it changes.
+      if (!canvas) canvas = this.make(1, 1);
+    } catch (err) {
+      this.report(err);
+      return drop();
+    }
+    const cw = canvas.width;
+    const ch = canvas.height;
+    const bytes = cw * ch * 4;
+    const up = cw > 1 ? Math.round(bytes * (upScale / scale) ** 2) : bytes;
+    return { canvas, sprite: { image: canvas as unknown as CanvasImageSource, w: cw, h: ch, ox, oy, scale }, rot, scale, sig, lastFrame: this.frame, bytes, upBytes: up };
+  }
+
+  draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number {
+    try {
+      return this.drawChunks(ctx, map, view, scale, offX, offY, rot, version, env);
+    } catch (err) {
+      // Never out of the frame: the ground counts as incomplete and today's terrain shows.
+      this.report(err);
+      this.complete = false;
+      return 0;
+    }
+  }
+
+  private drawChunks(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number {
     this.builds = 0;
+    this.lastDraw = this.frame;
     const cxN = Math.ceil(map.width / CHUNK_SIZE);
     const cyN = Math.ceil(map.height / CHUNK_SIZE);
     if (map !== this.map) {
@@ -172,7 +260,10 @@ export class RealGround implements GroundLayer {
     // A terrain change: drop the chunks whose tiles changed.
     const changed = version !== this.version;
     this.version = version;
-    const density = this.look.density(scale, 1);
+    const cs = groundScale(scale, this.look.density(scale, 1));
+    const upScale = groundScale(scale, pickDensity(scale, 1, 4));
+    // Chunks of another rotation or scale are never drawn again at this one: free them now.
+    for (const [k, c] of [...this.chunks]) if (c.rot !== rot || c.scale !== cs) this.free(k, c);
     let complete = true;
     let drawn = 0;
     let t0 = 0;
@@ -189,7 +280,7 @@ export class RealGround implements GroundLayer {
     for (const c of this.order) {
       const cx = c % cxN;
       const cy = (c - cx) / cxN;
-      const key = c * 4 + rot;
+      const key = c;
       let ch = this.chunks.get(key);
       if (ch && changed && ch.sig !== this.sig(map, cx, cy)) {
         this.free(key, ch);
@@ -197,26 +288,31 @@ export class RealGround implements GroundLayer {
       }
       const g = chunkBounds(map, cx, cy, rot);
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
-      if (ch && ch.density !== density) {
-        this.free(key, ch);
-        ch = undefined;
-      }
       if (!ch) {
         if (firstBuilds === 0) t0 = terrainClock.now();
         if (firstBuilds > 0 && terrainClock.now() - t0 >= FIRST_BUILD_BUDGET_MS) {
           complete = false;
           continue;
         }
+        // Room first (the whole chunk box; an emptier chunk gives the difference back below).
+        const need = (Math.ceil((g.right - g.left) * cs) + PAD * 2) * (Math.ceil((g.bottom - g.top) * cs) + PAD * 2) * 4;
+        if (this.opts.admit && !this.opts.admit('ground', this.bytes + need, this.upBytes + Math.round(need * (upScale / cs) ** 2))) {
+          complete = false;
+          continue;
+        }
         firstBuilds++;
-        const built = this.build(map, cx, cy, rot, density, this.sig(map, cx, cy));
+        const built = this.build(map, cx, cy, rot, cs, upScale, this.sig(map, cx, cy), env);
         if (!built) {
           complete = false;
+          this.holdNow();
           continue;
         }
         this.builds++;
         ch = built;
         this.chunks.set(key, ch);
         this.bytes += ch.bytes;
+        this.upBytes += ch.upBytes;
+        this.holdNow();
       }
       ch.lastFrame = this.frame;
       const sp = ch.sprite;
@@ -227,10 +323,39 @@ export class RealGround implements GroundLayer {
       ctx.drawImage(sp.image, x0, y0, Math.round(offX + (sp.w - sp.ox) * f) - x0, Math.round(offY + (sp.h - sp.oy) * f) - y0);
       drawn++;
     }
-    for (const [k, c] of [...this.chunks]) if (c.lastFrame < this.frame - KEEP_FRAMES) this.free(k, c);
-    this.opts.hold?.('ground', this.bytes);
+    this.holdNow();
     this.complete = complete;
     return drawn;
+  }
+
+  /**
+   * Every frame, before the set manager's `endFrame`: the chunks of the last draw stay on screen while the static
+   * layer is reused; chunks not on screen for `KEEP_FRAMES` frames are freed.
+   */
+  endFrame(): void {
+    if (this.lastDraw !== this.frame) {
+      for (const c of this.chunks.values()) if (c.lastFrame === this.lastDraw) c.lastFrame = this.frame;
+      this.lastDraw = this.frame;
+    }
+    for (const [k, c] of [...this.chunks]) if (c.lastFrame < this.frame - KEEP_FRAMES) this.free(k, c);
+    this.holdNow();
+    this.frame++;
+  }
+
+  /**
+   * The set manager's reclaimer: frees chunks not on screen in the frame just ended (`endFrame` ran), least recently
+   * on screen first, until about `needBytes` are freed. Returns the bytes freed.
+   */
+  reclaim(needBytes: number): number {
+    let freed = 0;
+    const idle = [...this.chunks.entries()].filter(([, c]) => c.lastFrame < this.frame - 1).sort((a, b) => a[1].lastFrame - b[1].lastFrame);
+    for (const [k, c] of idle) {
+      if (freed >= needBytes) break;
+      freed += c.bytes;
+      this.free(k, c);
+    }
+    if (freed > 0) this.holdNow();
+    return freed;
   }
 
   /** Frees every chunk canvas. */

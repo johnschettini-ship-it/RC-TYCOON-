@@ -7,6 +7,9 @@
  * 2. Compressed blobs are kept once read, so a turn never waits on a download.
  * 3. During a turn the old sets still count until they are freed, so a new decode only starts
  *    when the old sets plus everything in flight plus the new set fit the budget.
+ * 4. Memory made outside the manager from ready sets (tinted sheets, ground chunks) is in the same
+ *    budget: it is admitted before it is made (`admit`), counted while held (`hold`), and given back
+ *    under pressure by the holders' reclaimers (`addReclaimer`), a ladder step before density drops.
  *
  * Protocol per frame: `beginFrame(n)`, then `want(...)` for every set the frame needs (wants do
  * not carry over to the next frame), `use(...)` for every set drawn, then `endFrame()`.
@@ -18,8 +21,36 @@ export interface SetIO { read(file: string): Promise<Blob>; decode(blob: Blob): 
 export type SetState = 'none' | 'loading' | 'ready' | 'failed';
 export type ReadySet = RealSetEntry & { images: CanvasImageSource[] };
 export interface CapEvent { frame: number; capped: boolean; pressureBytes: number }
+/** Frees held memory nobody drew this frame, oldest first, until about `needBytes` are freed; returns the bytes freed. */
+export type Reclaimer = (needBytes: number) => number;
 
-type Priority = 'now' | 'ahead';
+/** The set manager's state at one moment, for a bench row when a wait times out (R1). */
+export interface SetSnapshot {
+  frame: number;
+  /** The decode the queue would start next, or null when the queue is empty. */
+  queueHead: { key: SetKey; estimate: number; priority: Priority } | null;
+  queued: number;
+  inFlight: SetKey[];
+  committed: number;
+  pressure: number;
+  resident: number;
+  /** Bytes the frame asked to make (`admit`) and was refused for want of room. */
+  refused: number;
+  /** Held bytes by holder id (`ground`, `<set key>#<colour>` for a tinted sheet). */
+  held: Record<string, number>;
+  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks. */
+  split: MemorySplit;
+  capped: boolean;
+  demoted: SetKey[];
+}
+
+/** Resident bytes by owner. */
+export interface MemorySplit { sets: number; tints: number; ground: number }
+
+/** The holder id the ground uses; every other holder id is a tinted sheet. */
+export const GROUND_HOLD = 'ground';
+
+export type Priority = 'now' | 'ahead';
 
 const MAX_IN_FLIGHT = 2;
 const NEVER = Number.NEGATIVE_INFINITY;
@@ -62,9 +93,17 @@ export class SetManager {
   private readonly demoted = new Set<SetKey>();
   private roomFrames = 0;
   private readonly events: CapEvent[] = [];
-  /** Bytes the caller made from ready sets (cropped and tinted frames), by holder id. */
+  /** Bytes the caller made from ready sets (tinted sheets, ground chunks), by holder id. */
   private readonly held = new Map<string, number>();
   private heldTotal = 0;
+  /** The same holds at density 4 (what they would grow to if the cap lifted), by holder id. */
+  private readonly heldUp = new Map<string, number>();
+  private heldUpTotal = 0;
+  /** Bytes refused by `admit` this frame, by holder id (once each): demand the ladder must make room for. */
+  private readonly refusedById = new Map<string, number>();
+  private refused = 0;
+  private readonly reclaimers: Reclaimer[] = [];
+  private readonly tooBigReported = new Set<SetKey>();
 
   constructor(
     index: RealIndex,
@@ -89,6 +128,8 @@ export class SetManager {
 
   beginFrame(frame: number): void {
     this.frame = frame;
+    this.refusedById.clear();
+    this.refused = 0;
   }
 
   want(keys: SetKey[], priority: Priority): void {
@@ -104,6 +145,15 @@ export class SetManager {
       if (r.state === 'failed') continue;
       if (this.capped && r.entry.density === 4) continue;
       if (this.demoted.has(key)) continue;
+      if (r.estimate > this.budgetBytes) {
+        // Can never fit, even alone: today's art draws it (state 'failed'), reported once.
+        r.state = 'failed';
+        if (!this.tooBigReported.has(key)) {
+          this.tooBigReported.add(key);
+          this.onError(key, new Error(`set ${key} needs ${r.estimate} bytes decoded, more than the whole budget of ${this.budgetBytes}`));
+        }
+        continue;
+      }
       if (r.wantFrame !== this.frame) { r.wantFrame = this.frame; r.wantPri = priority; }
       else if (priority === 'now') r.wantPri = 'now';
       if (r.state === 'none') { r.state = 'loading'; this.queue.push(r); }
@@ -123,14 +173,93 @@ export class SetManager {
   }
 
   /**
-   * Counts `bytes` made outside the set manager (RealLook's cropped and tinted frames) in the budget under `id`,
-   * replacing what `id` held before; 0 releases it. Held bytes are resident, limit new decodes and add pressure.
+   * Counts `bytes` made outside the set manager (RealLook's tinted sheets, RealGround's chunks) in the budget under
+   * `id`, replacing what `id` held before; 0 releases it. Held bytes are resident, limit new decodes and add
+   * pressure. `upBytes` is what the same holding would take at density 4 (default `bytes`): the cap lifts only when
+   * that fits too.
    */
-  hold(id: string, bytes: number): void {
+  hold(id: string, bytes: number, upBytes = bytes): void {
     this.heldTotal -= this.held.get(id) ?? 0;
-    if (bytes > 0) { this.held.set(id, bytes); this.heldTotal += bytes; }
-    else this.held.delete(id);
+    this.heldUpTotal -= this.heldUp.get(id) ?? 0;
+    if (bytes > 0) {
+      this.held.set(id, bytes);
+      this.heldTotal += bytes;
+      this.heldUp.set(id, upBytes);
+      this.heldUpTotal += upBytes;
+    } else {
+      this.held.delete(id);
+      this.heldUp.delete(id);
+    }
     this.peak = Math.max(this.peak, this.residentBytes());
+  }
+
+  /**
+   * Asks to raise `id`'s holding to `bytes` before making it. When it fits beside everything held, decoded or in
+   * flight, it is held (as `hold`) and true is returned; otherwise nothing changes, the growth counts as pressure
+   * this frame (so the ladder makes room) and false is returned: draw the object as not ready yet.
+   */
+  admit(id: string, bytes: number, upBytes = bytes): boolean {
+    const now = this.held.get(id) ?? 0;
+    if (bytes <= now || this.committed() - now + bytes <= this.budgetBytes) {
+      this.hold(id, bytes, upBytes);
+      return true;
+    }
+    const grow = bytes - now;
+    const before = this.refusedById.get(id) ?? 0;
+    if (grow > before) {
+      this.refused += grow - before;
+      this.refusedById.set(id, grow);
+    }
+    return false;
+  }
+
+  /** A holder's reclaimer: called by the ladder, in the order added, before any density is lowered. */
+  addReclaimer(fn: Reclaimer): void {
+    this.reclaimers.push(fn);
+  }
+
+  /** Reads every sheet listed in the index into the compressed-blob store (spec §5.4 item 1: nothing downloads in play). */
+  async preloadAll(onProgress?: (done: number, total: number, bytes: number) => void): Promise<{ files: number; bytes: number }> {
+    const files = [...new Set([...this.recs.values()].flatMap((r) => r.entry.sheets.map((s) => s.file)))];
+    let done = 0;
+    let bytes = 0;
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < files.length) {
+        const f = files[next++] as string;
+        const b = await this.read(f);
+        bytes += b.size;
+        onProgress?.(++done, files.length, bytes);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(4, files.length) }, worker));
+    return { files: files.length, bytes };
+  }
+
+  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks. */
+  split(): MemorySplit {
+    let sets = 0;
+    for (const r of this.recs.values()) sets += r.bytes;
+    const ground = this.held.get(GROUND_HOLD) ?? 0;
+    return { sets, tints: this.heldTotal - ground, ground };
+  }
+
+  snapshot(): SetSnapshot {
+    const head = this.nextToLoad(Number.POSITIVE_INFINITY);
+    return {
+      frame: this.frame,
+      queueHead: head ? { key: head.entry.key, estimate: head.estimate, priority: head.wantPri } : null,
+      queued: this.queue.length,
+      inFlight: [...this.recs.values()].filter((r) => r.inFlight).map((r) => r.entry.key),
+      committed: this.committed(),
+      pressure: this.pressure(),
+      resident: this.residentBytes(),
+      refused: this.refused,
+      held: Object.fromEntries(this.held),
+      split: this.split(),
+      capped: this.capped,
+      demoted: [...this.demoted],
+    };
   }
 
   residentBytes(): number {
@@ -164,8 +293,18 @@ export class SetManager {
       // 1. ahead sets first.
       for (const r of this.recs.values()) if (this.wanted(r) && r.wantPri === 'ahead') this.drop(r);
     }
+    // 2. held memory not drawn this frame: ground chunks off screen, least recently used tinted sheets.
+    for (const reclaim of this.reclaimers) {
+      const over = this.pressure() - this.budgetBytes;
+      if (over <= 0) break;
+      try {
+        reclaim(over);
+      } catch (err) {
+        this.onError('reclaim', err);
+      }
+    }
     if (this.pressure() > this.budgetBytes) {
-      // 2. density-4 sets of objects outside the view: wanted but not drawn, and resident long
+      // 3. density-4 sets of objects outside the view: wanted but not drawn, and resident long
       //    enough that the caller had a frame to draw them.
       for (const r of this.recs.values()) {
         if (r.state === 'ready' && r.entry.density === 4 && r.readyFrame < this.frame - 1 && this.drop(r)) {
@@ -176,7 +315,7 @@ export class SetManager {
     }
     const pressure = this.pressure();
     if (pressure > this.budgetBytes && !this.capped) {
-      this.capped = true; // 3. density 2 everywhere.
+      this.capped = true; // 4. density 2 everywhere.
       this.roomFrames = 0;
       this.events.push({ frame: this.frame, capped: true, pressureBytes: pressure });
     } else if (this.capped || this.demoted.size) this.checkRoom();
@@ -185,10 +324,13 @@ export class SetManager {
     this.pump();
   }
 
-  /** Hysteresis: lift the cap and demotions after ROOM_FRAMES frames with room at density 4. */
+  /**
+   * Hysteresis: lift the cap and demotions after ROOM_FRAMES frames with room at density 4, held memory counted at
+   * its density-4 size, and nothing refused.
+   */
   private checkRoom(): void {
     const up = this.pressure(true);
-    this.roomFrames = up < ROOM_SHARE * this.budgetBytes ? this.roomFrames + 1 : 0;
+    this.roomFrames = up < ROOM_SHARE * this.budgetBytes && this.refused === 0 ? this.roomFrames + 1 : 0;
     if (this.roomFrames < ROOM_FRAMES) return;
     this.roomFrames = 0;
     this.demoted.clear();
@@ -241,10 +383,11 @@ export class SetManager {
   /**
    * What the wanted sets need; sets on their way out are not pressure, they free themselves.
    * With `atDensity4`, a wanted density-2 set counts at its density-4 counterpart's estimated size
-   * when density 4 is being withheld from it (cap on, or that counterpart demoted).
+   * when density 4 is being withheld from it (cap on, or that counterpart demoted), and held memory at its
+   * density-4 size. Bytes `admit` refused this frame are pressure too.
    */
   private pressure(atDensity4 = false): number {
-    let n = this.heldTotal;
+    let n = (atDensity4 ? this.heldUpTotal : this.heldTotal) + this.refused;
     for (const r of this.recs.values()) {
       if (!this.wanted(r)) continue;
       let need = 0;
@@ -257,11 +400,19 @@ export class SetManager {
     return n;
   }
 
+  /**
+   * The next set to decode within `room` bytes: the first queued 'now' set that fits (a big one that does not fit
+   * yet does not hold up smaller ones behind it); ahead sets only while no 'now' set waits.
+   */
+  private nextToLoad(room: number): Rec | undefined {
+    const nows = this.queue.filter((r) => r.wantPri === 'now');
+    return (nows.length ? nows : this.queue).find((r) => r.estimate <= room);
+  }
+
   private pump(): void {
     while (this.inFlight < MAX_IN_FLIGHT && this.queue.length) {
-      const i = this.queue.findIndex((r) => r.wantPri === 'now');
-      const next = this.queue[i >= 0 ? i : 0]!;
-      if (this.committed() + next.estimate > this.budgetBytes) return;
+      const next = this.nextToLoad(this.budgetBytes - this.committed());
+      if (!next) return;
       this.dequeue(next);
       void this.load(next);
     }

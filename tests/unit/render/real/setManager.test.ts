@@ -344,3 +344,128 @@ describe('SetManager', () => {
     expect(m.state(B.key)).toBe('ready');
   });
 });
+
+describe('SetManager: memory held outside it (final review C1, I3, T5)', () => {
+  it('admit: room beside the sets holds the bytes; no room refuses them and the refusal is pressure', async () => {
+    const [A, A2] = [entry('a', 4, 2), entry('a', 2)];
+    const { io, m } = setup([A, A2], 300);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.want([A.key], 'now');
+    expect(m.admit('t1', 100)).toBe(true);
+    expect(m.residentBytes()).toBe(300);
+    // No room for 50 more: refused, nothing held, and the ladder sees 350 > 300 (asked twice, counted once).
+    expect(m.admit('t2', 50)).toBe(false);
+    expect(m.admit('t2', 50)).toBe(false);
+    expect(m.snapshot().refused).toBe(50);
+    expect(m.residentBytes()).toBe(300);
+    m.endFrame();
+    expect(m.densityCap()).toBe(2);
+    expect(m.capEvents()).toEqual([{ frame: 2, capped: true, pressureBytes: 350 }]);
+    // Shrinking or keeping a holding is always admitted.
+    m.beginFrame(3);
+    expect(m.admit('t1', 100)).toBe(true);
+    expect(m.snapshot().refused).toBe(0);
+  });
+
+  it('the ladder reclaims held memory before it lowers any density', async () => {
+    const A = entry('a', 4, 2);
+    const { io, m } = setup([A], 300);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    const order: string[] = [];
+    m.hold('ground', 150);
+    m.addReclaimer((need) => { order.push(`ground ${need}`); m.hold('ground', 50); return 100; });
+    m.addReclaimer((need) => { order.push(`tints ${need}`); return 0; });
+    m.beginFrame(2); m.use(A.key); m.want([A.key], 'now'); m.endFrame();
+    // 200 + 150 = 350: the ground gives back 100 and the second reclaimer is not needed.
+    expect(order).toEqual(['ground 50']);
+    expect(m.densityCap()).toBe(4);
+    expect(m.capEvents()).toEqual([]);
+    expect(m.split()).toEqual({ sets: 200, tints: 0, ground: 50 });
+  });
+
+  it('a reclaimer that throws is reported and the ladder goes on', async () => {
+    const A = entry('a', 4, 2);
+    const { io, m, errors } = setup([A], 300);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.hold('ground', 150);
+    m.addReclaimer(() => { throw new Error('boom'); });
+    m.beginFrame(2); m.use(A.key); m.want([A.key], 'now'); m.endFrame();
+    expect(errors.map(([k]) => k)).toEqual(['reclaim']);
+    expect(m.densityCap()).toBe(2);
+  });
+
+  it('the cap lifts only when held memory fits at its density-4 size too (I3)', async () => {
+    const [A, B, A4] = [entry('a', 2), entry('b', 2), entry('a', 4, 2)];
+    const budget = 400; // lift below 300
+    const { io, m } = setup([A, B, A4], budget);
+    m.beginFrame(1); m.want([A.key, B.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.hold('x', 250);
+    m.beginFrame(2); m.use(A.key); m.use(B.key); m.want([A.key, B.key], 'now'); m.endFrame();
+    expect(m.densityCap()).toBe(2);
+    // Quiet: A (200 at density 4) + a held 25 that is 100 at density 4 = 300: not under 300, the cap stays.
+    m.hold('x', 25, 100);
+    for (let f = 3; f <= 80; f++) { m.beginFrame(f); m.use(A.key); m.want([A.key], 'now'); m.endFrame(); }
+    expect(m.densityCap()).toBe(2);
+    // The same holding counted at its own size would lift.
+    m.hold('x', 25, 25);
+    for (let f = 81; f <= 140; f++) { m.beginFrame(f); m.use(A.key); m.want([A.key], 'now'); m.endFrame(); }
+    expect(m.densityCap()).toBe(4);
+  });
+
+  it('a now set that does not fit yet does not hold up smaller now sets behind it (T5 head of line)', async () => {
+    const [A, Big, S] = [entry('a', 2, 2), entry('big', 2, 3), entry('s', 2)];
+    const { io, m } = setup([A, Big, S], 400);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.want([A.key, Big.key, S.key], 'now'); m.endFrame();
+    await flush();
+    // 200 resident: Big (300) does not fit, S (100) does and starts.
+    expect(io.decodes).toContain(file(S));
+    expect(io.decodes).not.toContain(file(Big));
+    expect(m.snapshot().queueHead).toEqual({ key: Big.key, estimate: 300, priority: 'now' });
+    await io.settleAll();
+    expect(m.state(S.key)).toBe('ready');
+  });
+
+  it('a set larger than the whole budget is reported once and drawn with today\'s art', async () => {
+    const [Big, S] = [entry('big', 2, 5), entry('s', 2)];
+    const { io, m, errors } = setup([Big, S], 300);
+    for (let f = 1; f <= 3; f++) { m.beginFrame(f); m.want([Big.key, S.key], 'now'); m.endFrame(); }
+    expect(m.state(Big.key)).toBe('failed');
+    expect(errors.map(([k]) => k)).toEqual([Big.key]);
+    await io.settleAll();
+    expect(m.state(S.key)).toBe('ready');
+  });
+
+  it('preloadAll reads every listed sheet once, so no decode reads again', async () => {
+    const [A, B] = [entry('a', 2, 2), entry('b', 4)];
+    const { io, m } = setup([A, B], 1000);
+    const seen: number[] = [];
+    const got = await m.preloadAll((n) => seen.push(n));
+    expect(got.files).toBe(3);
+    expect(seen).toEqual([1, 2, 3]);
+    expect(io.reads.sort()).toEqual([file(A, 0), file(A, 1), file(B)].sort());
+    m.beginFrame(1); m.want([A.key, B.key], 'now'); m.endFrame();
+    await io.settleAll();
+    expect(io.reads).toHaveLength(3);
+  });
+
+  it('snapshot: queue head, committed, held by id, capped, demoted', async () => {
+    const A = entry('a', 2);
+    const { m } = setup([A], 1000);
+    m.hold('ground', 30);
+    m.hold('guest:b0o0:d2:rall#ff0000', 20);
+    m.beginFrame(1); m.want([A.key], 'ahead');
+    const snap = m.snapshot();
+    expect(snap.queueHead).toEqual({ key: A.key, estimate: 100, priority: 'ahead' });
+    expect(snap.held).toEqual({ ground: 30, 'guest:b0o0:d2:rall#ff0000': 20 });
+    expect(snap.split).toEqual({ sets: 0, tints: 20, ground: 30 });
+    expect(snap.committed).toBe(50);
+    expect(snap.capped).toBe(false);
+    expect(snap.demoted).toEqual([]);
+  });
+});

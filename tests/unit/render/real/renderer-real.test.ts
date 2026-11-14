@@ -67,6 +67,8 @@ function fakeLook(answers: Partial<Record<Kind, (...a: unknown[]) => Answer>>, l
     shadow: get('shadow') as RealLook['shadow'],
     groundPiece: get('groundPiece') as RealLook['groundPiece'],
     dispose() {},
+    reclaim: () => 0,
+    currentDensity: () => 2,
     incomplete: () => skipped,
     fallbacksUsed: () => [],
   };
@@ -325,6 +327,31 @@ describe('renderer with the realistic look (Task 8)', () => {
     r.draw(world, camAt(world), defaultToolState(), 0);
     // Complete once: the static layer is kept and copied, the ground is not drawn again.
     expect(ground.calls).toBe(5);
+  });
+
+  it('real ground: endFrame runs every frame (static layer reused too), before the set manager\'s endFrame; draw gets rides and stalls', () => {
+    const world = park();
+    const log: string[] = [];
+    let env: unknown = null;
+    const ground = {
+      complete: true,
+      draw(_ctx: CanvasRenderingContext2D, ..._a: unknown[]): number {
+        env = _a[7];
+        log.push('draw');
+        return 0;
+      },
+      endFrame() {
+        log.push('ground.end');
+      },
+    };
+    const canvas = make(W, H);
+    const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets: fakeSets(log), ground });
+    r.resize(W, H, 1);
+    for (let k = 0; k < 4; k++) r.draw(world, camAt(world), defaultToolState(), 0);
+    expect(log.filter((x) => x === 'ground.end')).toHaveLength(4);
+    expect(log.filter((x) => x === 'draw').length).toBeLessThan(4); // the static layer was reused
+    for (let i = 0; i < log.length; i++) if (log[i] === 'ground.end') expect(log[i + 1]).toBe('end');
+    expect(env).toMatchObject({ rides: world.state.rides, stalls: world.state.stalls });
   });
 });
 

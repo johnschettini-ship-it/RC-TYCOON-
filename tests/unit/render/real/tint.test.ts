@@ -103,4 +103,18 @@ describe('tintSheet', () => {
     expect(made.slice(0, 2).map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0]]);
     expect([made[2]!.width, made[2]!.height]).toEqual([2, 2]);
   });
+
+  it('a canvas without a 2D context throws a plain error and zeroes every canvas it made (I6)', () => {
+    const made: PixCanvas[] = [];
+    let n = 0;
+    const mk = (w: number, h: number) => {
+      const c = new PixCanvas(w, h);
+      made.push(c);
+      // The third canvas (the result) has no context.
+      if (++n === 3) (c as unknown as { getContext: () => null }).getContext = () => null;
+      return c;
+    };
+    expect(() => tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], mk)).toThrow(/no 2D context/);
+    expect(made.map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0], [0, 0]]);
+  });
 });

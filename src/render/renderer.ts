@@ -1087,7 +1087,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       sc.fillStyle = SKY;
       sc.fillRect(0, 0, w, h);
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
-      ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version);
+      ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version, env);
       staticValid = terrain.complete && (!ground || ground.complete);
       setKey(staticKey, cam, map);
       statics.set(STATIC_KEY, { image: staticImage.canvas, w, h, ox: 0, oy: 0, scale: 1 });
@@ -1098,7 +1098,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       c.fillStyle = SKY;
       c.fillRect(0, 0, canvas.width, canvas.height);
       chunks = terrain.draw(c, map, env, view, bucket, scale, offX, offY, rot);
-      ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version);
+      ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version, env);
     }
     setKey(lastKey, cam, map);
     return chunks;
@@ -1220,7 +1220,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         lastFrameAt = t1;
       }
       if (debug) drawDebug(world, chunks);
-      if (import.meta.env.VITE_ART === 'real' && L) real.sets?.endFrame();
+      if (import.meta.env.VITE_ART === 'real' && L) {
+        // Ground eviction runs every frame (the static layer may be reused), then the set manager's ladder.
+        ground?.endFrame?.();
+        real.sets?.endFrame();
+      }
       perfProbe.renderEnd();
     },
   };

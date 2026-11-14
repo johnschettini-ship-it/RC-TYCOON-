@@ -7,7 +7,8 @@
  * 2. Fetch `art/real/index.json` relative to the page. On any failure (no baked art, bad index): one plain error
  *    line (`ui.realArt.loadFailed`) and `null`, so the game starts with today's look and today's height step.
  * 3. Build the set manager (decode off the main thread with `createImageBitmap`, decode budget F2 (a) 128 MB),
- *    the look, and the ground; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
+ *    the look, and the ground, with the ground's chunks and the look's tinted sheets admitted to and reclaimed by
+ *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
  */
 import { t } from '../../data/strings';
 import { perfProbe } from '../../perf/stats';
@@ -74,7 +75,14 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
   const report = (key: string, err: unknown): void => console.warn('[art=real]', key, err);
   const sets = new SetManager(index, io, REAL_DECODE_BUDGET_BYTES, report);
   const look = createRealLook(index, sets, { onError: report });
-  const ground = new RealGround(look, { hold: (id, bytes) => sets.hold(id, bytes) });
+  const ground = new RealGround(look, {
+    hold: (id, bytes, up) => sets.hold(id, bytes, up),
+    admit: (id, bytes, up) => sets.admit(id, bytes, up),
+    onError: (err) => report('ground', err),
+  });
+  // Ladder step before any density drops: ground chunks off screen first, then tinted sheets least recently used.
+  sets.addReclaimer((n) => ground.reclaim(n));
+  sets.addReclaimer((n) => look.reclaim(n));
   perfProbe.realMemory = () => [sets.residentBytes(), sets.peakBytes()];
   setStepPx(REAL_STEP_PX);
   return { look, sets, ground };

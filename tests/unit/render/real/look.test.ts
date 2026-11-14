@@ -102,7 +102,17 @@ class FakeSets implements RealSets {
   state(key: SetKey): SetState { return this.states.get(key) ?? 'none'; }
   densityCap(): 2 | 4 { return this.cap; }
   isDemoted(key: SetKey): boolean { return this.demoted.has(key); }
+  /** Room for held bytes (tinted sheets) in total; Infinity by default. */
+  room = Number.POSITIVE_INFINITY;
+  refused: string[] = [];
   hold(id: string, bytes: number): void { if (bytes > 0) this.held.set(id, bytes); else this.held.delete(id); }
+  admit(id: string, bytes: number): boolean {
+    let total = bytes;
+    for (const [k, v] of this.held) if (k !== id) total += v;
+    if (total > this.room) { this.refused.push(id); return false; }
+    this.hold(id, bytes);
+    return true;
+  }
 
   images(key: SetKey): CanvasImageSource[] { return this.ready.get(key)!.images; }
 
@@ -387,5 +397,83 @@ describe('RealLook', () => {
     look.dispose();
     expect(sets.held.size).toBe(0);
     expect([a.width, b.width]).toEqual([0, 0]);
+  });
+});
+
+describe('RealLook: memory (final review C1, M1)', () => {
+  it('a tinted sheet is admitted before it is made: no room gives null (incomplete) and makes nothing', () => {
+    const { sets, look } = setup({ s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    sets.room = 8 * 8 * 4 - 1;
+    let made = 0;
+    const counting = createRealLook(makeIndex(), sets, { makeCanvas: (w, h) => { made++; return new PixCanvas(w, h); } });
+    counting.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(counting.guest(0, 1, 1, 2, false)).toBeNull();
+    expect(counting.incomplete()).toBe(1);
+    expect(made).toBe(0);
+    expect(sets.held.size).toBe(0);
+    expect(sets.refused).toEqual([`${setKey('guest', 'b0o0', 2, 'all')}#${SHIRT_COLOURS[1]!}`]);
+    // Room again: made and held.
+    sets.room = Number.POSITIVE_INFINITY;
+    expect(counting.guest(0, 1, 1, 2, false)).toBeTruthy();
+    expect(sets.held.size).toBe(1);
+    void look;
+  });
+
+  it('reclaim frees tinted sheets not drawn since the last prepare, least recently used first', () => {
+    const { sets, look } = setup();
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    const key = setKey('guest', 'b0o0', 2, 'all');
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    look.guest(0, 1, 1, 2, false); // colour 1, frame 1
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    look.guest(0, 2, 1, 2, false); // colour 2, frame 2
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    look.guest(0, 3, 1, 2, false); // colour 3, drawn this frame: kept
+    expect(sets.held.size).toBe(3);
+    expect(look.reclaim(1)).toBe(8 * 8 * 4);
+    expect([...sets.held.keys()].sort()).toEqual([`${key}#${SHIRT_COLOURS[2]!}`, `${key}#${SHIRT_COLOURS[3]!}`].sort());
+    expect(look.reclaim(1e9)).toBe(8 * 8 * 4);
+    expect([...sets.held.keys()]).toEqual([`${key}#${SHIRT_COLOURS[3]!}`]);
+  });
+
+  it('tinted sheets of a density-2 set are held at 4 times their size for the cap-lift estimate', () => {
+    const index = makeIndex();
+    const holds: [string, number, number | undefined][] = [];
+    const sets = new FakeSets(index);
+    sets.hold = (id: string, bytes: number, up?: number) => { holds.push([id, bytes, up]); };
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    look.guest(0, 1, 1, 2, false);
+    expect(holds.at(-1)).toEqual([`${setKey('guest', 'b0o0', 2, 'all')}#${SHIRT_COLOURS[1]!}`, 256, 1024]);
+  });
+
+  it('path and queue pieces are read by their join mask (kerbs), other ground by slope and variant', () => {
+    const sets0: RealSetEntry[] = [
+      entry('ground', 'path', 2, 'all', { j5: FRAME, 's0:v0': FRAME }),
+      entry('ground', 'grass', 2, 'all', { 's3:v1': FRAME }),
+    ];
+    const index: RealIndex = { ...makeIndex(), sets: sets0 };
+    const sets = new FakeSets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(setKey('ground', 'path', 2, 'all'), 'ready');
+    sets.setState(setKey('ground', 'grass', 2, 'all'), 'ready');
+    expect(look.groundPiece('path', 0, 2, 0, 5)).toBeTruthy();
+    expect(look.groundPiece('path', 0, 0, 0, 6)).toBeUndefined();
+    expect(look.fallbacksUsed()).toEqual([`${setKey('ground', 'path', 2, 'all')}/j6`]);
+    expect(look.groundPiece('grass', 3, 1, 0, 5)).toBeTruthy();
+    expect(look.groundPiece('path', 0, 0, 0)).toBeTruthy(); // no join given: s0:v0 as before
+  });
+
+  it('currentDensity is the density the last prepare chose', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2);
+    expect(look.currentDensity()).toBe(4);
+    sets.cap = 2;
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2);
+    expect(look.currentDensity()).toBe(2);
   });
 });

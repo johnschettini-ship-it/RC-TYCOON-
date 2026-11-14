@@ -42,14 +42,23 @@ function sizeOf(img: CanvasImageSource): { w: number; h: number } {
   return { w: s.width, h: s.height };
 }
 
+/** The canvas's 2D context; a canvas without one (out of memory, too big) throws, and the caller draws today's art. */
+function ctx2d(c: CanvasLike, w: number, h: number): Ctx2D {
+  const ctx = c.getContext('2d') as Ctx2D | null;
+  if (!ctx) throw new Error(`no 2D context for a ${w} x ${h} tint canvas`);
+  return ctx;
+}
+
 function read(d: Decoded, make: (w: number, h: number) => CanvasLike, w: number, h: number): ImageData {
   const c = make(w, h);
-  const ctx = c.getContext('2d') as Ctx2D;
-  ctx.drawImage(d.image, 0, 0);
-  const img = ctx.getImageData(0, 0, w, h);
-  c.width = 0; // free the scratch canvas's pixels now
-  c.height = 0;
-  return img;
+  try {
+    const ctx = ctx2d(c, w, h);
+    ctx.drawImage(d.image, 0, 0);
+    return ctx.getImageData(0, 0, w, h);
+  } finally {
+    c.width = 0; // free the scratch canvas's pixels now
+    c.height = 0;
+  }
 }
 
 /** Tint a decoded sheet with its mask (same size, or this throws). Counted by the set manager under `${setKey}#${hex}`. */
@@ -60,10 +69,16 @@ export function tintSheet(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: numb
   const b = read(base, make, w, h);
   const m = read(mask, make, w, h);
   const out = make(w, h);
-  const ctx = out.getContext('2d') as Ctx2D;
-  const img = ctx.getImageData(0, 0, w, h);
-  img.data.set(tintPixels(b.data, m.data, rgb));
-  ctx.putImageData(img, 0, 0);
+  try {
+    const ctx = ctx2d(out, w, h);
+    const img = ctx.getImageData(0, 0, w, h);
+    img.data.set(tintPixels(b.data, m.data, rgb));
+    ctx.putImageData(img, 0, 0);
+  } catch (err) {
+    out.width = 0;
+    out.height = 0;
+    throw err;
+  }
   let canvas: CanvasLike | null = out;
   return {
     get image(): CanvasImageSource {

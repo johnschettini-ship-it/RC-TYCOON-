@@ -9,8 +9,10 @@
  *
  * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
  * (sheet with a mask) point into a copy of the whole sheet tinted once per (sheet, colour) with `tintSheet`
- * (spec §5.7), cached per `${setKey}#${hex}` and held in the set manager's budget (`SetManager.hold`) under that key;
- * it is freed when its set is freed or goes unused for `KEEP_FRAMES` prepares.
+ * (spec §5.7), cached per `${setKey}#${hex}` and held in the set manager's budget under that key. A tinted sheet is
+ * admitted before it is made (`SetManager.admit`): with no room the getter returns `null` (not ready, the frame is
+ * incomplete) and the set manager's ladder makes room. It is freed when its set is freed, when it goes unused for
+ * `KEEP_FRAMES` prepares, or by `reclaim` (least recently used first) when the set manager needs the room.
  *
  * Contract with the bake (Task 9, tools/art3d/items/*.js), frame keys via `frameKey`; "turn" below is the set's rot:
  *   ride     set ride:<item>        frame [item, `f<frame>`, `occ0` | `occ1`]   (occupancy > 0 → occ1, full)
@@ -32,6 +34,7 @@
  *            `foot` at the ground point; `seg` (1 m, anchored at its bottom centre, drawn 1.1 m tall) once per
  *            metre of column; `top` (plate + post, 0.67 m) anchored `SUPPORT_TOP_BELOW_RAIL` m under the rail line
  *   ground   set ground:<terrain>   frame [`s<slopeMask>`, `v<variant>`]        anchor: the tile's top corner
+ *            path and queue: frame [`j<join mask>`] (kerbs or rails on the sides without a join, view terms)
  * A set with `rot: 'all'` serves every view rotation and is wanted once. Rail, support and path-item shadow sets are
  * keyed by a heading, so every turn of them is wanted. A sheet's tint mask is listed as another sheet of the same set
  * (`sheets[i].mask` names its file); a sheet without a mask is drawn untinted.
@@ -73,9 +76,17 @@ export interface RealLook {
   support(trackType: string, part: SupportPart, heading: ViewRotation, colour: number): Sprite | null | undefined;
   /** An object's soft shadow; for a path item (bench, bin) `rot` is the side it stands on, in view terms. */
   shadow(kind: 'ride' | 'stall' | 'scenery', defId: string, rot: ViewRotation): Sprite | null | undefined;
-  groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation): Sprite | null | undefined;
+  /** A ground piece; `join` (path and queue: the join mask in view terms, as `render/paths.ts`) picks the kerb piece. */
+  groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): Sprite | null | undefined;
   /** Frees every tinted sheet (closes its canvases, releases its hold). The look stays usable. */
   dispose(): void;
+  /**
+   * The set manager's reclaimer: frees tinted sheets not drawn since the last `prepare`, least recently used first,
+   * until about `needBytes` are freed. Returns the bytes freed.
+   */
+  reclaim(needBytes: number): number;
+  /** The density the last `prepare` chose (after the set manager's cap). */
+  currentDensity(): 2 | 4;
   /** Objects skipped since the last `prepare` because their set was not ready. */
   incomplete(): number;
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
@@ -86,7 +97,7 @@ export interface RealLook {
 export type SupportPart = 'foot' | 'seg' | 'top';
 
 /** The part of `SetManager` RealLook uses (a structural type, so tests can pass a fake). */
-export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold'>;
+export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'>;
 
 export interface RealLookOptions {
   /** Canvas factory for tinted sheets. Default: `OffscreenCanvas`, else a DOM canvas. */
@@ -178,11 +189,14 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
   const wrap = (image: CanvasImageSource): Decoded => ({ image, bytes: 0, close() {} });
 
+  /** `tintedSheet`'s answer when the budget has no room for the tinted sheet yet. */
+  const NO_ROOM = 'no-room' as const;
+
   /**
    * Sheet `si` of a ready set tinted with `hex`; undefined when the sheet has no mask in the set (draw untinted);
-   * null when tinting this set failed (draw today's art).
+   * null when tinting this set failed (draw today's art); NO_ROOM when the budget cannot take it now (not ready).
    */
-  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): CanvasImageSource | null | undefined {
+  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): CanvasImageSource | null | undefined | typeof NO_ROOM {
     if (tintFailed.has(key)) return null;
     const maskFile = rs.sheets[si]?.mask;
     if (maskFile === undefined) return undefined;
@@ -199,6 +213,14 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     t.lastFrame = frameNo;
     let d = t.sheets.get(si);
     if (!d) {
+      // Room first: the tinted copy is as big as its sheet decoded. At density 2 it would be about 4 times that at 4.
+      const size = base as unknown as { width: number; height: number };
+      const want = t.bytes + size.width * size.height * 4;
+      const up = rs.density === 2 ? 4 : 1;
+      if (!sets.admit(id, want, want * up)) {
+        if (t.sheets.size === 0) tinted.delete(id);
+        return NO_ROOM;
+      }
       try {
         d = tintSheet(wrap(base), wrap(mask), hexRgb(hex), make);
       } catch (err) {
@@ -209,7 +231,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       }
       t.sheets.set(si, d);
       t.bytes += d.bytes;
-      sets.hold(id, t.bytes);
+      sets.hold(id, t.bytes, t.bytes * up);
     }
     return d.image;
   }
@@ -233,6 +255,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     let image = sheet;
     if (tint !== null) {
       const t = tintedSheet(key, rs, si, tint);
+      if (t === NO_ROOM) { skipped++; return null; }
       if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
       if (t !== undefined) image = t;
     }
@@ -368,12 +391,28 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       return sprite('shadow', item, defId, rot, [item], null);
     },
 
-    groundPiece(terrain, slopeMask, variant, rot) {
-      return sprite('ground', terrain, `ground:${terrain}`, rot, [`s${slopeMask}`, `v${variant}`], null);
+    groundPiece(terrain, slopeMask, variant, rot, join) {
+      const parts = join !== undefined && (terrain === 'path' || terrain === 'queue') ? [`j${join & 15}`] : [`s${slopeMask}`, `v${variant}`];
+      return sprite('ground', terrain, `ground:${terrain}`, rot, parts, null);
     },
 
     dispose() {
       for (const id of [...tinted.keys()]) evict(id);
+    },
+
+    reclaim(needBytes) {
+      let freed = 0;
+      const idle = [...tinted.entries()].filter(([, t]) => t.lastFrame < frameNo).sort((a, b) => a[1].lastFrame - b[1].lastFrame);
+      for (const [id, t] of idle) {
+        if (freed >= needBytes) break;
+        freed += t.bytes;
+        evict(id);
+      }
+      return freed;
+    },
+
+    currentDensity() {
+      return density;
     },
 
     incomplete() {
