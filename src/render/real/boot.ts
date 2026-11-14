@@ -7,7 +7,7 @@
  * 2. Fetch `art/real/index.json` relative to the page. On any failure (no baked art, bad index): one plain error
  *    line (`ui.realArt.loadFailed`) and `null`, so the game starts with today's look and today's height step.
  * 3. Build the set manager (decode off the main thread with `createImageBitmap`, decode budget F2 (a) 128 MB),
- *    the look, and the ground, with the ground's chunks and the look's tinted sheets admitted to and reclaimed by
+ *    the look, and the ground, with the ground's chunks and the look's tint-atlas pages admitted to and reclaimed by
  *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
  * 4. Decode the card picture set (when the bake has it) and give the card previews its drawer (`setCardArt`).
  * 5. When the page runs the bench (`benchMode`: `?bench=1`, `quick` or `scale`), the index gets the scale park's alias sets (`./aliases.ts`, round 3 item 7).
@@ -94,7 +94,7 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
     admit: (id, bytes, up) => sets.admit(id, bytes, up),
     onError: (err) => report('ground', err),
   });
-  // Ladder step before any density drops: ground chunks off screen first, then tinted sheets least recently used.
+  // Ladder step before any density drops: ground chunks off screen first, then tint-atlas pages least recently used.
   sets.addReclaimer((n) => ground.reclaim(n));
   sets.addReclaimer((n) => look.reclaim(n));
   perfProbe.realMemory = () => [sets.residentBytes(), sets.peakBytes()];

@@ -16,13 +16,14 @@
  * ready yet ('now', first), and the ahead turn at density 2 only ('ahead').
  *
  * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
- * (sheet with a mask) point into a copy of the whole sheet tinted per (sheet, colour) (spec §5.7), cached per
- * `${setKey}#${hex}` and held in the set manager's budget under that key. The copy is tinted band by band
- * (`startTint`) under a per-frame time budget (`TINT_FRAME_MS`, round 3 item 4): a frame whose rows are not tinted yet
- * draws its untinted picture meanwhile, counted by `soft()`. A tinted sheet is admitted before it is made
- * (`SetManager.admit`): with no room the getter returns `null` (not ready, the frame is incomplete) and the set
- * manager's ladder makes room. It is freed when its set is freed, when it goes unused for `KEEP_FRAMES` prepares, or
- * by `reclaim` (least recently used first) when the set manager needs the room.
+ * (sheet with a mask) point into the shared tint atlas (spec §5.7, Task 4, `../tintAtlas.ts`): each (frame, colour)
+ * drawn is tinted on its own into a slot of a few shared pages (12 MiB at most), never a whole sheet. Frames are tinted
+ * under a per-frame time budget (`TINT_FRAME_MS`, round 3 item 4); a frame not tinted yet draws its untinted picture
+ * meanwhile, counted by `incomplete()`. Atlas pages are admitted before they are made (`SetManager.admit`, held as
+ * `tint:<page>`); when the atlas is full the least recently used frame not drawn this frame or the one before is
+ * evicted, and with none to evict (or no room in the budget) the frame draws untinted (incomplete, then `degraded()`
+ * after `DEGRADE_FRAMES`), never nothing. Tinted frames are freed when their set is freed, when unused for
+ * `KEEP_FRAMES` prepares, or page by page by `reclaim` (least recently used first) when the set manager needs room.
  *
  * Contract with the bake (Task 9, tools/art3d/items/*.js), frame keys via `frameKey`; "turn" below is the set's rot:
  *   ride     set ride:<item>        frame [item, `f<frame>`, `occ0` | `occ1`]   (occupancy > 0 → occ1, full)
@@ -65,7 +66,8 @@ import type { RealIndex } from '../indexFormat';
 import type { RealLook, RealLookOptions, RealSets } from './types';
 
 export type { RealLook, RealLookOptions, RealSets, SupportPart } from './types';
-export { DEGRADE_FRAMES, TINT_FRAME_MS, pickDensity } from './core';
+export { DEGRADE_FRAMES, pickDensity } from './core';
+export { TINT_FRAME_MS } from './tint';
 /** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps (one source: `./pose`). */
 export { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from '../pose';
 

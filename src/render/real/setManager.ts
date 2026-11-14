@@ -7,7 +7,7 @@
  * 2. Compressed blobs are kept once read, so a turn never waits on a download.
  * 3. During a turn the old sets still count until they are freed, so a new decode only starts
  *    when the old sets plus everything in flight plus the new set fit the budget.
- * 4. Memory made outside the manager from ready sets (tinted sheets, ground chunks) is in the same
+ * 4. Memory made outside the manager from ready sets (tint-atlas pages, ground chunks) is in the same
  *    budget: it is admitted before it is made (`admit`), counted while held (`hold`), and given back
  *    under pressure by the holders' reclaimers (`addReclaimer`), a ladder step before density drops.
  *
@@ -36,9 +36,9 @@ export interface SetSnapshot {
   resident: number;
   /** Bytes the frame asked to make (`admit`) and was refused for want of room. */
   refused: number;
-  /** Held bytes by holder id (`ground`, `classic`, `<set key>#<colour>` for a tinted sheet). */
+  /** Held bytes by holder id (`ground`, `classic`, `tint:<page>` for a tint-atlas page). */
   held: Record<string, number>;
-  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks, today's picture caches. */
+  /** Resident bytes by owner: decoded sets, tint-atlas pages, ground chunks, today's picture caches. */
   split: MemorySplit;
   capped: boolean;
   demoted: SetKey[];
@@ -51,7 +51,7 @@ export interface MemorySplit { sets: number; tints: number; ground: number; clas
 export const GROUND_HOLD = 'ground';
 /**
  * The holder id of today's picture caches (terrain chunks, static layer, today's sprites), held by the renderer every
- * frame so the ladder sees all picture memory (spec §5.4 item 4). Every holder id other than these two is a tinted sheet.
+ * frame so the ladder sees all picture memory (spec §5.4 item 4). Every holder id other than these two is a tint-atlas page (`tint:<page>`, `tint:scratch`).
  */
 export const CLASSIC_HOLD = 'classic';
 
@@ -98,7 +98,7 @@ export class SetManager {
   private readonly demoted = new Set<SetKey>();
   private roomFrames = 0;
   private readonly events: CapEvent[] = [];
-  /** Bytes the caller made from ready sets (tinted sheets, ground chunks), by holder id. */
+  /** Bytes the caller made from ready sets (tint-atlas pages, ground chunks), by holder id. */
   private readonly held = new Map<string, number>();
   private heldTotal = 0;
   /** The same holds at density 4 (what they would grow to if the cap lifted), by holder id. */
@@ -198,7 +198,7 @@ export class SetManager {
   }
 
   /**
-   * Counts `bytes` made outside the set manager (RealLook's tinted sheets, RealGround's chunks) in the budget under
+   * Counts `bytes` made outside the set manager (RealLook's tint-atlas pages, RealGround's chunks) in the budget under
    * `id`, replacing what `id` held before; 0 releases it. Held bytes are resident, limit new decodes and add
    * pressure. `upBytes` is what the same holding would take at density 4 (default `bytes`): the cap lifts only when
    * that fits too.
@@ -274,7 +274,7 @@ export class SetManager {
     this.roomFrames = 0;
   }
 
-  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks, today's picture caches. */
+  /** Resident bytes by owner: decoded sets, tint-atlas pages, ground chunks, today's picture caches. */
   split(): MemorySplit {
     let sets = 0;
     for (const r of this.recs.values()) sets += r.bytes;
@@ -332,7 +332,7 @@ export class SetManager {
       // 1. ahead sets first.
       for (const r of this.recs.values()) if (this.wanted(r) && r.wantPri === 'ahead') this.drop(r);
     }
-    // 2. held memory not drawn this frame: ground chunks off screen, least recently used tinted sheets.
+    // 2. held memory not drawn this frame: ground chunks off screen, least recently used tint-atlas pages.
     for (const reclaim of this.reclaimers) {
       const over = this.pressure() - this.budgetBytes;
       if (over <= 0) break;

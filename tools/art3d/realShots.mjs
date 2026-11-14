@@ -7,13 +7,9 @@
 //   node tools/art3d/realShots.mjs <dir> <out dir> <scene>:<zoom>:<rotation>[:<x>,<y>[:<name>]] ...
 // scene: coaster | build2 | build1 | phone. Env: HIDE_UI=1 hides the interface (art only); ART=classic;
 // PATCH='<js>' runs in the page before the shots (e.g. stub look.rail to compare with today's art).
-import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { createRequire } from 'node:module';
-const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
-const require = createRequire(path.join(REPO, 'package.json'));
-const { chromium } = require('playwright');
+import { REPO, chromium, serve, phonePage } from './shotKit.mjs';
 
 const [rootArg, outDir, ...specs] = process.argv.slice(2);
 const root = path.resolve(rootArg);
@@ -23,22 +19,9 @@ const SAVES = {
   build1: ['build1-2000-guests.tcsave.json', { x: 40, y: 30 }],
   phone: ['phone-800-guests.tcsave.json', { x: 40, y: 30 }],
 };
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.css': 'text/css', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
-const server = http.createServer((req, res) => {
-  const u = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  let f = path.join(root, u === '/' ? 'index.html' : u);
-  if (!f.startsWith(root) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); res.end(); return; }
-  res.writeHead(200, { 'content-type': TYPES[path.extname(f)] ?? 'application/octet-stream' });
-  fs.createReadStream(f).pipe(res);
-});
-await new Promise((r) => server.listen(0, r));
-const port = server.address().port;
+const { port, server } = await serve(root);
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
-const page = await ctx.newPage();
-const logs = [];
-page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
-page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
+const { page, logs } = await phonePage(browser);
 await page.goto(`http://localhost:${port}/index.html?art=${process.env.ART ?? 'real'}`);
 await page.waitForFunction(() => window.__tc, null, { timeout: 30000 });
 await page.getByTestId('title-new').click();

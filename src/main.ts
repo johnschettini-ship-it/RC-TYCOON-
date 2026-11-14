@@ -11,7 +11,7 @@ import { attachInput } from './input';
 import { mountUI } from './ui';
 import { createWorld } from './sim/world';
 import { browserStore, deserialize } from './save';
-import { centerOnTile } from './input/camera';
+import { centerOnTile, mapPointToWorld } from './input/camera';
 import type { ViewRotation } from './render/view';
 import { SettingsStore } from './settings';
 import { initI18n } from './i18n';
@@ -69,6 +69,18 @@ function boot(real?: RealOptions): void {
   const loading = document.getElementById('loading');
   if (loading) loading.style.display = 'none';
   if (import.meta.env.VITE_ART === 'real') {
+    // Frame hook of the batch review shots (tools/art3d/reviewShots.mjs), for both looks: centre the camera on map
+    // point (fx, fy) at the ground, `liftPx` screen px higher (tall items), with the given zoom and view rotation.
+    (window as unknown as { __tcView?: unknown }).__tcView = {
+      frame(fx: number, fy: number, zoom: number, rotation: ViewRotation, liftPx = 0): void {
+        const m = game.world.state.map;
+        const c = mapPointToWorld(m, fx, fy, m.heights[Math.floor(fy) * m.width + Math.floor(fx)] ?? 0, rotation);
+        game.camera.rotation = rotation;
+        game.camera.zoom = zoom;
+        game.camera.centerX = c.sx;
+        game.camera.centerY = c.sy - liftPx / zoom;
+      },
+    };
     if (artStyle() === 'real') {
       // Debug hook for the realistic art check (headless screenshots, Task 9b): the look, set manager and ground of
       // this boot, and `load`, which loads a save text through the game (never through storage) and frames it like
