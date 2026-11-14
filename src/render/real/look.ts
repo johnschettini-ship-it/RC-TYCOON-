@@ -309,6 +309,9 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       const item = realItem(id);
       if (item !== 'classic') out.push({ kind, item, everyTurn, turn });
     };
+    // Ground first: its sets decode first, so the ground (whose chunks are the largest holding, and without which
+    // no frame is complete) is laid, and its memory known to the budget, before the objects' sets.
+    for (const item of groundItems) out.push({ kind: 'ground', item });
     const withShadow = (kind: 'ride' | 'stall' | 'scenery', id: string, turn = 0): void => {
       add(kind, id, false, turn);
       add('shadow', id, false, turn);
@@ -337,7 +340,6 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       const item = `staff_${m.type}`;
       if (keys.has(setKey('guest', item, 2, 'all')) || keys.has(setKey('guest', item, 4, 'all'))) out.push({ kind: 'guest', item });
     }
-    for (const item of groundItems) out.push({ kind: 'ground', item });
     return out;
   }
 
