@@ -522,3 +522,64 @@ describe('SetManager: compressed blobs (round 3 item 6)', () => {
     expect(m.residentBytes()).toBe(300);
   });
 });
+
+describe('a view turn near the budget (Task 3 fix round 3)', () => {
+  /** A ride's set at a turn: density 4 has 4 sheets (400 B), density 2 two (200 B). */
+  function turnEntry(item: string, density: 2 | 4, rot: 0 | 1): RealSetEntry {
+    const sheets = density === 4 ? 4 : 2;
+    return {
+      key: setKey('ride', item, density, rot), kind: 'ride', item, density, rot,
+      sheets: Array.from({ length: sheets }, (_, i) => ({ file: `${item}-d${density}-r${rot}-${i}.webp`, w: 5, h: 5 })),
+      frames: {},
+    };
+  }
+
+  it('two turns together exceed the budget, each alone fits: the turn completes with no cap or demotion, and the old turn is freed', async () => {
+    const items = ['a', 'b'];
+    const all = items.flatMap((it) => [turnEntry(it, 2, 0), turnEntry(it, 4, 0), turnEntry(it, 2, 1), turnEntry(it, 4, 1)]);
+    // One turn at density 4: 800 B. Both turns: 1600 B. Budget 1000 B.
+    const { io, m } = setup(all, 1000);
+    const k = (it: string, d: 2 | 4, r: 0 | 1) => setKey('ride', it, d, r);
+    let frame = 0;
+    /** As RealLook's prepare and draw: the turn's density-4 set, with its density-2 twin first while it loads; drawn from what is ready. */
+    const step = async (r: 0 | 1): Promise<void> => {
+      m.beginFrame(++frame);
+      for (const it of items) {
+        const d4 = k(it, 4, r);
+        if (m.state(d4) === 'ready') { m.want([d4], 'now'); m.use(d4); continue; }
+        m.want([k(it, 2, r), d4], 'now');
+        m.use(k(it, 2, r));
+      }
+      m.endFrame();
+      await io.settleAll();
+    };
+    for (let f = 0; f < 4; f++) await step(0);
+    expect(items.map((it) => m.state(k(it, 4, 0)))).toEqual(['ready', 'ready']);
+    // The turn: the old turn's sets are still resident (drawn last frame) when the new turn is wanted.
+    for (let f = 0; f < 8; f++) await step(1);
+    expect(m.capEvents()).toEqual([]);
+    expect(m.snapshot().demoted).toEqual([]);
+    expect(m.densityCap()).toBe(4);
+    expect(items.map((it) => m.state(k(it, 4, 1)))).toEqual(['ready', 'ready']);
+    // The old turn's sets are freed, and so are the twins once their density-4 sets landed.
+    expect(items.flatMap((it) => [m.state(k(it, 4, 0)), m.state(k(it, 2, 1))])).toEqual(['none', 'none', 'none', 'none']);
+    expect(m.peakBytes()).toBeLessThanOrEqual(1000);
+  });
+
+  it('a twin that leaves its density-4 set no room still counts, so the ladder acts (no silent wait)', async () => {
+    const all = [turnEntry('a', 2, 0), turnEntry('a', 4, 0)];
+    // 600 B for both, 500 B budget: the twin (200 B) lands first and the density-4 set (400 B) cannot start beside it.
+    const { io, m } = setup(all, 500);
+    const d2 = setKey('ride', 'a', 2, 0);
+    const d4 = setKey('ride', 'a', 4, 0);
+    for (let f = 1; f <= 6; f++) {
+      m.beginFrame(f);
+      if (m.state(d4) === 'ready') { m.want([d4], 'now'); m.use(d4); } else { m.want([d2, d4], 'now'); m.use(d2); }
+      m.endFrame();
+      await io.settleAll();
+    }
+    expect(m.capEvents().length).toBeGreaterThan(0);
+    expect(m.densityCap()).toBe(2);
+  });
+});
+

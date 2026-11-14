@@ -428,8 +428,15 @@ export class SetManager {
    */
   private pressure(atDensity4 = false): number {
     let n = (atDensity4 ? this.heldUpTotal : this.heldTotal) + this.refused;
+    let room: number | undefined;
     for (const r of this.recs.values()) {
       if (!this.wanted(r)) continue;
+      // A density-2 twin wanted beside its density-4 set while that one decodes (a turn, a zoom in) is on its way
+      // out: it stands in until the density-4 set lands, then nobody wants it. Counting both made the new view's
+      // demand look like more than its steady need and capped turns that fit (Task 3 fix round 3). Counted again
+      // when the density-4 set could not start even with the sets on their way out gone (the old turn's: not
+      // wanted any more), so the ladder still makes room for it.
+      if (r.entry.density === 2 && this.isTwin(r, (room ??= this.roomBesideOutgoing()))) continue;
       let need = 0;
       if (r.state === 'ready') need = r.bytes;
       else if (r.state === 'loading' && r.inFlight && !r.cancelled) need = Math.max(r.estimate, r.bytes);
@@ -438,6 +445,27 @@ export class SetManager {
       n += need;
     }
     return n;
+  }
+
+  /**
+   * `r` is a wanted density-2 twin of a density-4 set wanted now that is still loading and can start (in flight, or
+   * its estimate fits `room`).
+   */
+  private isTwin(r: Rec, room: number): boolean {
+    const up = r.up;
+    if (r.entry.density !== 2 || !up || this.capped || this.demoted.has(up.entry.key)) return false;
+    if (!this.wanted(up) || up.wantPri !== 'now' || up.state !== 'loading' || up.cancelled) return false;
+    return up.inFlight || up.estimate <= room;
+  }
+
+  /**
+   * Room for a new decode once the sets on their way out are gone: ready sets nobody wanted this frame (after a
+   * turn, the old turn's sets; they are freed as soon as they are no longer drawn, spec §5.4 item 3).
+   */
+  private roomBesideOutgoing(): number {
+    let out = 0;
+    for (const r of this.recs.values()) if (r.state === 'ready' && !this.wanted(r)) out += r.bytes;
+    return this.budgetBytes - this.committed() + out;
   }
 
   /**
