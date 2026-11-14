@@ -1,6 +1,7 @@
 /**
  * Tint masks: a pre-rendered sprite sheet ships with a mask sheet whose red channel marks pixels
- * (shirts, ride colours) to be recoloured at decode time.
+ * (shirts, ride colours) to be recoloured. Frames are tinted one at a time, as they are drawn, into the shared tint
+ * atlas (`./tintAtlas.ts`, Task 4); no whole sheet is ever tinted.
  */
 import type { Decoded } from './setManager';
 
@@ -17,9 +18,6 @@ export interface CanvasLike {
   height: number;
   getContext(kind: '2d', options?: { willReadFrequently?: boolean }): unknown;
 }
-
-/** Pixels a tint job tints per band (round 3 item 4): a band is the unit of the per-frame tint budget. */
-export const TINT_BAND_PX = 64 * 1024;
 
 /**
  * Per pixel: tinted = Rec. 709 luminance of base x rgb/255; result = base mixed with tinted by the
@@ -47,114 +45,39 @@ function tintInPlace(px: Uint8ClampedArray, mask: Uint8ClampedArray, rgb: Rgb): 
   }
 }
 
-function sizeOf(img: CanvasImageSource): { w: number; h: number } {
-  const s = img as unknown as { width: number; height: number };
-  return { w: s.width, h: s.height };
-}
-
 /**
  * The canvas's 2D context; a canvas without one (out of memory, too big) throws, and the caller draws today's art.
- * `read`: a scratch canvas read back every band (kept in CPU memory, never drawn to the screen).
+ * `read`: a scratch canvas read back every frame (kept in CPU memory, never drawn to the screen).
  */
-function ctx2d(c: CanvasLike, w: number, h: number, read = false): Ctx2D {
+function ctx2d(c: CanvasLike, read = false): Ctx2D {
   const ctx = (read ? c.getContext('2d', { willReadFrequently: true }) : c.getContext('2d')) as Ctx2D | null;
-  if (!ctx) throw new Error(`no 2D context for a ${w} x ${h} tint canvas`);
+  if (!ctx) throw new Error(`no 2D context for a ${c.width} x ${c.height} tint canvas`);
   return ctx;
 }
 
+/** A frame's rectangle in its sheet, px. */
+export interface Rect { x: number; y: number; w: number; h: number }
+
 /**
- * A sheet being tinted band by band (round 3 item 4), so the work spreads over frames under a time budget. `out` is
- * the tinted sheet: it holds the untinted sheet at once and each `step` writes the next band of rows tinted, so rows
- * at or past `rows` are still untinted (a caller draws the untinted sheet for a frame below them). Each band is read
- * from the sheet and its mask through two scratch canvases kept in CPU memory (`willReadFrequently`); the result is
- * only written (`putImageData`), never read back.
+ * Tints one frame (Task 4): rectangle `rect` of `base`, mixed by the same rectangle of its `mask` (as `tintPixels`),
+ * written to `dst` at (`dx`, `dy`); nothing else of `dst` changes. Both rectangles are read through `scratch` (a canvas
+ * at least `rect` big, asked for `willReadFrequently`, so the reads stay in CPU memory) and the result is only written
+ * to `dst` (`putImageData`), never read back. Without `scratch` the reads go through `dst` itself at (`dx`, `dy`).
+ * Throws when a canvas has no 2D context.
  */
-export interface TintJob {
-  readonly out: Decoded;
-  /** Rows tinted so far, top first. */
-  readonly rows: number;
-  readonly done: boolean;
-  /** Tints the next band; true when the sheet is done. Throws when a canvas fails (the job is then freed). */
-  step(): boolean;
-  /** Frees the result and the scratch canvases. */
-  close(): void;
-}
-
-/** Starts tinting a decoded sheet with its mask (same size, or this throws). Counted by the set manager under `${setKey}#${hex}`. */
-export function startTint(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: number, h: number) => CanvasLike, bandPx = TINT_BAND_PX): TintJob {
-  const { w, h } = sizeOf(base.image);
-  const ms = sizeOf(mask.image);
-  if (ms.w !== w || ms.h !== h) throw new Error(`tint mask is ${ms.w}x${ms.h}, base is ${w}x${h}`);
-  const band = Math.max(1, Math.min(h, Math.floor(bandPx / Math.max(1, w))));
-  let canvas: CanvasLike | null = make(w, h);
-  let scratch: [CanvasLike, CanvasLike] | null = null;
-  const zero = (c: CanvasLike | null): null => {
-    // Zero the size first: browsers free a canvas's pixels only once it is 0 x 0 or collected.
-    if (c) c.width = c.height = 0;
-    return null;
+export function tintRect(base: Decoded, mask: Decoded, rect: Rect, rgb: Rgb, dst: CanvasLike, dx: number, dy: number, scratch?: CanvasLike): void {
+  const { x, y, w, h } = rect;
+  const out = ctx2d(dst);
+  const rd = scratch ? ctx2d(scratch, true) : out;
+  const rx = scratch ? 0 : dx;
+  const ry = scratch ? 0 : dy;
+  const cut = (img: CanvasImageSource): ImageData => {
+    rd.clearRect?.(rx, ry, w, h);
+    rd.drawImage(img, x, y, w, h, rx, ry, w, h);
+    return rd.getImageData(rx, ry, w, h);
   };
-  const dropScratch = (): null => {
-    if (scratch) for (const c of scratch) zero(c);
-    return null;
-  };
-  let octx: Ctx2D;
-  try {
-    octx = ctx2d(canvas, w, h);
-    octx.drawImage(base.image, 0, 0);
-  } catch (err) {
-    canvas = zero(canvas);
-    throw err;
-  }
-  let rows = 0;
-  const out: Decoded = {
-    get image(): CanvasImageSource {
-      if (!canvas) throw new Error('tinted sheet was closed');
-      return canvas as unknown as CanvasImageSource;
-    },
-    bytes: w * h * 4,
-    close() {
-      canvas = zero(canvas);
-      scratch = dropScratch();
-    },
-  };
-  /** Band `y`..`y + bh` of `img` through scratch canvas `c`. */
-  const readBand = (c: CanvasLike, img: CanvasImageSource, y: number, bh: number): ImageData => {
-    const x = ctx2d(c, w, band, true);
-    x.clearRect?.(0, 0, w, band);
-    x.drawImage(img, 0, y, w, bh, 0, 0, w, bh);
-    return x.getImageData(0, 0, w, bh);
-  };
-  return {
-    out,
-    get rows() { return rows; },
-    get done() { return rows >= h; },
-    step() {
-      if (rows >= h) return true;
-      if (!canvas) throw new Error('tinted sheet was closed');
-      try {
-        const bh = Math.min(band, h - rows);
-        if (!scratch) scratch = [make(w, band), make(w, band)];
-        const b = readBand(scratch[0], base.image, rows, bh);
-        const m = readBand(scratch[1], mask.image, rows, bh);
-        tintInPlace(b.data, m.data, rgb);
-        octx.putImageData(b, 0, rows);
-        rows += bh;
-      } catch (err) {
-        out.close();
-        throw err;
-      }
-      if (rows >= h) scratch = dropScratch();
-      return rows >= h;
-    },
-    close() {
-      out.close();
-    },
-  };
-}
-
-/** Tint a decoded sheet with its mask at once (same size, or this throws). */
-export function tintSheet(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: number, h: number) => CanvasLike): Decoded {
-  const job = startTint(base, mask, rgb, make);
-  while (!job.step());
-  return job.out;
+  const m = cut(mask.image);
+  const b = cut(base.image);
+  tintInPlace(b.data, m.data, rgb);
+  out.putImageData(b, dx, dy);
 }

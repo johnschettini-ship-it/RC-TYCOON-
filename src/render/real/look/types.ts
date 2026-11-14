@@ -5,7 +5,7 @@ import type { ViewRotation } from '../../view';
 import type { World } from '../../../sim/types';
 import type { RealFrame, RealKind, SetKey } from '../indexFormat';
 import type { SetManager } from '../setManager';
-import type { CanvasLike, TintJob } from '../tint';
+import type { CanvasLike } from '../tint';
 
 /**
  * Every getter returns a `Sprite` to draw, `null` when its set is not ready yet (skip the object this frame; counted
@@ -33,16 +33,19 @@ export interface RealLook {
    * no fallback listed): RealGround asks it for tiles out of view (round 3 fix round 2).
    */
   groundReady?(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): boolean;
-  /** Frees every tinted sheet (closes its canvases, releases its hold). The look stays usable. */
+  /** Frees the tint atlas (zeroes its pages, releases their holds). The look stays usable. */
   dispose(): void;
   /**
-   * The set manager's reclaimer: frees tinted sheets not drawn since the last `prepare`, least recently used first,
+   * The set manager's reclaimer: frees tint-atlas pages not drawn since the last `prepare`, least recently used first,
    * until about `needBytes` are freed. Returns the bytes freed.
    */
   reclaim(needBytes: number): number;
   /** The density the last `prepare` chose (after the set manager's cap). */
   currentDensity(): 2 | 4;
-  /** Objects skipped since the last `prepare` because their set was not ready. */
+  /**
+   * Objects since the last `prepare` skipped because their set was not ready, or drawn untinted because their tinted
+   * frame is not in the tint atlas yet (queued, or no room: after `DEGRADE_FRAMES` prepares those count in `degraded()`).
+   */
   incomplete(): number;
   /**
    * Objects drawn since the last `prepare` from their density-2 set because the density-4 set they need was not ready
@@ -53,7 +56,7 @@ export interface RealLook {
   /**
    * Objects drawn since the last `prepare` by the ladder's last step (spec §5.4.4, round 3 item 2): their set has had
    * no room to decode even at density 2 for `DEGRADE_FRAMES` prepares, so they draw today's art (undefined), or, for
-   * a tinted sheet with no room, the untinted picture, rather than nothing. Not counted by `incomplete()`.
+   * a tinted frame the atlas has had no room for, the untinted picture, rather than nothing. Not counted by `incomplete()`.
    */
   degraded?(): number;
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
@@ -78,28 +81,12 @@ export type SupportPart = 'foot' | 'seg' | 'top';
 export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'> & Partial<Pick<SetManager, 'starved' | 'peek'>>;
 
 export interface RealLookOptions {
-  /** Canvas factory for tinted sheets. Default: `OffscreenCanvas`, else a DOM canvas. */
+  /** Canvas factory for the tint atlas's pages and scratch canvas. Default: `OffscreenCanvas`, else a DOM canvas. */
   makeCanvas?: (w: number, h: number) => CanvasLike;
-  /** Told once per set whose tint failed (e.g. mask size differs from its sheet); `key` is `${setKey}#${hex}`. */
+  /** Told once per set whose tint failed (e.g. mask size differs from its sheet, no 2D context); `key` is `${setKey}#${hex}`. */
   onError?: (key: string, err: unknown) => void;
   /** Clock for the per-frame tint budget, ms (default `performance.now`). */
   now?: () => number;
-}
-
-/** One set tinted with one colour: its tinted sheets by sheet index, made on first use. */
-export interface Tinted {
-  /** `${setKey}#${hex}`: the hold id in the set manager. */
-  id: string;
-  hex: string;
-  setKey: SetKey;
-  /** The ready set's images when tinted; a reload gives a new array and invalidates the tint. */
-  source: CanvasImageSource[];
-  /** Tint jobs by sheet index: a job's sheet is tinted band by band under the per-frame budget (round 3 item 4). */
-  sheets: Map<number, TintJob>;
-  /** Sprites into the tinted sheets, by the untinted frame they copy (one object per frame, reused every draw). */
-  sprites: Map<Resolved, Sprite>;
-  bytes: number;
-  lastFrame: number;
 }
 
 /** A set group `prepare` wants: an item record at a map turn (its sprite turn is `(turn + view turn) mod 4`), or at every heading. */
@@ -146,6 +133,8 @@ export interface Resolved {
   f: RealFrame;
   si: number;
   sprite: Sprite;
+  /** The frame's id in the tint atlas (per ready set), given on its first tinted draw. */
+  tid?: number;
 }
 
 /**
@@ -155,6 +144,8 @@ export interface Resolved {
  */
 export interface SetMeta {
   maskOf: number[];
+  /** Tint-atlas frame ids given so far (`Resolved.tid`). */
+  tids: number;
   codes: Map<number, Resolved | string>;
   rails: Map<string, (Resolved | string | undefined)[]>;
 }

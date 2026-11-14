@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { startTint, tintPixels, tintSheet } from '../../../../src/render/real/tint';
+import { tintPixels, tintRect } from '../../../../src/render/real/tint';
 import type { Decoded } from '../../../../src/render/real/setManager';
 
 const px = (...v: number[]): Uint8ClampedArray => new Uint8ClampedArray(v);
@@ -53,8 +53,7 @@ class PixCanvas {
     const self = this;
     return {
       drawImage(src: PixCanvas, ...a: number[]) {
-        if (a.length === 2) { self.data.set(src.data.subarray(0, self.data.length)); return; }
-        const [sx = 0, sy = 0, sw = 0, sh = 0, dx = 0, dy = 0] = a;
+        const [sx = 0, sy = 0, sw = 0, sh = 0, dx = 0, dy = 0] = a.length === 2 ? [0, 0, src.width, src.height, a[0], a[1]] : a;
         for (let y = 0; y < sh; y++) {
           for (let x = 0; x < sw; x++) {
             const si = ((sy + y) * src.width + sx + x) * 4;
@@ -62,6 +61,9 @@ class PixCanvas {
             self.data.set(src.data.subarray(si, si + 4), di);
           }
         }
+      },
+      clearRect(x: number, y: number, w: number, h: number) {
+        for (let r = 0; r < h; r++) self.data.fill(0, ((y + r) * self.width + x) * 4, ((y + r) * self.width + x + w) * 4);
       },
       getImageData(x: number, y: number, w: number, h: number) {
         const data = new Uint8ClampedArray(w * h * 4);
@@ -75,114 +77,56 @@ class PixCanvas {
   }
 }
 
-describe('tintSheet', () => {
-  it('tints a sheet and reports bytes', () => {
-    const mk = (w: number, h: number, d: number[]): Decoded => {
-      const c = new PixCanvas(w, h);
-      c.data.set(d);
-      return { image: c as unknown as CanvasImageSource, bytes: w * h * 4, close() {} };
-    };
-    const base = mk(1, 1, [128, 128, 128, 255]);
-    const mask = mk(1, 1, [255, 0, 0, 255]);
-    const out = tintSheet(base, mask, [200, 100, 50], (w, h) => new PixCanvas(w, h) as never);
-    expect(out.bytes).toBe(4);
-    const d = (out.image as unknown as PixCanvas).data;
-    expect(Math.abs(d[0]! - 100)).toBeLessThanOrEqual(1);
-    expect(d[3]!).toBe(255);
-    out.close();
-  });
-  const mkD = (w: number, h: number): Decoded => ({ image: new PixCanvas(w, h) as unknown as CanvasImageSource, bytes: w * h * 4, close() {} });
-
-  it('throws when the mask size differs from the base', () => {
-    expect(() => tintSheet(mkD(2, 2), mkD(2, 1), [1, 2, 3], (w, h) => new PixCanvas(w, h))).toThrow(/mask/);
-  });
-
-  it('close() zeroes the result canvas before releasing it', () => {
-    let made: PixCanvas | null = null;
-    // The result is the first canvas made (the scratch band canvas comes after).
-    const out = tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made ??= c; return c; });
-    const canvas = out.image as unknown as PixCanvas;
-    expect(canvas).toBe(made);
-    out.close();
-    expect([canvas.width, canvas.height]).toEqual([0, 0]);
-    expect(() => out.image).toThrow(/closed/);
-  });
-  it('zeroes its scratch canvases (sheet band, mask band) once the sheet is done; the result stays', () => {
-    const made: PixCanvas[] = [];
-    tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made.push(c); return c; });
-    expect(made.map((c) => [c.width, c.height])).toEqual([[2, 2], [0, 0], [0, 0]]);
-  });
-
-  it('reads bands through scratch canvases asked for willReadFrequently, never the result (no GPU readback)', () => {
-    const asked: [number, unknown][] = [];
-    let n = 0;
-    tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => {
-      const c = new PixCanvas(w, h);
-      const id = n++;
-      const get = c.getContext.bind(c);
-      (c as unknown as { getContext: (k: string, o?: unknown) => unknown }).getContext = (_k, o) => { asked.push([id, o]); return get(); };
-      return c;
-    });
-    expect(asked.filter(([id]) => id === 0).every(([, o]) => o === undefined)).toBe(true);
-    expect(asked.filter(([id]) => id > 0).every(([, o]) => (o as { willReadFrequently?: boolean } | undefined)?.willReadFrequently === true)).toBe(true);
-  });
-
-  it('a canvas without a 2D context throws a plain error and zeroes every canvas it made (I6)', () => {
-    for (const bad of [1, 2]) {
-      const made: PixCanvas[] = [];
-      let n = 0;
-      const mk = (w: number, h: number) => {
-        const c = new PixCanvas(w, h);
-        made.push(c);
-        // The result (1st) or the scratch (2nd) canvas has no context.
-        if (++n === bad) (c as unknown as { getContext: () => null }).getContext = () => null;
-        return c;
-      };
-      expect(() => tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], mk)).toThrow(/no 2D context/);
-      expect(made.map((c) => [c.width, c.height])).toEqual(made.map(() => [0, 0]));
-    }
-  });
-});
-
-describe('startTint (round 3 item 4): band by band', () => {
-  /** A w × h sheet of mid-grey with a full-strength mask. */
-  const grey = (w: number, h: number): [Decoded, Decoded] => {
-    const b = new PixCanvas(w, h);
-    const m = new PixCanvas(w, h);
-    for (let i = 0; i < b.data.length; i += 4) { b.data.set([128, 128, 128, 255], i); m.data.set([255, 0, 0, 255], i); }
-    return [{ image: b as unknown as CanvasImageSource, bytes: 0, close() {} }, { image: m as unknown as CanvasImageSource, bytes: 0, close() {} }];
+describe('tintRect (Task 4): one frame rectangle into a page', () => {
+  const sheet = (w: number, h: number, f: (i: number) => number): Decoded => {
+    const c = new PixCanvas(w, h);
+    for (let i = 0; i < c.data.length; i++) c.data[i] = f(i);
+    return { image: c as unknown as CanvasImageSource, bytes: w * h * 4, close() {} };
   };
+  const read = (d: Decoded | PixCanvas, x: number, y: number, w: number, h: number): Uint8ClampedArray => {
+    const c = ('image' in d ? d.image : d) as unknown as PixCanvas;
+    return (c.getContext() as { getImageData(x: number, y: number, w: number, h: number): { data: Uint8ClampedArray } }).getImageData(x, y, w, h).data;
+  };
+  const base = sheet(16, 12, (i) => (i * 37) & 255);
+  const mask = sheet(16, 12, (i) => (i * 11 + 5) & 255);
+  const rect = { x: 3, y: 2, w: 5, h: 7 };
+  const want = (): number[] => Array.from(tintPixels(read(base, 3, 2, 5, 7), read(mask, 3, 2, 5, 7), [10, 200, 90]));
 
-  it('holds the untinted sheet at once and tints one band of rows per step, top first', () => {
-    const [b, m] = grey(4, 10);
-    // 12 px per band: 3 rows of 4 px.
-    const job = startTint(b, m, [200, 100, 50], (w, h) => new PixCanvas(w, h), 12);
-    const out = job.out.image as unknown as PixCanvas;
-    const red = (row: number) => out.data[row * 4 * 4]!;
-    expect(job.rows).toBe(0);
-    expect(red(0)).toBe(128);
-    expect(job.step()).toBe(false);
-    expect(job.rows).toBe(3);
-    expect(Math.abs(red(2) - 100)).toBeLessThanOrEqual(1);
-    expect(red(3)).toBe(128);
-    let steps = 1;
-    while (!job.step()) steps++;
-    expect(steps + 1).toBe(4); // 3 + 3 + 3 + 1 rows
-    expect(job.done).toBe(true);
-    for (let r = 0; r < 10; r++) expect(Math.abs(red(r) - 100)).toBeLessThanOrEqual(1);
-    // Same result as tinting the whole sheet at once.
-    const [b2, m2] = grey(4, 10);
-    const whole = tintSheet(b2, m2, [200, 100, 50], (w, h) => new PixCanvas(w, h)).image as unknown as PixCanvas;
-    expect(Array.from(out.data)).toEqual(Array.from(whole.data));
+  it('writes tintPixels of the rectangle at (dx, dy) and nothing else', () => {
+    const dst = new PixCanvas(20, 20);
+    tintRect(base, mask, rect, [10, 200, 90], dst, 9, 4);
+    expect(Array.from(read(dst, 9, 4, 5, 7))).toEqual(want());
+    // Outside the rectangle the page is untouched.
+    let outside = 0;
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) if ((x < 9 || x >= 14 || y < 4 || y >= 11) && dst.data[(y * 20 + x) * 4 + 3]) outside++;
+    expect(outside).toBe(0);
   });
 
-  it('close frees the result and the scratch canvas mid-way', () => {
-    const [b, m] = grey(4, 10);
-    const made: PixCanvas[] = [];
-    const job = startTint(b, m, [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made.push(c); return c; }, 12);
-    job.step();
-    job.close();
-    expect(made.map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0], [0, 0]]);
-    expect(() => job.out.image).toThrow(/closed/);
+  it('with a scratch canvas, reads only through it (willReadFrequently) and only writes the page', () => {
+    const asked: [string, unknown][] = [];
+    const spy = (name: string, c: PixCanvas): PixCanvas => {
+      const get = c.getContext.bind(c);
+      (c as unknown as { getContext: (k: string, o?: unknown) => unknown }).getContext = (_k, o) => {
+        asked.push([name, o]);
+        const ctx = get() as Record<string, unknown>;
+        if (name === 'page') ctx.getImageData = () => { throw new Error('read back from the page'); };
+        return ctx;
+      };
+      return c;
+    };
+    const dst = spy('page', new PixCanvas(20, 20));
+    const scratch = spy('scratch', new PixCanvas(8, 8));
+    tintRect(base, mask, rect, [10, 200, 90], dst, 1, 1, scratch);
+    expect(asked.filter(([n]) => n === 'scratch').every(([, o]) => (o as { willReadFrequently?: boolean } | undefined)?.willReadFrequently === true)).toBe(true);
+    expect(asked.filter(([n]) => n === 'page').every(([, o]) => o === undefined)).toBe(true);
+    const page = new PixCanvas(20, 20);
+    page.data.set(dst.data);
+    expect(Array.from(read(page, 1, 1, 5, 7))).toEqual(want());
+  });
+
+  it('a canvas without a 2D context throws a plain error', () => {
+    const dst = new PixCanvas(20, 20);
+    (dst as unknown as { getContext: () => null }).getContext = () => null;
+    expect(() => tintRect(base, mask, rect, [1, 2, 3], dst, 0, 0)).toThrow(/no 2D context/);
   });
 });

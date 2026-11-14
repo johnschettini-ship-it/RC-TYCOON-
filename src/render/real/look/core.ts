@@ -1,31 +1,23 @@
 /**
- * The machinery every kind shares: item records, set lookup, the density ladder (twin, starved, degraded), the tinted-sheet
- * cache with its per-frame budget, and the counters. Kind modules (`rides`, `track`, `people`, `ground`, `scenery`) get
- * a `LookCore` and return their part of `RealLook`; `index.ts` joins them. The contract is in `./index.ts`.
+ * The machinery every kind shares: item records, set lookup, the density ladder (twin, starved, degraded) and the
+ * counters. Tinted frames come from `./tint.ts` (the shared tint atlas). Kind modules (`rides`, `track`, `people`,
+ * `ground`, `scenery`) get a `LookCore` and return their part of `RealLook`; `index.ts` joins them. The contract is in
+ * `./index.ts`.
  */
 import type { Sprite } from '../../spriteCache';
 import type { ViewRotation } from '../../view';
 import { realItem } from '../fallbacks';
 import { CAR_TILT_STEPS } from '../pose';
 import { frameKey, type RealIndex, type RealKind, type SetKey } from '../indexFormat';
-import type { Decoded, ReadySet } from '../setManager';
-import { startTint, type CanvasLike, type TintJob } from '../tint';
-import type { ItemRec, RealLookOptions, RealSets, Resolved, SetMeta, SupportPart, Tinted } from './types';
-
-/**
- * Tinting budget per frame, ms (round 3 item 4): new tinted sheets are made band by band (`startTint`) while a frame
- * has spent less than this on them (at least one band a frame); a frame whose rows are not tinted yet draws its
- * untinted picture, counted by `soft()`.
- */
-export const TINT_FRAME_MS = 3;
-
-/** Tinted sheets unused for this many prepares are freed. */
-const KEEP_FRAMES = 120;
+import type { ReadySet } from '../setManager';
+import type { CanvasLike } from '../tint';
+import { createTinter, TINT_NO_ROOM, TINT_WAIT } from './tint';
+import type { ItemRec, RealLookOptions, RealSets, Resolved, SetMeta, SupportPart } from './types';
 
 /**
  * The ladder's last step (spec §5.4.4: never drop an object): an object whose density-2 set has had no room to decode
- * (`starved`), or whose tinted sheet no room to be made, for this many prepares in a row draws today's art (or its
- * untinted picture) and counts in `degraded()`.
+ * (`starved`), or whose tinted frame no room in the tint atlas, for this many prepares in a row draws today's art (or
+ * its untinted picture) and counts in `degraded()`.
  */
 export const DEGRADE_FRAMES = 30;
 
@@ -36,11 +28,6 @@ export function pickDensity(zoom: number, dpr: number, cap: 2 | 4): 2 | 4 {
 }
 
 export const mod = (n: number, m: number): number => ((Math.round(n) % m) + m) % m;
-
-function hexRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1, 7), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
 
 function defaultCanvas(w: number, h: number): CanvasLike {
   if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h) as unknown as CanvasLike;
@@ -98,7 +85,7 @@ export interface LookCore {
   metaOf(rs: ReadySet): SetMeta;
   lookup(rs: ReadySet, key: SetKey, fk: string): Resolved | string;
   sprite(kind: RealKind, rec: ItemRec | null, classicId: string, rot: ViewRotation, code: number, piece: string | null, tint: string | null): Sprite | null | undefined;
-  /** Start of a `prepare`: the frame counter, the counters and the tint budget reset, the density and turn set, stale tints swept. */
+  /** Start of a `prepare`: the frame counter, the counters and the tint budget reset, the density and turn set, stale tinted frames swept. */
   beginFrame(rot: ViewRotation, density: 2 | 4): void;
   setItemMap(map: Readonly<Record<string, string>> | null): void;
   dispose(): void;
@@ -168,7 +155,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       const sheetOf = new Map<string, number>();
       rs.sheets.forEach((s, i) => sheetOf.set(s.file, i));
       const maskOf = rs.sheets.map((s) => (s.mask === undefined ? -1 : sheetOf.get(s.mask) ?? -1));
-      m = { maskOf, codes: new Map(), rails: new Map() };
+      m = { maskOf, tids: 0, codes: new Map(), rails: new Map() };
       metas.set(rs, m);
     }
     return m;
@@ -189,10 +176,6 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
   let degradedDraws = 0;
   /** Sets a getter wanted this frame (`sprite`, once per set a frame). */
   const lateWanted = new Set<SetKey>();
-  /** Tinting time spent this frame (ms) and whether a band was tinted yet (round 3 item 4). */
-  let tintSpent = 0;
-  let tintBandThisFrame = false;
-  const clock = opts.now ?? ((): number => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   /** Since which prepare a set (its density-2 set) has been starved, or a tint (by set, then colour) refused room. */
   const starvedSince = new Map<SetKey, number>();
   const noRoomSince = new Map<SetKey, Map<string, number>>();
@@ -203,12 +186,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     return frameNo - since >= DEGRADE_FRAMES;
   };
   const fallbacks = new Set<string>();
-  /** By `${setKey}#${hex}`, which is also the hold id in the set manager. */
-  const tinted = new Map<string, Tinted>();
-  /** The same tinted sheets by set key, then colour: found without building the id. */
-  const tintIndex = new Map<SetKey, Map<string, Tinted>>();
-  /** Sets whose tint failed: drawn with today's art from then on. */
-  const tintFailed = new Set<SetKey>();
+  const tinter = createTinter(sets, metaOf, { make, now: opts.now, onError: opts.onError });
 
   /**
    * The density-2 twin to draw (and want) while `key`, the density-4 set for (rec, rot), is not ready; undefined
@@ -230,91 +208,6 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     return rec.k2[rot];
   }
 
-  function evict(id: string): void {
-    const t = tinted.get(id);
-    if (!t) return;
-    for (const j of t.sheets.values()) j.close();
-    tinted.delete(id);
-    tintIndex.get(t.setKey)?.delete(t.hex);
-    sets.hold(id, 0);
-  }
-
-  const wrap = (image: CanvasImageSource): Decoded => ({ image, bytes: 0, close() {} });
-
-  /** `tintedSheet`'s answer when the budget has no room for the tinted sheet yet. */
-  const NO_ROOM = 'no-room' as const;
-  /** `tintedSheet`'s answer when this frame's tint budget is spent before the sheet was started. */
-  const DEFERRED = 'deferred' as const;
-
-  /**
-   * Sheet `si` of a ready set tinted with `hex`; undefined when the sheet has no mask in the set (draw untinted);
-   * null when tinting this set failed (draw today's art); NO_ROOM when the budget cannot take it now (not ready).
-   */
-  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): Tinted | null | undefined | typeof NO_ROOM | typeof DEFERRED {
-    if (tintFailed.has(key)) return null;
-    const mi = metaOf(rs).maskOf[si] as number;
-    if (mi < 0) return undefined;
-    const mask = rs.images[mi];
-    const base = rs.images[si];
-    if (!mask || !base) return undefined;
-    let byHex = tintIndex.get(key);
-    let t = byHex?.get(hex);
-    if (t && t.source !== rs.images) { evict(t.id); t = undefined; }
-    if (!t) {
-      const id = `${key}#${hex}`;
-      t = { id, hex, setKey: key, source: rs.images, sheets: new Map(), sprites: new Map(), bytes: 0, lastFrame: frameNo };
-      tinted.set(id, t);
-      if (!byHex) tintIndex.set(key, (byHex = new Map()));
-      byHex.set(hex, t);
-    }
-    t.lastFrame = frameNo;
-    if (!t.sheets.has(si)) {
-      // Room first: the tinted copy is as big as its sheet decoded. At density 2 it would be about 4 times that at 4.
-      const size = base as unknown as { width: number; height: number };
-      const want = t.bytes + size.width * size.height * 4;
-      const up = rs.density === 2 ? 4 : 1;
-      // The frame's tint budget is spent: start this sheet on a later frame (draw untinted meanwhile, as `soft`).
-      if (tintBandThisFrame && tintSpent >= TINT_FRAME_MS) {
-        if (t.sheets.size === 0) evict(t.id);
-        return DEFERRED;
-      }
-      if (!sets.admit(t.id, want, want * up)) {
-        if (t.sheets.size === 0) evict(t.id);
-        return NO_ROOM;
-      }
-      let job: TintJob;
-      try {
-        job = startTint(wrap(base), wrap(mask), hexRgb(hex), make);
-      } catch (err) {
-        return fail(key, t.id, err);
-      }
-      t.sheets.set(si, job);
-      t.bytes += job.out.bytes;
-      sets.hold(t.id, t.bytes, t.bytes * up);
-    }
-    const job = t.sheets.get(si) as TintJob;
-    // Tint bands while this frame's budget lasts; at least one band a frame, so every sheet finishes.
-    while (!job.done && (tintSpent < TINT_FRAME_MS || !tintBandThisFrame)) {
-      const t0 = clock();
-      try {
-        job.step();
-      } catch (err) {
-        return fail(key, t.id, err);
-      }
-      tintBandThisFrame = true;
-      tintSpent += clock() - t0;
-    }
-    return t;
-  }
-
-  /** Tinting set `key` failed: today's art for it from now on, reported once. */
-  function fail(key: SetKey, id: string, err: unknown): null {
-    tintFailed.add(key);
-    evict(id);
-    opts.onError?.(id, err);
-    return null;
-  }
-
   /**
    * The sprite for frame `code` (or rail `piece`, tile `code`) of the set for `rec` at view rotation `rot`. `rec` null
    * is today's art (`classicId` is what `fallbacksUsed` lists). `tint` is a `#rrggbb` colour for sheets with a mask
@@ -326,7 +219,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     if (key === undefined) { fallbacks.add(rec.missId); return undefined; }
     if (sets.state(key) === 'failed') { fallbacks.add(key); return undefined; }
     let rs = sets.use(key);
-    /** The set actually drawn from (the twin on the soft path): tinted sheets are cached and swept under it. */
+    /** The set actually drawn from (the twin on the soft path): tinted frames are kept and swept under it. */
     let drawKey = key;
     if (!rs) {
       // A set this frame draws but may not have wanted (an object outside the scoped rectangle, a placement ghost, a
@@ -373,31 +266,25 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     }
     if (typeof r === 'string') { fallbacks.add(r); return undefined; }
     if (tint === null) return r.sprite;
-    const t = tintedSheet(drawKey, rs, r.si, tint);
-    if (t === NO_ROOM) {
-      // No room for the tinted sheet for DEGRADE_FRAMES prepares: the untinted picture (the last step), not nothing.
+    const t = tinter.tint(drawKey, rs, r, tint);
+    if (t === TINT_NO_ROOM) {
+      // No room in the tint atlas: the untinted picture, never nothing; incomplete, then degraded (the last step)
+      // once refused for DEGRADE_FRAMES prepares.
       let byHex = noRoomSince.get(drawKey);
       if (!byHex) noRoomSince.set(drawKey, (byHex = new Map()));
-      if (longWait(byHex, tint)) { degradedDraws++; return r.sprite; }
-      skipped++;
-      return null;
+      if (longWait(byHex, tint)) degradedDraws++;
+      else skipped++;
+      return r.sprite;
     }
     if (noRoomSince.size) noRoomSince.get(drawKey)?.delete(tint);
-    if (t === DEFERRED) { softDraws++; return r.sprite; }
+    // Queued, not tinted yet (the per-frame budget is spent): the untinted picture this frame, counted incomplete.
+    if (t === TINT_WAIT) { skipped++; return r.sprite; }
     if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
-    if (t === undefined) return r.sprite;
-    const job = t.sheets.get(r.si) as TintJob;
-    // The frame's rows not tinted yet (the sheet tints over a few frames): its untinted picture meanwhile, as a soft draw.
-    if (job.rows < r.f.sy + r.f.h) { softDraws++; return r.sprite; }
-    let sp = t.sprites.get(r);
-    if (!sp) t.sprites.set(r, (sp = { ...r.sprite, image: job.out.image }));
-    return sp;
+    return t;
   }
 
   function sweep(): void {
-    for (const [id, t] of [...tinted.entries()]) {
-      if (sets.state(t.setKey) !== 'ready' || t.lastFrame < frameNo - KEEP_FRAMES) evict(id);
-    }
+    tinter.beginFrame();
     // Waits of sets that are no longer queued, and refusals of sets no longer ready, are over.
     for (const k of starvedSince.keys()) if (sets.state(k) !== 'loading') starvedSince.delete(k);
     for (const k of noRoomSince.keys()) if (sets.state(k) !== 'ready') noRoomSince.delete(k);
@@ -434,8 +321,6 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       softDraws = 0;
       degradedDraws = 0;
       lateWanted.clear();
-      tintSpent = 0;
-      tintBandThisFrame = false;
       density = d;
       curRot = rot;
       sweep();
@@ -447,19 +332,10 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     },
 
     dispose() {
-      for (const id of [...tinted.keys()]) evict(id);
+      tinter.dispose();
     },
 
-    reclaim(needBytes) {
-      let freed = 0;
-      const idle = [...tinted.entries()].filter(([, t]) => t.lastFrame < frameNo).sort((a, b) => a[1].lastFrame - b[1].lastFrame);
-      for (const [id, t] of idle) {
-        if (freed >= needBytes) break;
-        freed += t.bytes;
-        evict(id);
-      }
-      return freed;
-    },
+    reclaim: (needBytes) => tinter.reclaim(needBytes),
 
     incomplete() {
       return skipped;

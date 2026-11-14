@@ -20,7 +20,7 @@
  * complete frame.
  *
  * When a turn or the first frame times out, the row records the set manager's state at that moment (`stalls`).
- * Each row shows the density the look chose at each zoom step and the held memory split (sets, tinted sheets,
+ * Each row shows the density the look chose at each zoom step and the held memory split (sets, tint-atlas pages,
  * ground chunks) at the scene's peak.
  *
  * Headless numbers are not phone numbers. A phone draws at most 2 device pixels per CSS pixel (`PHONE_MAX_RENDER_SCALE`),
