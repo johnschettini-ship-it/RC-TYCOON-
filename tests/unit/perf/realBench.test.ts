@@ -21,6 +21,7 @@ import {
   type RealBenchResult,
 } from '../../../src/perf/realBench';
 import { createPerfProbe } from '../../../src/perf/stats';
+import { renderQuality, setRenderQuality } from '../../../src/perf/quality';
 import { realItem } from '../../../src/render/real/fallbacks';
 
 const MB = 1024 * 1024;
@@ -865,5 +866,94 @@ describe('band rounding (final review I1)', () => {
     expect(band(128.04, 128, 'MB')).toEqual({ value: 128, limit: 128, unit: 'MB', band: 'pass' });
     expect(band(128.06, 128, 'MB')).toEqual({ value: 128.1, limit: 128, unit: 'MB', band: 'fail' });
     expect(band(null, 128, 'MB').band).toBe('n/a');
+  });
+});
+
+describe('render quality held at high for the run (batch 0 phone run 1)', () => {
+  /** Quality in force at every frame of the run, sampled through the fake's frame hook. */
+  const sampling = (seen: string[]) => (g: Fake): void => {
+    g.extra = () => {
+      seen.push(renderQuality());
+      return 0;
+    };
+  };
+
+  it('every frame draws at high, the quality in force before is put back, and no setting is written for it', { timeout: 60_000 }, async () => {
+    const was = renderQuality();
+    try {
+      for (const player of ['auto', 'low'] as const) {
+        setRenderQuality(player);
+        const seen: string[] = [];
+        const keys: string[] = [];
+        const { g } = await quick((x) => {
+          sampling(seen)(x);
+          const set = x.settings.set;
+          x.settings.set = (k, v) => {
+            keys.push(k);
+            return set(k, v);
+          };
+        });
+        expect(seen.length).toBeGreaterThan(100);
+        // The first frame is drawn after the hold went on (before the first scene loads).
+        expect(new Set(seen)).toEqual(new Set(['high']));
+        expect(renderQuality()).toBe(player);
+        // Only autosave is written (off, then back on); the player's render quality setting never is.
+        expect(keys).toEqual(['autosave', 'autosave']);
+        expect(g.autosave).toBe(true);
+      }
+    } finally {
+      setRenderQuality(was);
+    }
+  });
+
+  it("a settings change mid-run that re-applies the player's quality (ui/perf) is overridden on the next frame", { timeout: 60_000 }, async () => {
+    const was = renderQuality();
+    try {
+      setRenderQuality('auto');
+      const seen: string[] = [];
+      let n = 0;
+      await quick((g) => {
+        g.extra = () => {
+          seen.push(renderQuality());
+          // As `ui/perf` does on any settings change: the saved quality goes back in, between two frames.
+          if (++n === 50) setRenderQuality('auto');
+          return 0;
+        };
+      });
+      // Frame 50 saw the hold; the listener of that same frame put `high` back after the change.
+      expect(seen.slice(50).every((q) => q === 'high')).toBe(true);
+      expect(renderQuality()).toBe('auto');
+    } finally {
+      setRenderQuality(was);
+    }
+  });
+
+  it('is put back when the run throws, and an injected quality is used instead of the module', { timeout: 60_000 }, async () => {
+    const was = renderQuality();
+    try {
+      setRenderQuality('auto');
+      const g = fakeGame();
+      g.throwOnDispatch = true;
+      let q: 'auto' | 'high' | 'low' = 'low';
+      const sets: string[] = [];
+      let done = false;
+      const p = runRealBench(g, [{ id: 'phone', json: sceneJson('p') }], () => g.now, {
+        look: g.look,
+        sets: g.sets,
+        timeScale: 0.1,
+        quality: { get: () => q, set: (v) => (sets.push(v), (q = v)) },
+      }).finally(() => {
+        done = true;
+      });
+      const pumped = g.pump(() => done);
+      await expect(p).rejects.toThrow('boom');
+      await pumped;
+      expect(sets).toEqual(['high', 'low']);
+      expect(q).toBe('low');
+      // The module was not touched.
+      expect(renderQuality()).toBe('auto');
+    } finally {
+      setRenderQuality(was);
+    }
   });
 });

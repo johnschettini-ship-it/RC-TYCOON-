@@ -39,6 +39,11 @@
  * manager or ground, so S2, S3 and S4 read n/a and the frame times are measured as for the realistic look. The result
  * says which look ran (`look`).
  *
+ * The bench measures at the device's best render ratio: render quality is held at `high` for the run (the module
+ * value in `./quality.ts`, never the player's saved setting) and put back to what it was after, so `auto` cannot step
+ * the ratio down mid-run (batch 0 phone run 1 measured every park at 1×). `ratioChanges` still logs any change, and a
+ * drop during the run is still called out in the summary.
+ *
  * The bench never saves: autosave is off for the run (`game.settings`, put back after), and every perf save also
  * starts more than `BENCH_MAX_SCENE_MS` of 1× ticks before a month start (unit test).
  */
@@ -49,6 +54,8 @@ import { deserialize } from '../save';
 import { Content } from '../sim/map';
 import type { Command, CommandResult } from '../sim/commands';
 import type { World } from '../sim/types';
+import type { RenderQuality } from '../settings/types';
+import { renderQuality, setRenderQuality } from './quality';
 import { perfProbe, percentile, type PerfProbe } from './stats';
 
 /** The part of `Game` the bench drives (a structural type, so tests can pass a fake). */
@@ -149,6 +156,11 @@ export interface BenchOptions {
    * frame (the browser stops drawing) and is counted in `droppedHiddenGaps` instead. Default: `visibilitychange`.
    */
   watchHidden?: (onHide: () => void) => () => void;
+  /**
+   * Render quality in force (not the saved setting): held at `high` for the run, then put back. Default: the
+   * `./quality.ts` module (`renderQuality`, `setRenderQuality`), which the renderer reads.
+   */
+  quality?: { get(): RenderQuality; set(q: RenderQuality): void };
 }
 
 export type BandResult = 'pass' | 'fail' | 'n/a';
@@ -414,6 +426,13 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
     sets: sets?.snapshot?.() ?? null,
   });
 
+  // Render quality held at `high` for the run (see the module comment); `qualityWas` is put back after.
+  const quality = opts.quality ?? { get: renderQuality, set: setRenderQuality };
+  const qualityWas = quality.get();
+  const holdHigh = (): void => {
+    if (quality.get() !== 'high') quality.set('high');
+  };
+
   // ---- one frame listener for the whole run (Game has no unsubscribe; it goes quiet when the run ends)
   let live = true;
   let waiters: Array<() => void> = [];
@@ -441,6 +460,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   });
   game.onFrame(() => {
     if (!live) return;
+    holdHigh();
     const now = clock();
     if (rec && lastT >= 0) {
       const dt = now - lastT;
@@ -509,6 +529,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   // No autosave during the run, whatever screen the tester left open (restored in `finally`).
   const autosaveWas = game.settings.get('autosave');
   if (autosaveWas) game.settings.set('autosave', false);
+  // The device's best render ratio for the whole run (after the autosave change: a settings change re-applies the
+  // player's quality, `ui/perf`). Asserted again every frame, so no settings change mid-run can bring `auto` back.
+  holdHigh();
   const fallbacksSeen = new Set<string>();
   const rows: BenchRow[] = [];
   let startMs: number | null = null;
@@ -740,6 +763,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
     probe.enabled = wasEnabled;
     game.setSpeed(0);
     if (autosaveWas) game.settings.set('autosave', true);
+    // Last, after the autosave change (which re-applies the saved quality): the quality in force before the run.
+    quality.set(qualityWas);
   }
 
   // Information-only rows (the scale park) show their bands but do not decide the verdict.
