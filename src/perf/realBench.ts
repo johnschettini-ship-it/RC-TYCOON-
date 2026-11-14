@@ -21,7 +21,11 @@
  * Each row shows the density the look chose at each zoom step and the held memory split (sets, tinted sheets,
  * ground chunks) at the scene's peak.
  *
- * Headless numbers are not phone numbers: a phone at DPR 2.75 uses density 4 at zoom 1, a DPR 2 desktop density 2.
+ * Headless numbers are not phone numbers. A phone draws at most 2 device pixels per CSS pixel (`PHONE_MAX_RENDER_SCALE`),
+ * so it uses density 2 at zoom 1 and density 4 at zoom 2; a desktop with DPR above 2 uses density 4 at zoom 1.
+ *
+ * Every park starts from the same set manager state: right after its world loads the bench clears the density cap,
+ * demotions and the room count (`resetPressure`), and records whether the cap was on before (`cappedAtStart`).
  *
  * Kill-rule bands (spec §6): S1 frame p95 33 ms (the rule is for `build2`; shown for every park), S2 peak decoded
  * memory 128 MB (the decode budget F2), S3 a turn 250 ms the Turn button's way (clockwise) and 500 ms the other way,
@@ -76,7 +80,7 @@ export interface BenchOptions {
   look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number } | null;
   /** The realistic ground: a frame with it not laid is incomplete. */
   ground?: { complete: boolean } | null;
-  sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown } | null;
+  sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown; densityCap?(): number; resetPressure?(): void } | null;
   /** Reading every compressed art file before the run (the card does it), reported apart from S4. */
   artDownload?: { ms: number; bytes: number; files: number };
   /** Navigation start to the boot's first complete frame, network included (shown for information). */
@@ -160,6 +164,8 @@ export interface BenchRow {
   placementLongestFrameMs: number;
   /** Density-cap changes of the set manager during the scene. */
   capEvents: number;
+  /** The density cap was on when the park loaded (left by the park before), before the bench cleared it. */
+  cappedAtStart: boolean;
   /** The look's density at the end of each zoom step (2, 1, 0.5, 2), then after the turns; empty without the look. */
   densities: number[];
   /** Held memory by owner at the scene's peak and at its end, MiB (null without the set manager's split). */
@@ -276,7 +282,7 @@ export function placementSpots(world: World, focus: number): number[] {
 function emptyRow(id: string, error: string): BenchRow {
   return {
     id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, peakMB: 0, endMB: 0,
-    turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
+    turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, cappedAtStart: false, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
     bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150) },
   };
 }
@@ -370,8 +376,11 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         continue;
       }
       // Cap changes from the load on belong to this scene.
-      const capsAtStart = sets?.capEvents().length ?? 0;
       game.setWorld(loaded.world);
+      // Every park from the same start: no cap or demotion left over from the park before.
+      const cappedAtStart = sets?.densityCap?.() === 2;
+      sets?.resetPressure?.();
+      const capsAtStart = sets?.capEvents().length ?? 0;
       const map = loaded.world.state.map;
       const focus = scene.focus ? scene.focus.y * map.width + scene.focus.x : Math.floor(map.height / 2) * map.width + Math.floor(map.width / 2);
       const cam = game.camera;
@@ -507,6 +516,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         placementFailures: failures,
         placementLongestFrameMs: r1(r.placeMax),
         capEvents: (sets?.capEvents().length ?? 0) - capsAtStart,
+        cappedAtStart,
         densities,
         peakSplitMB: scenePeakSplit,
         endSplitMB: splitMB(),
@@ -570,7 +580,7 @@ export function resultsText(r: RealBenchResult): string {
     lines.push(
       `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
-        `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents}; ` +
+        `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,
     );

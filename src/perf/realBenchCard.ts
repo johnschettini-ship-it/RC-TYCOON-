@@ -120,6 +120,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.placement'), `${s.placementLongestFrameMs} (${s.placements})`),
         row(text('ui.realBench.incomplete'), `${s.incompleteFrames}`),
         row(text('ui.realBench.caps'), `${s.capEvents}`),
+        row(text('ui.realBench.cappedAtStart'), text(s.cappedAtStart ? 'ui.realBench.yes' : 'ui.realBench.no')),
         row(text('ui.realBench.stalls'), s.stalls.map((x) => x.at).join(', ') || text('ui.realBench.none')),
         row(text('ui.realBench.fallbacks'), s.fallbacksUsed.join(', ') || text('ui.realBench.none')),
       );

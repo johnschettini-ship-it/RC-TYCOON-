@@ -477,3 +477,17 @@ describe('RealLook: memory (final review C1, M1)', () => {
     expect(look.currentDensity()).toBe(2);
   });
 });
+
+describe('RealLook: a density-4 set that failed (re-review 3)', () => {
+  it('draws its density-2 set instead of today\'s art', () => {
+    const { sets, look } = setup();
+    sets.setState(setKey('stall', 'snack_shack', 4, 0), 'failed');
+    sets.setState(setKey('stall', 'snack_shack', 2, 0), 'ready');
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2);
+    expect(look.currentDensity()).toBe(4);
+    const sp = look.stall('snack_shack', 0);
+    expect(sp).toBeTruthy();
+    expect(sp!.scale).toBe(2);
+    expect(look.fallbacksUsed()).toEqual([]);
+  });
+});

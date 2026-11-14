@@ -468,4 +468,18 @@ describe('SetManager: memory held outside it (final review C1, I3, T5)', () => {
     expect(snap.capped).toBe(false);
     expect(snap.demoted).toEqual([]);
   });
+
+  it('resetPressure clears the cap, demotions and room count, and frees no set', async () => {
+    const [A, B] = [entry('a', 2, 2), entry('b', 2, 2)];
+    const { io, m } = setup([A, B], 300);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.want([A.key, B.key], 'now'); m.endFrame();
+    expect(m.densityCap()).toBe(2);
+    m.resetPressure();
+    expect(m.densityCap()).toBe(4);
+    expect(m.state(A.key)).toBe('ready');
+    expect(m.capEvents().map((e) => e.capped)).toEqual([true, false]);
+    await io.settleAll();
+  });
 });

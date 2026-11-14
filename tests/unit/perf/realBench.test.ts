@@ -82,7 +82,6 @@ function fakeGame(): Fake {
       // coaster: 200 MB resident (S2 fail) and one cap event.
       resident = g.sceneIndex === 3 ? 200 * MB : 10 * MB;
       peak = Math.max(peak, resident);
-      if (g.sceneIndex === 3) caps.push({ frame: 1, capped: true, pressureBytes: 200 * MB });
       skip = 3; // the first frames of a park are incomplete
     },
     setSpeed(s: Speed) {
@@ -106,6 +105,8 @@ function fakeGame(): Fake {
       while (!until()) {
         g.now += (g.sceneIndex === 1 ? 40 : 16) + (g.extra?.(g) ?? 0);
         // The "renderer": a turn makes the next frames incomplete while the new rotation's sets decode.
+        // coaster: the set manager caps on the park's first frame (its endFrame).
+        if (g.sceneIndex === 3 && caps.length === 0) caps.push({ frame: 1, capped: true, pressureBytes: 200 * MB });
         if (g.camera.rotation !== lastRot) {
           lastRot = g.camera.rotation;
           skip = g.sceneIndex === 3 ? 20 : 5;
@@ -482,5 +483,43 @@ describe('final review fixes (I1, I2, M2, R1, R2)', () => {
     // S4 = the app's first drawn frame + the first park's load with all art local, not the download.
     expect(result.startMs).toBeLessThan(300 + 812);
     expect(resultsText(result)).toContain('art download 9.6 MB, 273 files in 812.3 ms (before the run, not in S4)');
+  });
+});
+
+describe('every park from the same start (re-review 1)', () => {
+  it('a park after one that capped starts uncapped and reports cappedAtStart', { timeout: 60_000 }, async () => {
+    const g = fakeGame();
+    let capped = false;
+    let resets = 0;
+    const events: unknown[] = [];
+    const sets = {
+      capEvents: () => events.slice(),
+      peakBytes: () => 0,
+      residentBytes: () => 0,
+      densityCap: () => (capped ? 2 : 4),
+      resetPressure: () => {
+        resets++;
+        capped = false;
+      },
+    };
+    // The first park caps during its run.
+    g.extra = (gg) => {
+      if (gg.sceneIndex === 0 && !capped && gg.camera.zoom === 2) {
+        capped = true;
+        events.push({ capped: true });
+      }
+      return 0;
+    };
+    let done = false;
+    const p = runRealBench(g, [{ id: 'a', json: sceneJson('a') }, { id: 'b', json: sceneJson('b') }], () => g.now, { look: g.look, sets, timeScale: 0.1 }).finally(() => {
+      done = true;
+    });
+    await g.pump(() => done);
+    const result = await p;
+    expect(resets).toBe(2);
+    expect(result.scenes.map((s) => s.cappedAtStart)).toEqual([false, true]);
+    expect(result.scenes.map((s) => s.capEvents)).toEqual([1, 0]);
+    expect(capped).toBe(false); // the second park ran uncapped
+    expect(resultsText(result)).toContain('caps 0 (capped at start: yes)');
   });
 });

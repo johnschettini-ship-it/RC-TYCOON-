@@ -172,7 +172,10 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   /** The set to use for (kind, item) at the current density and `rot`, or undefined when the bake has none. */
   function resolve(kind: RealKind, item: string, rot: ViewRotation): SetKey | undefined {
     let d = density;
-    if (d === 4 && (sets.isDemoted(setKey(kind, item, 4, 'all')) || sets.isDemoted(setKey(kind, item, 4, rot)))) d = 2;
+    // A density-4 set freed for budget, or one that can never be decoded (failed, e.g. bigger than the budget): use
+    // its density-2 set rather than today's art.
+    const down = (k: SetKey): boolean => sets.isDemoted(k) || sets.state(k) === 'failed';
+    if (d === 4 && (down(setKey(kind, item, 4, 'all')) || down(setKey(kind, item, 4, rot)))) d = 2;
     const all = setKey(kind, item, d, 'all');
     if (keys.has(all)) return all;
     const k = setKey(kind, item, d, rot);

@@ -236,6 +236,19 @@ export class SetManager {
     return { files: files.length, bytes };
   }
 
+  /**
+   * Clears the density cap, the demotions and the room count, so a new park (the bench's next scene) starts from the
+   * same state; frees no set. A lifted cap is recorded as a cap event.
+   */
+  resetPressure(): void {
+    if (this.capped) {
+      this.capped = false;
+      this.events.push({ frame: this.frame, capped: false, pressureBytes: this.pressure() });
+    }
+    this.demoted.clear();
+    this.roomFrames = 0;
+  }
+
   /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks. */
   split(): MemorySplit {
     let sets = 0;
