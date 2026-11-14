@@ -33,6 +33,10 @@
  * (the bake report gives it), always `n/a`. A missing instrument gives `n/a`, never a pass: S2 without the set
  * manager, S3 and S4 without the realistic look (their times are still recorded).
  *
+ * Today's look runs the same sequence for comparison (`?art=classic&bench=1` in the VITE_ART=real build): no look, set
+ * manager or ground, so S2, S3 and S4 read n/a and the frame times are measured as for the realistic look. The result
+ * says which look ran (`look`).
+ *
  * The bench never saves: autosave is off for the run (`game.settings`, put back after), and every perf save also
  * starts more than `BENCH_MAX_SCENE_MS` of 1× ticks before a month start (unit test).
  */
@@ -181,6 +185,8 @@ export interface BenchRow {
 export interface RealBenchResult {
   format: 'tc-real-bench/1';
   verdict: 'pass' | 'fail';
+  /** Which look ran: 'real' with the realistic look, 'classic' with today's (no look: `?art=classic`, or no art). */
+  look: 'real' | 'classic';
   /** S4: navigation start to the first complete park frame, ms (null when no scene loaded). */
   startMs: number | null;
   /** Reading every compressed art file before the run (null when the card did not). */
@@ -550,6 +556,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   return {
     format: 'tc-real-bench/1',
     verdict: failed ? 'fail' : 'pass',
+    look: look === null ? 'classic' : 'real',
     startMs: startMs === null ? null : r1(startMs),
     artDownload: opts.artDownload ? { ms: r1(opts.artDownload.ms), MB: r1(opts.artDownload.bytes / MB), files: opts.artDownload.files } : null,
     bootCompleteMs: opts.bootCompleteMs === undefined ? null : r1(opts.bootCompleteMs),
@@ -567,7 +574,7 @@ export function splitText(m: MemorySplit | null): string {
 
 /** The copied results: a few summary lines, then the result as JSON (as the phone test). */
 export function resultsText(r: RealBenchResult): string {
-  const lines = [`Realistic look stage 1 bench: ${r.verdict}`];
+  const lines = [`Realistic look stage 1 bench: ${r.verdict}`, `look: ${r.look === 'real' ? 'realistic' : "today's"}`];
   lines.push(`start (S4) ${r.startMs ?? 'n/a'} ms; DPR ${r.device.devicePixelRatio}; canvas ${r.device.canvasPx.join('x')}; ${r.device.userAgent}`);
   const dl = r.artDownload;
   lines.push(`art download ${dl ? `${dl.MB} MB, ${dl.files} files in ${dl.ms} ms` : 'n/a'} (before the run, not in S4); boot to first complete frame ${r.bootCompleteMs ?? 'n/a'} ms (network included)`);

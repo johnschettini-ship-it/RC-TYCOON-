@@ -413,6 +413,33 @@ describe('a missing instrument is never a pass', () => {
   });
 });
 
+describe("today's look in the same bench (round 2, change 1)", () => {
+  it('a run without look, set manager or ground: rows with n/a S2/S3/S4, real frame numbers, and look today\'s', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined, { look: null, sets: null, ground: null, appReadyMs: 100 });
+    expect(result.look).toBe('classic');
+    const row = result.scenes[0]!;
+    expect(row.error).toBeUndefined();
+    expect(row.bands.S2.band).toBe('n/a');
+    expect(row.bands.S3.band).toBe('n/a');
+    expect(row.bands.S4.band).toBe('n/a');
+    expect(row.frames).toBeGreaterThan(0);
+    expect(row.frameP50).toBe(16);
+    expect(row.frameP95).toBe(16);
+    expect(row.longestGapMs).toBe(16);
+    expect(row.bands.S1).toMatchObject({ band: 'pass', value: 16 });
+    expect(row.densities).toEqual([]);
+    expect(row.peakSplitMB).toBeNull();
+    const text = resultsText(result);
+    expect(text.split('\n')[1]).toBe("look: today's");
+  });
+
+  it('a run with the realistic look says so', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined);
+    expect(result.look).toBe('real');
+    expect(resultsText(result).split('\n')[1]).toBe('look: realistic');
+  });
+});
+
 describe('final review fixes (I1, I2, M2, R1, R2)', () => {
   it('a frame with the realistic ground not laid is incomplete: turns wait for the ground too (I1)', { timeout: 60_000 }, async () => {
     const ground = { complete: true };

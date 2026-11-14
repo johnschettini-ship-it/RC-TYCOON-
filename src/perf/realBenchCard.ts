@@ -1,5 +1,5 @@
 /**
- * Stage 1 benchmark page parts (`?art=real&bench=1`): the "Run benchmark" button, the progress line, and the
+ * Stage 1 benchmark page parts (`?art=real&bench=1`, or `?art=classic&bench=1` for today's look): the "Run benchmark" button, the progress line, and the
  * results card. `main.ts` imports this module lazily, and only in the VITE_ART=real build, so the website build has
  * none of it; the four benchmark saves are lazy chunks of this module, loaded when Run is tapped (never through
  * storage).
@@ -84,7 +84,10 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
 
   const top = el('table');
   const first = r.scenes.find((s) => s.error === undefined);
+  const look = row(text('ui.realBench.look'), text(`ui.realBench.look.${r.look}`));
+  look.dataset.look = r.look;
   top.append(
+    look,
     row(text('ui.realBench.start'), r.startMs === null ? text('ui.realBench.band.na') : text('ui.realBench.ms', { n: r.startMs }), first?.bands.S4 ?? null, 'S4'),
     row(text('ui.realBench.device'), text('ui.realBench.deviceValue', {
         dpr: r.device.devicePixelRatio,
