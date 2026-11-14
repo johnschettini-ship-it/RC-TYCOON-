@@ -6,7 +6,7 @@
 import { itemSpec, contentHash, type ItemKind } from './catalog';
 import { checkIndex } from './checkIndex';
 import { cacheKey } from './cacheKey';
-import { sizeReport, S5_LIMIT_BYTES } from './sizeReport';
+import { sizeReport, formatSizeReport, S5_LIMIT_BYTES } from './sizeReport';
 import { reachedPoses } from './poses';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
 import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
@@ -14,7 +14,7 @@ import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
 import { previewPieces } from '../../src/render/track/preview';
 import { paletteColour } from '../../src/render/track/colours';
 
-export { itemSpec, contentHash, checkIndex, reachedPoses, cacheKey, sizeReport, S5_LIMIT_BYTES };
+export { itemSpec, contentHash, checkIndex, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES };
 export type { ItemKind };
 
 /** Per piece and heading (0-3): rail samples and the piece's tiles, for a piece entering tile (0, 0) at height 0. */
