@@ -13,12 +13,14 @@ import {
   BENCH_LIMITS,
   BENCH_SCENERY,
   BENCH_TURNS,
+  benchScenery,
   resultsText,
   runRealBench,
   type BenchGame,
   type RealBenchResult,
 } from '../../../src/perf/realBench';
 import { createPerfProbe } from '../../../src/perf/stats';
+import { realItem } from '../../../src/render/real/fallbacks';
 
 const MB = 1024 * 1024;
 const IDS = ['build1', 'build2', 'phone', 'coaster'];
@@ -407,5 +409,78 @@ describe('a missing instrument is never a pass', () => {
     expect(row?.bands.S4.value).toBe(result.startMs);
     expect(row?.bands.S1.band).toBe('pass');
     expect(result.verdict).toBe('pass');
+  });
+});
+
+describe('final review fixes (I1, I2, M2, R1, R2)', () => {
+  it('a frame with the realistic ground not laid is incomplete: turns wait for the ground too (I1)', { timeout: 60_000 }, async () => {
+    const ground = { complete: true };
+    let lastRot = 0;
+    let groundWait = 0;
+    const { result } = await quick((g) => {
+      g.extra = (gg) => {
+        if (gg.camera.rotation !== lastRot) {
+          lastRot = gg.camera.rotation;
+          groundWait = 12; // the ground stays unlaid well after the objects are ready
+        } else if (groundWait > 0) groundWait--;
+        ground.complete = groundWait === 0;
+        return 0;
+      };
+    }, { ground });
+    const row = result.scenes[0]!;
+    // Objects come back after 5 frames, the ground after 12: every turn waits about 12 frames of 16 ms.
+    for (const t of row.turns) expect(t.ms).toBeGreaterThanOrEqual(12 * 16);
+    expect(row.incompleteFrames).toBeGreaterThanOrEqual(4 * 12);
+  });
+
+  it('a turn that times out records the set manager state in the row (R1)', { timeout: 60_000 }, async () => {
+    const ground = { complete: true };
+    let turned = false;
+    const { result } = await quick((g) => {
+      g.extra = (gg) => {
+        if (gg.camera.rotation !== 0) turned = true;
+        ground.complete = !turned; // never laid again after the first turn
+        return 0;
+      };
+    }, { ground, sets: { capEvents: () => [], peakBytes: () => 0, residentBytes: () => 0, snapshot: () => ({ queueHead: { key: 'ride:x:d4:r1', estimate: 5 } }) } });
+    const row = result.scenes[0]!;
+    expect(row.turns.every((t) => t.timedOut)).toBe(true);
+    expect(row.stalls.map((s) => s.at)).toEqual(['turn 1', 'turn 2', 'turn 3', 'turn 4']);
+    expect(row.stalls[0]).toMatchObject({ groundComplete: false, sets: { queueHead: { key: 'ride:x:d4:r1', estimate: 5 } } });
+    expect(resultsText(result)).toContain('timed-out waits turn 1, turn 2, turn 3, turn 4');
+  });
+
+  it('records the density at each zoom step and after the turns, and the held memory split at the peak and end (R2)', { timeout: 60_000 }, async () => {
+    const look = { incomplete: () => 0, fallbacksUsed: () => [] as string[], currentDensity: () => 0 };
+    let cam: Camera | null = null;
+    look.currentDensity = () => ((cam?.zoom ?? 1) >= 1 ? 4 : 2);
+    const split = { sets: 60 * MB, tints: 30 * MB, ground: 20 * MB };
+    const { result } = await quick((g) => {
+      cam = g.camera;
+    }, { look, sets: { capEvents: () => [], peakBytes: () => 110 * MB, residentBytes: () => 110 * MB, split: () => split } });
+    const row = result.scenes[0]!;
+    expect(row.densities).toEqual([4, 4, 2, 4, 4]);
+    expect(row.peakSplitMB).toEqual({ sets: 60, tints: 30, ground: 20 });
+    expect(row.endSplitMB).toEqual({ sets: 60, tints: 30, ground: 20 });
+    expect(resultsText(result)).toContain('density d4/d4/d2/d4/d4; held at peak sets 60 / tints 30 / ground 20 MB');
+  });
+
+  it('places baked kinds, those not in the park yet first (M2)', () => {
+    const world = createWorld({ seed: 7, parkName: 'S', mapSize: 64 });
+    expect(benchScenery(world)).toEqual([...BENCH_SCENERY]);
+    world.state.scenery.push({ defId: 'oak_round' } as World['state']['scenery'][number], { defId: 'boulder' } as World['state']['scenery'][number]);
+    const order = benchScenery(world);
+    expect(order.slice(-2)).toEqual(['oak_round', 'boulder']);
+    expect(order.slice(0, 4)).toEqual(['pine_tall', 'birch_silver', 'willow', 'shrub_round']);
+    for (const id of BENCH_SCENERY) expect(realItem(id)).toBe(id);
+  });
+
+  it('reports the art download and the boot to first complete frame apart from S4 (I2)', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined, { artDownload: { ms: 812.34, bytes: 9.6 * MB, files: 273 }, bootCompleteMs: 2500, appReadyMs: 300 });
+    expect(result.artDownload).toEqual({ ms: 812.3, MB: 9.6, files: 273 });
+    expect(result.bootCompleteMs).toBe(2500);
+    // S4 = the app's first drawn frame + the first park's load with all art local, not the download.
+    expect(result.startMs).toBeLessThan(300 + 812);
+    expect(resultsText(result)).toContain('art download 9.6 MB, 273 files in 812.3 ms (before the run, not in S4)');
   });
 });

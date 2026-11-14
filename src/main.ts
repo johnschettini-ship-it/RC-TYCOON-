@@ -49,13 +49,21 @@ function boot(real?: RealOptions): void {
   // Build 3 clients (Wave 4): accessibility (W4-F), audio (W4-A/B), offline play (W4-G).
   mountA11y(game, uiRoot, canvas);
   mountAudio(game);
-  registerOffline(game);
+  // The realistic test build registers no service worker: it shares the website's origin, so its worker would
+  // delete the main game's offline cache (CacheStorage is per origin; `public/sw.js` deletes other `tc-*` caches).
+  if (import.meta.env.VITE_ART !== 'real') registerOffline(game);
+  // A worker an earlier test deploy registered for this page's scope goes too, so it neither serves an old build
+  // nor clears the main game's cache on its next update.
+  else if (typeof navigator !== 'undefined' && navigator.serviceWorker) {
+    const scope = new URL(import.meta.env.BASE_URL, location.href).href;
+    navigator.serviceWorker.getRegistrations().then((rs) => rs.filter((r) => r.scope.startsWith(scope)).forEach((r) => void r.unregister()), () => undefined);
+  }
   // Debug hook for dev builds and e2e tests only (Phase 4 §4 note).
   (window as unknown as { __tc?: Game }).__tc = game;
   const loading = document.getElementById('loading');
   if (loading) loading.style.display = 'none';
   // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke): VITE_ART=real build with the realistic look
-  // only. S4's first part is the navigation start to the boot's first complete frame, watched from the first frame.
+  // only.
   if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
     // Debug hook for the realistic art check (headless screenshots, Task 9b): the look, set manager and ground of this
     // boot, and `load`, which loads a save text through the game (never through storage) and frames it like the bench.
@@ -74,11 +82,15 @@ function boot(real?: RealOptions): void {
     };
     const bench = new URLSearchParams(location.search).get('bench');
     if (bench === '1' || bench === 'quick') {
-      let readyMs: number | undefined;
+      // S4's first part: the boot's first drawn frame (art not awaited: in the app it is local, here it downloads).
+      // Also the boot's first complete frame (network included), shown for information.
+      const boot: { firstFrameMs?: number; completeMs?: number } = {};
       game.onFrame(() => {
-        if (readyMs === undefined && (real?.look?.incomplete() ?? 0) === 0) readyMs = performance.now();
+        boot.firstFrameMs ??= performance.now();
+        // Complete as the renderer counts it: no object skipped and the realistic ground laid.
+        if (boot.completeMs === undefined && (real?.look?.incomplete() ?? 0) === 0 && (real?.ground?.complete ?? true)) boot.completeMs = performance.now();
       });
-      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => readyMs, bench === 'quick'));
+      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => boot, bench === 'quick'));
     }
   }
   game.start();

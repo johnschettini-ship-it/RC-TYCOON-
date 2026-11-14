@@ -34,9 +34,17 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.device': 'Device',
   'ui.realBench.fallbacks': "Drawn with today's art",
   'ui.realBench.none': 'none',
+  'ui.realBench.downloading': 'Downloading the art: {n} of {total} files',
+  'ui.realBench.download': 'Art download (before the run)',
+  'ui.realBench.downloadValue': '{mb} MB, {files} files, {ms} ms',
+  'ui.realBench.boot': 'Boot to first complete frame (with download)',
+  'ui.realBench.split': 'Memory at peak by owner',
+  'ui.realBench.splitValue': 'sets {sets} / tints {tints} / ground {ground} MB',
+  'ui.realBench.density': 'Density at zoom 2 / 1 / 0.5 / 2, after turns',
+  'ui.realBench.stalls': 'Waits that timed out',
   'ui.realBench.band.pass': 'pass',
   'ui.realBench.band.fail': 'fail',
   'ui.realBench.band.na': 'n/a',
   'ui.realBench.note':
-    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way, S4 start 4 s. S5 (app size) comes from the bake report',
+    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way, S4 start 4 s, counted with all art already downloaded (the download is shown apart). S5 (app size) comes from the bake report. Numbers from a desktop or headless browser are not phone numbers: a phone uses density 4 at zoom 1',
 };

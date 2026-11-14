@@ -4,6 +4,9 @@
  * none of it; the four benchmark saves are lazy chunks of this module, loaded when Run is tapped (never through
  * storage).
  *
+ * Before the run, every compressed art file is read into the set manager (progress shown, time reported as the art
+ * download), so nothing downloads while anything is measured (spec §5.4 item 1, as in the app).
+ *
  * The card is made for a 390 px wide phone: one short table per park, stacked. **Copy results** writes the text
  * and the JSON with `navigator.clipboard.writeText` inside the click handler; where that fails or is missing, the
  * text appears selected in a box (and `execCommand('copy')` is tried), as the phone test did.
@@ -11,6 +14,7 @@
 import { text } from '../data/strings';
 import type { Game } from '../game';
 import type { RealOptions } from '../render/renderer';
+import type { SetManager } from '../render/real/setManager';
 import { PERF_SCENES, type PerfSceneId } from '../../tests/perf/sceneInfo';
 import { resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
 
@@ -89,6 +93,8 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         cssW: r.device.viewportCss[0],
         cssH: r.device.viewportCss[1],
       })),
+    row(text('ui.realBench.download'), r.artDownload ? text('ui.realBench.downloadValue', { mb: r.artDownload.MB, files: r.artDownload.files, ms: r.artDownload.ms }) : text('ui.realBench.band.na')),
+    row(text('ui.realBench.boot'), r.bootCompleteMs === null ? text('ui.realBench.band.na') : text('ui.realBench.ms', { n: r.bootCompleteMs })),
     row(text('ui.realBench.fallbacks'), r.fallbacksUsed.join(', ') || text('ui.realBench.none')),
   );
   box.append(top);
@@ -108,10 +114,13 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.hiddenGaps'), `${s.droppedHiddenGaps}`),
         row(text('ui.realBench.work'), `${s.workP95}`),
         row(text('ui.realBench.memory'), `${s.peakMB} / ${s.endMB}`, b.S2, 'S2'),
+        row(text('ui.realBench.split'), s.peakSplitMB ? text('ui.realBench.splitValue', { ...s.peakSplitMB }) : text('ui.realBench.band.na')),
+        row(text('ui.realBench.density'), s.densities.join(' / ') || text('ui.realBench.band.na')),
         row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
         row(text('ui.realBench.placement'), `${s.placementLongestFrameMs} (${s.placements})`),
         row(text('ui.realBench.incomplete'), `${s.incompleteFrames}`),
         row(text('ui.realBench.caps'), `${s.capEvents}`),
+        row(text('ui.realBench.stalls'), s.stalls.map((x) => x.at).join(', ') || text('ui.realBench.none')),
         row(text('ui.realBench.fallbacks'), s.fallbacksUsed.join(', ') || text('ui.realBench.none')),
       );
     }
@@ -159,10 +168,10 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
 }
 
 /**
- * Show the Run button. `appReadyMs()` gives the navigation start to the boot's first complete frame (S4's first
- * part), or undefined when that frame has not come yet. `quick` shortens every step (the e2e smoke).
+ * Show the Run button. `boot()` gives the navigation start to the boot's first drawn frame (S4's first part) and to
+ * its first complete frame (information), each undefined until it came. `quick` shortens every step (the e2e smoke).
  */
-export function mountRealBench(game: Game, real: RealOptions | undefined, appReadyMs: () => number | undefined, quick = false): void {
+export function mountRealBench(game: Game, real: RealOptions | undefined, boot: () => { firstFrameMs?: number; completeMs?: number }, quick = false): void {
   const style = el('style', '', CSS);
   document.head.append(style);
   const run = el('button', 'rb-run', text('ui.realBench.run'));
@@ -190,11 +199,24 @@ export function mountRealBench(game: Game, real: RealOptions | undefined, appRea
         const scenes: BenchScene[] = await Promise.all(
           PERF_SCENES.map(async (s) => ({ id: s.id, json: (await SAVES[s.id]()).default, focus: s.focus })),
         );
-        const sets = real?.sets && 'capEvents' in real.sets ? (real.sets as unknown as { capEvents(): unknown[]; peakBytes(): number; residentBytes(): number }) : null;
+        const sets = real?.sets && 'capEvents' in real.sets ? (real.sets as unknown as SetManager) : null;
+        // All compressed art local first: nothing downloads while anything is measured.
+        let artDownload: { ms: number; bytes: number; files: number } | undefined;
+        if (sets) {
+          const t0 = performance.now();
+          const got = await sets.preloadAll((n, total) => {
+            status.textContent = text('ui.realBench.downloading', { n, total });
+          });
+          artDownload = { ms: performance.now() - t0, bytes: got.bytes, files: got.files };
+        }
+        const b = boot();
         const result = await runRealBench(game, scenes, () => performance.now(), {
           look: real?.look ?? null,
+          ground: real?.ground ?? null,
           sets,
-          appReadyMs: appReadyMs(),
+          artDownload,
+          bootCompleteMs: b.completeMs,
+          appReadyMs: b.firstFrameMs,
           timeScale: quick ? 0.1 : 1,
           onScene: (id, i, total) => {
             status.textContent = text('ui.realBench.running', { scene: id, n: i + 1, total });

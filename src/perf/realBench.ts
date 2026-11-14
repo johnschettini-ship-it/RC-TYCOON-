@@ -9,7 +9,19 @@
  * Frame times are the gaps between drawn frames (`Game.onFrame`, after the renderer drew), so a frame that took long
  * to draw shows. Every gap counts, a visible stall of seconds included; only a gap that spans a hidden page is left
  * out (and counted in `droppedHiddenGaps`). A turn's time runs from the Turn action (`rotateView`, as the Turn button calls it) to the first
- * frame drawn at the new rotation with `look.incomplete() === 0`.
+ * complete frame at the new rotation: `look.incomplete() === 0` and the realistic ground laid (`ground.complete`), as
+ * the renderer counts incomplete frames.
+ *
+ * Art is local before anything is measured (spec §5.4 item 1, as in the app): the card reads every compressed file
+ * into the set manager first and passes the time as `artDownload`, reported apart. S4 is the app's start to its
+ * first drawn frame (`appReadyMs`, art not awaited) plus the first park's load, with all art local, to its first
+ * complete frame.
+ *
+ * When a turn or the first frame times out, the row records the set manager's state at that moment (`stalls`).
+ * Each row shows the density the look chose at each zoom step and the held memory split (sets, tinted sheets,
+ * ground chunks) at the scene's peak.
+ *
+ * Headless numbers are not phone numbers: a phone at DPR 2.75 uses density 4 at zoom 1, a DPR 2 desktop density 2.
  *
  * Kill-rule bands (spec §6): S1 frame p95 33 ms (the rule is for `build2`; shown for every park), S2 peak decoded
  * memory 128 MB (the decode budget F2), S3 a turn 250 ms the Turn button's way (clockwise) and 500 ms the other way,
@@ -56,15 +68,25 @@ export interface BenchDevice {
   userAgent: string;
 }
 
+/** Resident picture memory by owner, bytes (MB in a bench row). */
+export interface MemorySplit { sets: number; tints: number; ground: number }
+
 export interface BenchOptions {
   /** The realistic look (absent with today's look: every frame counts as complete). */
-  look?: { incomplete(): number; fallbacksUsed(): string[] } | null;
-  sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number } | null;
+  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number } | null;
+  /** The realistic ground: a frame with it not laid is incomplete. */
+  ground?: { complete: boolean } | null;
+  sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown } | null;
+  /** Reading every compressed art file before the run (the card does it), reported apart from S4. */
+  artDownload?: { ms: number; bytes: number; files: number };
+  /** Navigation start to the boot's first complete frame, network included (shown for information). */
+  bootCompleteMs?: number;
   probe?: Pick<PerfProbe, 'enabled' | 'reset' | 'snapshot'>;
   /**
-   * Navigation start to the first complete frame of the app's own start, ms. With it, S4 = this + the first park's
-   * load to its first complete frame, so the wait before Run is tapped is left out. Without it, S4 is the clock at
-   * that first complete frame (`performance.now()` counts from navigation start).
+   * Navigation start to the app's first drawn frame, ms (its art not awaited: in the app the art is local, here it
+   * downloads). With it, S4 = this + the first park's load to its first complete frame, so the wait before Run is
+   * tapped is left out. Without it, S4 is the clock at that first complete frame (`performance.now()` counts from
+   * navigation start).
    */
   appReadyMs?: number;
   device?: () => BenchDevice;
@@ -101,6 +123,15 @@ export interface TurnTime {
   timedOut: boolean;
 }
 
+/** A wait that timed out, with the set manager's state at that moment (R1). */
+export interface BenchStall {
+  /** `first frame` or `turn <n>` (1-4). */
+  at: string;
+  incomplete: number;
+  groundComplete: boolean | null;
+  sets: unknown;
+}
+
 export interface BenchRow {
   id: string;
   /** Why the scene did not run (its save did not load). */
@@ -129,6 +160,13 @@ export interface BenchRow {
   placementLongestFrameMs: number;
   /** Density-cap changes of the set manager during the scene. */
   capEvents: number;
+  /** The look's density at the end of each zoom step (2, 1, 0.5, 2), then after the turns; empty without the look. */
+  densities: number[];
+  /** Held memory by owner at the scene's peak and at its end, MiB (null without the set manager's split). */
+  peakSplitMB: MemorySplit | null;
+  endSplitMB: MemorySplit | null;
+  /** Waits that timed out, with the set manager's state (R1). */
+  stalls: BenchStall[];
   /** Ids first drawn with today's art during this scene (the run's full list is `RealBenchResult.fallbacksUsed`). */
   fallbacksUsed: string[];
   bands: { S1: Band; S2: Band; S3: Band; S4: Band; S5: Band };
@@ -139,6 +177,10 @@ export interface RealBenchResult {
   verdict: 'pass' | 'fail';
   /** S4: navigation start to the first complete park frame, ms (null when no scene loaded). */
   startMs: number | null;
+  /** Reading every compressed art file before the run (null when the card did not). */
+  artDownload: { ms: number; MB: number; files: number } | null;
+  /** Navigation start to the boot's first complete frame, network included (information, not S4). */
+  bootCompleteMs: number | null;
   device: BenchDevice;
   scenes: BenchRow[];
   fallbacksUsed: string[];
@@ -149,8 +191,14 @@ export interface RealBenchResult {
 export const BENCH_LIMITS = { frameP95Ms: 33, peakMB: 128, turnMs: 250, turnOtherMs: 500, startMs: 4000 } as const;
 /** The four turns: the Turn button's way twice, then back the other way twice (the view ends where it started). */
 export const BENCH_TURNS: readonly (1 | -1)[] = [1, 1, -1, -1];
-/** Scenery placed by the bench, in turn. */
-export const BENCH_SCENERY: readonly string[] = ['oak_round', 'pine_tall', 'shrub_flowering', 'bed_tulip', 'boulder'];
+/** Scenery the bench may place: baked stage 1 kinds placed on one tile without an edge. */
+export const BENCH_SCENERY: readonly string[] = ['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder'];
+
+/** The kinds a scene places, in turn: baked kinds not in the park yet first (their sets decode during the step). */
+export function benchScenery(world: World): string[] {
+  const inPark = new Set(world.state.scenery.map((s) => s.defId));
+  return [...BENCH_SCENERY.filter((id) => !inPark.has(id)), ...BENCH_SCENERY.filter((id) => inPark.has(id))];
+}
 
 /** Pan speed in screen px per second; the pan goes right, down, left, up, a quarter of the time each. */
 const PAN_PX_PER_S = 240;
@@ -228,7 +276,7 @@ export function placementSpots(world: World, focus: number): number[] {
 function emptyRow(id: string, error: string): BenchRow {
   return {
     id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, peakMB: 0, endMB: 0,
-    turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, fallbacksUsed: [],
+    turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
     bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150) },
   };
 }
@@ -246,7 +294,19 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   const TURN_EVERY_MS = 1000 * k;
   const PLACE_EVERY_MS = 100 * k;
   const IDLE_MS = 5000 * k;
-  const incomplete = (): number => look?.incomplete() ?? 0;
+  const ground = opts.ground ?? null;
+  // As the renderer counts an incomplete frame: an object skipped, or the realistic ground not laid.
+  const incomplete = (): number => (look?.incomplete() ?? 0) + (ground && !ground.complete ? 1 : 0);
+  const splitMB = (): MemorySplit | null => {
+    const sp = sets?.split?.();
+    return sp ? { sets: r1(sp.sets / MB), tints: r1(sp.tints / MB), ground: r1(sp.ground / MB) } : null;
+  };
+  const stall = (at: string): BenchStall => ({
+    at,
+    incomplete: look?.incomplete() ?? 0,
+    groundComplete: ground ? ground.complete : null,
+    sets: sets?.snapshot?.() ?? null,
+  });
 
   // ---- one frame listener for the whole run (Game has no unsubscribe; it goes quiet when the run ends)
   let live = true;
@@ -256,6 +316,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   let rec: { gaps: number[]; hidden: number; incomplete: number; placing: boolean; placeMax: number } | null = null;
   let sampleMem = false;
   let scenePeakBytes = 0;
+  let scenePeakSplit: MemorySplit | null = null;
   /** The page was hidden since the last frame: the next gap is not a frame. */
   let hiddenSinceFrame = false;
   const unwatch = (opts.watchHidden ?? defaultWatchHidden)(() => {
@@ -274,7 +335,13 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
     }
     if (rec && incomplete() > 0) rec.incomplete++;
     hiddenSinceFrame = false;
-    if (sampleMem && sets) scenePeakBytes = Math.max(scenePeakBytes, sets.residentBytes());
+    if (sampleMem && sets) {
+      const now = sets.residentBytes();
+      if (now > scenePeakBytes || scenePeakSplit === null) {
+        scenePeakBytes = Math.max(scenePeakBytes, now);
+        scenePeakSplit = splitMB();
+      }
+    }
     lastT = now;
     const w = waiters;
     waiters = [];
@@ -318,11 +385,15 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       await frame();
       const peakAtStart = sets?.peakBytes() ?? 0;
       scenePeakBytes = sets?.residentBytes() ?? 0;
+      scenePeakSplit = splitMB();
       sampleMem = true;
+      const stalls: BenchStall[] = [];
+      const densities: number[] = [];
 
       // S4: the first complete frame of the first park.
       if (startMs === null) {
         while (incomplete() > 0 && clock() - loadAt < FIRST_FRAME_TIMEOUT_MS) await frame();
+        if (incomplete() > 0) stalls.push(stall('first frame'));
         const firstComplete = clock();
         startMs = opts.appReadyMs !== undefined ? opts.appReadyMs + (firstComplete - runStart) : firstComplete;
       }
@@ -351,11 +422,12 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       for (const z of ZOOMS) {
         cam.zoom = z;
         await waitUntil(clock() + ZOOM_HOLD_MS);
+        if (look?.currentDensity) densities.push(look.currentDensity());
       }
 
       // Turns, as the Turn button does them.
       const turns: TurnTime[] = [];
-      for (const dir of BENCH_TURNS) {
+      for (const [ti, dir] of BENCH_TURNS.entries()) {
         const t0 = clock();
         rotateView(cam, game.world.state.map, dir);
         const target: Camera['rotation'] = cam.rotation;
@@ -365,6 +437,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
           if (cam.rotation === target && incomplete() === 0) break;
           if (clock() - t0 >= TURN_TIMEOUT_MS) {
             timedOut = true;
+            stalls.push(stall(`turn ${ti + 1}`));
             break;
           }
         }
@@ -375,9 +448,11 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         turns.push({ dir, ms: r1(ms), limitMs, band: verdict, timedOut });
         await waitUntil(t0 + TURN_EVERY_MS);
       }
+      if (look?.currentDensity) densities.push(look.currentDensity());
 
       // Placements beside a path.
       const spots = placementSpots(game.world, focus);
+      const kinds = benchScenery(game.world);
       let placed = 0;
       let failures = 0;
       let next = 0;
@@ -388,7 +463,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         while (next < spots.length) {
           const tile = spots[next++] as number;
           const w = game.world.state.map.width;
-          const res = game.dispatch({ type: 'placeScenery', defId: BENCH_SCENERY[placed % BENCH_SCENERY.length] as string, x: tile % w, y: Math.floor(tile / w), rotation: 0, edge: -1 });
+          const res = game.dispatch({ type: 'placeScenery', defId: kinds[placed % kinds.length] as string, x: tile % w, y: Math.floor(tile / w), rotation: 0, edge: -1 });
           if (res.ok) {
             placed++;
             break;
@@ -432,6 +507,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         placementFailures: failures,
         placementLongestFrameMs: r1(r.placeMax),
         capEvents: (sets?.capEvents().length ?? 0) - capsAtStart,
+        densities,
+        peakSplitMB: scenePeakSplit,
+        endSplitMB: splitMB(),
+        stalls,
         fallbacksUsed: fresh,
         // A missing instrument never reads as a pass: no set manager → S2 n/a; no realistic look → S3 and S4 n/a.
         bands: {
@@ -462,6 +541,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
     format: 'tc-real-bench/1',
     verdict: failed ? 'fail' : 'pass',
     startMs: startMs === null ? null : r1(startMs),
+    artDownload: opts.artDownload ? { ms: r1(opts.artDownload.ms), MB: r1(opts.artDownload.bytes / MB), files: opts.artDownload.files } : null,
+    bootCompleteMs: opts.bootCompleteMs === undefined ? null : r1(opts.bootCompleteMs),
     device: (opts.device ?? defaultDevice)(),
     scenes: rows,
     fallbacksUsed: look?.fallbacksUsed() ?? [],
@@ -469,10 +550,17 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   };
 }
 
+/** `sets / tints / ground MB`, or n/a. */
+export function splitText(m: MemorySplit | null): string {
+  return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground} MB` : 'n/a';
+}
+
 /** The copied results: a few summary lines, then the result as JSON (as the phone test). */
 export function resultsText(r: RealBenchResult): string {
   const lines = [`Realistic look stage 1 bench: ${r.verdict}`];
   lines.push(`start (S4) ${r.startMs ?? 'n/a'} ms; DPR ${r.device.devicePixelRatio}; canvas ${r.device.canvasPx.join('x')}; ${r.device.userAgent}`);
+  const dl = r.artDownload;
+  lines.push(`art download ${dl ? `${dl.MB} MB, ${dl.files} files in ${dl.ms} ms` : 'n/a'} (before the run, not in S4); boot to first complete frame ${r.bootCompleteMs ?? 'n/a'} ms (network included)`);
   for (const s of r.scenes) {
     if (s.error !== undefined) {
       lines.push(`${s.id}: did not load (${s.error})`);
@@ -483,6 +571,7 @@ export function resultsText(r: RealBenchResult): string {
       `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents}; ` +
+        `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,
     );
   }
