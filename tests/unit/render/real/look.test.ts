@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { createRealLook, DEGRADE_FRAMES, pickDensity, quantisePose, type RealSets } from '../../../../src/render/real/look';
+import { createRealLook, DEGRADE_FRAMES, pickDensity, quantisePose, TINT_FRAME_MS, type RealSets } from '../../../../src/render/real/look';
 import { REAL_FALLBACK, realItem } from '../../../../src/render/real/fallbacks';
 import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
 import { createWorld } from '../../../../src/sim/world';
@@ -32,11 +32,13 @@ class PixCanvas {
           }
         }
       },
-      getImageData(_x: number, _y: number, w: number, h: number) {
-        return { width: w, height: h, data: self.data.slice(0, w * h * 4) };
+      getImageData(x: number, y: number, w: number, h: number) {
+        const data = new Uint8ClampedArray(w * h * 4);
+        for (let r = 0; r < h; r++) data.set(self.data.subarray(((y + r) * self.width + x) * 4, ((y + r) * self.width + x + w) * 4), r * w * 4);
+        return { width: w, height: h, data };
       },
-      putImageData(img: { data: Uint8ClampedArray }) {
-        self.data.set(img.data);
+      putImageData(img: { width: number; height: number; data: Uint8ClampedArray }, x = 0, y = 0) {
+        for (let r = 0; r < img.height; r++) self.data.set(img.data.subarray(r * img.width * 4, (r + 1) * img.width * 4), ((y + r) * self.width + x) * 4);
       },
     };
   }
@@ -814,5 +816,50 @@ describe('RealLook: the ladder\'s last step, never nothing (round 3 item 2, spec
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     expect(look.guest(0, 1, 1, 2, false)!.image).not.toBe(sets.images(key)[0]);
     expect(look.degraded!()).toBe(0);
+  });
+});
+
+describe('RealLook: tinting under a per-frame budget (round 3 item 4)', () => {
+  it('makes tinted sheets while the frame has budget left (at least one band), the rest draw untinted (soft) until a later frame', () => {
+    const index = makeIndex();
+    const sets = new FakeSets(index, { s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    // Every clock read moves 2 ms on, so each band measures 2 ms: a 3 ms budget takes two bands a frame.
+    let t = 0;
+    const look = createRealLook(index, sets, { makeCanvas: make, now: () => (t += 2) });
+    expect(TINT_FRAME_MS).toBe(3);
+    const key = setKey('guest', 'b0o0', 2, 'all');
+    sets.setState(key, 'ready');
+    const base = sets.images(key)[0];
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const first = [1, 2, 3, 4].map((c) => look.guest(0, c, 1, 2, false)!);
+    expect(first.map((sp) => sp.image !== base)).toEqual([true, true, false, false]);
+    expect(look.soft()).toBe(2);
+    expect(look.incomplete()).toBe(0);
+    // All four are admitted and held at once; the next frame tints the other two.
+    expect(sets.held.size).toBe(4);
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const second = [1, 2, 3, 4].map((c) => look.guest(0, c, 1, 2, false)!);
+    expect(second.every((sp) => sp.image !== base)).toBe(true);
+    expect(look.soft()).toBe(0);
+  });
+
+  it('a sheet bigger than a band is tinted over several frames; a frame draws tinted once its rows are done', () => {
+    // One 512 × 512 guest sheet (4 bands of 128 rows at 64K px a band), frame at the bottom rows.
+    const FRAME_LOW = { sheet: 's0', sx: 0, sy: 500, w: 8, h: 8, ox: 0, oy: 0 };
+    const sheets: RealSetEntry['sheets'] = [{ file: 's0', w: 512, h: 512, mask: 'm0' }, { file: 'm0', w: 512, h: 512 }];
+    const e: RealSetEntry = { key: setKey('guest', 'b0o0', 2, 'all'), kind: 'guest', item: 'b0o0', density: 2, rot: 'all', sheets, frames: { 'f2:w1': FRAME_LOW } };
+    const index: RealIndex = { ...makeIndex(), sets: [e] };
+    const sets = new FakeSets(index, { s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    let t = 0;
+    // Each band measures 5 ms: over the budget at once, so one band a frame.
+    const look = createRealLook(index, sets, { makeCanvas: make, now: () => (t += 5) });
+    sets.setState(e.key, 'ready');
+    const base = sets.images(e.key)[0];
+    const images: CanvasImageSource[] = [];
+    for (let f = 0; f < 5; f++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      images.push(look.guest(0, 1, 1, 2, false)!.image);
+    }
+    expect(images.map((im) => im === base)).toEqual([true, true, true, false, false]);
   });
 });

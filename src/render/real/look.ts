@@ -16,11 +16,13 @@
  * ready yet ('now', first), and the ahead turn at density 2 only ('ahead').
  *
  * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
- * (sheet with a mask) point into a copy of the whole sheet tinted once per (sheet, colour) with `tintSheet`
- * (spec §5.7), cached per `${setKey}#${hex}` and held in the set manager's budget under that key. A tinted sheet is
- * admitted before it is made (`SetManager.admit`): with no room the getter returns `null` (not ready, the frame is
- * incomplete) and the set manager's ladder makes room. It is freed when its set is freed, when it goes unused for
- * `KEEP_FRAMES` prepares, or by `reclaim` (least recently used first) when the set manager needs the room.
+ * (sheet with a mask) point into a copy of the whole sheet tinted per (sheet, colour) (spec §5.7), cached per
+ * `${setKey}#${hex}` and held in the set manager's budget under that key. The copy is tinted band by band
+ * (`startTint`) under a per-frame time budget (`TINT_FRAME_MS`, round 3 item 4): a frame whose rows are not tinted yet
+ * draws its untinted picture meanwhile, counted by `soft()`. A tinted sheet is admitted before it is made
+ * (`SetManager.admit`): with no room the getter returns `null` (not ready, the frame is incomplete) and the set
+ * manager's ladder makes room. It is freed when its set is freed, when it goes unused for `KEEP_FRAMES` prepares, or
+ * by `reclaim` (least recently used first) when the set manager needs the room.
  *
  * Contract with the bake (Task 9, tools/art3d/items/*.js), frame keys via `frameKey`; "turn" below is the set's rot:
  *   ride     set ride:<item>        frame [item, `f<frame>`, `occ0` | `occ1`]   (occupancy > 0 → occ1, full)
@@ -67,7 +69,7 @@ import { realItem } from './fallbacks';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from './pose';
 import { frameKey, type RealFrame, type RealIndex, type RealKind, type SetKey } from './indexFormat';
 import type { Decoded, ReadySet, SetManager } from './setManager';
-import { tintSheet, type CanvasLike } from './tint';
+import { startTint, type CanvasLike, type TintJob } from './tint';
 
 /**
  * Every getter returns a `Sprite` to draw, `null` when its set is not ready yet (skip the object this frame; counted
@@ -134,10 +136,19 @@ export interface RealLookOptions {
   makeCanvas?: (w: number, h: number) => CanvasLike;
   /** Told once per set whose tint failed (e.g. mask size differs from its sheet); `key` is `${setKey}#${hex}`. */
   onError?: (key: string, err: unknown) => void;
+  /** Clock for the per-frame tint budget, ms (default `performance.now`). */
+  now?: () => number;
 }
 
 /** Car poses, as baked (Task 9): yaw in 32 steps, pitch and roll in 15° steps (one source: `./pose`). */
 export { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from './pose';
+
+/**
+ * Tinting budget per frame, ms (round 3 item 4): new tinted sheets are made band by band (`startTint`) while a frame
+ * has spent less than this on them (at least one band a frame); a frame whose rows are not tinted yet draws its
+ * untinted picture, counted by `soft()`.
+ */
+export const TINT_FRAME_MS = 3;
 
 /** Tinted sheets unused for this many prepares are freed. */
 const KEEP_FRAMES = 120;
@@ -193,7 +204,8 @@ interface Tinted {
   setKey: SetKey;
   /** The ready set's images when tinted; a reload gives a new array and invalidates the tint. */
   source: CanvasImageSource[];
-  sheets: Map<number, Decoded>;
+  /** Tint jobs by sheet index: a job's sheet is tinted band by band under the per-frame budget (round 3 item 4). */
+  sheets: Map<number, TintJob>;
   /** Sprites into the tinted sheets, by the untinted frame they copy (one object per frame, reused every draw). */
   sprites: Map<Resolved, Sprite>;
   bytes: number;
@@ -363,6 +375,10 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   let skipped = 0;
   let softDraws = 0;
   let degradedDraws = 0;
+  /** Tinting time spent this frame (ms) and whether a band was tinted yet (round 3 item 4). */
+  let tintSpent = 0;
+  let tintBandThisFrame = false;
+  const clock = opts.now ?? ((): number => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   /** Since which prepare a set (its density-2 set) has been starved, or a tint (by set, then colour) refused room. */
   const starvedSince = new Map<SetKey, number>();
   const noRoomSince = new Map<SetKey, Map<string, number>>();
@@ -403,7 +419,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   function evict(id: string): void {
     const t = tinted.get(id);
     if (!t) return;
-    for (const d of t.sheets.values()) d.close();
+    for (const j of t.sheets.values()) j.close();
     tinted.delete(id);
     tintIndex.get(t.setKey)?.delete(t.hex);
     sets.hold(id, 0);
@@ -445,21 +461,37 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
         if (t.sheets.size === 0) evict(t.id);
         return NO_ROOM;
       }
-      let d: Decoded;
+      let job: TintJob;
       try {
-        d = tintSheet(wrap(base), wrap(mask), hexRgb(hex), make);
+        job = startTint(wrap(base), wrap(mask), hexRgb(hex), make);
       } catch (err) {
-        tintFailed.add(key);
-        const id = t.id;
-        evict(id);
-        opts.onError?.(id, err);
-        return null;
+        return fail(key, t.id, err);
       }
-      t.sheets.set(si, d);
-      t.bytes += d.bytes;
+      t.sheets.set(si, job);
+      t.bytes += job.out.bytes;
       sets.hold(t.id, t.bytes, t.bytes * up);
     }
+    const job = t.sheets.get(si) as TintJob;
+    // Tint bands while this frame's budget lasts; at least one band a frame, so every sheet finishes.
+    while (!job.done && (tintSpent < TINT_FRAME_MS || !tintBandThisFrame)) {
+      const t0 = clock();
+      try {
+        job.step();
+      } catch (err) {
+        return fail(key, t.id, err);
+      }
+      tintBandThisFrame = true;
+      tintSpent += clock() - t0;
+    }
     return t;
+  }
+
+  /** Tinting set `key` failed: today's art for it from now on, reported once. */
+  function fail(key: SetKey, id: string, err: unknown): null {
+    tintFailed.add(key);
+    evict(id);
+    opts.onError?.(id, err);
+    return null;
   }
 
   /**
@@ -529,8 +561,11 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (noRoomSince.size) noRoomSince.get(drawKey)?.delete(tint);
     if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
     if (t === undefined) return r.sprite;
+    const job = t.sheets.get(r.si) as TintJob;
+    // The frame's rows not tinted yet (the sheet tints over a few frames): its untinted picture meanwhile, as a soft draw.
+    if (job.rows < r.f.sy + r.f.h) { softDraws++; return r.sprite; }
     let sp = t.sprites.get(r);
-    if (!sp) t.sprites.set(r, (sp = { ...r.sprite, image: (t.sheets.get(r.si) as Decoded).image }));
+    if (!sp) t.sprites.set(r, (sp = { ...r.sprite, image: job.out.image }));
     return sp;
   }
 
@@ -720,6 +755,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       skipped = 0;
       softDraws = 0;
       degradedDraws = 0;
+      tintSpent = 0;
+      tintBandThisFrame = false;
       density = look.density(zoom, dpr);
       curRot = rot;
       sweep();
