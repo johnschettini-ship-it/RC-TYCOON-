@@ -593,3 +593,52 @@ describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
     expect(s2.sets.wanted('ahead')).toContain(setKey('stall', 'snack_shack', 2, 3));
   });
 });
+
+describe('RealLook: per-draw cost (round 3 item 5)', () => {
+  it('a frame is looked up in its set once; every later draw reuses the same sprite (no key or frame string per draw)', () => {
+    const { sets, look } = setup({ s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    for (const k of [setKey('guest', 'b1o2', 2, 'all'), setKey('scenery', 'oak_round', 2, 0)]) sets.setState(k, 'ready');
+    // Count reads of each ready set's frame table and of its sheet list (the old path did `findIndex` per draw).
+    let frameReads = 0;
+    let sheetSearches = 0;
+    for (const k of [setKey('guest', 'b1o2', 2, 'all'), setKey('scenery', 'oak_round', 2, 0)]) {
+      const rs = sets.use(k)!;
+      const frames = rs.frames;
+      rs.frames = new Proxy(frames, { get: (t, p) => { frameReads++; return Reflect.get(t, p); } });
+      const sheets = rs.sheets;
+      const find = sheets.findIndex.bind(sheets);
+      sheets.findIndex = ((...a: Parameters<typeof find>) => { sheetSearches++; return find(...a); }) as typeof sheets.findIndex;
+    }
+    const g1 = look.guest(5, 3, 1, 2, false);
+    const s1 = look.scenery('oak_round', 0, 0);
+    expect(g1 && s1).toBeTruthy();
+    const reads = frameReads;
+    const searches = sheetSearches;
+    for (let n = 0; n < 50; n++) {
+      expect(look.guest(5, 3, 1, 2, false)).toBe(g1);
+      expect(look.scenery('oak_round', 0, 0)).toBe(s1);
+    }
+    expect(frameReads).toBe(reads);
+    expect(sheetSearches).toBe(searches);
+    // A new prepare keeps the lookups (same ready set); another frame of the set is looked up once.
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.guest(5, 3, 1, 2, false)).toBe(g1);
+    expect(look.guest(5, 3, 0, 0, true)).not.toBe(g1);
+    expect(frameReads).toBe(reads + 1);
+  });
+
+  it('a reloaded set (new images) is looked up again, and its tinted sheet is made again', () => {
+    const { sets, look } = setup({ s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    const key = setKey('guest', 'b0o0', 2, 'all');
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(key, 'ready');
+    const a = look.guest(0, 1, 1, 2, false)!;
+    sets.setState(key, 'ready'); // freed and decoded again: new images
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const b = look.guest(0, 1, 1, 2, false)!;
+    expect(b).not.toBe(a);
+    expect(b.image).not.toBe(a.image);
+    expect(sets.held.size).toBe(1);
+  });
+});

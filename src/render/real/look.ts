@@ -58,7 +58,7 @@ import { getSceneryDef } from '../../data/catalog/scenery';
 import { CARD_SET } from './cards';
 import { realItem } from './fallbacks';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from './pose';
-import { frameKey, setKey, type RealIndex, type RealKind, type SetKey } from './indexFormat';
+import { frameKey, type RealFrame, type RealIndex, type RealKind, type SetKey } from './indexFormat';
 import type { Decoded, ReadySet, SetManager } from './setManager';
 import { tintSheet, type CanvasLike } from './tint';
 
@@ -146,29 +146,157 @@ function defaultCanvas(w: number, h: number): CanvasLike {
 
 /** One set tinted with one colour: its tinted sheets by sheet index, made on first use. */
 interface Tinted {
+  /** `${setKey}#${hex}`: the hold id in the set manager. */
+  id: string;
+  hex: string;
   setKey: SetKey;
   /** The ready set's images when tinted; a reload gives a new array and invalidates the tint. */
   source: CanvasImageSource[];
   sheets: Map<number, Decoded>;
+  /** Sprites into the tinted sheets, by the untinted frame they copy (one object per frame, reused every draw). */
+  sprites: Map<Resolved, Sprite>;
   bytes: number;
   lastFrame: number;
 }
 
 interface BuiltItem {
-  kind: RealKind;
-  item: string;
+  rec: ItemRec;
   everyTurn?: boolean;
   turn?: number;
 }
 
 const PATH_ITEM_IDS: Record<number, string> = { [PathItem.Bench]: 'bench', [PathItem.Bin]: 'bin', [PathItem.Lamp]: 'lamp' };
 
+/**
+ * One baked (kind, item): its set keys by density and turn, made once from the index, so a getter or `prepare`
+ * resolves a set without building a key string (round 3 item 5). `k2[r]`/`k4[r]`: the set for turn `r` at that
+ * density (the `all` set when the bake has one), undefined when the bake has none.
+ */
+interface ItemRec {
+  kind: RealKind;
+  item: string;
+  k2: (SetKey | undefined)[];
+  k4: (SetKey | undefined)[];
+  /** What `fallbacksUsed` lists when a turn has no set: `<kind>:<item>`. */
+  missId: string;
+}
+
+/** A frame found in a ready set: its sheet index and the untinted sprite (one object, reused every draw). */
+interface Resolved {
+  f: RealFrame;
+  si: number;
+  sprite: Sprite;
+}
+
+/**
+ * Per ready set (a reload gives a new `ReadySet`, so a new entry): sheet indices by file, each sheet's mask index
+ * (−1 without one), and the frames looked up so far by a numeric code (`codes`) or, for rails, by piece and tile.
+ * A missing frame is cached as its fallback id (`<set key>/<frame key>`).
+ */
+interface SetMeta {
+  maskOf: number[];
+  codes: Map<number, Resolved | string>;
+  rails: Map<string, (Resolved | string | undefined)[]>;
+}
+
+/** The frame key for a numeric code, per kind (built once per frame on its first lookup, never per draw). */
+function frameName(kind: RealKind, item: string, code: number): string {
+  switch (kind) {
+    case 'ride':
+      return frameKey([item, `f${code >> 1}`, code & 1 ? 'occ1' : 'occ0']);
+    case 'scenery':
+      return frameKey([item, `f${code}`]);
+    case 'guest':
+      return frameKey([`f${code >> 4}`, (code & 15) === 15 ? 'sit' : `w${code & 15}`]);
+    case 'car': {
+      const full = code & 1;
+      const r = (code >> 1) % CAR_TILT_STEPS;
+      const p = Math.floor((code >> 1) / CAR_TILT_STEPS) % CAR_TILT_STEPS;
+      const y = Math.floor((code >> 1) / (CAR_TILT_STEPS * CAR_TILT_STEPS));
+      return frameKey([`y${y}`, `p${p}`, `r${r}`, full ? 'full' : 'empty']);
+    }
+    case 'support':
+      return SUPPORT_PARTS[code] as string;
+    case 'ground':
+      return code < 0 ? `j${-1 - code}` : frameKey([`s${code >> 2}`, `v${code & 3}`]);
+    default:
+      // stall, shadow: the item alone.
+      return item;
+  }
+}
+
+const SUPPORT_PARTS: readonly SupportPart[] = ['foot', 'seg', 'top'];
+const SUPPORT_CODE: Record<SupportPart, number> = { foot: 0, seg: 1, top: 2 };
+
 export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookOptions = {}): RealLook {
   const make = opts.makeCanvas ?? defaultCanvas;
   const keys = new Set<SetKey>(index.sets.map((e) => e.key));
   const itemsOf = (kind: RealKind): string[] => [...new Set(index.sets.filter((e) => e.kind === kind).map((e) => e.item))].sort();
-  const guestItems = itemsOf('guest').filter((i) => !i.startsWith('staff_'));
   const groundItems = itemsOf('ground');
+
+  /** Item records by kind, then item. */
+  const recs = new Map<RealKind, Map<string, ItemRec>>();
+  for (const e of index.sets) {
+    let byItem = recs.get(e.kind);
+    if (!byItem) recs.set(e.kind, (byItem = new Map()));
+    let r = byItem.get(e.item);
+    if (!r) byItem.set(e.item, (r = { kind: e.kind, item: e.item, k2: [], k4: [], missId: `${e.kind}:${e.item}` }));
+    const at = e.density === 4 ? r.k4 : r.k2;
+    for (let t = 0; t < 4; t++) {
+      // The `all` set serves every turn and wins over a turned one (as the bake never ships both).
+      if (e.rot === 'all') at[t] = e.key;
+      else if (e.rot === t && (at[t] === undefined || !at[t]!.endsWith(':rall'))) at[t] = e.key;
+    }
+  }
+  const recOf = (kind: RealKind, item: string): ItemRec | undefined => recs.get(kind)?.get(item);
+  /** A record for a baked item the index has no set of (every turn misses: `fallbacksUsed` lists `<kind>:<item>`). */
+  const missing = (kind: RealKind, item: string): ItemRec => ({ kind, item, k2: [], k4: [], missId: `${kind}:${item}` });
+  const recOrMissing = (kind: RealKind, item: string): ItemRec => recOf(kind, item) ?? missing(kind, item);
+  /** Guests by body × 4 + outfit. */
+  const guestRecs: ItemRec[] = [];
+  for (let b = 0; b < 2; b++) for (let o = 0; o < 4; o++) guestRecs[b * 4 + o] = recOrMissing('guest', `b${b}o${o}`);
+  /** Ground records by terrain, made on first use. */
+  const groundRecs = new Map<string, ItemRec>();
+  const groundRec = (terrain: string): ItemRec => {
+    let r = groundRecs.get(terrain);
+    if (!r) groundRecs.set(terrain, (r = recOrMissing('ground', terrain)));
+    return r;
+  };
+  const guestItems = itemsOf('guest').filter((i) => !i.startsWith('staff_'));
+  /** Game id → its record per kind (null: today's art), filled on first use. */
+  const byGameId = new Map<RealKind, Map<string, ItemRec | null>>();
+  /** Staff records by staff type (`guest:staff_<type>`), made on first use. */
+  const staffRecs = new Map<string, ItemRec>();
+  function gameRec(kind: RealKind, defId: string): ItemRec | null {
+    let m = byGameId.get(kind);
+    if (!m) byGameId.set(kind, (m = new Map()));
+    let r = m.get(defId);
+    if (r === undefined) {
+      const item = realItem(defId);
+      r = item === 'classic' ? null : recOrMissing(kind, item);
+      m.set(defId, r);
+    }
+    return r;
+  }
+  const metas = new WeakMap<ReadySet, SetMeta>();
+  function metaOf(rs: ReadySet): SetMeta {
+    let m = metas.get(rs);
+    if (!m) {
+      const sheetOf = new Map<string, number>();
+      rs.sheets.forEach((s, i) => sheetOf.set(s.file, i));
+      const maskOf = rs.sheets.map((s) => (s.mask === undefined ? -1 : sheetOf.get(s.mask) ?? -1));
+      m = { maskOf, codes: new Map(), rails: new Map() };
+      metas.set(rs, m);
+    }
+    return m;
+  }
+  /** Frame `fk` of a ready set: resolved (sheet found) or its fallback id. */
+  function lookup(rs: ReadySet, key: SetKey, fk: string): Resolved | string {
+    const f = rs.frames[fk];
+    const si = f ? rs.sheets.findIndex((s) => s.file === f.sheet) : -1;
+    if (!f || !rs.images[si]) return `${key}/${fk}`;
+    return { f, si, sprite: { image: rs.images[si] as CanvasImageSource, sx: f.sx, sy: f.sy, w: f.w, h: f.h, ox: -f.ox, oy: -f.oy, scale: rs.density } };
+  }
 
   let density: 2 | 4 = 2;
   let curRot: ViewRotation = 0;
@@ -178,35 +306,29 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   const fallbacks = new Set<string>();
   /** By `${setKey}#${hex}`, which is also the hold id in the set manager. */
   const tinted = new Map<string, Tinted>();
+  /** The same tinted sheets by set key, then colour: found without building the id. */
+  const tintIndex = new Map<SetKey, Map<string, Tinted>>();
   /** Sets whose tint failed: drawn with today's art from then on. */
   const tintFailed = new Set<SetKey>();
 
-  /** The set to use for (kind, item) at the current density and `rot`, or undefined when the bake has none. */
-  function resolve(kind: RealKind, item: string, rot: ViewRotation): SetKey | undefined {
-    return resolveAt(kind, item, rot, density);
-  }
-
   /**
-   * The density-2 twin to draw (and want) while `key`, the density-4 set for (kind, item, rot), is not ready; undefined
+   * The density-2 twin to draw (and want) while `key`, the density-4 set for (rec, rot), is not ready; undefined
    * when `key` is not a density-4 set or for ground pieces (a chunk is built once, so it waits for its own density).
    */
-  function twinOf(kind: RealKind, item: string, rot: ViewRotation, key: SetKey): SetKey | undefined {
-    if (kind === 'ground') return undefined;
-    const t = resolveAt(kind, item, rot, 2);
+  function twinOf(rec: ItemRec, rot: ViewRotation, key: SetKey): SetKey | undefined {
+    if (rec.kind === 'ground') return undefined;
+    const t = resolveAt(rec, rot, 2);
     return t !== key ? t : undefined;
   }
 
-  /** As `resolve`, at density `want` (the density-4 set steps down when demoted or failed). */
-  function resolveAt(kind: RealKind, item: string, rot: ViewRotation, want: 2 | 4): SetKey | undefined {
-    let d = want;
+  /** The set for (rec, rot) at density `want` (the density-4 set steps down when demoted or failed). */
+  function resolveAt(rec: ItemRec, rot: ViewRotation, want: 2 | 4): SetKey | undefined {
+    if (want === 2) return rec.k2[rot];
+    const k = rec.k4[rot];
     // A density-4 set freed for budget, or one that can never be decoded (failed, e.g. bigger than the budget): use
     // its density-2 set rather than today's art.
-    const down = (k: SetKey): boolean => sets.isDemoted(k) || sets.state(k) === 'failed';
-    if (d === 4 && (down(setKey(kind, item, 4, 'all')) || down(setKey(kind, item, 4, rot)))) d = 2;
-    const all = setKey(kind, item, d, 'all');
-    if (keys.has(all)) return all;
-    const k = setKey(kind, item, d, rot);
-    return keys.has(k) ? k : undefined;
+    if (k === undefined || (!sets.isDemoted(k) && sets.state(k) !== 'failed')) return k;
+    return rec.k2[rot];
   }
 
   function evict(id: string): void {
@@ -214,6 +336,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (!t) return;
     for (const d of t.sheets.values()) d.close();
     tinted.delete(id);
+    tintIndex.get(t.setKey)?.delete(t.hex);
     sets.hold(id, 0);
   }
 
@@ -226,54 +349,59 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
    * Sheet `si` of a ready set tinted with `hex`; undefined when the sheet has no mask in the set (draw untinted);
    * null when tinting this set failed (draw today's art); NO_ROOM when the budget cannot take it now (not ready).
    */
-  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): CanvasImageSource | null | undefined | typeof NO_ROOM {
+  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): Tinted | null | undefined | typeof NO_ROOM {
     if (tintFailed.has(key)) return null;
-    const maskFile = rs.sheets[si]?.mask;
-    if (maskFile === undefined) return undefined;
-    const mask = rs.images[rs.sheets.findIndex((s) => s.file === maskFile)];
+    const mi = metaOf(rs).maskOf[si] as number;
+    if (mi < 0) return undefined;
+    const mask = rs.images[mi];
     const base = rs.images[si];
     if (!mask || !base) return undefined;
-    const id = `${key}#${hex}`;
-    let t = tinted.get(id);
-    if (t && t.source !== rs.images) { evict(id); t = undefined; }
+    let byHex = tintIndex.get(key);
+    let t = byHex?.get(hex);
+    if (t && t.source !== rs.images) { evict(t.id); t = undefined; }
     if (!t) {
-      t = { setKey: key, source: rs.images, sheets: new Map(), bytes: 0, lastFrame: frameNo };
+      const id = `${key}#${hex}`;
+      t = { id, hex, setKey: key, source: rs.images, sheets: new Map(), sprites: new Map(), bytes: 0, lastFrame: frameNo };
       tinted.set(id, t);
+      if (!byHex) tintIndex.set(key, (byHex = new Map()));
+      byHex.set(hex, t);
     }
     t.lastFrame = frameNo;
-    let d = t.sheets.get(si);
-    if (!d) {
+    if (!t.sheets.has(si)) {
       // Room first: the tinted copy is as big as its sheet decoded. At density 2 it would be about 4 times that at 4.
       const size = base as unknown as { width: number; height: number };
       const want = t.bytes + size.width * size.height * 4;
       const up = rs.density === 2 ? 4 : 1;
-      if (!sets.admit(id, want, want * up)) {
-        if (t.sheets.size === 0) tinted.delete(id);
+      if (!sets.admit(t.id, want, want * up)) {
+        if (t.sheets.size === 0) evict(t.id);
         return NO_ROOM;
       }
+      let d: Decoded;
       try {
         d = tintSheet(wrap(base), wrap(mask), hexRgb(hex), make);
       } catch (err) {
         tintFailed.add(key);
+        const id = t.id;
         evict(id);
         opts.onError?.(id, err);
         return null;
       }
       t.sheets.set(si, d);
       t.bytes += d.bytes;
-      sets.hold(id, t.bytes, t.bytes * up);
+      sets.hold(t.id, t.bytes, t.bytes * up);
     }
-    return d.image;
+    return t;
   }
 
   /**
-   * The sprite for frame `parts` of set (kind, item) at view rotation `rot`. `id` is what `fallbacksUsed` lists
-   * when the item is classic. `tint` is a `#rrggbb` colour for sheets with a mask (ignored without one).
+   * The sprite for frame `code` (or rail `piece`, tile `code`) of the set for `rec` at view rotation `rot`. `rec` null
+   * is today's art (`classicId` is what `fallbacksUsed` lists). `tint` is a `#rrggbb` colour for sheets with a mask
+   * (ignored without one).
    */
-  function sprite(kind: RealKind, item: string | 'classic', id: string, rot: ViewRotation, parts: (string | number)[], tint: string | null): Sprite | null | undefined {
-    if (item === 'classic') { fallbacks.add(id); return undefined; }
-    const key = resolve(kind, item, rot);
-    if (key === undefined) { fallbacks.add(`${kind}:${item}`); return undefined; }
+  function sprite(kind: RealKind, rec: ItemRec | null, classicId: string, rot: ViewRotation, code: number, piece: string | null, tint: string | null): Sprite | null | undefined {
+    if (rec === null) { fallbacks.add(classicId); return undefined; }
+    const key = resolveAt(rec, rot, density);
+    if (key === undefined) { fallbacks.add(rec.missId); return undefined; }
     if (sets.state(key) === 'failed') { fallbacks.add(key); return undefined; }
     let rs = sets.use(key);
     /** The set actually drawn from (the twin on the soft path): tinted sheets are cached and swept under it. */
@@ -282,26 +410,33 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       // Spec §5.4: never stop drawing, lower density first. A density-4 set not decoded yet draws from its density-2
       // twin when that one is ready (the ahead turn is wanted at density 2), scaled up, and the frame is not
       // incomplete. Not for ground pieces: a chunk is built once, so it waits for its own density.
-      const twin = twinOf(kind, item, rot, key);
+      const twin = twinOf(rec, rot, key);
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
       if (!low) { skipped++; return null; }
       rs = low;
       drawKey = twin as SetKey;
       softDraws++;
     }
-    const fk = frameKey(parts);
-    const f = rs.frames[fk];
-    const si = f ? rs.sheets.findIndex((s) => s.file === f.sheet) : -1;
-    const sheet = rs.images[si];
-    if (!f || !sheet) { fallbacks.add(`${key}/${fk}`); return undefined; }
-    let image = sheet;
-    if (tint !== null) {
-      const t = tintedSheet(drawKey, rs, si, tint);
-      if (t === NO_ROOM) { skipped++; return null; }
-      if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
-      if (t !== undefined) image = t;
+    const meta = metaOf(rs);
+    let r: Resolved | string | undefined;
+    if (piece === null) {
+      r = meta.codes.get(code);
+      if (r === undefined) meta.codes.set(code, (r = lookup(rs, key, frameName(kind, rec.item, code))));
+    } else {
+      let row = meta.rails.get(piece);
+      if (!row) meta.rails.set(piece, (row = []));
+      r = row[code];
+      if (r === undefined) row[code] = r = lookup(rs, key, frameKey([piece, `t${code}`]));
     }
-    return { image, sx: f.sx, sy: f.sy, w: f.w, h: f.h, ox: -f.ox, oy: -f.oy, scale: rs.density };
+    if (typeof r === 'string') { fallbacks.add(r); return undefined; }
+    if (tint === null) return r.sprite;
+    const t = tintedSheet(drawKey, rs, r.si, tint);
+    if (t === NO_ROOM) { skipped++; return null; }
+    if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
+    if (t === undefined) return r.sprite;
+    let sp = t.sprites.get(r);
+    if (!sp) t.sprites.set(r, (sp = { ...r.sprite, image: (t.sheets.get(r.si) as Decoded).image }));
+    return sp;
   }
 
   function sweep(): void {
@@ -319,12 +454,12 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     const s = world.state;
     const out: BuiltItem[] = [];
     const add = (kind: RealKind, id: string, everyTurn = false, turn = 0): void => {
-      const item = realItem(id);
-      if (item !== 'classic') out.push({ kind, item, everyTurn, turn });
+      const rec = gameRec(kind, id);
+      if (rec) out.push({ rec, everyTurn, turn });
     };
     // Ground first: its sets decode first, so the ground (whose chunks are the largest holding, and without which
     // no frame is complete) is laid, and its memory known to the budget, before the objects' sets.
-    for (const item of groundItems) out.push({ kind: 'ground', item });
+    for (const item of groundItems) out.push({ rec: recOf('ground', item) as ItemRec });
     const withShadow = (kind: 'ride' | 'stall' | 'scenery', id: string, turn = 0): void => {
       add(kind, id, false, turn);
       add('shadow', id, false, turn);
@@ -348,12 +483,19 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
         if (id) { add('scenery', id); add('shadow', id, true); }
       }
     }
-    for (const item of guestItems) out.push({ kind: 'guest', item });
+    for (const item of guestItems) out.push({ rec: recOf('guest', item) as ItemRec });
     for (const m of s.staff.members) {
-      const item = `staff_${m.type}`;
-      if (keys.has(setKey('guest', item, 2, 'all')) || keys.has(setKey('guest', item, 4, 'all'))) out.push({ kind: 'guest', item });
+      const rec = staffRec(m.type);
+      if (rec.k2.length || rec.k4.length) out.push({ rec });
     }
     return out;
+  }
+
+  /** Staff of `type`: its record (no sets when not baked: `fallbacksUsed` lists `guest:staff_<type>`). */
+  function staffRec(type: string): ItemRec {
+    let r = staffRecs.get(type);
+    if (!r) staffRecs.set(type, (r = recOrMissing('guest', `staff_${type}`)));
+    return r;
   }
 
   const look: RealLook = {
@@ -377,27 +519,27 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       // decodes first): the object draws from it at once (a turn the other way, a zoom in), and if the budget caps
       // the density, the sets it then needs are already there. Not for ground pieces (they never step down).
       const twins = new Set<SetKey>();
-      const addNow = (kind: RealKind, item: string, r: ViewRotation): void => {
-        const k = resolve(kind, item, r);
+      const addNow = (rec: ItemRec, r: ViewRotation): void => {
+        const k = resolveAt(rec, r, density);
         if (k === undefined) return;
         now.add(k);
         if (sets.state(k) === 'ready') return;
-        const tw = twinOf(kind, item, r, k);
+        const tw = twinOf(rec, r, k);
         if (tw !== undefined) twins.add(tw);
       };
-      for (const { kind, item, everyTurn, turn } of builtItems(world)) {
+      for (const { rec, everyTurn, turn } of builtItems(world)) {
         if (everyTurn) {
-          for (let r = 0; r < 4; r++) addNow(kind, item, r as ViewRotation);
+          for (let r = 0; r < 4; r++) addNow(rec, r as ViewRotation);
           continue;
         }
         const t = turn ?? 0;
-        addNow(kind, item, ((t + rot) % 4) as ViewRotation);
+        addNow(rec, ((t + rot) % 4) as ViewRotation);
         // The ahead turn at density 2 only (cheap): after a turn its objects show at once from these sets and
         // sharpen when the turn's density-4 sets land. A set for every turn (rot 'all') is already wanted now.
         const ar = ((t + ahead) % 4) as ViewRotation;
-        const a = resolve(kind, item, ar);
+        const a = resolveAt(rec, ar, density);
         if (a !== undefined && !now.has(a)) {
-          const low = density === 4 ? resolveAt(kind, item, ar, 2) : a;
+          const low = density === 4 ? resolveAt(rec, ar, 2) : a;
           if (low !== undefined) later.add(low);
         }
       }
@@ -411,52 +553,48 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     },
 
     ride(defId, rot, frame, occupancy) {
-      const item = realItem(defId);
-      return sprite('ride', item, defId, rot, [item, `f${frame}`, occupancy > 0 ? 'occ1' : 'occ0'], null);
+      return sprite('ride', gameRec('ride', defId), defId, rot, ((frame & 0xffff) << 1) | (occupancy > 0 ? 1 : 0), null, null);
     },
 
     stall(defId, rot) {
-      const item = realItem(defId);
-      return sprite('stall', item, defId, rot, [item], null);
+      return sprite('stall', gameRec('stall', defId), defId, rot, 0, null, null);
     },
 
     scenery(defId, rot, frame) {
-      const item = realItem(defId);
-      return sprite('scenery', item, defId, rot, [item, `f${frame}`], null);
+      return sprite('scenery', gameRec('scenery', defId), defId, rot, frame, null, null);
     },
 
     guest(guestId, shirt, walk, facing, sitting) {
       const body = mod(guestId, 2);
       const outfit = mod(Math.floor(guestId / 2), 4);
       const hex = SHIRT_COLOURS[mod(shirt, SHIRT_COLOURS.length)] as string;
-      return sprite('guest', `b${body}o${outfit}`, 'guest', curRot, [`f${mod(facing, 4)}`, sitting ? 'sit' : `w${walk}`], hex);
+      return sprite('guest', guestRecs[body * 4 + outfit] as ItemRec, '', curRot, (mod(facing, 4) << 4) | (sitting ? 15 : walk & 15), null, hex);
     },
 
     staff(staffType, facing, walk) {
-      return sprite('guest', `staff_${staffType}`, `staff:${staffType}`, curRot, [`f${mod(facing, 4)}`, `w${walk}`], null);
+      return sprite('guest', staffRec(staffType), '', curRot, (mod(facing, 4) << 4) | (walk & 15), null, null);
     },
 
     rail(trackType, pieceId, tile, heading, colour) {
-      return sprite('rail', realItem(trackType), trackType, heading, [pieceId, `t${tile}`], paletteColour(colour));
+      return sprite('rail', gameRec('rail', trackType), trackType, heading, tile, pieceId, paletteColour(colour));
     },
 
     car(trackType, yawStep, pitchStep, rollStep, full, colour) {
-      const parts = [`y${mod(yawStep, CAR_YAW_STEPS)}`, `p${mod(pitchStep, CAR_TILT_STEPS)}`, `r${mod(rollStep, CAR_TILT_STEPS)}`, full ? 'full' : 'empty'];
-      return sprite('car', realItem(trackType), trackType, curRot, parts, paletteColour(colour));
+      const code = (((mod(yawStep, CAR_YAW_STEPS) * CAR_TILT_STEPS + mod(pitchStep, CAR_TILT_STEPS)) * CAR_TILT_STEPS + mod(rollStep, CAR_TILT_STEPS)) << 1) | (full ? 1 : 0);
+      return sprite('car', gameRec('car', trackType), trackType, curRot, code, null, paletteColour(colour));
     },
 
     support(trackType, part, heading, colour) {
-      return sprite('support', realItem(trackType), trackType, heading, [part], paletteColour(colour));
+      return sprite('support', gameRec('support', trackType), trackType, heading, SUPPORT_CODE[part], null, paletteColour(colour));
     },
 
     shadow(_kind, defId, rot) {
-      const item = realItem(defId);
-      return sprite('shadow', item, defId, rot, [item], null);
+      return sprite('shadow', gameRec('shadow', defId), defId, rot, 0, null, null);
     },
 
     groundPiece(terrain, slopeMask, variant, rot, join) {
-      const parts = join !== undefined && (terrain === 'path' || terrain === 'queue') ? [`j${join & 15}`] : [`s${slopeMask}`, `v${variant}`];
-      return sprite('ground', terrain, `ground:${terrain}`, rot, parts, null);
+      const code = join !== undefined && (terrain === 'path' || terrain === 'queue') ? -1 - (join & 15) : (slopeMask << 2) | (variant & 3);
+      return sprite('ground', groundRec(terrain), '', rot, code, null, null);
     },
 
     dispose() {
