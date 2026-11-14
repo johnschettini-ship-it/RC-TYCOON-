@@ -10,6 +10,7 @@ import type { World } from '../../../src/sim/types';
 import type { Camera } from '../../../src/render/types';
 import type { Speed } from '../../../src/loop';
 import {
+  band,
   BENCH_LIMITS,
   BENCH_SCENERY,
   BENCH_TURNS,
@@ -831,5 +832,38 @@ describe('fix round 1: honest ratio and S2 instruments', () => {
     expect(blobRow?.dataset.check).toBeUndefined();
     vi.unstubAllEnvs();
     vi.resetModules();
+  });
+
+  it('the card ratio row drops the "render ratio" prefix of every change, not only the first', { timeout: 60_000 }, async () => {
+    type FakeEl = { tag: string; className: string; textContent: string; dataset: Record<string, string>; children: FakeEl[]; [k: string]: unknown };
+    const make = (tag: string): FakeEl => {
+      const e: FakeEl = {
+        tag, className: '', textContent: '', dataset: {}, children: [],
+        append(...c: FakeEl[]) { e.children.push(...c); },
+        setAttribute() {}, addEventListener() {}, remove() {}, style: {},
+      };
+      return e;
+    };
+    const { result } = await quick(() => undefined, { renderRatio: () => 2, ...dev });
+    result.scenes[0]!.ratioChanges = [{ frame: 200, from: 2, to: 1 }, { frame: 900, from: 1, to: 2 }];
+    vi.stubGlobal('document', { createElement: make });
+    vi.resetModules();
+    vi.stubEnv('VITE_ART', 'real');
+    const { resultsCard } = await import('../../../src/perf/realBenchCard');
+    const all: FakeEl[] = [];
+    const every = (e: FakeEl): void => { all.push(e); e.children.forEach(every); };
+    every(resultsCard(result, () => undefined) as unknown as FakeEl);
+    const ratioRow = all.find((e) => e.children[0]?.textContent === 'Render ratio');
+    expect(ratioRow?.children[1]?.textContent).toBe('2→1 at frame 200, 1→2 at frame 900');
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+});
+
+describe('band rounding (final review I1)', () => {
+  it('judges the value it prints: 128.04 prints 128 and passes, 128.06 prints 128.1 and fails', () => {
+    expect(band(128.04, 128, 'MB')).toEqual({ value: 128, limit: 128, unit: 'MB', band: 'pass' });
+    expect(band(128.06, 128, 'MB')).toEqual({ value: 128.1, limit: 128, unit: 'MB', band: 'fail' });
+    expect(band(null, 128, 'MB').band).toBe('n/a');
   });
 });

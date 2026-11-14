@@ -304,9 +304,14 @@ const MB = 1024 * 1024;
 
 const r1 = (v: number): number => Math.round(v * 10) / 10;
 
-function band(value: number | null, limit: number, unit: string): Band {
+/**
+ * A row's band. The value is rounded to one decimal, and the band judges that same rounded value, so a printed
+ * "128" is never a fail against a 128 limit (final review I1: 128.04 printed "128 MB fail").
+ */
+export function band(value: number | null, limit: number, unit: string): Band {
   if (value === null) return { value: null, limit, unit, band: 'n/a' };
-  return { value: r1(value), limit, unit, band: value <= limit ? 'pass' : 'fail' };
+  const v = r1(value);
+  return { value: v, limit, unit, band: v <= limit ? 'pass' : 'fail' };
 }
 
 const NA = (unit: string, limit: number | null = null): Band => ({ value: null, limit, unit, band: 'n/a' });

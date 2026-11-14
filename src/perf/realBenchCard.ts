@@ -128,7 +128,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.other'), s.otherMB ? text('ui.realBench.otherValue', { ...s.otherMB }) : text('ui.realBench.band.na')),
         row(text('ui.realBench.allPeak'), s.allPeakMB === null ? text('ui.realBench.band.na') : `${s.allPeakMB}`, b.S2, 'S2'),
         row(text('ui.realBench.blobs'), s.otherMB ? `${s.otherMB.blobs}` : text('ui.realBench.band.na')),
-        row(text('ui.realBench.ratio'), ratioText(s).replace('render ratio ', '')),
+        row(text('ui.realBench.ratio'), ratioText(s).replaceAll('render ratio ', '')),
         row(text('ui.realBench.density'), s.densities.join(' / ') || text('ui.realBench.band.na')),
         row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
         row(text('ui.realBench.sharpen'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.sharpenMs ?? text('ui.realBench.band.na') })).join(' ')),
