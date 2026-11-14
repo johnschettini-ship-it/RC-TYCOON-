@@ -506,3 +506,19 @@ describe('SetManager: the ladder\'s last step (round 3 item 2)', () => {
     expect(m.state(Big.key)).toBe('ready');
   });
 });
+
+describe('SetManager: compressed blobs (round 3 item 6)', () => {
+  it('blobBytes counts each file read once (they are kept), outside the decode budget', async () => {
+    const [A, B] = [entry('a', 2, 2), entry('b', 2)];
+    const { io, m } = setup([A, B], 1000);
+    await m.preloadAll();
+    await flush();
+    // FakeIO blobs hold the file name as text.
+    const size = (f: string) => new Blob([f]).size;
+    expect(m.blobBytes()).toBe(size(file(A, 0)) + size(file(A, 1)) + size(file(B)));
+    m.beginFrame(1); m.want([A.key, B.key], 'now'); m.endFrame();
+    await io.settleAll();
+    expect(m.blobBytes()).toBe(size(file(A, 0)) + size(file(A, 1)) + size(file(B)));
+    expect(m.residentBytes()).toBe(300);
+  });
+});

@@ -81,12 +81,28 @@ export interface BenchDevice {
 /** Resident picture memory by owner, bytes (MB in a bench row). */
 export interface MemorySplit { sets: number; tints: number; ground: number }
 
+/** Picture memory outside the set manager, bytes (MB in a bench row): see `BenchOptions.otherMemory`. */
+export interface OtherMemory { terrain: number; staticLayer: number; sprites: number; blobs: number }
+
+/** The bench's phases (S1 per phase): the 10 s pan, the zoom holds, the turns, the placements, the idle end. */
+export type BenchPhase = 'pan' | 'zoom' | 'turns' | 'placements' | 'idle';
+export const BENCH_PHASES: readonly BenchPhase[] = ['pan', 'zoom', 'turns', 'placements', 'idle'];
+
+/** Frame gaps of one phase: count, p95, and the share over 33 ms (percent). */
+export interface PhaseFrames { frames: number; p95: number; over33Pct: number }
+
 export interface BenchOptions {
   /** The realistic look (absent with today's look: every frame counts as complete). */
   look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number; soft?(): number; degraded?(): number } | null;
   /** The realistic ground: a frame with it not laid is incomplete. */
   ground?: { complete: boolean } | null;
   sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown; densityCap?(): number; resetPressure?(): void } | null;
+  /**
+   * Picture memory outside the set manager's budget, bytes (round 3 item 6): today's terrain chunks and the static
+   * layer (drawn under the realistic ground too), today's sprite caches, and the compressed art blobs (kept once
+   * read). Sampled every measured frame; each row reports their peaks and the peak of everything together.
+   */
+  otherMemory?: () => OtherMemory;
   /** Reading every compressed art file before the run (the card does it), reported apart from S4. */
   artDownload?: { ms: number; bytes: number; files: number };
   /** Navigation start to the boot's first complete frame, network included (shown for information). */
@@ -159,8 +175,10 @@ export interface BenchRow {
   frameP95: number;
   frameP99: number;
   framesOver33: number;
-  /** Longest frame gap measured, ms (a visible stall of any length counts). */
+  /** Longest frame gap measured, ms (a visible stall of any length counts; S6g). */
   longestGapMs: number;
+  /** Frame gaps per phase (round 3 item 6): S1 is the whole row's p95, these show where the slow frames are. */
+  phases: Record<BenchPhase, PhaseFrames>;
   /** Frame gaps that spanned a hidden page: left out of every frame statistic. */
   droppedHiddenGaps: number;
   /** Main-thread work per frame, p95 (perf probe). */
@@ -187,6 +205,12 @@ export interface BenchRow {
   cappedAtStart: boolean;
   /** The look's density at the end of each zoom step (2, 1, 0.5, 2), then after the turns; empty without the look. */
   densities: number[];
+  /**
+   * Memory outside the set manager at its peak during the scene, MiB (each its own peak), and the peak of the set
+   * manager's resident memory plus all of them together (null without `otherMemory`). S2 stays on `peakMB`.
+   */
+  otherMB: { terrain: number; staticLayer: number; sprites: number; blobs: number } | null;
+  allPeakMB: number | null;
   /** Held memory by owner at the scene's peak and at its end, MiB (null without the set manager's split). */
   peakSplitMB: MemorySplit | null;
   endSplitMB: MemorySplit | null;
@@ -194,7 +218,7 @@ export interface BenchRow {
   stalls: BenchStall[];
   /** Ids first drawn with today's art during this scene (the run's full list is `RealBenchResult.fallbacksUsed`). */
   fallbacksUsed: string[];
-  bands: { S1: Band; S2: Band; S3: Band; S4: Band; S5: Band };
+  bands: { S1: Band; S2: Band; S3: Band; S4: Band; S5: Band; S6g: Band };
 }
 
 export interface RealBenchResult {
@@ -215,7 +239,7 @@ export interface RealBenchResult {
 }
 
 /** Spec §6 kill-rule limits. */
-export const BENCH_LIMITS = { frameP95Ms: 33, peakMB: 128, turnMs: 250, turnOtherMs: 500, startMs: 4000 } as const;
+export const BENCH_LIMITS = { frameP95Ms: 33, peakMB: 128, turnMs: 250, turnOtherMs: 500, startMs: 4000, longestGapMs: 500 } as const;
 /** The four turns: the Turn button's way twice, then back the other way twice (the view ends where it started). */
 export const BENCH_TURNS: readonly (1 | -1)[] = [1, 1, -1, -1];
 /** Scenery the bench may place: baked stage 1 kinds placed on one tile without an edge. */
@@ -300,11 +324,17 @@ export function placementSpots(world: World, focus: number): number[] {
   return out.sort((a, b) => d(a) - d(b) || a - b);
 }
 
+function phaseFrames(gaps: number[]): PhaseFrames {
+  return { frames: gaps.length, p95: r1(percentile(gaps, 0.95)), over33Pct: gaps.length ? r1((100 * gaps.filter((g) => g > SLOW_FRAME_MS).length) / gaps.length) : 0 };
+}
+
+const noPhases = (): Record<BenchPhase, PhaseFrames> => Object.fromEntries(BENCH_PHASES.map((p) => [p, phaseFrames([])])) as Record<BenchPhase, PhaseFrames>;
+
 function emptyRow(id: string, error: string): BenchRow {
   return {
-    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, degradedFrames: 0, degradedMax: 0, peakMB: 0, endMB: 0,
+    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, phases: noPhases(), otherMB: null, allPeakMB: null, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, degradedFrames: 0, degradedMax: 0, peakMB: 0, endMB: 0,
     turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, cappedAtStart: false, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
-    bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150) },
+    bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150), S6g: NA('ms', BENCH_LIMITS.longestGapMs) },
   };
 }
 
@@ -340,7 +370,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   let waiters: Array<() => void> = [];
   let lastT = -1;
   /** The scene's measurement, or null in the warm-up. */
-  let rec: { gaps: number[]; hidden: number; incomplete: number; degraded: number; degradedMax: number; placing: boolean; placeMax: number } | null = null;
+  let rec: { gaps: number[]; phase: BenchPhase; byPhase: Record<BenchPhase, number[]>; hidden: number; incomplete: number; degraded: number; degradedMax: number; placing: boolean; placeMax: number } | null = null;
+  let otherPeak: OtherMemory | null = null;
+  let allPeak = 0;
   let sampleMem = false;
   let scenePeakBytes = 0;
   let scenePeakSplit: MemorySplit | null = null;
@@ -357,6 +389,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       if (hiddenSinceFrame) rec.hidden++;
       else if (dt >= 0) {
         rec.gaps.push(dt);
+        rec.byPhase[rec.phase].push(dt);
         if (rec.placing && dt > rec.placeMax) rec.placeMax = dt;
       }
     }
@@ -367,6 +400,15 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       if (deg > rec.degradedMax) rec.degradedMax = deg;
     }
     hiddenSinceFrame = false;
+    if (sampleMem && opts.otherMemory) {
+      const o = opts.otherMemory();
+      const p = (otherPeak ??= { terrain: 0, staticLayer: 0, sprites: 0, blobs: 0 });
+      p.terrain = Math.max(p.terrain, o.terrain);
+      p.staticLayer = Math.max(p.staticLayer, o.staticLayer);
+      p.sprites = Math.max(p.sprites, o.sprites);
+      p.blobs = Math.max(p.blobs, o.blobs);
+      allPeak = Math.max(allPeak, (sets?.residentBytes() ?? 0) + o.terrain + o.staticLayer + o.sprites + o.blobs);
+    }
     if (sampleMem && sets) {
       const now = sets.residentBytes();
       if (now > scenePeakBytes || scenePeakSplit === null) {
@@ -422,6 +464,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       scenePeakBytes = sets?.residentBytes() ?? 0;
       scenePeakSplit = splitMB();
       sampleMem = true;
+      otherPeak = null;
+      allPeak = 0;
       const stalls: BenchStall[] = [];
       const densities: number[] = [];
 
@@ -436,7 +480,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       // Warm-up (not counted).
       await waitUntil(loadAt + WARMUP_MS);
       probe.reset();
-      const r = { gaps: [] as number[], hidden: 0, incomplete: 0, degraded: 0, degradedMax: 0, placing: false, placeMax: 0 };
+      const r = { gaps: [] as number[], phase: 'pan' as BenchPhase, byPhase: Object.fromEntries(BENCH_PHASES.map((p) => [p, [] as number[]])) as Record<BenchPhase, number[]>, hidden: 0, incomplete: 0, degraded: 0, degradedMax: 0, placing: false, placeMax: 0 };
       rec = r;
 
       // Pan: right, down, left, up.
@@ -454,6 +498,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       }
 
       // Zoom steps.
+      r.phase = 'zoom';
       for (const z of ZOOMS) {
         cam.zoom = z;
         await waitUntil(clock() + ZOOM_HOLD_MS);
@@ -461,6 +506,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       }
 
       // Turns, as the Turn button does them.
+      r.phase = 'turns';
       const turns: TurnTime[] = [];
       for (const [ti, dir] of BENCH_TURNS.entries()) {
         const t0 = clock();
@@ -508,6 +554,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       let failures = 0;
       let next = 0;
       r.placing = true;
+      r.phase = 'placements';
       const placeStart = clock();
       for (let n = 0; n < PLACEMENTS; n++) {
         await waitUntil(placeStart + n * PLACE_EVERY_MS);
@@ -526,6 +573,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       r.placing = false;
 
       // Idle.
+      r.phase = 'idle';
       await waitUntil(clock() + IDLE_MS);
       rec = null;
       sampleMem = false;
@@ -538,6 +586,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       const slowest = turns.reduce((m, t) => Math.max(m, t.ms), 0);
       const first = rows.every((x) => x.error !== undefined);
       const frameP95 = percentile(r.gaps, 0.95);
+      const longest = r.gaps.reduce((m, g) => Math.max(m, g), 0);
+      // Set by the frame listener (TypeScript cannot see that through the callback).
+      const op = otherPeak as OtherMemory | null;
       const fresh = (look?.fallbacksUsed() ?? []).filter((id) => !fallbacksSeen.has(id));
       for (const id of fresh) fallbacksSeen.add(id);
       rows.push({
@@ -547,7 +598,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         frameP95: r1(frameP95),
         frameP99: r1(percentile(r.gaps, 0.99)),
         framesOver33: r.gaps.filter((g) => g > SLOW_FRAME_MS).length,
-        longestGapMs: r1(r.gaps.reduce((m, g) => Math.max(m, g), 0)),
+        longestGapMs: r1(longest),
+        phases: Object.fromEntries(BENCH_PHASES.map((p) => [p, phaseFrames(r.byPhase[p])])) as Record<BenchPhase, PhaseFrames>,
+        otherMB: op ? { terrain: r1(op.terrain / MB), staticLayer: r1(op.staticLayer / MB), sprites: r1(op.sprites / MB), blobs: r1(op.blobs / MB) } : null,
+        allPeakMB: op ? r1(Math.max(allPeak, peakBytes) / MB) : null,
         droppedHiddenGaps: r.hidden,
         workP95: r1(snap.workP95),
         incompleteFrames: r.incomplete,
@@ -578,6 +632,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
           },
           S4: first && look !== null ? band(startMs, BENCH_LIMITS.startMs, 'ms') : { ...NA('ms', BENCH_LIMITS.startMs), value: first && startMs !== null ? r1(startMs) : null },
           S5: NA('MB', 150),
+          // Round 3 item 6 (proposal): no visible stall longer than 500 ms, for either look.
+          S6g: band(r.gaps.length > 0 ? longest : null, BENCH_LIMITS.longestGapMs, 'ms'),
         },
       });
     }
@@ -605,6 +661,11 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   };
 }
 
+/** `terrain / static layer / sprites / compressed MB`, or n/a. */
+export function otherText(m: BenchRow['otherMB']): string {
+  return m ? `today's terrain ${m.terrain} / static layer ${m.staticLayer} / today's sprites ${m.sprites} / compressed art ${m.blobs} MB` : 'n/a';
+}
+
 /** `sets / tints / ground MB`, or n/a. */
 export function splitText(m: MemorySplit | null): string {
   return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground} MB` : 'n/a';
@@ -624,11 +685,12 @@ export function resultsText(r: RealBenchResult): string {
     const b = s.bands;
     lines.push(
       `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
-        `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
+        `by phase ${BENCH_PHASES.map((p) => `${p} p95 ${s.phases[p].p95} ms (${s.phases[p].over33Pct}% >33)`).join(', ')}; ` +
+        `peak ${s.peakMB} MB, end ${s.endMB} MB; outside the budget ${otherText(s.otherMB)}, all together peak ${s.allPeakMB ?? 'n/a'} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; degraded ${s.degradedFrames} frames (most ${s.degradedMax}); caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
-        `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,
+        `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band} S6g ${b.S6g.band}`,
     );
   }
   lines.push(`fallbacks: ${r.fallbacksUsed.join(', ') || 'none'}`, '');

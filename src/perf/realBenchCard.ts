@@ -16,7 +16,8 @@ import type { Game } from '../game';
 import type { RealOptions } from '../render/renderer';
 import type { SetManager } from '../render/real/setManager';
 import { PERF_SCENES, type PerfSceneId } from '../../tests/perf/sceneInfo';
-import { resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
+import { spriteMemory } from '../render/spriteCache';
+import { BENCH_PHASES, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
 
 /** The four saves, as text. Literal paths, so the bundler makes one lazy chunk each. */
 const SAVES: Record<PerfSceneId, () => Promise<{ default: string }>> = {
@@ -113,11 +114,14 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
       t.append(
         row(text('ui.realBench.frame'), `${s.frameP50} / ${s.frameP95} / ${s.frameP99}`, b.S1, 'S1'),
         row(text('ui.realBench.slowFrames'), `${s.framesOver33} / ${s.frames}`),
-        row(text('ui.realBench.longestGap'), `${s.longestGapMs}`),
+        row(text('ui.realBench.longestGap'), `${s.longestGapMs}`, b.S6g, 'S6g'),
+        ...BENCH_PHASES.map((p) => row(text(`ui.realBench.phase.${p}`), text('ui.realBench.phaseValue', { p95: s.phases[p].p95, pct: s.phases[p].over33Pct, n: s.phases[p].frames }))),
         row(text('ui.realBench.hiddenGaps'), `${s.droppedHiddenGaps}`),
         row(text('ui.realBench.work'), `${s.workP95}`),
         row(text('ui.realBench.memory'), `${s.peakMB} / ${s.endMB}`, b.S2, 'S2'),
         row(text('ui.realBench.split'), s.peakSplitMB ? text('ui.realBench.splitValue', { ...s.peakSplitMB }) : text('ui.realBench.band.na')),
+        row(text('ui.realBench.other'), s.otherMB ? text('ui.realBench.otherValue', { ...s.otherMB }) : text('ui.realBench.band.na')),
+        row(text('ui.realBench.allPeak'), s.allPeakMB === null ? text('ui.realBench.band.na') : `${s.allPeakMB}`),
         row(text('ui.realBench.density'), s.densities.join(' / ') || text('ui.realBench.band.na')),
         row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
         row(text('ui.realBench.sharpen'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.sharpenMs ?? text('ui.realBench.band.na') })).join(' ')),
@@ -223,6 +227,12 @@ export function mountRealBench(game: Game, real: RealOptions | undefined, boot: 
           artDownload,
           bootCompleteMs: b.completeMs,
           appReadyMs: b.firstFrameMs,
+          // Picture memory outside the decode budget, for either look: today's terrain and static layer, today's
+          // sprite caches (labels from `spriteMemory`), and the compressed art kept once read.
+          otherMemory: () => {
+            const m = spriteMemory.breakdown();
+            return { terrain: m.chunks ?? 0, staticLayer: m.static ?? 0, sprites: (m.sprites ?? 0) + (m.other ?? 0), blobs: sets?.blobBytes() ?? 0 };
+          },
           timeScale: quick ? 0.1 : 1,
           onScene: (id, i, total) => {
             status.textContent = text('ui.realBench.running', { scene: id, n: i + 1, total });

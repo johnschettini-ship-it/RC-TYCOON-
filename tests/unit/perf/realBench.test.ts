@@ -167,7 +167,7 @@ describe('runRealBench (stage 1 bench)', () => {
   });
 
   it('bands from the spec limits: S1 33 ms, S2 128 MB, S3 250/500 ms, S4 4 s, S5 not measured here', { timeout: 60_000 }, async () => {
-    expect(BENCH_LIMITS).toEqual({ frameP95Ms: 33, peakMB: 128, turnMs: 250, turnOtherMs: 500, startMs: 4000 });
+    expect(BENCH_LIMITS).toEqual({ frameP95Ms: 33, peakMB: 128, turnMs: 250, turnOtherMs: 500, startMs: 4000, longestGapMs: 500 });
     const { result } = await run({ appReadyMs: 1000 });
     const [b1, b2, , co] = result.scenes;
     expect(b1?.frameP95).toBe(16);
@@ -618,5 +618,50 @@ describe('degraded objects (round 3 item 2)', () => {
   it('is 0 without the look\'s count', { timeout: 60_000 }, async () => {
     const { result } = await quick(() => undefined);
     expect(result.scenes[0]).toMatchObject({ degradedFrames: 0, degradedMax: 0 });
+  });
+});
+
+describe('bench honesty (round 3 item 6)', () => {
+  it('S1 per phase: pan, zoom, turns, placements, idle, each with its p95 and share of frames over 33 ms', { timeout: 60_000 }, async () => {
+    // Frames take 50 ms during the turns only (the fake's turn frames), 16 ms otherwise.
+    const { result } = await quick((g) => {
+      g.extra = (x) => (x.camera.rotation !== 0 ? 34 : 0);
+    });
+    const row = result.scenes[0]!;
+    expect(Object.keys(row.phases)).toEqual(['pan', 'zoom', 'turns', 'placements', 'idle']);
+    expect(row.phases.pan).toMatchObject({ p95: 16, over33Pct: 0 });
+    expect(row.phases.pan.frames).toBeGreaterThan(30);
+    expect(row.phases.zoom.p95).toBe(16);
+    expect(row.phases.turns.p95).toBe(50);
+    expect(row.phases.turns.over33Pct).toBeGreaterThan(50);
+    expect(Object.values(row.phases).reduce((n, p) => n + p.frames, 0)).toBe(row.frames);
+    expect(resultsText(result)).toMatch(/by phase pan p95 16 ms \(0% >33\), zoom p95 16 ms/);
+  });
+
+  it('S6g: a frame gap over 500 ms fails the row (and the verdict); 500 ms or less passes', { timeout: 60_000 }, async () => {
+    let once = 0;
+    const { result } = await quick((g) => {
+      g.extra = (x) => (x.now > 700 && once++ === 0 ? 600 - 16 : 0);
+    });
+    const row = result.scenes[0]!;
+    expect(row.bands.S6g).toMatchObject({ band: 'fail', value: 600, limit: 500 });
+    expect(result.verdict).toBe('fail');
+    expect(resultsText(result)).toMatch(/S6g fail/);
+    const ok = await quick(() => undefined);
+    expect(ok.result.scenes[0]!.bands.S6g).toMatchObject({ band: 'pass', value: 16 });
+  });
+
+  it('memory outside the budget: its peaks per owner and the peak of everything together, next to the managed MB', { timeout: 60_000 }, async () => {
+    let n = 0;
+    const otherMemory = () => ({ terrain: 20 * MB, staticLayer: 5 * MB, sprites: (n++ > 50 ? 12 : 8) * MB, blobs: 9 * MB });
+    const { result } = await quick(() => undefined, { otherMemory });
+    const row = result.scenes[0]!;
+    expect(row.otherMB).toEqual({ terrain: 20, staticLayer: 5, sprites: 12, blobs: 9 });
+    // The fake set manager holds 10 MB: 10 + 20 + 5 + 12 + 9.
+    expect(row.allPeakMB).toBe(56);
+    expect(row.bands.S2.value).toBe(10);
+    expect(resultsText(result)).toMatch(/outside the budget today's terrain 20 \/ static layer 5 \/ today's sprites 12 \/ compressed art 9 MB, all together peak 56 MB/);
+    const none = await quick(() => undefined);
+    expect(none.result.scenes[0]).toMatchObject({ otherMB: null, allPeakMB: null });
   });
 });

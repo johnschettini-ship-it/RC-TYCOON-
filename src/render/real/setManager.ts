@@ -104,6 +104,8 @@ export class SetManager {
   private refused = 0;
   private readonly reclaimers: Reclaimer[] = [];
   private readonly tooBigReported = new Set<SetKey>();
+  /** Bytes of the compressed blobs read so far (kept once read, never evicted). */
+  private blobTotal = 0;
   /** Room for a new decode when the last `endFrame` ended (after its ladder and pump): see `starved`. */
   private lastRoom = Number.POSITIVE_INFINITY;
 
@@ -477,10 +479,16 @@ export class SetManager {
   private read(file: string): Promise<Blob> {
     let p = this.blobs.get(file);
     if (!p) {
-      p = this.io.read(file);
-      this.blobs.set(file, p);
-      p.catch(() => { if (this.blobs.get(file) === p) this.blobs.delete(file); });
+      const q = this.io.read(file);
+      p = q;
+      this.blobs.set(file, q);
+      q.then((b) => { if (this.blobs.get(file) === q) this.blobTotal += b.size; }, () => { if (this.blobs.get(file) === q) this.blobs.delete(file); });
     }
     return p;
+  }
+
+  /** Compressed bytes held (every file read so far: they are kept, spec §5.4 item 1), outside the decode budget. */
+  blobBytes(): number {
+    return this.blobTotal;
   }
 }
