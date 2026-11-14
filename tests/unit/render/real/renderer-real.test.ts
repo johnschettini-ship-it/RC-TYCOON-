@@ -70,6 +70,7 @@ function fakeLook(answers: Partial<Record<Kind, (...a: unknown[]) => Answer>>, l
     reclaim: () => 0,
     currentDensity: () => 2,
     incomplete: () => skipped,
+    soft: () => 0,
     fallbacksUsed: () => [],
   };
 }

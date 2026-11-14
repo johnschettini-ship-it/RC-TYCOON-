@@ -440,6 +440,55 @@ describe("today's look in the same bench (round 2, change 1)", () => {
   });
 });
 
+describe('sharpenMs (round 2, change 2)', () => {
+  it('records the turn action to the first frame with every object at its density, next to the turn time', { timeout: 60_000 }, async () => {
+    // After a turn the objects come back after 5 frames (fake) drawn soft for 10 more frames.
+    let soft = 0;
+    let lastRot = 0;
+    const look = { incomplete: () => 0, fallbacksUsed: () => [] as string[], soft: () => soft };
+    let inc = 0;
+    look.incomplete = () => inc;
+    const { result } = await quick((g) => {
+      g.extra = (gg) => {
+        if (gg.camera.rotation !== lastRot) {
+          lastRot = gg.camera.rotation;
+          inc = 5;
+          soft = 15;
+        } else {
+          if (inc > 0) inc--;
+          if (soft > 0) soft--;
+        }
+        return 0;
+      };
+    }, { look });
+    const row = result.scenes[0]!;
+    for (const t of row.turns) {
+      expect(t.sharpenTimedOut).toBe(false);
+      expect(t.sharpenMs).not.toBeNull();
+      expect(t.sharpenMs!).toBeGreaterThan(t.ms);
+      expect(t.sharpenMs! - t.ms).toBeGreaterThanOrEqual(9 * 16);
+    }
+    // S3 stays on the turn time.
+    expect(row.bands.S3.value).toBe(Math.max(...row.turns.map((t) => t.ms)));
+    expect(resultsText(result)).toMatch(/sharp after \+\d+(\.\d)?\/\+\d+(\.\d)?\/-\d+(\.\d)?\/-\d+(\.\d)? ms/);
+  });
+
+  it('is null without the look\'s soft count (today\'s look, or an older look)', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined);
+    expect(result.scenes[0]!.turns.every((t) => t.sharpenMs === null && !t.sharpenTimedOut)).toBe(true);
+    expect(resultsText(result)).toContain('sharp after +n/a/+n/a/-n/a/-n/a ms');
+  });
+
+  it('a view that never sharpens times out at the turn timeout and records null', { timeout: 60_000 }, async () => {
+    const look = { incomplete: () => 0, fallbacksUsed: () => [] as string[], soft: () => 1 };
+    const { result } = await quick(() => undefined, { look });
+    const t = result.scenes[0]!.turns[0]!;
+    expect(t.timedOut).toBe(false);
+    expect(t.sharpenMs).toBeNull();
+    expect(t.sharpenTimedOut).toBe(true);
+  });
+});
+
 describe('final review fixes (I1, I2, M2, R1, R2)', () => {
   it('a frame with the realistic ground not laid is incomplete: turns wait for the ground too (I1)', { timeout: 60_000 }, async () => {
     const ground = { complete: true };

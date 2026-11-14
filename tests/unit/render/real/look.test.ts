@@ -268,7 +268,8 @@ describe('RealLook', () => {
     look.prepare(world, 0, VIEW, 2, 2);
     expect(sets.wanted('now')).toContain(setKey('stall', 'snack_shack', 2, 0));
     expect(sets.wanted('now')).not.toContain(setKey('stall', 'snack_shack', 4, 0));
-    expect(sets.wanted('ahead')).toContain(setKey('stall', 'snack_shack', 4, 1));
+    // The ahead turn is wanted at density 2 only (round 2).
+    expect(sets.wanted('ahead')).toContain(setKey('stall', 'snack_shack', 2, 1));
     sets.setState(setKey('stall', 'snack_shack', 2, 0), 'ready');
     expect(look.stall('snack_shack', 0)!.scale).toBe(2);
   });
@@ -489,5 +490,64 @@ describe('RealLook: a density-4 set that failed (re-review 3)', () => {
     expect(sp).toBeTruthy();
     expect(sp!.scale).toBe(2);
     expect(look.fallbacksUsed()).toEqual([]);
+  });
+});
+
+describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
+  it('a density-4 set not ready with its density-2 twin ready draws the density-2 frame (scale 2): not null, not incomplete', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 1, VIEW, 2, 2.625);
+    expect(look.currentDensity()).toBe(4);
+    sets.setState(setKey('stall', 'snack_shack', 4, 1), 'loading');
+    sets.setState(setKey('stall', 'snack_shack', 2, 1), 'ready');
+    const sp = look.stall('snack_shack', 1);
+    expect(sp).toBeTruthy();
+    expect(sp!.scale).toBe(2);
+    expect(sp!.image).toBe(sets.images(setKey('stall', 'snack_shack', 2, 1))[0]);
+    expect(look.incomplete()).toBe(0);
+    expect(look.soft()).toBe(1);
+    expect(look.fallbacksUsed()).toEqual([]);
+    // Tinted kinds too (guests, 'all' sets).
+    sets.setState(setKey('guest', 'b0o0', 2, 'all'), 'ready');
+    const g = look.guest(0, 0, 1, 2, false);
+    expect(g!.scale).toBe(2);
+    expect(look.soft()).toBe(2);
+    // Once the density-4 set lands the object draws sharp, and the count starts again at the next prepare.
+    sets.setState(setKey('stall', 'snack_shack', 4, 1), 'ready');
+    look.prepare(emptyWorld(), 1, VIEW, 2, 2.625);
+    expect(look.stall('snack_shack', 1)!.scale).toBe(4);
+    expect(look.soft()).toBe(0);
+  });
+
+  it('with neither ready it is null and incomplete; ground pieces never step down', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2.625);
+    expect(look.stall('snack_shack', 0)).toBeNull();
+    expect(look.incomplete()).toBe(1);
+    sets.setState(setKey('ground', 'grass', 2, 0), 'ready');
+    expect(look.groundPiece('grass', 0, 1, 0)).toBeNull();
+    expect(look.incomplete()).toBe(2);
+    expect(look.soft()).toBe(0);
+  });
+
+  it('prepare at density 4 wants the current turn at density 4 (now) and the ahead turn at density 2 only', () => {
+    const { sets, look } = setup();
+    const world = emptyWorld();
+    world.state.stalls.push({ id: 4, defId: 'snack_shack' } as Stall);
+    world.state.rides.push({ id: 5, kind: 'flat', defId: 'carousel' } as Ride);
+    look.prepare(world, 2, VIEW, 2, 2.625);
+    const now = sets.wanted('now');
+    const ahead = sets.wanted('ahead');
+    expect(now).toContain(setKey('stall', 'snack_shack', 4, 2));
+    expect(now).toContain(setKey('ride', 'carousel', 4, 'all'));
+    expect(ahead).toContain(setKey('stall', 'snack_shack', 2, 3));
+    expect(ahead).toContain(setKey('shadow', 'snack_shack', 2, 3));
+    expect(ahead.some((k) => k.includes(':d4:'))).toBe(false);
+    // A set for every turn is wanted once (now), never again ahead at density 2.
+    expect(ahead).not.toContain(setKey('ride', 'carousel', 2, 'all'));
+    // At density 2 the ahead turn is density 2 as before.
+    const s2 = setup();
+    s2.look.prepare(world, 2, VIEW, 1, 2);
+    expect(s2.sets.wanted('ahead')).toContain(setKey('stall', 'snack_shack', 2, 3));
   });
 });

@@ -10,7 +10,9 @@
  * to draw shows. Every gap counts, a visible stall of seconds included; only a gap that spans a hidden page is left
  * out (and counted in `droppedHiddenGaps`). A turn's time runs from the Turn action (`rotateView`, as the Turn button calls it) to the first
  * complete frame at the new rotation: `look.incomplete() === 0` and the realistic ground laid (`ground.complete`), as
- * the renderer counts incomplete frames.
+ * the renderer counts incomplete frames. At density 4 that frame may draw objects from their density-2 sets (the
+ * ahead turn is wanted at density 2); `sharpenMs` runs on to the first frame with every object at its chosen density
+ * (`look.soft() === 0`). S3 stays on the turn time.
  *
  * Art is local before anything is measured (spec §5.4 item 1, as in the app): the card reads every compressed file
  * into the set manager first and passes the time as `artDownload`, reported apart. S4 is the app's start to its
@@ -81,7 +83,7 @@ export interface MemorySplit { sets: number; tints: number; ground: number }
 
 export interface BenchOptions {
   /** The realistic look (absent with today's look: every frame counts as complete). */
-  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number } | null;
+  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number; soft?(): number } | null;
   /** The realistic ground: a frame with it not laid is incomplete. */
   ground?: { complete: boolean } | null;
   sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown; densityCap?(): number; resetPressure?(): void } | null;
@@ -129,6 +131,13 @@ export interface TurnTime {
   band: BandResult;
   /** No complete frame within `TURN_TIMEOUT_MS`: `ms` is the time waited. */
   timedOut: boolean;
+  /**
+   * Turn action → first frame with every object at its chosen density (complete, and nothing drawn from a density-2
+   * set in place of density 4: `look.soft() === 0`), ms. null without the realistic look's count, or when the view
+   * was not sharp within `TURN_TIMEOUT_MS` (`sharpenTimedOut`). S3 stays on `ms`.
+   */
+  sharpenMs: number | null;
+  sharpenTimedOut: boolean;
 }
 
 /** A wait that timed out, with the set manager's state at that moment (R1). */
@@ -457,10 +466,26 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
           }
         }
         const ms = clock() - t0;
+        // Then on to the first frame with every object at its chosen density (often the same frame).
+        let sharpenMs: number | null = null;
+        let sharpenTimedOut = false;
+        if (look?.soft && !timedOut) {
+          for (;;) {
+            if (cam.rotation === target && incomplete() === 0 && look.soft() === 0) {
+              sharpenMs = r1(clock() - t0);
+              break;
+            }
+            if (clock() - t0 >= TURN_TIMEOUT_MS) {
+              sharpenTimedOut = true;
+              break;
+            }
+            await frame();
+          }
+        }
         const limitMs = dir === 1 ? BENCH_LIMITS.turnMs : BENCH_LIMITS.turnOtherMs;
         // Without the realistic look there is nothing to wait for: the time is recorded, the band is n/a.
         const verdict: BandResult = look === null ? 'n/a' : ms <= limitMs && !timedOut ? 'pass' : 'fail';
-        turns.push({ dir, ms: r1(ms), limitMs, band: verdict, timedOut });
+        turns.push({ dir, ms: r1(ms), limitMs, band: verdict, timedOut, sharpenMs, sharpenTimedOut });
         await waitUntil(t0 + TURN_EVERY_MS);
       }
       if (look?.currentDensity) densities.push(look.currentDensity());
@@ -587,6 +612,7 @@ export function resultsText(r: RealBenchResult): string {
     lines.push(
       `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
+        `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,
