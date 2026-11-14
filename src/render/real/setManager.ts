@@ -55,6 +55,18 @@ export const GROUND_HOLD = 'ground';
  */
 export const CLASSIC_HOLD = 'classic';
 
+/**
+ * The reserve the game keeps inside its 128 MiB budget for holds that grow without asking (`classic`: today's picture
+ * caches, recorded after the frame is drawn; `tint:scratch`: the tint scratch canvas, at most about one tall frame).
+ * Decodes and admits fill to the budget less this, so a frame's growth of those holds stays under the budget (final
+ * review I1: they had pushed resident memory to 127.7–127.9 MiB headless and could cross 128). 2 MiB: today's sprites
+ * and the scratch canvas grew by well under 1 MiB a frame in the Task 3 and 4b bench runs. The static layer (about
+ * 5 MiB on a phone) is bigger, but it is made when the view first stands still and kept while the canvas size holds
+ * (a resize, or an eviction from today's caches, makes it again). A jump bigger than the reserve still lands above the
+ * budget for that frame; the ladder makes room in the same `endFrame`.
+ */
+export const HOLD_RESERVE_BYTES = 2 * 1024 * 1024;
+
 export type Priority = 'now' | 'ahead';
 
 const MAX_IN_FLIGHT = 2;
@@ -114,12 +126,25 @@ export class SetManager {
   /** Room for a new decode when the last `endFrame` ended (after its ladder and pump): see `starved`. */
   private lastRoom = Number.POSITIVE_INFINITY;
 
+  /**
+   * What decodes, admits and the ladder work against: the budget less the reserve for memory held without asking
+   * (`classic`, `tint:scratch`), so that growth lands inside the budget instead of above it (final review I1).
+   */
+  private readonly limit: number;
+
+  /**
+   * `budgetBytes` is the whole budget resident memory must stay under. `reserveBytes` of it is kept free of decodes and
+   * admitted holds for the holds that grow without `admit` (`classic`, recorded after the frame, and `tint:scratch`):
+   * see `HOLD_RESERVE_BYTES`.
+   */
   constructor(
     index: RealIndex,
     private readonly io: SetIO,
-    private readonly budgetBytes: number,
+    budgetBytes: number,
     private readonly onError: (key: SetKey, err: unknown) => void,
+    reserveBytes = 0,
   ) {
+    this.limit = budgetBytes - reserveBytes;
     for (const entry of index.sets) {
       this.recs.set(entry.key, {
         entry,
@@ -154,12 +179,12 @@ export class SetManager {
       if (r.state === 'failed') continue;
       if (this.capped && r.entry.density === 4) continue;
       if (this.demoted.has(key)) continue;
-      if (r.estimate > this.budgetBytes) {
+      if (r.estimate > this.limit) {
         // Can never fit, even alone: today's art draws it (state 'failed'), reported once.
         r.state = 'failed';
         if (!this.tooBigReported.has(key)) {
           this.tooBigReported.add(key);
-          this.onError(key, new Error(`set ${key} needs ${r.estimate} bytes decoded, more than the whole budget of ${this.budgetBytes}`));
+          this.onError(key, new Error(`set ${key} needs ${r.estimate} bytes decoded, more than the ${this.limit} bytes the budget leaves for decodes`));
         }
         continue;
       }
@@ -198,10 +223,12 @@ export class SetManager {
   }
 
   /**
-   * Counts `bytes` made outside the set manager (RealLook's tint-atlas pages, RealGround's chunks) in the budget under
-   * `id`, replacing what `id` held before; 0 releases it. Held bytes are resident, limit new decodes and add
-   * pressure. `upBytes` is what the same holding would take at density 4 (default `bytes`): the cap lifts only when
-   * that fits too.
+   * Counts `bytes` made outside the set manager in the budget under `id`, replacing what `id` held before; 0 releases
+   * it. Held bytes are resident, limit new decodes and add pressure. `upBytes` is what the same holding would take at
+   * density 4 (default `bytes`): the cap lifts only when that fits too. Holders: RealLook's tint-atlas pages
+   * (`tint:<page>`) and RealGround's chunks (`ground`) come through `admit` before they are made; the tint scratch
+   * canvas (`tint:scratch`) and today's picture caches (`classic`, recorded by the renderer after the frame is drawn)
+   * are held here without asking, which is why decodes and admits leave `HOLD_RESERVE_BYTES` free.
    */
   hold(id: string, bytes: number, upBytes = bytes): void {
     this.heldTotal -= this.held.get(id) ?? 0;
@@ -225,7 +252,7 @@ export class SetManager {
    */
   admit(id: string, bytes: number, upBytes = bytes): boolean {
     const now = this.held.get(id) ?? 0;
-    if (bytes <= now || this.committed() - now + bytes <= this.budgetBytes) {
+    if (bytes <= now || this.committed() - now + bytes <= this.limit) {
       this.hold(id, bytes, upBytes);
       return true;
     }
@@ -328,13 +355,13 @@ export class SetManager {
   endFrame(): void {
     for (const r of this.recs.values()) if (!this.wanted(r)) this.drop(r);
 
-    if (this.pressure() > this.budgetBytes) {
+    if (this.pressure() > this.limit) {
       // 1. ahead sets first.
       for (const r of this.recs.values()) if (this.wanted(r) && r.wantPri === 'ahead') this.drop(r);
     }
     // 2. held memory not drawn this frame: ground chunks off screen, least recently used tint-atlas pages.
     for (const reclaim of this.reclaimers) {
-      const over = this.pressure() - this.budgetBytes;
+      const over = this.pressure() - this.limit;
       if (over <= 0) break;
       try {
         reclaim(over);
@@ -342,7 +369,7 @@ export class SetManager {
         this.onError('reclaim', err);
       }
     }
-    if (this.pressure() > this.budgetBytes) {
+    if (this.pressure() > this.limit) {
       // 3. density-4 sets of objects outside the view: wanted but not drawn, and resident long
       //    enough that the caller had a frame to draw them.
       for (const r of this.recs.values()) {
@@ -353,7 +380,7 @@ export class SetManager {
       }
     }
     const pressure = this.pressure();
-    if (pressure > this.budgetBytes && !this.capped) {
+    if (pressure > this.limit && !this.capped) {
       this.capped = true; // 4. density 2 everywhere.
       this.roomFrames = 0;
       this.events.push({ frame: this.frame, capped: true, pressureBytes: pressure });
@@ -361,7 +388,7 @@ export class SetManager {
     if (this.capped) for (const r of this.recs.values()) if (r.entry.density === 4) this.drop(r);
 
     this.pump();
-    this.lastRoom = this.budgetBytes - this.committed();
+    this.lastRoom = this.limit - this.committed();
   }
 
   /**
@@ -370,7 +397,7 @@ export class SetManager {
    */
   private checkRoom(): void {
     const up = this.pressure(true);
-    this.roomFrames = up < ROOM_SHARE * this.budgetBytes && this.refused === 0 ? this.roomFrames + 1 : 0;
+    this.roomFrames = up < ROOM_SHARE * this.limit && this.refused === 0 ? this.roomFrames + 1 : 0;
     if (this.roomFrames < ROOM_FRAMES) return;
     this.roomFrames = 0;
     this.demoted.clear();
@@ -459,13 +486,14 @@ export class SetManager {
   }
 
   /**
-   * Room for a new decode once the sets on their way out are gone: ready sets nobody wanted this frame (after a
-   * turn, the old turn's sets; they are freed as soon as they are no longer drawn, spec §5.4 item 3).
+   * Room for a new decode once the sets on their way out are gone: ready sets nobody wanted and nobody drew this frame
+   * (after a turn, the old turn's sets; they are freed as soon as they are no longer drawn, spec §5.4 item 3). A set
+   * drawn this frame without a want (a late draw) is not on its way out: `drop` protects it.
    */
   private roomBesideOutgoing(): number {
     let out = 0;
-    for (const r of this.recs.values()) if (r.state === 'ready' && !this.wanted(r)) out += r.bytes;
-    return this.budgetBytes - this.committed() + out;
+    for (const r of this.recs.values()) if (r.state === 'ready' && !this.wanted(r) && r.lastUsed < this.frame) out += r.bytes;
+    return this.limit - this.committed() + out;
   }
 
   /**
@@ -479,7 +507,7 @@ export class SetManager {
 
   private pump(): void {
     while (this.inFlight < MAX_IN_FLIGHT && this.queue.length) {
-      const next = this.nextToLoad(this.budgetBytes - this.committed());
+      const next = this.nextToLoad(this.limit - this.committed());
       if (!next) return;
       this.dequeue(next);
       void this.load(next);
