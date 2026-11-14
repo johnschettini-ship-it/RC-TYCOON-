@@ -129,6 +129,7 @@ async function run(opts: { appReadyMs?: number } = {}): Promise<{ g: Fake; resul
     look: g.look,
     sets: g.sets,
     probe,
+    otherMemory: () => ({ terrain: 0, staticLayer: 0, sprites: 0, blobs: 0 }),
     appReadyMs: opts.appReadyMs,
     device: () => ({ devicePixelRatio: 2.75, canvasPx: [1080, 2400], viewportCss: [393, 873], userAgent: 'fake' }),
   }).finally(() => {
@@ -731,5 +732,81 @@ describe('S2 counts all picture memory; render ratio changes are logged (phase 8
     const steady = await quick(() => undefined, { renderRatio: () => 2 });
     expect(steady.result.scenes[0]!.ratioChanges).toEqual([]);
     expect(resultsText(steady.result).split('\n')[0]).not.toContain('not at full sharpness');
+  });
+});
+
+describe('fix round 1: honest ratio and S2 instruments', () => {
+  const dev = { device: () => ({ devicePixelRatio: 2, canvasPx: [800, 600] as [number, number], viewportCss: [400, 300] as [number, number], userAgent: 'fake' }) };
+
+  it('a ratio that cannot be read is n/a, never "unchanged"', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined, { renderRatio: () => null, ...dev });
+    const row = result.scenes[0]!;
+    expect(row.ratioAtStart).toBeNull();
+    expect(row.ratioAtEnd).toBeNull();
+    expect(row.ratioChanges).toEqual([]);
+    const t = resultsText(result);
+    expect(t).toContain('ratio n/a');
+    expect(t).not.toContain('(unchanged)');
+    const ok = await quick(() => undefined, { renderRatio: () => 2, ...dev });
+    expect(ok.result.scenes[0]).toMatchObject({ ratioAtStart: 2, ratioAtEnd: 2 });
+    expect(resultsText(ok.result)).toContain('render ratio 2 (unchanged)');
+  });
+
+  it('a drop between scenes is recorded at frame 0 of the next scene', { timeout: 60_000 }, async () => {
+    const g = fakeGame();
+    let done = false;
+    const ratio = () => (g.sceneIndex >= 1 ? 1 : 2);
+    const p = runRealBench(g, [{ id: 'a', json: sceneJson('a') }, { id: 'b', json: sceneJson('b') }], () => g.now, { look: g.look, sets: g.sets, timeScale: 0.1, renderRatio: ratio, ...dev }).finally(() => { done = true; });
+    await g.pump(() => done);
+    const r = await p;
+    expect(r.scenes[0]!.ratioChanges).toEqual([]);
+    expect(r.scenes[1]!.ratioChanges).toEqual([{ frame: 0, from: 2, to: 1 }]);
+    expect(r.scenes[1]).toMatchObject({ ratioAtStart: 1, ratioAtEnd: 1 });
+    expect(resultsText(r).split('\n')[0]).toContain('not at full sharpness');
+  });
+
+  it('a ratio increase is not a sharpness loss; rows hold their own arrays; no canvas is null', { timeout: 60_000 }, async () => {
+    let n = 0;
+    const { result } = await quick(() => undefined, { timeScale: 0.2, renderRatio: () => (n++ < 20 ? 1 : 2), device: () => ({ devicePixelRatio: 1, canvasPx: [0, 0], viewportCss: [0, 0], userAgent: '' }) });
+    expect(result.scenes[0]!.ratioChanges).toEqual([{ frame: 20, from: 1, to: 2 }]);
+    expect(resultsText(result).split('\n')[0]).not.toContain('not at full sharpness');
+    expect(result.scenes[0]!.canvasAtStart).toBeNull();
+  });
+
+  it('without otherMemory S2 is n/a, even for a small managed peak', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined);
+    expect(result.scenes[0]!.peakMB).toBe(10);
+    expect(result.scenes[0]!.bands.S2).toMatchObject({ band: 'n/a', value: null, limit: 128 });
+  });
+
+  it('the card puts the S2 band on the all-picture-memory row', { timeout: 60_000 }, async () => {
+    type FakeEl = { tag: string; className: string; textContent: string; dataset: Record<string, string>; children: FakeEl[]; [k: string]: unknown };
+    const make = (tag: string): FakeEl => {
+      const e: FakeEl = {
+        tag, className: '', textContent: '', dataset: {}, children: [],
+        append(...c: FakeEl[]) { e.children.push(...c); },
+        setAttribute() {}, addEventListener() {}, remove() {}, style: {},
+      };
+      return e;
+    };
+    const otherMemory = () => ({ terrain: 20 * MB, staticLayer: 10 * MB, sprites: 10 * MB, blobs: 0 });
+    const { result } = await quick(() => undefined, {
+      sets: { capEvents: () => [], peakBytes: () => 100 * MB, residentBytes: () => 100 * MB },
+      otherMemory, renderRatio: () => 2, ...dev,
+    });
+    vi.stubGlobal('document', { createElement: make });
+    vi.resetModules();
+    vi.stubEnv('VITE_ART', 'real');
+    const { resultsCard } = await import('../../../src/perf/realBenchCard');
+    const rows: FakeEl[] = [];
+    const walk = (e: FakeEl): void => { if (e.dataset.check === 'S2') rows.push(e); e.children.forEach(walk); };
+    walk(resultsCard(result, () => undefined) as unknown as FakeEl);
+    expect(rows).toHaveLength(1);
+    const [label, value, band] = rows[0]!.children;
+    expect(label!.textContent).toMatch(/All picture memory/);
+    expect(value!.textContent).toBe('140');
+    expect(band!.dataset.band).toBe('fail');
+    vi.unstubAllEnvs();
+    vi.resetModules();
   });
 });
