@@ -107,12 +107,24 @@ describe('tintSheet', () => {
     expect([canvas.width, canvas.height]).toEqual([0, 0]);
     expect(() => out.image).toThrow(/closed/);
   });
-  it('zeroes its scratch canvas once the sheet is done; the result stays', () => {
+  it('zeroes its scratch canvases (sheet band, mask band) once the sheet is done; the result stays', () => {
     const made: PixCanvas[] = [];
     tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made.push(c); return c; });
-    expect(made).toHaveLength(2);
-    expect([made[0]!.width, made[0]!.height]).toEqual([2, 2]);
-    expect([made[1]!.width, made[1]!.height]).toEqual([0, 0]);
+    expect(made.map((c) => [c.width, c.height])).toEqual([[2, 2], [0, 0], [0, 0]]);
+  });
+
+  it('reads bands through scratch canvases asked for willReadFrequently, never the result (no GPU readback)', () => {
+    const asked: [number, unknown][] = [];
+    let n = 0;
+    tintSheet(mkD(2, 2), mkD(2, 2), [1, 2, 3], (w, h) => {
+      const c = new PixCanvas(w, h);
+      const id = n++;
+      const get = c.getContext.bind(c);
+      (c as unknown as { getContext: (k: string, o?: unknown) => unknown }).getContext = (_k, o) => { asked.push([id, o]); return get(); };
+      return c;
+    });
+    expect(asked.filter(([id]) => id === 0).every(([, o]) => o === undefined)).toBe(true);
+    expect(asked.filter(([id]) => id > 0).every(([, o]) => (o as { willReadFrequently?: boolean } | undefined)?.willReadFrequently === true)).toBe(true);
   });
 
   it('a canvas without a 2D context throws a plain error and zeroes every canvas it made (I6)', () => {
@@ -170,7 +182,7 @@ describe('startTint (round 3 item 4): band by band', () => {
     const job = startTint(b, m, [1, 2, 3], (w, h) => { const c = new PixCanvas(w, h); made.push(c); return c; }, 12);
     job.step();
     job.close();
-    expect(made.map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0]]);
+    expect(made.map((c) => [c.width, c.height])).toEqual([[0, 0], [0, 0], [0, 0]]);
     expect(() => job.out.image).toThrow(/closed/);
   });
 });

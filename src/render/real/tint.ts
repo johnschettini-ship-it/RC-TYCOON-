@@ -15,7 +15,7 @@ interface Ctx2D {
 export interface CanvasLike {
   width: number;
   height: number;
-  getContext(kind: '2d'): unknown;
+  getContext(kind: '2d', options?: { willReadFrequently?: boolean }): unknown;
 }
 
 /** Pixels a tint job tints per band (round 3 item 4): a band is the unit of the per-frame tint budget. */
@@ -52,17 +52,22 @@ function sizeOf(img: CanvasImageSource): { w: number; h: number } {
   return { w: s.width, h: s.height };
 }
 
-/** The canvas's 2D context; a canvas without one (out of memory, too big) throws, and the caller draws today's art. */
-function ctx2d(c: CanvasLike, w: number, h: number): Ctx2D {
-  const ctx = c.getContext('2d') as Ctx2D | null;
+/**
+ * The canvas's 2D context; a canvas without one (out of memory, too big) throws, and the caller draws today's art.
+ * `read`: a scratch canvas read back every band (kept in CPU memory, never drawn to the screen).
+ */
+function ctx2d(c: CanvasLike, w: number, h: number, read = false): Ctx2D {
+  const ctx = (read ? c.getContext('2d', { willReadFrequently: true }) : c.getContext('2d')) as Ctx2D | null;
   if (!ctx) throw new Error(`no 2D context for a ${w} x ${h} tint canvas`);
   return ctx;
 }
 
 /**
  * A sheet being tinted band by band (round 3 item 4), so the work spreads over frames under a time budget. `out` is
- * the tinted sheet: it holds the untinted sheet at once and each `step` tints the next band of rows in place, so rows
- * at or past `rows` are still untinted (a caller draws the untinted sheet for a frame below them).
+ * the tinted sheet: it holds the untinted sheet at once and each `step` writes the next band of rows tinted, so rows
+ * at or past `rows` are still untinted (a caller draws the untinted sheet for a frame below them). Each band is read
+ * from the sheet and its mask through two scratch canvases kept in CPU memory (`willReadFrequently`); the result is
+ * only written (`putImageData`), never read back.
  */
 export interface TintJob {
   readonly out: Decoded;
@@ -71,7 +76,7 @@ export interface TintJob {
   readonly done: boolean;
   /** Tints the next band; true when the sheet is done. Throws when a canvas fails (the job is then freed). */
   step(): boolean;
-  /** Frees the result and the scratch canvas. */
+  /** Frees the result and the scratch canvases. */
   close(): void;
 }
 
@@ -82,10 +87,14 @@ export function startTint(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: numb
   if (ms.w !== w || ms.h !== h) throw new Error(`tint mask is ${ms.w}x${ms.h}, base is ${w}x${h}`);
   const band = Math.max(1, Math.min(h, Math.floor(bandPx / Math.max(1, w))));
   let canvas: CanvasLike | null = make(w, h);
-  let scratch: CanvasLike | null = null;
+  let scratch: [CanvasLike, CanvasLike] | null = null;
   const zero = (c: CanvasLike | null): null => {
     // Zero the size first: browsers free a canvas's pixels only once it is 0 x 0 or collected.
     if (c) c.width = c.height = 0;
+    return null;
+  };
+  const dropScratch = (): null => {
+    if (scratch) for (const c of scratch) zero(c);
     return null;
   };
   let octx: Ctx2D;
@@ -105,8 +114,15 @@ export function startTint(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: numb
     bytes: w * h * 4,
     close() {
       canvas = zero(canvas);
-      scratch = zero(scratch);
+      scratch = dropScratch();
     },
+  };
+  /** Band `y`..`y + bh` of `img` through scratch canvas `c`. */
+  const readBand = (c: CanvasLike, img: CanvasImageSource, y: number, bh: number): ImageData => {
+    const x = ctx2d(c, w, band, true);
+    x.clearRect?.(0, 0, w, band);
+    x.drawImage(img, 0, y, w, bh, 0, 0, w, bh);
+    return x.getImageData(0, 0, w, bh);
   };
   return {
     out,
@@ -117,12 +133,9 @@ export function startTint(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: numb
       if (!canvas) throw new Error('tinted sheet was closed');
       try {
         const bh = Math.min(band, h - rows);
-        if (!scratch) scratch = make(w, band);
-        const mctx = ctx2d(scratch, w, band);
-        mctx.clearRect?.(0, 0, w, band);
-        mctx.drawImage(mask.image, 0, rows, w, bh, 0, 0, w, bh);
-        const m = mctx.getImageData(0, 0, w, bh);
-        const b = octx.getImageData(0, rows, w, bh);
+        if (!scratch) scratch = [make(w, band), make(w, band)];
+        const b = readBand(scratch[0], base.image, rows, bh);
+        const m = readBand(scratch[1], mask.image, rows, bh);
         tintInPlace(b.data, m.data, rgb);
         octx.putImageData(b, 0, rows);
         rows += bh;
@@ -130,7 +143,7 @@ export function startTint(base: Decoded, mask: Decoded, rgb: Rgb, make: (w: numb
         out.close();
         throw err;
       }
-      if (rows >= h) scratch = zero(scratch);
+      if (rows >= h) scratch = dropScratch();
       return rows >= h;
     },
     close() {
