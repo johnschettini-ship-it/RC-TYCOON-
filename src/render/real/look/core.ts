@@ -20,6 +20,11 @@ import type { ItemRec, RealLookOptions, RealSets, Resolved, SetMeta, SupportPart
  * its untinted picture) and counts in `degraded()`.
  */
 export const DEGRADE_FRAMES = 30;
+/**
+ * A tinted frame refused room keeps its no-room wait when it is drawn again within this many prepares of its last draw
+ * (a walk frame comes round every few prepares); a longer gap (it went off screen) starts the wait again.
+ */
+export const NO_ROOM_GAP = 8;
 
 /** F1: the smallest of {2, 4} ≥ zoom × dpr, else 4; then no more than the set manager's cap. */
 export function pickDensity(zoom: number, dpr: number, cap: 2 | 4): 2 | 4 {
@@ -237,9 +242,10 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
       if (!low) {
         // The last step: the density-2 set this object would step down to has had no room for DEGRADE_FRAMES
-        // prepares (the ladder ran and still cannot fit it): today's art, never nothing. Ground pieces wait: a chunk
-        // with a piece missing or not decoded is never "covered" (`RealGround.covers`), so today's terrain is still
-        // built and drawn under it and the tile shows today's ground meanwhile.
+        // prepares (the ladder ran and still cannot fit it): today's art, never nothing. Ground pieces wait (null, never
+        // degraded): RealGround draws a stand-in for a piece not decoded (the old-scale chunk, the other density's
+        // piece via `groundStandIn`, or a flat placeholder) and leaves the ground incomplete; only a piece the bake
+        // lacks uncovers the chunk, so today's terrain draws it.
         const floor = twin ?? key;
         if (kind !== 'ground' && sets.starved?.(floor)) {
           if (longWait(starvedSince, floor)) { degradedDraws++; return undefined; }
@@ -268,12 +274,13 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     const t = tinter.tint(drawKey, rs, r, tint);
     if (t === TINT_NO_ROOM) {
       // No room in the tint atlas: the untinted picture, never nothing; incomplete, then degraded (the last step) once
-      // THIS frame has been refused for DEGRADE_FRAMES prepares in a row (Task 4b: per frame, so the wait settles
-      // even while other frames of its set and colour get room; a frame off screen for a while starts again).
+      // THIS frame has been refused for DEGRADE_FRAMES prepares (Task 4b: per frame, so the wait settles even while
+      // other frames of its set and colour get room). A draw within NO_ROOM_GAP prepares of the last keeps the wait
+      // (a walk frame drawn every few prepares still reaches degraded); a frame off screen for longer starts again.
       let w = r.noRoom;
       if (!w) r.noRoom = w = new Map();
       let since = w.get(tint);
-      if (!since || since.last < frameNo - 1) w.set(tint, (since = { from: frameNo, last: frameNo }));
+      if (!since || since.last < frameNo - NO_ROOM_GAP) w.set(tint, (since = { from: frameNo, last: frameNo }));
       else since.last = frameNo;
       if (frameNo - since.from >= DEGRADE_FRAMES) degradedDraws++;
       else skipped++;
