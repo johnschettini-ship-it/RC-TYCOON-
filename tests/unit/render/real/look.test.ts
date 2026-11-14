@@ -519,6 +519,23 @@ describe('RealLook: fast turns at density 4 (round 2, change 2)', () => {
     expect(look.soft()).toBe(0);
   });
 
+  it('while a density-4 set is not ready its density-2 twin is wanted now, first; not once the density-4 set is ready', () => {
+    const { sets, look } = setup();
+    const world = emptyWorld();
+    world.state.stalls.push({ id: 4, defId: 'snack_shack' } as Stall);
+    look.prepare(world, 1, VIEW, 2, 2.625);
+    const nowWants = sets.wants.filter((w) => w.priority === 'now');
+    expect(nowWants[0]!.keys).toContain(setKey('stall', 'snack_shack', 2, 1));
+    expect(nowWants[0]!.keys.every((k) => k.includes(':d2:'))).toBe(true);
+    expect(nowWants[0]!.keys.some((k) => k.startsWith('ground:'))).toBe(false);
+    expect(sets.wanted('now')).toContain(setKey('stall', 'snack_shack', 4, 1));
+    sets.wants = [];
+    sets.setState(setKey('stall', 'snack_shack', 4, 1), 'ready');
+    look.prepare(world, 1, VIEW, 2, 2.625);
+    expect(sets.wanted('now')).not.toContain(setKey('stall', 'snack_shack', 2, 1));
+    expect(sets.wanted('ahead')).not.toContain(setKey('stall', 'snack_shack', 2, 1));
+  });
+
   it('with neither ready it is null and incomplete; ground pieces never step down', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 2, 2.625);

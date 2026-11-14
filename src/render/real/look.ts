@@ -8,7 +8,8 @@
  *   - `undefined`: draw today's art (item mapped to 'classic', set failed, or the bake lacks the set or frame).
  * At density 4, an object whose density-4 set is still loading draws from its density-2 set when that one is ready
  * (scaled; counted by `soft()`, not by `incomplete()`), so a turn or a zoom never waits for density 4 (spec §5.4).
- * `prepare` wants the current turn at the chosen density ('now') and the ahead turn at density 2 only ('ahead').
+ * `prepare` wants the current turn at the chosen density ('now'), with the density-2 twin of each density-4 set not
+ * ready yet ('now', first), and the ahead turn at density 2 only ('ahead').
  *
  * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
  * (sheet with a mask) point into a copy of the whole sheet tinted once per (sheet, colour) with `tintSheet`
@@ -379,7 +380,17 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       }
       // The card pictures: one small set, always loaded (src/render/real/cards.ts).
       if (keys.has(CARD_SET)) now.add(CARD_SET);
-      for (const k of now) later.delete(k);
+      // While a density-4 set is not ready, its density-2 twin is wanted too, first (a quarter of the size, so it
+      // decodes first): the object draws from it at once (a turn the other way, a zoom in), and if the budget caps
+      // the density, the sets it then needs are already there. Not for ground pieces (they never step down).
+      const twins: SetKey[] = [];
+      for (const k of now) {
+        if (!k.includes(':d4:') || k.startsWith('ground:') || sets.state(k) === 'ready') continue;
+        const t = k.replace(':d4:', ':d2:');
+        if (keys.has(t)) twins.push(t);
+      }
+      for (const k of [...now, ...twins]) later.delete(k);
+      if (twins.length) sets.want(twins, 'now');
       sets.want([...now], 'now');
       sets.want([...later], 'ahead');
     },
