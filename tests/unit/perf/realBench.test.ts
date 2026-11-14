@@ -659,7 +659,8 @@ describe('bench honesty (round 3 item 6)', () => {
     expect(row.otherMB).toEqual({ terrain: 20, staticLayer: 5, sprites: 12, blobs: 9 });
     // The fake set manager holds 10 MB: 10 + 20 + 5 + 12 + 9.
     expect(row.allPeakMB).toBe(56);
-    expect(row.bands.S2.value).toBe(10);
+    // S2 counts all picture memory (Task 2): the same 56 MB.
+    expect(row.bands.S2.value).toBe(56);
     expect(resultsText(result)).toMatch(/outside the budget today's terrain 20 \/ static layer 5 \/ today's sprites 12 \/ compressed art 9 MB, all together peak 56 MB/);
     const none = await quick(() => undefined);
     expect(none.result.scenes[0]).toMatchObject({ otherMB: null, allPeakMB: null });
@@ -695,5 +696,40 @@ describe('information-only rows (round 3 fix 4)', () => {
     expect(result.scenes[0]!.infoOnly).toBe(true);
     expect(result.verdict).toBe('pass');
     expect(resultsText(result)).toMatch(/scale \(information only, not in the verdict\)/);
+  });
+});
+
+describe('S2 counts all picture memory; render ratio changes are logged (phase 8c task 2)', () => {
+  it('S2 is all picture memory', { timeout: 60_000 }, async () => {
+    const otherMemory = () => ({ terrain: 20 * MB, staticLayer: 10 * MB, sprites: 10 * MB, blobs: 0 });
+    const { result } = await quick(() => undefined, {
+      sets: { capEvents: () => [], peakBytes: () => 100 * MB, residentBytes: () => 100 * MB },
+      otherMemory,
+    });
+    const row = result.scenes[0]!;
+    expect(row.peakMB).toBe(100);
+    expect(row.bands.S2).toMatchObject({ value: 140, limit: 128, band: 'fail' });
+    expect(result.verdict).toBe('fail');
+    // Today's look (no set manager) is measured the same way.
+    const classic = await quick(() => undefined, { look: null, sets: null, otherMemory });
+    expect(classic.result.scenes[0]!.bands.S2).toMatchObject({ value: 40, band: 'pass' });
+  });
+
+  it('logs a render ratio change', { timeout: 60_000 }, async () => {
+    let n = 0;
+    const { result } = await quick(() => undefined, { timeScale: 0.2, renderRatio: () => (n++ < 200 ? 2 : 1), device: () => ({ devicePixelRatio: 2.75, canvasPx: [1080, 2400], viewportCss: [393, 873], userAgent: 'fake' }) });
+    const row = result.scenes[0]!;
+    expect(row.ratioChanges).toEqual([{ frame: 200, from: 2, to: 1 }]);
+    expect(row.canvasAtStart).toEqual([1080, 2400]);
+    expect(resultsText(result)).toContain('render ratio 2→1 at frame 200');
+  });
+
+  it('verdict notes reduced sharpness', { timeout: 60_000 }, async () => {
+    let n = 0;
+    const { result } = await quick(() => undefined, { renderRatio: () => (n++ < 50 ? 2 : 1) });
+    expect(resultsText(result).split('\n')[0]).toContain('not at full sharpness');
+    const steady = await quick(() => undefined, { renderRatio: () => 2 });
+    expect(steady.result.scenes[0]!.ratioChanges).toEqual([]);
+    expect(resultsText(steady.result).split('\n')[0]).not.toContain('not at full sharpness');
   });
 });

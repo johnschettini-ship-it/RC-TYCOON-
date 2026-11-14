@@ -86,6 +86,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
   const verdict = el('p', `rb-verdict rb-${r.verdict}`, text(`ui.realBench.verdict.${r.verdict}`));
   verdict.dataset.verdict = r.verdict;
   box.append(h, verdict);
+  if (r.scenes.some((s) => s.ratioChanges.length > 0)) box.append(el('p', 'rb-verdict rb-fail', text('ui.realBench.notSharp')));
 
   const top = el('table');
   const first = r.scenes.find((s) => s.error === undefined);
@@ -126,6 +127,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.split'), s.peakSplitMB ? text('ui.realBench.splitValue', { ...s.peakSplitMB }) : text('ui.realBench.band.na')),
         row(text('ui.realBench.other'), s.otherMB ? text('ui.realBench.otherValue', { ...s.otherMB }) : text('ui.realBench.band.na')),
         row(text('ui.realBench.allPeak'), s.allPeakMB === null ? text('ui.realBench.band.na') : `${s.allPeakMB}`),
+        row(text('ui.realBench.ratio'), s.ratioChanges.map((c) => `${c.from}→${c.to} @${c.frame}`).join(', ') || text('ui.realBench.none')),
         row(text('ui.realBench.density'), s.densities.join(' / ') || text('ui.realBench.band.na')),
         row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
         row(text('ui.realBench.sharpen'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.sharpenMs ?? text('ui.realBench.band.na') })).join(' ')),

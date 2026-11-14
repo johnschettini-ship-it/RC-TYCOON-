@@ -28,6 +28,8 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.phaseValue': '{p95} ms, {pct}% of {n}',
   'ui.realBench.other': 'Memory outside the budget at peak',
   'ui.realBench.otherValue': "today's terrain {terrain} / static layer {staticLayer} / today's sprites {sprites} / compressed art {blobs} MB",
+  'ui.realBench.ratio': 'Render ratio changes (from→to @frame)',
+  'ui.realBench.notSharp': 'Not at full sharpness: the game lowered its render ratio during the run',
   'ui.realBench.allPeak': 'All picture memory together, peak (MB)',
   'ui.realBench.hiddenGaps': 'Gaps while hidden (not counted)',
   'ui.realBench.ms': '{n} ms',
