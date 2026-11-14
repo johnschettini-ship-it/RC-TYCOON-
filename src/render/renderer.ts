@@ -31,18 +31,19 @@ import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, realGroundCover, type TerrainEnv, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles, trackTroubleTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer, PATH_ITEM_IDS } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
 import type { RealLook } from './real/look';
 import type { GroundLayer } from './real/ground';
+import { CLASSIC_HOLD } from './real/setManager';
 import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
 import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
-import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM } from '../data/tuning/perf';
+import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM, REAL_CLASSIC_SPRITE_MB } from '../data/tuning/perf';
 import {
   rotateCameraView,
   viewAffine,
@@ -270,18 +271,26 @@ function drawCounter(ctx: CanvasRenderingContext2D): () => void {
  * before. Per object the look answers a Sprite (drawn from its sheet rectangle), `null` (set still decoding: skipped,
  * the frame counted incomplete) or `undefined` (today's art). `sets` brackets every frame (`beginFrame` before
  * `look.prepare`, `endFrame` after the draws); `ground` lays the realistic ground over today's terrain.
+ *
+ * Today's picture memory (Task 3, spec §5.4 item 4): with a look, today's caches (terrain chunks, static layer,
+ * sprites) are held in the set manager every frame as `classic` (`sets.hold`), before its `endFrame`, so the ladder
+ * sees all picture memory; their shared budget is `REAL_CLASSIC_SPRITE_MB` on top of the static layer. `counts`
+ * gathers placeholders over the run (the headless checks read it): today's terrain chunks, and the realistic ground's
+ * tiles.
  */
 export interface RealOptions {
   look?: RealLook;
-  sets?: { beginFrame(frame: number): void; endFrame(): void };
+  sets?: { beginFrame(frame: number): void; endFrame(): void; hold?(id: string, bytes: number, upBytes?: number): void };
   ground?: GroundLayer;
+  counts?: { placeholders: number; groundPlaceholders: number };
 }
 
 export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOptions = {}): Renderer {
   // Compile-time gate: the website build (VITE_ART unset) folds every realistic branch away.
   const L = import.meta.env.VITE_ART === 'real' ? real.look : undefined;
   const ground = import.meta.env.VITE_ART === 'real' ? real.ground : undefined;
-  if (import.meta.env.VITE_ART === 'real') realGroundCover.covers = ground?.covers ? (c) => ground.covers?.(c) ?? false : null;
+  // Today's terrain leaves out (and frees) the chunks the realistic ground lays in full (round 3 fix 2, Task 3).
+  const cover = import.meta.env.VITE_ART === 'real' && ground?.covers ? (c: number): boolean => ground.covers?.(c) ?? false : null;
   // Opaque: every frame clears to the sky colour first.
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D is not available');
@@ -981,6 +990,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
     terrain.budgetPixels = chunkCacheBudgetPixels(cssW, cssH);
     canvas.width = Math.max(1, Math.round(cssW * dpr));
     canvas.height = Math.max(1, Math.round(cssH * dpr));
+    // The realistic look (Task 3): today's caches get the static layer plus REAL_CLASSIC_SPRITE_MB, inside the decode
+    // budget (F2) where they are held; the terrain under the realistic ground is freed, so most of it is sprites.
+    if (import.meta.env.VITE_ART === 'real' && L) spriteMemory.budgetBytes = REAL_CLASSIC_SPRITE_MB * 1024 * 1024 + canvas.width * canvas.height * 4;
     canvas.dataset.pixelRatio = String(dpr);
     canvas.dataset.device = plan.device;
     canvas.dataset.autoScale = autoScale.maxRatio === Infinity ? 'full' : String(autoScale.maxRatio);
@@ -1057,7 +1069,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
 
   /** Sky and terrain: from the static layer when nothing changed, else drawn (and kept when the view is still). */
   function drawStatic(world: World, cam: Camera, map: MapState): number {
-    const env = { seed: world.state.seed, rides: world.state.rides, stalls: world.state.stalls };
+    const env: TerrainEnv = { seed: world.state.seed, rides: world.state.rides, stalls: world.state.stalls };
+    if (import.meta.env.VITE_ART === 'real') env.cover = cover;
     const c = ctx as CanvasRenderingContext2D;
     // A new frame for the layer's cache first: the image used below stays protected from eviction all frame.
     statics.beginFrame();
@@ -1089,7 +1102,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       sc.fillStyle = SKY;
       sc.fillRect(0, 0, w, h);
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
+      if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.placeholders += terrain.placeholders;
       ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version, env);
+      if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.groundPlaceholders += ground?.placeholders ?? 0;
       staticValid = terrain.complete && (!ground || ground.complete);
       setKey(staticKey, cam, map);
       statics.set(STATIC_KEY, { image: staticImage.canvas, w, h, ox: 0, oy: 0, scale: 1 });
@@ -1100,7 +1115,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       c.fillStyle = SKY;
       c.fillRect(0, 0, canvas.width, canvas.height);
       chunks = terrain.draw(c, map, env, view, bucket, scale, offX, offY, rot);
+      if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.placeholders += terrain.placeholders;
       ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version, env);
+      if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.groundPlaceholders += ground?.placeholders ?? 0;
     }
     setKey(lastKey, cam, map);
     return chunks;
@@ -1225,7 +1242,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       }
       if (debug) drawDebug(world, chunks);
       if (import.meta.env.VITE_ART === 'real' && L) {
-        // Ground eviction runs every frame (the static layer may be reused), then the set manager's ladder.
+        // Today's picture memory in the budget (Task 3), ground eviction every frame (the static layer may be reused),
+        // then the set manager's ladder.
+        real.sets?.hold?.(CLASSIC_HOLD, spriteMemory.bytes);
         ground?.endFrame?.();
         real.sets?.endFrame();
       }

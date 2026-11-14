@@ -585,7 +585,7 @@ describe('every park from the same start (re-review 1)', () => {
     g.extra = (gg) => {
       if (gg.sceneIndex === 0 && !capped && gg.camera.zoom === 2) {
         capped = true;
-        events.push({ capped: true });
+        events.push({ frame: 77, capped: true, pressureBytes: 131 * MB });
       }
       return 0;
     };
@@ -600,6 +600,10 @@ describe('every park from the same start (re-review 1)', () => {
     expect(result.scenes.map((s) => s.capEvents)).toEqual([1, 0]);
     expect(capped).toBe(false); // the second park ran uncapped
     expect(resultsText(result)).toContain('caps 0 (capped at start: yes)');
+    // Each cap change is traceable to its bench step and pressure (Task 3 fix round 2).
+    expect(result.scenes[0]!.capLog).toEqual([{ frame: 77, capped: true, pressureMB: 131, phase: 'zoom' }]);
+    expect(result.scenes[1]!.capLog).toEqual([]);
+    expect(resultsText(result)).toContain('caps 1 [on in zoom at frame 77 (131 MB)]');
   });
 });
 
@@ -652,19 +656,31 @@ describe('bench honesty (round 3 item 6)', () => {
     expect(ok.result.scenes[0]!.bands.S6g).toMatchObject({ band: 'pass', value: 16 });
   });
 
-  it('memory outside the budget: its peaks per owner and the peak of everything together, next to the managed MB', { timeout: 60_000 }, async () => {
+  it('memory outside the set manager: its peaks per owner and the decode memory together (S2); compressed art apart, not in S2', { timeout: 60_000 }, async () => {
     let n = 0;
     const otherMemory = () => ({ terrain: 20 * MB, staticLayer: 5 * MB, sprites: (n++ > 50 ? 12 : 8) * MB, blobs: 9 * MB });
     const { result } = await quick(() => undefined, { otherMemory });
     const row = result.scenes[0]!;
     expect(row.otherMB).toEqual({ terrain: 20, staticLayer: 5, sprites: 12, blobs: 9 });
-    // The fake set manager holds 10 MB: 10 + 20 + 5 + 12 + 9.
-    expect(row.allPeakMB).toBe(56);
-    // S2 counts all picture memory (Task 2): the same 56 MB.
-    expect(row.bands.S2.value).toBe(56);
-    expect(resultsText(result)).toMatch(/outside the budget today's terrain 20 \/ static layer 5 \/ today's sprites 12 \/ compressed art 9 MB, all together peak 56 MB/);
+    // The fake set manager holds 10 MB: 10 + 20 + 5 + 12; the 9 MB of compressed art are not decode memory (ruling).
+    expect(row.allPeakMB).toBe(47);
+    expect(row.bands.S2.value).toBe(47);
+    expect(resultsText(result)).toMatch(/outside the set manager today's terrain 20 \/ static layer 5 \/ today's sprites 12 MB, decode memory together peak 47 MB \(S2\); compressed art kept 9 MB \(not in S2\)/);
     const none = await quick(() => undefined);
     expect(none.result.scenes[0]).toMatchObject({ otherMB: null, allPeakMB: null });
+  });
+
+  it('today\'s caches held in the budget (classic, Task 3) are counted once in all picture memory', { timeout: 60_000 }, async () => {
+    // The set manager holds 70 MB, 40 MB of them today's caches, which otherMemory also reports (30 + 5 + 5).
+    const otherMemory = () => ({ terrain: 30 * MB, staticLayer: 5 * MB, sprites: 5 * MB, blobs: 9 * MB });
+    const split = { sets: 20 * MB, tints: 5 * MB, ground: 5 * MB, classic: 40 * MB };
+    const { result } = await quick(() => undefined, { otherMemory, sets: { capEvents: () => [], peakBytes: () => 70 * MB, residentBytes: () => 70 * MB, split: () => split } });
+    const row = result.scenes[0]!;
+    // 30 managed + 40 today's, not 70 + 40 (and the 9 MB compressed are not in S2).
+    expect(row.allPeakMB).toBe(70);
+    expect(row.bands.S2.value).toBe(70);
+    expect(row.peakSplitMB).toEqual({ sets: 20, tints: 5, ground: 5, classic: 40 });
+    expect(resultsText(result)).toContain("held at peak sets 20 / tints 5 / ground 5 / today's 40 MB");
   });
 });
 
@@ -789,7 +805,7 @@ describe('fix round 1: honest ratio and S2 instruments', () => {
       };
       return e;
     };
-    const otherMemory = () => ({ terrain: 20 * MB, staticLayer: 10 * MB, sprites: 10 * MB, blobs: 0 });
+    const otherMemory = () => ({ terrain: 20 * MB, staticLayer: 10 * MB, sprites: 10 * MB, blobs: 7 * MB });
     const { result } = await quick(() => undefined, {
       sets: { capEvents: () => [], peakBytes: () => 100 * MB, residentBytes: () => 100 * MB },
       otherMemory, renderRatio: () => 2, ...dev,
@@ -803,9 +819,16 @@ describe('fix round 1: honest ratio and S2 instruments', () => {
     walk(resultsCard(result, () => undefined) as unknown as FakeEl);
     expect(rows).toHaveLength(1);
     const [label, value, band] = rows[0]!.children;
-    expect(label!.textContent).toMatch(/All picture memory/);
+    expect(label!.textContent).toMatch(/Decode memory together/);
     expect(value!.textContent).toBe('140');
     expect(band!.dataset.band).toBe('fail');
+    // The compressed art is its own row, with no band: not in S2.
+    const all: FakeEl[] = [];
+    const every = (e: FakeEl): void => { all.push(e); e.children.forEach(every); };
+    every(resultsCard(result, () => undefined) as unknown as FakeEl);
+    const blobRow = all.find((e) => e.children[0]?.textContent?.startsWith('Compressed art kept'));
+    expect(blobRow?.children[1]?.textContent).toBe('7');
+    expect(blobRow?.dataset.check).toBeUndefined();
     vi.unstubAllEnvs();
     vi.resetModules();
   });

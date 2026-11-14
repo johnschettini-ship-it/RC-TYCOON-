@@ -452,3 +452,101 @@ describe('today\'s terrain under the realistic ground (round 3 fix 2)', () => {
   });
 });
 
+
+describe('today\'s memory inside the decode budget (Task 3)', () => {
+  const MB = 1024 * 1024;
+  const emptyIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [], bytes: { compressed: 0, decodedByDensity: { '2': 0, '4': 0 } } } as const;
+  const noIO = { read: () => Promise.reject(new Error('no art')), decode: () => Promise.reject(new Error('no art')) };
+
+  /** Fresh renderer modules: their own shared sprite memory, so other tests' caches do not count. */
+  async function fresh() {
+    vi.resetModules();
+    const renderer = await import('../../../../src/render/renderer');
+    const cache = await import('../../../../src/render/spriteCache');
+    const terrainMod = await import('../../../../src/render/terrain');
+    const groundMod = await import('../../../../src/render/real/ground');
+    const sm = await import('../../../../src/render/real/setManager');
+    const perf = await import('../../../../src/data/tuning/perf');
+    terrainMod.terrainClock.now = () => 0;
+    return { ...renderer, ...cache, ...groundMod, SetManager: sm.SetManager, REAL_CLASSIC_SPRITE_MB: perf.REAL_CLASSIC_SPRITE_MB };
+  }
+
+  it('holds today\'s memory in the budget', async () => {
+    const m = await fresh();
+    const world = park();
+    const sets = new m.SetManager(emptyIndex as never, noIO, 128 * MB, () => undefined);
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
+    r.resize(W, H, 1);
+    for (let k = 0; k < 3; k++) {
+      r.draw(world, camAt(world, 0, 1 + k * 0.25), defaultToolState(), 0);
+      const b = m.spriteMemory.breakdown();
+      const today = (b.chunks ?? 0) + (b.static ?? 0) + (b.sprites ?? 0) + (b.other ?? 0);
+      expect(today).toBeGreaterThan(0);
+      expect(sets.snapshot().held.classic).toBe(today);
+      expect(sets.split().classic).toBe(today);
+    }
+  });
+
+  it('frees every bucket of a covered chunk', async () => {
+    const m = await fresh();
+    const world = park();
+    const piece = { image: new FakeCanvas(64, 64) as unknown as CanvasImageSource, w: 64, h: 32, ox: 32, oy: 0, scale: 2 };
+    const look = { density: (z: number, d: number) => (z * d <= 2 ? 2 : 4) as 2 | 4, groundPiece: () => piece, groundStandIn: () => piece };
+    const ground = new m.RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), ground });
+    r.resize(W, H, 1);
+    // One frame at zoom 1 (today's terrain builds its images before the ground has laid anything), then zoom 2.
+    r.draw(world, camAt(world, 0, 1), defaultToolState(), 0);
+    expect(m.spriteMemory.breakdown().chunks ?? 0).toBeGreaterThan(0);
+    for (let k = 0; k < 4; k++) r.draw(world, camAt(world, 0, 2), defaultToolState(), 0);
+    expect(m.spriteMemory.breakdown().chunks ?? 0).toBe(0);
+    expect(ground.complete).toBe(true);
+  });
+
+  it('items without baked art draw today\'s art within the budget', async () => {
+    const m = await fresh();
+    const classic = make(W, H);
+    const c0 = m.createCanvasRenderer(classic as unknown as HTMLCanvasElement);
+    c0.resize(W, H, 1);
+    const w0 = park();
+    c0.draw(w0, camAt(w0), defaultToolState(), 0);
+    classic.reset();
+    c0.draw(w0, camAt(w0), defaultToolState(), 0);
+    const world = park();
+    // Today's sprites left from earlier play: 40 MB not drawn this frame.
+    const old = new m.SpriteCache(Number.MAX_SAFE_INTEGER, m.spriteMemory, 'sprites');
+    for (let k = 0; k < 40; k++) old.set(k, { image: new FakeCanvas(512, 512) as unknown as CanvasImageSource, w: 512, h: 512, ox: 0, oy: 0, scale: 1 });
+    // The unbaked stall (and everything else) answers undefined: today's art.
+    const look = fakeLook({});
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look });
+    r.resize(W, H, 1);
+    r.draw(world, camAt(world), defaultToolState(), 0);
+    canvas.reset();
+    r.draw(world, camAt(world), defaultToolState(), 0);
+    expect(look.calls.stall).toBeGreaterThan(0);
+    expect(canvas.draws.map(shape)).toEqual(classic.draws.map(shape));
+    const b = m.spriteMemory.breakdown();
+    expect((b.sprites ?? 0) + (b.other ?? 0)).toBeLessThanOrEqual(m.REAL_CLASSIC_SPRITE_MB * MB);
+    expect((b.sprites ?? 0) + (b.other ?? 0)).toBeGreaterThan(0);
+  });
+
+  it('counts the realistic ground\'s placeholder tiles next to today\'s terrain placeholders', async () => {
+    const m = await fresh();
+    const world = park();
+    // Every terrain baked, no piece decoded yet: covered chunks draw placeholder tiles.
+    const look = { density: () => 2 as const, groundPiece: () => null, groundBaked: () => true };
+    const ground = new m.RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const counts = { placeholders: 0, groundPlaceholders: 0 };
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), ground, counts });
+    r.resize(W, H, 1);
+    r.draw(world, camAt(world), defaultToolState(), 0);
+    expect(ground.placeholders).toBeGreaterThan(0);
+    expect(counts.groundPlaceholders).toBe(ground.placeholders);
+    r.draw(world, camAt(world), defaultToolState(), 0);
+    expect(counts.groundPlaceholders).toBe(2 * ground.placeholders);
+  });
+});

@@ -82,8 +82,11 @@ export interface BenchDevice {
   userAgent: string;
 }
 
-/** Resident picture memory by owner, bytes (MB in a bench row). */
-export interface MemorySplit { sets: number; tints: number; ground: number }
+/**
+ * Resident picture memory by owner, bytes (MB in a bench row). `classic`: today's picture caches held in the set
+ * manager's budget by the renderer (Task 3); absent from a set manager that does not report it.
+ */
+export interface MemorySplit { sets: number; tints: number; ground: number; classic?: number }
 
 /** Picture memory outside the set manager, bytes (MB in a bench row): see `BenchOptions.otherMemory`. */
 export interface OtherMemory { terrain: number; staticLayer: number; sprites: number; blobs: number }
@@ -91,6 +94,12 @@ export interface OtherMemory { terrain: number; staticLayer: number; sprites: nu
 /** The bench's phases (S1 per phase): the 10 s pan, the zoom holds, the turns, the placements, the idle end. */
 export type BenchPhase = 'pan' | 'zoom' | 'turns' | 'placements' | 'idle';
 export const BENCH_PHASES: readonly BenchPhase[] = ['pan', 'zoom', 'turns', 'placements', 'idle'];
+
+/**
+ * One density-cap change during a scene, traceable on a phone run: the set manager's frame, on or off, the pressure
+ * that turned it (MB), and the bench step it fell in (`start`: the park's load and warm-up, before the pan).
+ */
+export interface CapRecord { frame: number; capped: boolean; pressureMB: number; phase: BenchPhase | 'start' }
 
 /** Frame gaps of one phase: count, p95, and the share over 33 ms (percent). */
 export interface PhaseFrames { frames: number; p95: number; over33Pct: number }
@@ -215,6 +224,8 @@ export interface BenchRow {
   placementLongestFrameMs: number;
   /** Density-cap changes of the set manager during the scene. */
   capEvents: number;
+  /** The same changes, each with its bench step and pressure (Task 3 fix round 2). */
+  capLog: CapRecord[];
   /** The density cap was on when the park loaded (left by the park before), before the bench cleared it. */
   cappedAtStart: boolean;
   /** The look's density at the end of each zoom step (2, 1, 0.5, 2), then after the turns; empty without the look. */
@@ -363,7 +374,7 @@ const noPhases = (): Record<BenchPhase, PhaseFrames> => Object.fromEntries(BENCH
 function emptyRow(id: string, error: string): BenchRow {
   return {
     id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, phases: noPhases(), otherMB: null, allPeakMB: null, ratioChanges: [], ratioAtStart: null, ratioAtEnd: null, canvasAtStart: null, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, degradedFrames: 0, degradedMax: 0, peakMB: 0, endMB: 0,
-    turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, cappedAtStart: false, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
+    turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, capLog: [], cappedAtStart: false, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
     bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150), S6g: NA('ms', BENCH_LIMITS.longestGapMs) },
   };
 }
@@ -386,7 +397,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   const incomplete = (): number => (look?.incomplete() ?? 0) + (ground && !ground.complete ? 1 : 0);
   const splitMB = (): MemorySplit | null => {
     const sp = sets?.split?.();
-    return sp ? { sets: r1(sp.sets / MB), tints: r1(sp.tints / MB), ground: r1(sp.ground / MB) } : null;
+    if (!sp) return null;
+    const out: MemorySplit = { sets: r1(sp.sets / MB), tints: r1(sp.tints / MB), ground: r1(sp.ground / MB) };
+    if (sp.classic !== undefined) out.classic = r1(sp.classic / MB);
+    return out;
   };
   const stall = (at: string): BenchStall => ({
     at,
@@ -412,6 +426,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   const readRatio = opts.renderRatio ?? defaultRenderRatio;
   let scenePeakBytes = 0;
   let scenePeakSplit: MemorySplit | null = null;
+  /** Cap changes of the scene so far, and how many of the set manager's events were seen; null between scenes. */
+  let capLog: CapRecord[] | null = null;
+  let capsSeen = 0;
   /** The page was hidden since the last frame: the next gap is not a frame. */
   let hiddenSinceFrame = false;
   const unwatch = (opts.watchHidden ?? defaultWatchHidden)(() => {
@@ -436,6 +453,14 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       if (deg > rec.degradedMax) rec.degradedMax = deg;
     }
     hiddenSinceFrame = false;
+    if (capLog && sets) {
+      const evs = sets.capEvents();
+      for (let i = capsSeen; i < evs.length; i++) {
+        const e = evs[i] as { frame?: number; capped?: boolean; pressureBytes?: number };
+        capLog.push({ frame: e.frame ?? -1, capped: e.capped ?? true, pressureMB: r1((e.pressureBytes ?? 0) / MB), phase: rec?.phase ?? 'start' });
+      }
+      capsSeen = evs.length;
+    }
     if (sampleMem) {
       const ratio = readRatio();
       if (ratio !== null) {
@@ -452,7 +477,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       p.staticLayer = Math.max(p.staticLayer, o.staticLayer);
       p.sprites = Math.max(p.sprites, o.sprites);
       p.blobs = Math.max(p.blobs, o.blobs);
-      allPeak = Math.max(allPeak, (sets?.residentBytes() ?? 0) + o.terrain + o.staticLayer + o.sprites + o.blobs);
+      // Today's caches are also held in the set manager (`classic`, Task 3): counted once, from `otherMemory`.
+      const managed = (sets?.residentBytes() ?? 0) - (sets?.split?.().classic ?? 0);
+      // S2 is the decode budget (F2): the compressed art kept once read is not in it (shown on its own line).
+      allPeak = Math.max(allPeak, managed + o.terrain + o.staticLayer + o.sprites);
     }
     if (sampleMem && sets) {
       const now = sets.residentBytes();
@@ -495,6 +523,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       const cappedAtStart = sets?.densityCap?.() === 2;
       sets?.resetPressure?.();
       const capsAtStart = sets?.capEvents().length ?? 0;
+      capsSeen = capsAtStart;
+      capLog = [];
       const map = loaded.world.state.map;
       const focus = scene.focus ? scene.focus.y * map.width + scene.focus.x : Math.floor(map.height / 2) * map.width + Math.floor(map.width / 2);
       const cam = game.camera;
@@ -670,6 +700,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         placementFailures: failures,
         placementLongestFrameMs: r1(r.placeMax),
         capEvents: (sets?.capEvents().length ?? 0) - capsAtStart,
+        capLog: [...(capLog ?? [])],
         cappedAtStart,
         densities,
         peakSplitMB: scenePeakSplit,
@@ -679,8 +710,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         // A missing instrument never reads as a pass: no set manager → S2 n/a; no realistic look → S3 and S4 n/a.
         bands: {
           S1: band(r.gaps.length > 0 ? frameP95 : null, BENCH_LIMITS.frameP95Ms, 'ms'),
-          // S2 is ALL picture memory (managed sets, tints, ground, today's terrain, static layer, sprites, art blobs) for
-          // either look. Without `otherMemory` the total is unknown, so S2 is n/a (a managed-only figure must not pass).
+          // S2 is the decode budget F2 (controller ruling, Task 3): all decoded picture memory (managed sets, tints,
+          // ground, today's terrain, static layer, sprites) for either look; the compressed art files kept once read are
+          // not in it (`otherMB.blobs`, shown apart). Without `otherMemory` the total is unknown, so S2 is n/a.
           S2: op ? band(Math.max(allPeak, peakBytes) / MB, BENCH_LIMITS.peakMB, 'MB') : NA('MB', BENCH_LIMITS.peakMB),
           S3: {
             value: r1(slowest),
@@ -721,14 +753,19 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   };
 }
 
-/** `terrain / static layer / sprites / compressed MB`, or n/a. */
+/** `terrain / static layer / sprites MB` (in S2), or n/a. */
 export function otherText(m: BenchRow['otherMB']): string {
-  return m ? `today's terrain ${m.terrain} / static layer ${m.staticLayer} / today's sprites ${m.sprites} / compressed art ${m.blobs} MB` : 'n/a';
+  return m ? `today's terrain ${m.terrain} / static layer ${m.staticLayer} / today's sprites ${m.sprites} MB` : 'n/a';
 }
 
-/** `sets / tints / ground MB`, or n/a. */
+/** `on in turns at frame 812 (131.2 MB), off in idle at frame 1400 (90 MB)`. */
+export function capText(log: readonly CapRecord[]): string {
+  return log.map((c) => `${c.capped ? 'on' : 'off'} in ${c.phase} at frame ${c.frame} (${c.pressureMB} MB)`).join(', ');
+}
+
+/** `sets / tints / ground MB` (and today's caches held in the budget, when reported), or n/a. */
 export function splitText(m: MemorySplit | null): string {
-  return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground} MB` : 'n/a';
+  return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground}${m.classic !== undefined ? ` / today's ${m.classic}` : ''} MB` : 'n/a';
 }
 
 /** `render ratio 2→1 at frame 200`, `render ratio 2 (unchanged)`, or `ratio n/a` when nothing could be read. */
@@ -753,9 +790,9 @@ export function resultsText(r: RealBenchResult): string {
     lines.push(
       `${s.id}${s.infoOnly ? ' (information only, not in the verdict)' : ''}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `by phase ${BENCH_PHASES.map((p) => `${p} p95 ${s.phases[p].p95} ms (${s.phases[p].over33Pct}% >33)`).join(', ')}; ` +
-        `peak ${s.peakMB} MB, end ${s.endMB} MB; outside the budget ${otherText(s.otherMB)}, all together peak ${s.allPeakMB ?? 'n/a'} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
+        `peak ${s.peakMB} MB, end ${s.endMB} MB; outside the set manager ${otherText(s.otherMB)}, decode memory together peak ${s.allPeakMB ?? 'n/a'} MB (S2); compressed art kept ${s.otherMB ? `${s.otherMB.blobs} MB` : 'n/a'} (not in S2); turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
-        `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; degraded ${s.degradedFrames} frames (most ${s.degradedMax}); caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
+        `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; degraded ${s.degradedFrames} frames (most ${s.degradedMax}); caps ${s.capEvents}${s.capLog.length ? ` [${capText(s.capLog)}]` : ''} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
         `canvas at start ${s.canvasAtStart?.join('x') ?? 'n/a'}; ${ratioText(s)}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band} S6g ${b.S6g.band}`,

@@ -20,7 +20,7 @@ import { aliasItemMap } from '../render/real/aliases';
 import type { BenchMode } from '../render/real/benchParam';
 import { PERF_SCENES, SCALE_SCENE, type PerfSceneId } from '../../tests/perf/sceneInfo';
 import { spriteMemory } from '../render/spriteCache';
-import { BENCH_PHASES, ratioText, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
+import { BENCH_PHASES, capText, ratioText, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
 
 /** The saves, as text. Literal paths, so the bundler makes one lazy chunk each. */
 const SAVES: Record<PerfSceneId | 'scale', () => Promise<{ default: string }>> = {
@@ -127,6 +127,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.split'), s.peakSplitMB ? text('ui.realBench.splitValue', { ...s.peakSplitMB }) : text('ui.realBench.band.na')),
         row(text('ui.realBench.other'), s.otherMB ? text('ui.realBench.otherValue', { ...s.otherMB }) : text('ui.realBench.band.na')),
         row(text('ui.realBench.allPeak'), s.allPeakMB === null ? text('ui.realBench.band.na') : `${s.allPeakMB}`, b.S2, 'S2'),
+        row(text('ui.realBench.blobs'), s.otherMB ? `${s.otherMB.blobs}` : text('ui.realBench.band.na')),
         row(text('ui.realBench.ratio'), ratioText(s).replace('render ratio ', '')),
         row(text('ui.realBench.density'), s.densities.join(' / ') || text('ui.realBench.band.na')),
         row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
@@ -134,7 +135,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         row(text('ui.realBench.placement'), `${s.placementLongestFrameMs} (${s.placements})`),
         row(text('ui.realBench.incomplete'), `${s.incompleteFrames}`),
         row(text('ui.realBench.degraded'), text('ui.realBench.degradedValue', { frames: s.degradedFrames, most: s.degradedMax })),
-        row(text('ui.realBench.caps'), `${s.capEvents}`),
+        row(text('ui.realBench.caps'), s.capLog.length ? `${s.capEvents}: ${capText(s.capLog)}` : `${s.capEvents}`),
         row(text('ui.realBench.cappedAtStart'), text(s.cappedAtStart ? 'ui.realBench.yes' : 'ui.realBench.no')),
         row(text('ui.realBench.stalls'), s.stalls.map((x) => x.at).join(', ') || text('ui.realBench.none')),
         row(text('ui.realBench.fallbacks'), s.fallbacksUsed.join(', ') || text('ui.realBench.none')),

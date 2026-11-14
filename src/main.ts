@@ -7,7 +7,6 @@ import { pageStorage, startRealBuild } from './render/real/storagePrefix';
 import { benchMode } from './render/real/benchParam';
 import { tileToScreen } from './render/iso';
 import { spriteMemory } from './render/spriteCache';
-import { realGroundCover } from './render/terrain';
 import { attachInput } from './input';
 import { mountUI } from './ui';
 import { createWorld } from './sim/world';
@@ -25,8 +24,10 @@ interface RealDebug extends Partial<RealOptions> {
   load(json: string, focus: { x: number; y: number }, zoom?: number, rotation?: ViewRotation): string | null;
   /** Today's picture caches by label (`spriteMemory.breakdown()`: chunks, static, sprites, other), bytes. */
   memory(): Record<string, number>;
-  /** Placeholder chunks today's terrain drew so far (a chunk not built in time). */
+  /** Placeholders drawn so far: today's terrain chunks (not built in time) plus the realistic ground's tiles. */
   placeholders(): number;
+  /** The realistic ground's placeholder tiles alone. */
+  groundPlaceholders(): number;
 }
 
 function boot(real?: RealOptions): void {
@@ -89,7 +90,8 @@ function boot(real?: RealOptions): void {
       (window as unknown as { __tcReal?: RealDebug }).__tcReal = {
         ...real,
         memory: () => spriteMemory.breakdown(),
-        placeholders: () => realGroundCover.placeholders,
+        placeholders: () => (real?.counts?.placeholders ?? 0) + (real?.counts?.groundPlaceholders ?? 0),
+        groundPlaceholders: () => real?.counts?.groundPlaceholders ?? 0,
         load(json, focus, zoom = 1, rotation = 0) {
           const loaded = deserialize(json);
           if (!loaded.ok) return loaded.error;

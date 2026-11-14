@@ -2,6 +2,12 @@
 
 /** Sprite cache byte budget (`width × height × 4` per canvas; terrain chunks count): phone / desktop. */
 export const SPRITE_CACHE_BUDGET_MB = { phone: 64, desktop: 192 } as const;
+/**
+ * The realistic test build (phase 8c Task 3): today's picture caches beside the realistic look (terrain chunks, sprites
+ * of items with no baked art yet) may hold this much on top of the static layer, so today's art stays inside the
+ * realistic look's 128 MB decode budget (F2), where it is also counted (`SetManager` hold `classic`).
+ */
+export const REAL_CLASSIC_SPRITE_MB = 16;
 /** Phone: at most 3 zoom buckets and a render scale of at most 2× device pixels. */
 export const PHONE_MAX_ZOOM_BUCKETS = 3;
 export const PHONE_MAX_RENDER_SCALE = 2;
