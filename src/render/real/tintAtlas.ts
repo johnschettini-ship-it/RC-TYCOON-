@@ -45,7 +45,10 @@ export const TINT_ATLAS_MAX_BYTES = TINT_ATLAS_MAX_PAGES * TINT_PAGE_BYTES;
 export const TINT_GUTTER_PX = 2;
 /** The scratch canvas's hold id in the set manager. */
 export const TINT_SCRATCH_HOLD = 'tint:scratch';
-/** Hold ids in the set manager: `tint:<page>`. Every hold id but `ground` is counted as tints by `split()`. */
+/**
+ * Hold ids in the set manager: `tint:<page>`. Every hold id but `ground` and `classic` (today's picture caches) is
+ * counted as tints by `split()`.
+ */
 export const TINT_HOLD_PREFIX = 'tint:';
 
 /** Frame ids are below this; a (sheet, frame) pair is one number: sheetKey × FRAME_SPAN + frame. */
@@ -58,6 +61,12 @@ const KEEP_RECENT = 1;
  * for a few frames is not thrown out (and re-tinted, untinted meanwhile) while the atlas could still grow.
  */
 export const TINT_STALE_FRAMES = 30;
+/**
+ * After this many canvas failures in a row (a page or the scratch canvas with no 2D context, or one that cannot be
+ * made) the atlas stops: every request answers false (no room, so the look draws untinted and degrades after
+ * DEGRADE_FRAMES instead of waiting for ever), and the stop is reported once (final review minor 3).
+ */
+export const TINT_CANVAS_FAIL_LIMIT = 3;
 /** A frame may go in a shelf up to this much taller than itself (px, or a quarter of its height if more). */
 const SHELF_SLACK = 4;
 
@@ -71,7 +80,8 @@ export interface TintAtlasOptions {
   onError?: (sheetKey: number, colour: number, err: unknown) => void;
   /**
    * Told when a page or the scratch canvas fails (no 2D context): not the sheet's fault, so only the frames on that page
-   * (or the one request) are dropped and asked for again later; the page is freed.
+   * (or the one request) are dropped and asked for again later; the page is freed. After TINT_CANVAS_FAIL_LIMIT
+   * failures in a row the atlas stops (the last call says so) and this is not called again.
    */
   onCanvasError?: (err: unknown) => void;
 }
@@ -117,6 +127,8 @@ export class TintAtlas {
   private tick = 0;
   private spent = 0;
   private ranOne = false;
+  /** Canvas failures in a row (reset by a frame tinted); at TINT_CANVAS_FAIL_LIMIT the atlas stops. */
+  private canvasFails = 0;
   private readonly now: () => number;
 
   constructor(
@@ -145,10 +157,11 @@ export class TintAtlas {
   /**
    * Reserves a slot for (sheet, frame, colour) and queues its tint (`step` makes it); `colour` is 0xrrggbb. True when
    * the frame is queued or there already; false when there is no room this frame (atlas full of frames drawn this
-   * frame or the one before, the set manager refused a page, the frame is bigger than a page, or the sheet failed).
+   * frame or the one before, the set manager refused a page, the frame is bigger than a page, the sheet failed, or the
+   * atlas stopped after TINT_CANVAS_FAIL_LIMIT canvas failures in a row).
    */
   request(sheetKey: number, frame: number, colour: number, base: Decoded, mask: Decoded, rect: TintFrameRect): boolean {
-    if (this.failedSheets.has(sheetKey)) return false;
+    if (this.failedSheets.has(sheetKey) || this.stopped()) return false;
     const key = sheetKey * FRAME_SPAN + frame;
     let byColour = this.frames.get(key);
     const had = byColour?.get(colour);
@@ -194,9 +207,13 @@ export class TintAtlas {
       if (!scratch || !pageCtx) {
         if (!pageCtx) this.dropPage(e.page);
         else this.evict(e);
-        this.opts.onCanvasError?.(new Error(`no 2D context for a tint ${scratch ? 'page' : 'scratch canvas'}`));
         this.ranOne = true;
         this.spent += this.now() - t0;
+        if (this.stopped()) continue; // already reported
+        const what = `no 2D context for a tint ${scratch ? 'page' : 'scratch canvas'}`;
+        if (++this.canvasFails < TINT_CANVAS_FAIL_LIMIT) this.opts.onCanvasError?.(new Error(what));
+        // Stop: every frame would make and drop the canvas again. Frames tinted already stay; new ones draw untinted.
+        else this.opts.onCanvasError?.(new Error(`${what}, ${this.canvasFails} times in a row: tinting stopped, new frames draw untinted`));
         continue;
       }
       try {
@@ -208,6 +225,7 @@ export class TintAtlas {
           ox: e.rect.ox ?? 0, oy: e.rect.oy ?? 0, scale: e.rect.scale ?? 1,
         };
         e.base = e.mask = null;
+        this.canvasFails = 0;
       } catch (err) {
         this.fail(e.sheetKey, e.colour, err);
       }
@@ -244,6 +262,11 @@ export class TintAtlas {
       return null;
     }
     return s;
+  }
+
+  /** True once TINT_CANVAS_FAIL_LIMIT canvas failures in a row stopped the atlas: requests answer false. */
+  stopped(): boolean {
+    return this.canvasFails >= TINT_CANVAS_FAIL_LIMIT;
   }
 
   /** Bytes of the scratch canvas (held as `tint:scratch`, not in `bytes()`). */

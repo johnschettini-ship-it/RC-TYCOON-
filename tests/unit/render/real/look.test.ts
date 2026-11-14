@@ -967,6 +967,30 @@ describe('RealLook: a tinted frame with no room never stalls (Task 4b)', () => {
   });
 });
 
+describe('RealLook: tint pages with no 2D context (final review minor 3)', () => {
+  it('the look degrades instead of waiting for ever, and the failure is reported a bounded number of times', () => {
+    const index = makeIndex();
+    const sets = new FakeSets(index, { s0: [128, 128, 128, 255], m0: [255, 0, 0, 255] });
+    const errors: string[] = [];
+    const broken = (w: number, h: number) => {
+      const c = new PixCanvas(w, h);
+      if (w === TINT_PAGE_PX) (c as unknown as { getContext: () => null }).getContext = () => null;
+      return c;
+    };
+    const look = createRealLook(index, sets, { makeCanvas: broken, onError: (k) => errors.push(k) });
+    const key = setKey('guest', 'b0o0', 2, 'all');
+    sets.setState(key, 'ready');
+    const base = sets.images(key)[0];
+    for (let n = 0; n < DEGRADE_FRAMES + 5; n++) {
+      look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+      expect(look.guest(0, 1, 1, 2, false)!.image).toBe(base); // untinted, never nothing
+    }
+    expect(look.degraded!()).toBe(1);
+    expect(look.incomplete()).toBe(0);
+    expect(errors.filter((k) => k === 'tint:canvas').length).toBe(3);
+  });
+});
+
 describe('RealLook: tinting under a per-frame budget (round 3 item 4, Task 4)', () => {
   it('tints frames while the frame has budget left (at least one), the rest draw untinted (incomplete) until a later frame', () => {
     const index = makeIndex();
