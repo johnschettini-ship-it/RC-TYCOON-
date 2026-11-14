@@ -585,7 +585,7 @@ describe('every park from the same start (re-review 1)', () => {
     g.extra = (gg) => {
       if (gg.sceneIndex === 0 && !capped && gg.camera.zoom === 2) {
         capped = true;
-        events.push({ capped: true });
+        events.push({ frame: 77, capped: true, pressureBytes: 131 * MB });
       }
       return 0;
     };
@@ -600,6 +600,10 @@ describe('every park from the same start (re-review 1)', () => {
     expect(result.scenes.map((s) => s.capEvents)).toEqual([1, 0]);
     expect(capped).toBe(false); // the second park ran uncapped
     expect(resultsText(result)).toContain('caps 0 (capped at start: yes)');
+    // Each cap change is traceable to its bench step and pressure (Task 3 fix round 2).
+    expect(result.scenes[0]!.capLog).toEqual([{ frame: 77, capped: true, pressureMB: 131, phase: 'zoom' }]);
+    expect(result.scenes[1]!.capLog).toEqual([]);
+    expect(resultsText(result)).toContain('caps 1 [on in zoom at frame 77 (131 MB)]');
   });
 });
 

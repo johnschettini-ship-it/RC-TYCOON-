@@ -5,6 +5,7 @@ import type { Sprite } from '../../../../src/render/spriteCache';
 import { FIRST_BUILD_BUDGET_MS, terrainClock } from '../../../../src/render/terrain';
 import { createWorld } from '../../../../src/sim/world';
 import { Content, tileIndex } from '../../../../src/sim/map';
+import { SetManager } from '../../../../src/render/real/setManager';
 
 beforeAll(() => install());
 
@@ -655,5 +656,73 @@ describe('RealGround never leaves an empty tile (Task 3: today\'s terrain is fre
     map.content[tileIndex(map, 2, 2)] = Content.Footpath;
     t.ground.beginCover(map, 1, 0, 2);
     expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([false, true, true, true]);
+  });
+});
+
+describe('stand-ins give their memory back first (Task 3 fix round 2)', () => {
+  it('reclaim frees old-scale stand-ins first, even ones drawn this frame', () => {
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    let density: 2 | 4 = 2;
+    const look = { density: () => density, groundPiece: () => (density === 2 ? piece() : null) };
+    const ground = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const ctx = new FakeCanvas(800, 600).getContext() as CanvasRenderingContext2D;
+    ground.draw(ctx, map, VIEW_ALL, 2, 0, 0, 0, 1);
+    ground.endFrame();
+    const held = ground.heldBytes();
+    // Into direct tiles with density 4 not decoded: the four chunks stand in, drawn this frame.
+    density = 4;
+    ground.draw(ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    ground.endFrame();
+    expect(ground.heldBytes()).toBe(held);
+    expect(ground.reclaim(1)).toBeGreaterThan(0);
+    expect(ground.heldBytes()).toBeLessThan(held);
+    ground.reclaim(Number.POSITIVE_INFINITY);
+    expect(ground.heldBytes()).toBe(0);
+    // The next frame: placeholders where the stand-ins were, never nothing.
+    ground.beginCover(map, 4, 0, 1);
+    ground.draw(ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    expect(ground.placeholders).toBe(16 * 16);
+  });
+
+  it('with the real set manager: pressure while stand-ins are held frees them before any demotion or cap', () => {
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    const index = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [], bytes: { compressed: 0, decodedByDensity: { '2': 0, '4': 0 } } } as const;
+    const io = { read: () => Promise.reject(new Error('none')), decode: () => Promise.reject(new Error('none')) };
+    let density: 2 | 4 = 2;
+    const look = { density: () => density, groundPiece: () => (density === 2 ? piece() : null) };
+    let sets: SetManager;
+    const ground = new RealGround(look, {
+      makeCanvas: (w, h) => new FakeCanvas(w, h) as never,
+      hold: (id, b, up) => sets.hold(id, b, up),
+      admit: (id, b, up) => sets.admit(id, b, up),
+    });
+    const ctx = new FakeCanvas(800, 600).getContext() as CanvasRenderingContext2D;
+    let n = 0;
+    const frame = (scale: number, other = 0) => {
+      sets.beginFrame(++n);
+      ground.draw(ctx, map, VIEW_ALL, scale, 0, 0, 0, 1);
+      sets.hold('other', other);
+      ground.endFrame();
+      sets.endFrame();
+    };
+    // Budget: the scale-2 chunks plus a little.
+    sets = new SetManager(index as never, io, 1, () => undefined);
+    const probe = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    probe.draw(ctx, map, VIEW_ALL, 2, 0, 0, 0, 1);
+    const chunks = probe.heldBytes();
+    sets = new SetManager(index as never, io, chunks + 1000, () => undefined);
+    sets.addReclaimer((need) => ground.reclaim(need));
+    frame(2);
+    expect(ground.heldBytes()).toBe(chunks);
+    // Zoom into direct tiles, density 4 not decoded: the chunks stand in. Then something else needs 2000 B.
+    density = 4;
+    frame(4);
+    frame(4, 2000);
+    expect(ground.heldBytes()).toBeLessThan(chunks);
+    expect(sets.capEvents()).toEqual([]);
+    expect(sets.densityCap()).toBe(4);
+    expect(sets.snapshot().demoted).toEqual([]);
   });
 });

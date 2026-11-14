@@ -171,7 +171,11 @@ export class RealGround implements GroundLayer {
   private joins = new Int16Array(0);
   /** Tiles drawn from a piece (its own or the other density's) by the last `draw` (tests, bench). */
   tilesDrawn = 0;
-  /** Tiles drawn as a flat placeholder by the last `draw` (no piece decoded at either density). */
+  /**
+   * Tiles drawn as a flat placeholder by the last `draw`: covered tiles with no piece decoded at either density (and
+   * no old chunk under them), covered tiles whose frame the bake lacks, and the tiles of covered chunks drawn as one
+   * flat chunk placeholder.
+   */
   placeholders = 0;
   /**
    * Per chunk, for the tiles whose fingerprint is `fullSig`: 1 when every tile is known to have a baked piece (built
@@ -377,8 +381,9 @@ export class RealGround implements GroundLayer {
     const upScale = groundScale(scale, pickDensity(scale, 1, 4));
     // Chunks of another rotation are never drawn again at this one: free them now. A chunk of another scale (a zoom
     // step either way, or into direct tiles) becomes the stand-in until its replacement is built or, for direct
-    // tiles, until every tile in view draws from its own piece. Stand-ins are in the budget: the set manager's
-    // reclaim and a refused admit free them, and `endFrame` frees one as soon as a frame did not draw it.
+    // tiles, until every tile in view draws from its own piece. Stand-ins are held in the budget and given back first
+    // under pressure: `reclaim` frees them before any chunk (even ones drawn this frame), a refused admit frees the
+    // chunk's own, and `endFrame` frees one as soon as a frame did not draw it.
     for (const [k, c] of [...this.old]) if (c.rot !== rot) this.free(this.old, k, c);
     for (const [k, c] of [...this.chunks]) {
       if (c.rot !== rot) this.free(this.chunks, k, c);
@@ -653,11 +658,20 @@ export class RealGround implements GroundLayer {
   }
 
   /**
-   * The set manager's reclaimer: frees chunks not on screen in the frame just ended (`endFrame` ran), least recently
-   * on screen first, until about `needBytes` are freed. Returns the bytes freed.
+   * The set manager's reclaimer (it runs in the set manager's `endFrame`, after the frame's draws): frees old-scale
+   * stand-ins first, least recently drawn first, even ones drawn this frame (their pixels are already in the target,
+   * and a frame that drew one was not complete, so the static layer is not kept; the next frame draws tiles, the
+   * other density's piece or a placeholder there instead), then chunks not on screen in the frame just ended
+   * (`endFrame` ran), least recently on screen first, until about `needBytes` are freed. Returns the bytes freed.
    */
   reclaim(needBytes: number): number {
     let freed = 0;
+    const old = [...this.old.entries()].sort((a, b) => a[1].lastFrame - b[1].lastFrame);
+    for (const [k, c] of old) {
+      if (freed >= needBytes) break;
+      freed += c.bytes;
+      this.free(this.old, k, c);
+    }
     const idle = [...this.chunks.entries()].filter(([, c]) => c.lastFrame < this.frame - 1).sort((a, b) => a[1].lastFrame - b[1].lastFrame);
     for (const [k, c] of idle) {
       if (freed >= needBytes) break;

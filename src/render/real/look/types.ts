@@ -31,7 +31,9 @@ export interface RealLook {
   /**
    * The same ground piece from the other density's set when that one is decoded (density 2 first), or null: what
    * RealGround draws while `groundPiece` answers null (a zoom step, a lifted demotion), so a tile it lays is never
-   * empty (Task 3). The set is only peeked: never used (pinned) or wanted; no count, no fallback listed.
+   * empty (Task 3). The set is only peeked: never used (pinned) or wanted; no count, no fallback listed. So it stands
+   * in for about 2 frames after a step: once nobody wants or uses that set, the set manager frees it at an
+   * `endFrame`, and RealGround draws its old chunk (if kept) or placeholders until the wanted set decodes.
    */
   groundStandIn?(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): Sprite | null;
   /**
