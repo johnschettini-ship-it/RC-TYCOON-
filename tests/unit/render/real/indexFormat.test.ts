@@ -70,6 +70,19 @@ describe('checkIndex', () => {
     const i = clone(); i.densities = [2, 4];
     expect(problems(i).some((p) => p.includes('ride:carousel: missing density 4'))).toBe(true);
   });
+  it('card pictures: one density-2 set, whatever densities the bake holds (round 2)', () => {
+    const i = clone(); i.densities = [2, 4];
+    // Every other item at both densities, so only the card set is in question.
+    for (const s of [...i.sets]) {
+      const up = structuredClone(s); up.density = 4; up.key = up.key.replace(':d2:', ':d4:'); i.sets.push(up);
+    }
+    const card = { key: setKey('preview', 'cards', 2, 'all'), kind: 'preview' as const, item: 'cards', density: 2 as const, rot: 'all' as const, sheets: [{ file: 'cards.webp', w: 8, h: 8 }], frames: { carousel: { sheet: 'cards.webp', sx: 0, sy: 0, w: 8, h: 8, ox: 0, oy: 0 } } };
+    i.sets.push(card);
+    expect(problems(i)).toEqual([]);
+    const c4 = { ...structuredClone(card), key: setKey('preview', 'cards', 4, 'all'), density: 4 as const, sheets: [{ file: 'cards4.webp', w: 8, h: 8 }], frames: {} };
+    i.sets.push(c4);
+    expect(problems(i)).toContain('preview:cards: card pictures must be density 2 only');
+  });
   it('density not listed in the index', () => {
     const i = clone();
     const s = structuredClone(i.sets[0]!); s.density = 4; s.key = s.key.replace(':d2:', ':d4:'); i.sets.push(s);

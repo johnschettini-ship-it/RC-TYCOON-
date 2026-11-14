@@ -54,6 +54,7 @@ import type { ViewRotation } from '../view';
 import type { World } from '../../sim/types';
 import { PathItem } from '../../sim/map';
 import { getSceneryDef } from '../../data/catalog/scenery';
+import { CARD_SET } from './cards';
 import { realItem } from './fallbacks';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from './pose';
 import { frameKey, setKey, type RealIndex, type RealKind, type SetKey } from './indexFormat';
@@ -376,6 +377,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
           if (low !== undefined) later.add(low);
         }
       }
+      // The card pictures: one small set, always loaded (src/render/real/cards.ts).
+      if (keys.has(CARD_SET)) now.add(CARD_SET);
       for (const k of now) later.delete(k);
       sets.want([...now], 'now');
       sets.want([...later], 'ahead');

@@ -1,7 +1,9 @@
 /** Shared format of the baked realistic-art index (written by the bake, read by the game). */
 export type RealKind =
   | 'ground' | 'shadow' | 'ride' | 'stall' | 'scenery'
-  | 'guest' | 'rail' | 'support' | 'car' | 'facade';
+  | 'guest' | 'rail' | 'support' | 'car' | 'facade'
+  /** Card pictures: one set `preview:cards:d2:rall`, frames keyed by item id (src/render/real/cards.ts). */
+  | 'preview';
 
 /** `${kind}:${item}:d${density}:r${rot|'all'}` */
 export type SetKey = string;

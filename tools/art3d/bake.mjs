@@ -80,6 +80,13 @@ const mb = (n) => (n / 1e6).toFixed(2);
   const jobs = list.map((it) => {
     const input = {};
     if (it.catalog) input.spec = N.itemSpec(it.catalog[0], it.catalog[1]);
+    if (it.cards) {
+      // The card pictures read every item's own catalogue spec (footprint and height), as that item's bake does.
+      input.cards = N.cardInput(it.cards.map((c) => {
+        const src = ITEM_LIST.find((x) => x.id === c.id);
+        return src && src.catalog ? { ...c, spec: N.itemSpec(src.catalog[0], src.catalog[1]) } : { ...c };
+      }));
+    }
     if (it.track) {
       input.track = { type: it.track.type, pieces: N.trackGeometry(it.track.pieces) };
       input.poses = N.reachedPoses(it.track.type, it.track.pieces);

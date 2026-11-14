@@ -299,7 +299,14 @@ export function makeKit(variant) {
     const r = T.rng(seed);
     const geo = new THREE.IcosahedronGeometry(1, 1);
     const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) { const k = 0.75 + r() * 0.45; p.setXYZ(i, p.getX(i) * k, Math.max(-0.3, p.getY(i)) * k * 0.7, p.getZ(i) * k); }
+    // one displacement per corner: the faces share their corners' copies, so the rock stays closed (no gaps)
+    const ks = new Map();
+    for (let i = 0; i < p.count; i++) {
+      const key = `${p.getX(i).toFixed(4)},${p.getY(i).toFixed(4)},${p.getZ(i).toFixed(4)}`;
+      let k = ks.get(key);
+      if (k === undefined) { k = 0.75 + r() * 0.45; ks.set(key, k); }
+      p.setXYZ(i, p.getX(i) * k, Math.max(-0.3, p.getY(i)) * k * 0.7, p.getZ(i) * k);
+    }
     geo.computeVertexNormals();
     const m = M(geo, mat.rock); m.scale.set(s * (1 + r() * 0.4), s, s * (0.9 + r() * 0.3)); m.position.set(x, y + s * 0.1, z); m.rotation.y = r() * 6;
     root.add(m);

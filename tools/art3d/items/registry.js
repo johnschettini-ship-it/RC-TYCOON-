@@ -21,6 +21,15 @@ export const COASTER_PIECES = [
   'turn_medium_right', 'turn_medium_left',
 ];
 
+/** Card pictures (items/cards.js): `kind` says how the item is framed (ride and stall on their footprint's grass). */
+export const CARD_ITEMS = [
+  { id: 'carousel', kind: 'ride' }, { id: 'swing_tower', kind: 'ride' }, { id: 'big_wheel', kind: 'ride' },
+  { id: 'snack_shack', kind: 'stall' },
+  ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
+  { id: 'bench', kind: 'path' }, { id: 'bin', kind: 'path' },
+  { id: 'steel_coaster', kind: 'track' },
+];
+
 export const ITEM_LIST = [
   { id: 'ground', file: 'items/ground.js' },
   { id: 'guests', file: 'items/guests.js' },
@@ -42,3 +51,16 @@ export const ITEM_LIST = [
     id: 'steel_coaster', file: 'items/steel_coaster.js', track: { type: 'steel_coaster', pieces: COASTER_PIECES } },
   { id: 'facade', file: 'items/facade.js' },
 ];
+
+// One small card picture per baked game item, in one set preview:cards:d2:rall (frames keyed by item id), for the
+// card and picker previews. Built from the items' own modules, so it re-bakes when any of them changes.
+ITEM_LIST.push({ id: 'cards', file: 'items/cards.js', cards: CARD_ITEMS, deps: cardDeps() });
+
+function cardDeps() {
+  const out = new Set();
+  for (const c of CARD_ITEMS) {
+    const it = ITEM_LIST.find((x) => x.id === c.id);
+    for (const f of [it.file, ...(it.deps ?? [])]) out.add(f);
+  }
+  return [...out];
+}

@@ -22,6 +22,7 @@
 //   car:steel_coaster:rall    frames [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] for every reached pose.
 //                             Anchor: the car's centre on the rail line (the sampled track point). Car-body mask.
 // Chain lift dashes are not baked (the game draws them per frame over the rail, track/layer.ts).
+// framesOf, railModel, supportPiece and SEG_H are also used by the card picture (items/cards.js).
 import { THREE, kit, frameKey } from './common.js';
 import { M, V } from '../kit.js';
 import { sweep, boxProfile, Beams, sitCar } from '../rides.js';
@@ -33,7 +34,7 @@ const GAUGE = 0.5; // half the rail spacing
 const hex = (m) => (!Array.isArray(m) && m.color ? `#${m.color.getHexString()}` : '');
 
 /** Track frames (three.js axes) from game samples: P, tangent, lateral and up, banked. */
-function framesOf(s) {
+export function framesOf(s) {
   const P = [], Tn = [], Lt = [], Up = [];
   for (let k = 0; k < s.n; k++) {
     P.push(V(s.x[k], s.z[k], s.y[k]));
@@ -71,7 +72,7 @@ function extended(F) {
   };
 }
 
-function railModel(K, s, special, mats) {
+export function railModel(K, s, special, mats) {
   const F = framesOf(s);
   const FX = extended(F);
   const g = new THREE.Group();
@@ -95,8 +96,8 @@ function railModel(K, s, special, mats) {
 }
 
 // Support pieces, stacked by the game: the foot on the ground, one 1 m segment per metre of height, the saddle on top.
-const SEG_H = 1.1; // a segment is drawn 10 cm taller (upward) so stacked segments overlap and never show a gap
-function supportPiece(K, part, t, mat) {
+export const SEG_H = 1.1; // a segment is drawn 10 cm taller (upward) so stacked segments overlap and never show a gap
+export function supportPiece(K, part, t, mat) {
   const g = new THREE.Group();
   if (part === 'foot') {
     g.add(M(new THREE.CylinderGeometry(0.34, 0.4, 0.25, 16), K.mat.concrete).translateY(0.125));

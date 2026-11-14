@@ -9,7 +9,9 @@ import { cacheKey } from './cacheKey';
 import { reachedPoses } from './poses';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
 import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
-import { getTrackPieceDef } from '../../src/data/track';
+import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
+import { previewPieces } from '../../src/render/track/preview';
+import { paletteColour } from '../../src/render/track/colours';
 
 export { itemSpec, contentHash, checkIndex, reachedPoses, cacheKey };
 export type { ItemKind };
@@ -32,4 +34,27 @@ export function trackGeometry(pieceIds: string[]): Record<string, { special: str
     out[id] = { special: def.special ?? null, dirs };
   }
   return out;
+}
+
+/** One card picture to bake (items/cards.js): the item, its kind, and its catalogue footprint and height. */
+export interface CardItem { id: string; kind: 'ride' | 'stall' | 'scenery' | 'path' | 'track'; spec?: ReturnType<typeof itemSpec> }
+
+/**
+ * The card bake's input: the items with their specs, and for the steel coaster today's track preview scene
+ * (src/render/track/preview.ts previewPieces: station, a small turn, a small hill) as placed rail samples, with the
+ * type's default colours (track, supports, cars).
+ */
+export function cardInput(items: CardItem[]): { items: CardItem[]; coaster: { pieces: unknown[]; colours: { track: string; supports: string; cars: string } } } {
+  const type = getTrackTypeDef('steel_coaster');
+  if (!type) throw new Error('cardInput: no steel_coaster type');
+  const pieces = previewPieces('steel_coaster').map((p) => {
+    const s = pieceWorldSamples(p);
+    const def = getTrackPieceDef(p.defId);
+    return {
+      id: p.defId, special: def?.special ?? null, tile: [p.x, p.y],
+      samples: { n: s.n, x: [...s.x], y: [...s.y], z: [...s.z], yaw: [...s.yaw], pitch: [...s.pitch], bankSin: [...s.bankSin], bankCos: [...s.bankCos] },
+    };
+  });
+  const c = type.render.colours;
+  return { items, coaster: { pieces, colours: { track: paletteColour(c.track), supports: paletteColour(c.supports), cars: paletteColour(c.cars) } } };
 }

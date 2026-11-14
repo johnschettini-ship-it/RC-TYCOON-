@@ -51,7 +51,14 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
     d.add(set.density);
     dens.set(id, d);
   }
-  for (const [id, d] of dens) for (const x of listed) if (!d.has(x)) problems.push(`${id}: missing density ${x}`);
+  // Card pictures are one density-2 set (always loaded, drawn at card size), whatever densities the bake holds.
+  for (const [id, d] of dens) {
+    if (id.startsWith('preview:')) {
+      if (!d.has(2) || d.size !== 1) problems.push(`${id}: card pictures must be density 2 only`);
+      continue;
+    }
+    for (const x of listed) if (!d.has(x)) problems.push(`${id}: missing density ${x}`);
+  }
 
   const groups = new Map<string, { kind: RealKind; item: string; density: number; rots: Set<string> }>();
   for (const set of index.sets) {
