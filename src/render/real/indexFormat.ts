@@ -26,7 +26,8 @@ export interface RealIndex {
   format: 'real/1';
   pxPerMetreZoom1: 11.31;
   stepPxPerMetre: 9.8;
-  densities: [2, 4];
+  /** Densities this bake holds; checkIndex requires every item at each of them (a full bake: [2, 4]). */
+  densities: (2 | 4)[];
   sets: RealSetEntry[];
   bytes: { compressed: number; decodedByDensity: Record<'2' | '4', number> };
 }
