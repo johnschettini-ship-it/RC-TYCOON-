@@ -4,9 +4,10 @@
 //
 // Framing follows today's previews (src/render/renderer.ts drawPreview, scenery/preview.ts, track/preview.ts): the
 // game's three-quarter view; a ride at rotation 0 and a stall at service direction 2 (its counter towards the
-// viewer), each on the grass of its footprint; a scenery item at sprite rotation 2 and a path item at side 0 (facing
-// the viewer), with no ground; the steel coaster as today's track preview scene (station, small turn, small hill)
-// with a two-car train in the type's default colours.
+// viewer), and a scenery item at sprite rotation 2, each on the grass of its footprint (so a small item stays small
+// against its tile, as in today's picker); a path item at side 0 (facing the viewer), with no ground; the steel
+// coaster as today's track preview scene (station, small turn, small hill) with a two-car train in the type's default
+// colours.
 //
 // The models come from the items' own bake modules: each module's `bake` runs against a stand-in API that renders
 // nothing except the one shot wanted for the card (the first picture of the wanted set), which it re-frames: the
@@ -110,6 +111,12 @@ async function itemCard(B, card) {
         const [w, d] = card.spec.footprintTiles;
         group.add(grassPatch(w, d));
       } else if (card.kind === 'stall') group.add(grassPatch(1, 1));
+      else if (card.kind === 'scenery') {
+        // On the grass of its tile: the picture keeps the item's size against a tile, as today's picker does by
+        // fitting the item's bounds with its tile (a shrub stays small, a tall tree fills the height).
+        const [w, d] = card.spec.footprintTiles;
+        group.add(grassPatch(w, d));
+      }
       shot = cardShot(B, bs, group);
       return {};
     },
