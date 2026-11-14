@@ -23,9 +23,10 @@ import type { World } from '../../src/sim/types';
 import type { StaffType } from '../../src/data/catalog/types';
 import { canOpenTrackRide } from '../../src/sim/rides/track/api';
 import { addGuestDirect } from '../helpers/world';
-import type { PerfSceneId } from './sceneInfo';
+import { SCALE_SCENE, type PerfSceneId } from './sceneInfo';
+import { FLAT_RIDES } from '../../src/data/catalog/flatRides';
 
-export { PERF_SCENES, SCENE_SAVED_AT, type PerfSceneId, type PerfSceneInfo } from './sceneInfo';
+export { PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT, type PerfSceneId, type PerfSceneInfo } from './sceneInfo';
 
 /** Ticks run after the guests are placed, so they are spread over states before the save. */
 const SETTLE_TICKS = 200;
@@ -265,7 +266,61 @@ function buildCoaster(): World {
   return world;
 }
 
-export function buildPerfScene(id: PerfSceneId): World {
+/**
+ * The scale park (stage 1 round 3 item 7): the Build 2 grid on the 128 × 128 map, every flat ride type twice (36
+ * rides with queues, open), 18 stalls, benches and bins along the paths, 5,000 scenery items of the 8 baked scenery
+ * kinds in every turn, 12 staff and 3,000 guests.
+ */
+function buildScale(): World {
+  const world = createWorld({ seed: 6060, parkName: 'Scale Park', mapSize: 128 });
+  world.state.park.cash = 900_000_000;
+  const N = 128;
+  const lines: number[] = [];
+  for (let v = 8; v <= 120; v += 8) lines.push(v);
+  for (const v of lines) {
+    run(world, { type: 'buildPathLine', x0: 8, y0: v, x1: 120, y1: v, kind: 'footpath' });
+    run(world, { type: 'buildPathLine', x0: v, y0: 8, x1: v, y1: 120, kind: 'footpath' });
+  }
+  run(world, { type: 'buildPathLine', x0: 31, y0: 121, x1: 31, y1: N - 4, kind: 'footpath' });
+  const cells: Array<[number, number]> = [];
+  for (const m of lines.slice(0, -1)) for (const l of lines.slice(0, -1)) cells.push([l, m]);
+  // 36 rides: every flat ride type twice, spread over the grid (a 7 × 7 cell holds the largest, 4 × 5, with a queue).
+  const types = FLAT_RIDES.map((d) => d.id);
+  if (types.length !== SCALE_SCENE.rideTypes) throw new Error(`expected ${SCALE_SCENE.rideTypes} flat ride types, found ${types.length}`);
+  const stallIds = ['snack_shack', 'fizz_stand', 'restrooms', 'balloon_stand'];
+  let k = 0;
+  for (let i = 0; i < cells.length && k < types.length * 2; i += 5) {
+    const [l, m] = cells[i] as [number, number];
+    const id = run(world, { type: 'placeRide', defId: types[k % types.length] as string, x: l + 2, y: m + 1, rotation: 0 });
+    run(world, { type: 'buildPathLine', x0: l + 3, y0: m + 6, x1: l + 3, y1: m + 7, kind: 'queue' });
+    const opened = executeCommand(world, { type: 'setRideOpen', rideId: id, open: true }, { setup: true });
+    if (!opened.ok) throw new Error(`scale: ${types[k % types.length]} cannot open: ${opened.reason}`);
+    if (k % 2 === 0) run(world, { type: 'placeStall', defId: stallIds[(k / 2) % stallIds.length] as string, x: l + 1, y: m + 6, rotation: 3 });
+    k++;
+  }
+  if (k < types.length * 2) throw new Error(`scale: only ${k} rides placed`);
+  // Benches and bins every 4 tiles along the east-west lines.
+  for (const y of lines) for (let x = 10; x < 120; x += 4) executeCommand(world, { type: 'buildPathItem', x, y, itemType: x % 8 === 2 ? 'bench' : 'bin' }, { setup: true });
+  // 5,000 scenery items of the baked kinds, in every turn, on free tiles of the cells.
+  const items = ['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'];
+  const rnd = lcg(60606);
+  let placed = 0;
+  for (let tries = 0; tries < 60_000 && placed < SCALE_SCENE.scenery; tries++) {
+    const [l, m] = cells[Math.floor(rnd() * cells.length)] as [number, number];
+    const x = l + 1 + Math.floor(rnd() * 7);
+    const y = m + 1 + Math.floor(rnd() * 7);
+    const r = executeCommand(world, { type: 'placeScenery', defId: items[placed % items.length] as string, x, y, rotation: (placed % 4) as 0 | 1 | 2 | 3, edge: -1 }, { setup: true });
+    if (r.ok) placed++;
+  }
+  if (placed < SCALE_SCENE.scenery) throw new Error(`scale: only ${placed} scenery items placed`);
+  hire(world, { groundskeeper: 5, mechanic: 3, security: 2, performer: 2 });
+  addGuests(world, SCALE_SCENE.guests, 6161);
+  for (let t = 0; t < SETTLE_TICKS; t++) stepTick(world);
+  return world;
+}
+
+export function buildPerfScene(id: PerfSceneId | 'scale'): World {
+  if (id === 'scale') return buildScale();
   if (id === 'coaster') return buildCoaster();
   if (id === 'build2') return buildBuild2();
   return buildBuild1(id === 'phone' ? 800 : 2_000);

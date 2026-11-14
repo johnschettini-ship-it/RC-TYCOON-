@@ -69,6 +69,8 @@ export interface BenchScene {
   json: string;
   /** Map tile at the screen centre (default: the map's middle). */
   focus?: { x: number; y: number };
+  /** Game id → baked item while this scene runs (the scale park's alias sets, round 3 item 7). */
+  itemMap?: Readonly<Record<string, string>>;
 }
 
 export interface BenchDevice {
@@ -116,6 +118,8 @@ export interface BenchOptions {
    */
   appReadyMs?: number;
   device?: () => BenchDevice;
+  /** Sets the look's game id → item map for a scene (`BenchScene.itemMap`), null after it; absent with today's look. */
+  setItemMap?: (map: Readonly<Record<string, string>> | null) => void;
   /** Told when a scene starts (the card's progress line). */
   onScene?: (id: string, index: number, total: number) => void;
   /**
@@ -444,6 +448,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         continue;
       }
       // Cap changes from the load on belong to this scene.
+      opts.setItemMap?.(scene.itemMap ?? null);
       game.setWorld(loaded.world);
       // Every park from the same start: no cap or demotion left over from the park before.
       const cappedAtStart = sets?.densityCap?.() === 2;
@@ -638,6 +643,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       });
     }
   } finally {
+    opts.setItemMap?.(null);
     live = false;
     rec = null;
     unwatch();

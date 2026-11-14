@@ -81,11 +81,12 @@ function boot(real?: RealOptions): void {
         },
       };
     }
-    // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke), in the VITE_ART=real build only: with the
+    // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke; `?bench=scale` the scale park only), in the
+    // VITE_ART=real build only: with the
     // realistic look (`?art=real`), or with today's look for comparison (`?art=classic`: no look, set manager or
     // ground, so the memory, turn and start bands read n/a while the frame times are measured the same way).
     const bench = new URLSearchParams(location.search).get('bench');
-    if (bench === '1' || bench === 'quick') {
+    if (bench === '1' || bench === 'quick' || bench === 'scale') {
       // S4's first part: the boot's first drawn frame (art not awaited: in the app it is local, here it downloads).
       // Also the boot's first complete frame (network included), shown for information.
       const boot: { firstFrameMs?: number; completeMs?: number } = {};
@@ -94,7 +95,7 @@ function boot(real?: RealOptions): void {
         // Complete as the renderer counts it: no object skipped and the realistic ground laid.
         if (boot.completeMs === undefined && (real?.look?.incomplete() ?? 0) === 0 && (real?.ground?.complete ?? true)) boot.completeMs = performance.now();
       });
-      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => boot, bench === 'quick'));
+      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => boot, bench === '1' ? 'full' : bench));
     }
   }
   game.start();

@@ -10,6 +10,7 @@
  *    the look, and the ground, with the ground's chunks and the look's tinted sheets admitted to and reclaimed by
  *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
  * 4. Decode the card picture set (when the bake has it) and give the card previews its drawer (`setCardArt`).
+ * 5. With `?bench=`, the index gets the scale park's alias sets (`./aliases.ts`, round 3 item 7).
  */
 import { t } from '../../data/strings';
 import { perfProbe } from '../../perf/stats';
@@ -21,6 +22,8 @@ import { CARD_SET, cardPicture } from './cards';
 import { RealGround } from './ground';
 import type { RealIndex } from './indexFormat';
 import { createRealLook } from './look';
+import { FLAT_RIDES } from '../../data/catalog/flatRides';
+import { aliasItemMap, withAliasSets } from './aliases';
 import { SetManager, type Decoded, type SetIO } from './setManager';
 import { installStoragePrefix, pageStorage } from './storagePrefix';
 
@@ -37,6 +40,8 @@ export interface RealBootDeps {
   /** Shows the error line (default: a plain line at the top of the page). */
   show: (message: string) => void;
   storage: Storage | null;
+  /** Add the scale park's alias sets to the index (`./aliases.ts`; default: when the page has `?bench=`). */
+  benchAliases: boolean;
 }
 
 async function bitmap(blob: Blob): Promise<Decoded> {
@@ -69,6 +74,9 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
     (deps.show ?? showLine)(t('ui.realArt.loadFailed'));
     return null;
   }
+  // The bench's scale park draws each of the 18 flat ride types from its own copy of a baked ride's sets.
+  const aliases = deps.benchAliases ?? (typeof location !== 'undefined' && new URLSearchParams(location.search).has('bench'));
+  if (aliases) index = withAliasSets(index, aliasItemMap(FLAT_RIDES.map((d) => d.id)));
   const io: SetIO = {
     async read(file) {
       const res = await get(REAL_ART_BASE + file);

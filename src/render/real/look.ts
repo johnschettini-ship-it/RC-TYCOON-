@@ -123,6 +123,11 @@ export interface RealLook {
    * changed or the view left the scoped rectangle).
    */
   scope?(): { objects: number; inScope: number; walks: number };
+  /**
+   * Draws game ids from other baked items (game id → item), on top of the normal mapping (`./fallbacks.ts`); null puts
+   * it back. The bench's scale park uses it for its alias sets (`./aliases.ts`, round 3 item 7).
+   */
+  setItemMap?(map: Readonly<Record<string, string>> | null): void;
 }
 
 /** The stacked pieces of a baked support (see the header). */
@@ -334,6 +339,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     return r;
   };
   const guestItems = itemsOf('guest').filter((i) => !i.startsWith('staff_'));
+  /** Game id → baked item on top of `realItem` (the bench's scale park), or null. */
+  let itemMap: Readonly<Record<string, string>> | null = null;
   /** Game id → its record per kind (null: today's art), filled on first use. */
   const byGameId = new Map<RealKind, Map<string, ItemRec | null>>();
   /** Staff records by staff type (`guest:staff_<type>`), made on first use. */
@@ -343,7 +350,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     if (!m) byGameId.set(kind, (m = new Map()));
     let r = m.get(defId);
     if (r === undefined) {
-      const item = realItem(defId);
+      const item = itemMap?.[defId] ?? realItem(defId);
       r = item === 'classic' ? null : recOrMissing(kind, item);
       m.set(defId, r);
     }
@@ -900,6 +907,13 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
     scope() {
       return { objects: objects.length, inScope: scopedObjects, walks: scopeWalks };
+    },
+
+    setItemMap(map) {
+      itemMap = map;
+      byGameId.clear();
+      // The objects' set groups change with the mapping: index the park again on the next prepare.
+      objectSig = [];
     },
   };
   return look;

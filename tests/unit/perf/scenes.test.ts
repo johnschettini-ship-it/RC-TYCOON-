@@ -9,7 +9,7 @@ import { deserialize, GAME_VERSION, serialize, validateState } from '../../../sr
 import { canOpenTrackRide } from '../../../src/sim/rides/track/api';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { stepTick } from '../../../src/sim/tick';
-import { buildPerfScene, PERF_SCENES, SCENE_SAVED_AT } from '../../perf/scenes';
+import { buildPerfScene, PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT } from '../../perf/scenes';
 
 const DIR = join(__dirname, '../../perf');
 const write = !!process.env.TC_WRITE_SCENES;
@@ -17,7 +17,7 @@ const write = !!process.env.TC_WRITE_SCENES;
 describe('perf scenes (Phase 6 §4.6)', () => {
   it.runIf(write)('regenerates the scene saves', { timeout: 600_000 }, () => {
     // `TC_WRITE_SCENES=coaster` regenerates one scene; `1` regenerates all.
-    for (const scene of PERF_SCENES.filter((x) => process.env.TC_WRITE_SCENES === '1' || process.env.TC_WRITE_SCENES === x.id)) {
+    for (const scene of [...PERF_SCENES, SCALE_SCENE].filter((x) => process.env.TC_WRITE_SCENES === '1' || process.env.TC_WRITE_SCENES === x.id)) {
       const world = buildPerfScene(scene.id);
       expect(validateState(world.state)).toBeNull();
       writeFileSync(join(DIR, scene.file), serialize(world, GAME_VERSION, SCENE_SAVED_AT));
@@ -67,5 +67,21 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     expect(Math.max(...zs) - Math.min(...zs)).toBe(24);
     expect(s.scenery.length).toBeGreaterThanOrEqual(20);
     expect(getLayout(data).lengthMm).toBeGreaterThan(0);
+  });
+
+  it('scale (stage 1 round 3 item 7): 18 flat ride types twice, 5,000 scenery items, 3,000 guests on 128 × 128', { timeout: 60_000 }, () => {
+    const r = deserialize(readFileSync(join(DIR, SCALE_SCENE.file), 'utf8'));
+    if (!r.ok) throw new Error(r.error);
+    const s = r.world.state;
+    expect(s.map.width).toBe(128);
+    const flat = s.rides.filter((x) => x.kind === 'flat' && x.status === 'open');
+    expect(flat).toHaveLength(SCALE_SCENE.flatRides);
+    expect(new Set(flat.map((x) => x.defId)).size).toBe(SCALE_SCENE.rideTypes);
+    expect(s.scenery.length).toBeGreaterThanOrEqual(SCALE_SCENE.scenery);
+    expect(new Set(s.scenery.map((x) => x.rotation)).size).toBe(4);
+    expect(s.guests.length).toBeGreaterThanOrEqual(SCALE_SCENE.guests * 0.95);
+    expect(s.guests.length).toBeLessThanOrEqual(SCALE_SCENE.guests);
+    for (let k = 0; k < 20; k++) stepTick(r.world);
+    expect(validateState(r.world.state)).toBeNull();
   });
 });

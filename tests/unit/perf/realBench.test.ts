@@ -266,12 +266,12 @@ describe('the bench never reaches an autosave', () => {
   it('every perf save starts more than the longest scene (at 1×) before a month start', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const { PERF_SCENES } = await import('../../perf/sceneInfo');
+    const { PERF_SCENES, SCALE_SCENE } = await import('../../perf/sceneInfo');
     const { TICKS_PER_MONTH, TICKS_PER_SECOND } = await import('../../../src/data/tuning/core');
     const { BENCH_MAX_SCENE_MS } = await import('../../../src/perf/realBench');
     // S4 wait 10 s + warm-up 5 + pan 10 + zoom 4 + 4 timed-out turns 20 + placements 2 + idle 5.
     expect(BENCH_MAX_SCENE_MS).toBe(56_000);
-    for (const s of PERF_SCENES) {
+    for (const s of [...PERF_SCENES, SCALE_SCENE]) {
       const tick = (JSON.parse(readFileSync(join(__dirname, '../../perf', s.file), 'utf8')) as { state: { tick: number } }).state.tick;
       expect(TICKS_PER_MONTH - (tick % TICKS_PER_MONTH), s.id).toBeGreaterThan((BENCH_MAX_SCENE_MS / 1000) * TICKS_PER_SECOND);
     }
@@ -663,5 +663,21 @@ describe('bench honesty (round 3 item 6)', () => {
     expect(resultsText(result)).toMatch(/outside the budget today's terrain 20 \/ static layer 5 \/ today's sprites 12 \/ compressed art 9 MB, all together peak 56 MB/);
     const none = await quick(() => undefined);
     expect(none.result.scenes[0]).toMatchObject({ otherMB: null, allPeakMB: null });
+  });
+});
+
+describe('the scale park\'s item map (round 3 item 7)', () => {
+  it('sets a scene\'s item map before its park loads and clears it after the run', { timeout: 60_000 }, async () => {
+    const calls: (Readonly<Record<string, string>> | null)[] = [];
+    const g = fakeGame();
+    let done = false;
+    const map = { bumper_cars: 'carousel@bumper_cars' };
+    const p = runRealBench(g, [{ id: 'phone', json: sceneJson('p') }, { id: 'scale', json: sceneJson('s'), itemMap: map }], () => g.now, {
+      look: g.look, sets: g.sets, timeScale: 0.1, setItemMap: (m) => calls.push(m),
+    }).finally(() => { done = true; });
+    await g.pump(() => done);
+    const result = await p;
+    expect(result.scenes.map((s) => s.id)).toEqual(['phone', 'scale']);
+    expect(calls).toEqual([null, map, null]);
   });
 });

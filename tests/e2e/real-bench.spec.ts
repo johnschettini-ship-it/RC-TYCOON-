@@ -16,7 +16,7 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
   test.skip(!REAL, 'needs a VITE_ART=real build (set VITE_ART=real)');
 
   test('Run benchmark shows the results card, no console errors but the missing index', async ({ page, context }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(360_000);
     const errors: string[] = [];
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(`${m.text()} @ ${m.location().url}`);
@@ -34,11 +34,13 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
     await run.click();
 
     const card = page.getByTestId('real-bench-card');
-    await expect(card).toBeVisible({ timeout: 220_000 });
-    for (const id of ['build1', 'build2', 'phone', 'coaster']) await expect(card.locator(`table[data-scene="${id}"]`)).toBeVisible();
-    await expect(card.locator('tr[data-check="S3"]')).toHaveCount(4);
+    await expect(card).toBeVisible({ timeout: 340_000 });
+    // The four parks and the scale park (round 3 item 7).
+    for (const id of ['build1', 'build2', 'phone', 'coaster', 'scale']) await expect(card.locator(`table[data-scene="${id}"]`)).toBeVisible();
+    await expect(card.locator('tr[data-check="S3"]')).toHaveCount(5);
+    await expect(card.locator('tr[data-check="S6g"]')).toHaveCount(5);
     const result = await page.evaluate(() => (window as unknown as { __tcBench: { scenes: Array<{ id: string; error?: string; turns: unknown[]; placements: number }> } }).__tcBench);
-    expect(result.scenes.map((s) => s.id)).toEqual(['build1', 'build2', 'phone', 'coaster']);
+    expect(result.scenes.map((s) => s.id)).toEqual(['build1', 'build2', 'phone', 'coaster', 'scale']);
     for (const s of result.scenes) {
       expect(s.error).toBeUndefined();
       expect(s.turns).toHaveLength(4);
@@ -69,7 +71,7 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
   });
 
   test("today's look runs the same bench (?art=classic): n/a memory, turn and start bands, frame times measured", async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(360_000);
     const errors: string[] = [];
     page.on('console', (m) => {
       if (m.type() === 'error') errors.push(`${m.text()} @ ${m.location().url}`);
@@ -80,7 +82,7 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
     await expect(run).toBeVisible();
     await run.click();
     const card = page.getByTestId('real-bench-card');
-    await expect(card).toBeVisible({ timeout: 220_000 });
+    await expect(card).toBeVisible({ timeout: 340_000 });
     await expect(card.locator('tr[data-look="classic"]')).toBeVisible();
     for (const check of ['S2', 'S3']) for (const cell of await card.locator(`tr[data-check="${check}"] td[data-band]`).all()) await expect(cell).toHaveAttribute('data-band', 'n/a');
     const result = await page.evaluate(() => (window as unknown as { __tcBench: { look: string; scenes: Array<{ frames: number; frameP95: number }> } }).__tcBench);

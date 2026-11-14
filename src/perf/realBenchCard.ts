@@ -15,12 +15,15 @@ import { text } from '../data/strings';
 import type { Game } from '../game';
 import type { RealOptions } from '../render/renderer';
 import type { SetManager } from '../render/real/setManager';
-import { PERF_SCENES, type PerfSceneId } from '../../tests/perf/sceneInfo';
+import { FLAT_RIDES } from '../data/catalog/flatRides';
+import { aliasItemMap } from '../render/real/aliases';
+import { PERF_SCENES, SCALE_SCENE, type PerfSceneId } from '../../tests/perf/sceneInfo';
 import { spriteMemory } from '../render/spriteCache';
 import { BENCH_PHASES, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
 
-/** The four saves, as text. Literal paths, so the bundler makes one lazy chunk each. */
-const SAVES: Record<PerfSceneId, () => Promise<{ default: string }>> = {
+/** The saves, as text. Literal paths, so the bundler makes one lazy chunk each. */
+const SAVES: Record<PerfSceneId | 'scale', () => Promise<{ default: string }>> = {
+  scale: () => import('../../tests/perf/scale-18-rides-5000-scenery-3000-guests.tcsave.json?raw'),
   build1: () => import('../../tests/perf/build1-2000-guests.tcsave.json?raw'),
   build2: () => import('../../tests/perf/build2-128-3000-guests.tcsave.json?raw'),
   phone: () => import('../../tests/perf/phone-800-guests.tcsave.json?raw'),
@@ -177,11 +180,15 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
   return card;
 }
 
+/** The bench's runs: `?bench=1` (the four parks and the scale park), `quick` (the same, every step a tenth as long: the e2e smoke), `scale` (the scale park only). */
+export type BenchMode = 'full' | 'quick' | 'scale';
+
 /**
  * Show the Run button. `boot()` gives the navigation start to the boot's first drawn frame (S4's first part) and to
- * its first complete frame (information), each undefined until it came. `quick` shortens every step (the e2e smoke).
+ * its first complete frame (information), each undefined until it came.
  */
-export function mountRealBench(game: Game, real: RealOptions | undefined, boot: () => { firstFrameMs?: number; completeMs?: number }, quick = false): void {
+export function mountRealBench(game: Game, real: RealOptions | undefined, boot: () => { firstFrameMs?: number; completeMs?: number }, mode: BenchMode = 'full'): void {
+  const quick = mode === 'quick';
   const style = el('style', '', CSS);
   document.head.append(style);
   const run = el('button', 'rb-run', text('ui.realBench.run'));
@@ -206,9 +213,11 @@ export function mountRealBench(game: Game, real: RealOptions | undefined, boot: 
     };
     void (async () => {
       try {
-        const scenes: BenchScene[] = await Promise.all(
-          PERF_SCENES.map(async (s) => ({ id: s.id, json: (await SAVES[s.id]()).default, focus: s.focus })),
-        );
+        // The scale park (round 3 item 7) draws each flat ride type from its own alias sets (added by the realistic
+        // boot when the page has `?bench=`), so 18 types decode and count as 18 baked types would.
+        const scale = { id: SCALE_SCENE.id, focus: SCALE_SCENE.focus, itemMap: aliasItemMap(FLAT_RIDES.map((d) => d.id)) };
+        const list = mode === 'scale' ? [scale] : [...PERF_SCENES.map((s) => ({ id: s.id, focus: s.focus })), scale];
+        const scenes: BenchScene[] = await Promise.all(list.map(async (s) => ({ ...s, json: (await SAVES[s.id]()).default })));
         const sets = real?.sets && 'capEvents' in real.sets ? (real.sets as unknown as SetManager) : null;
         // All compressed art local first: nothing downloads while anything is measured.
         let artDownload: { ms: number; bytes: number; files: number } | undefined;
@@ -224,6 +233,7 @@ export function mountRealBench(game: Game, real: RealOptions | undefined, boot: 
           look: real?.look ?? null,
           ground: real?.ground ?? null,
           sets,
+          setItemMap: real?.look?.setItemMap,
           artDownload,
           bootCompleteMs: b.completeMs,
           appReadyMs: b.firstFrameMs,
