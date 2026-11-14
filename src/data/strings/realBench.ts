@@ -18,6 +18,12 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.notLoaded': 'Did not load: {error}',
   'ui.realBench.frame': 'Frame time p50 / p95 / p99',
   'ui.realBench.slowFrames': 'Frames over 33 ms',
+  'ui.realBench.longestGap': 'Longest frame gap',
+  'ui.realBench.hiddenGaps': 'Gaps while hidden (not counted)',
+  'ui.realBench.ms': '{n} ms',
+  'ui.realBench.deviceValue': 'DPR {dpr}, {w} × {h} px ({cssW} × {cssH})',
+  'ui.realBench.turnCw': '↻{ms}',
+  'ui.realBench.turnCcw': '↺{ms}',
   'ui.realBench.work': 'Work per frame p95',
   'ui.realBench.memory': 'Picture memory peak / end',
   'ui.realBench.turns': 'Turns',
@@ -32,5 +38,5 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.band.fail': 'fail',
   'ui.realBench.band.na': 'n/a',
   'ui.realBench.note':
-    'Times are in milliseconds, memory in MB. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way, S4 start 4 s. S5 (app size) comes from the bake report',
+    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way, S4 start 4 s. S5 (app size) comes from the bake report',
 };

@@ -37,6 +37,12 @@ interface Fake extends BenchGame {
   commands: Command[];
   speeds: Speed[];
   sceneIndex: number;
+  autosave: boolean;
+  /** Autosave value seen at each dispatch (during the run). */
+  autosaveAtDispatch: boolean[];
+  /** Extra ms added to the next frame's gap (a stall), checked every frame. */
+  extra: ((g: Fake) => number) | null;
+  throwOnDispatch: boolean;
   pump(until: () => boolean): Promise<void>;
   look: { incomplete(): number; fallbacksUsed(): string[] };
   sets: { capEvents(): unknown[]; peakBytes(): number; residentBytes(): number };
@@ -55,6 +61,17 @@ function fakeGame(): Fake {
     commands: [],
     speeds: [],
     sceneIndex: -1,
+    autosave: true,
+    autosaveAtDispatch: [],
+    extra: null,
+    throwOnDispatch: false,
+    settings: {
+      get: () => g.autosave,
+      set: (_k, v) => {
+        g.autosave = v;
+        return true;
+      },
+    },
     camera: { centerX: 0, centerY: 0, zoom: 1, rotation: 0 } as Camera,
     world: createWorld({ seed: 1, parkName: 'Boot' }),
     setWorld(w: World) {
@@ -71,6 +88,8 @@ function fakeGame(): Fake {
     },
     dispatch(cmd: Command): CommandResult {
       g.commands.push(cmd);
+      g.autosaveAtDispatch.push(g.autosave);
+      if (g.throwOnDispatch) throw new Error('boom');
       return { ok: true, cost: 0, events: [] } as unknown as CommandResult;
     },
     onFrame(cb) {
@@ -83,7 +102,7 @@ function fakeGame(): Fake {
     sets: { capEvents: () => caps.slice(), peakBytes: () => peak, residentBytes: () => resident },
     async pump(until) {
       while (!until()) {
-        g.now += g.sceneIndex === 1 ? 40 : 16;
+        g.now += (g.sceneIndex === 1 ? 40 : 16) + (g.extra?.(g) ?? 0);
         // The "renderer": a turn makes the next frames incomplete while the new rotation's sets decode.
         if (g.camera.rotation !== lastRot) {
           lastRot = g.camera.rotation;
@@ -178,8 +197,8 @@ describe('runRealBench (stage 1 bench)', () => {
     expect(typeof b1?.workP95).toBe('number');
     expect(b1?.capEvents).toBe(0);
     expect(co?.capEvents).toBe(1);
-    expect(b1?.fallbacksUsed).toEqual(['carousel']);
-    expect(co?.fallbacksUsed).toEqual(['carousel', 'ground:sand']);
+    // Per scene: the ids new since the scenes before it.
+    expect(result.scenes.map((s) => s.fallbacksUsed)).toEqual([['carousel'], ['ground:sand'], [], []]);
     expect(result.fallbacksUsed).toEqual(['carousel', 'ground:sand']);
     expect(result.device).toEqual({ devicePixelRatio: 2.75, canvasPx: [1080, 2400], viewportCss: [393, 873], userAgent: 'fake' });
     expect(b1?.placements).toBe(20);
@@ -241,14 +260,17 @@ describe('runRealBench (stage 1 bench)', () => {
 });
 
 describe('the bench never reaches an autosave', () => {
-  it('every perf save starts more than 30 s at 1× (600 ticks) before a month start', async () => {
+  it('every perf save starts more than the longest scene (at 1×) before a month start', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const { PERF_SCENES } = await import('../../perf/sceneInfo');
     const { TICKS_PER_MONTH, TICKS_PER_SECOND } = await import('../../../src/data/tuning/core');
+    const { BENCH_MAX_SCENE_MS } = await import('../../../src/perf/realBench');
+    // S4 wait 10 s + warm-up 5 + pan 10 + zoom 4 + 4 timed-out turns 20 + placements 2 + idle 5.
+    expect(BENCH_MAX_SCENE_MS).toBe(56_000);
     for (const s of PERF_SCENES) {
       const tick = (JSON.parse(readFileSync(join(__dirname, '../../perf', s.file), 'utf8')) as { state: { tick: number } }).state.tick;
-      expect(TICKS_PER_MONTH - (tick % TICKS_PER_MONTH), s.id).toBeGreaterThan(30 * TICKS_PER_SECOND);
+      expect(TICKS_PER_MONTH - (tick % TICKS_PER_MONTH), s.id).toBeGreaterThan((BENCH_MAX_SCENE_MS / 1000) * TICKS_PER_SECOND);
     }
   });
 });
@@ -285,5 +307,105 @@ describe('ui.realBench strings', () => {
     }
     vi.unstubAllEnvs();
     vi.resetModules();
+  });
+});
+
+/** One quick scene (time scale 0.1) with the fake's instruments, plus extra options. */
+async function quick(setup: (g: Fake) => void, extra: Partial<Parameters<typeof runRealBench>[3]> = {}): Promise<{ g: Fake; result: RealBenchResult }> {
+  const g = fakeGame();
+  setup(g);
+  let done = false;
+  const p = runRealBench(g, [{ id: 'phone', json: sceneJson('p') }], () => g.now, { look: g.look, sets: g.sets, timeScale: 0.1, ...extra }).finally(() => {
+    done = true;
+  });
+  await g.pump(() => done);
+  return { g, result: await p };
+}
+
+describe('frame gaps (review fix 1)', () => {
+  it('a 1.5 s stall while visible counts in p99, frames over 33 ms and the longest gap', { timeout: 60_000 }, async () => {
+    let stalls = 0;
+    const { result } = await quick((g) => {
+      // Two 1.5 s stalls during the pan (after the 0.5 s warm-up), so p99 of ~150 gaps lands on one.
+      g.extra = (x) => (x.now > 700 && stalls < 2 ? (stalls++, 1500 - 16) : 0);
+    });
+    const row = result.scenes[0];
+    expect(row?.longestGapMs).toBe(1500);
+    expect(row?.frameP99).toBe(1500);
+    expect(row?.framesOver33).toBe(2);
+    expect(row?.droppedHiddenGaps).toBe(0);
+  });
+
+  it('a gap across a hidden page is left out and counted as a hidden gap', { timeout: 60_000 }, async () => {
+    let hide: (() => void) | null = null;
+    let done = false;
+    const { result } = await quick(
+      (g) => {
+        g.extra = (x) => {
+          if (x.now > 700 && !done) {
+            done = true;
+            hide?.();
+            return 3000;
+          }
+          return 0;
+        };
+      },
+      {
+        watchHidden: (onHide) => {
+          hide = onHide;
+          return () => {
+            hide = null;
+          };
+        },
+      },
+    );
+    const row = result.scenes[0];
+    expect(row?.droppedHiddenGaps).toBe(1);
+    expect(row?.longestGapMs).toBe(16);
+    expect(row?.framesOver33).toBe(0);
+    expect(hide).toBeNull();
+  });
+});
+
+describe('autosave (review fix 2)', () => {
+  it('is off for the whole run and put back after', { timeout: 60_000 }, async () => {
+    const { g } = await quick(() => undefined);
+    expect(g.autosaveAtDispatch).toHaveLength(20);
+    expect(g.autosaveAtDispatch.every((v) => v === false)).toBe(true);
+    expect(g.autosave).toBe(true);
+  });
+
+  it('stays off after the run when the player had it off', { timeout: 60_000 }, async () => {
+    const { g } = await quick((x) => {
+      x.autosave = false;
+    });
+    expect(g.autosave).toBe(false);
+  });
+
+  it('is put back when the run throws', { timeout: 60_000 }, async () => {
+    const g = fakeGame();
+    g.throwOnDispatch = true;
+    let done = false;
+    const p = runRealBench(g, [{ id: 'phone', json: sceneJson('p') }], () => g.now, { look: g.look, sets: g.sets, timeScale: 0.1 }).finally(() => {
+      done = true;
+    });
+    const pumped = g.pump(() => done);
+    await expect(p).rejects.toThrow('boom');
+    await pumped;
+    expect(g.autosave).toBe(true);
+  });
+});
+
+describe('a missing instrument is never a pass', () => {
+  it('no set manager: S2 n/a; no realistic look: S3 and S4 n/a (times still recorded)', { timeout: 60_000 }, async () => {
+    const { result } = await quick(() => undefined, { look: null, sets: null, appReadyMs: 100 });
+    const row = result.scenes[0];
+    expect(row?.bands.S2.band).toBe('n/a');
+    expect(row?.bands.S3.band).toBe('n/a');
+    expect(row?.turns.every((t) => t.band === 'n/a' && t.ms > 0)).toBe(true);
+    expect(row?.bands.S4.band).toBe('n/a');
+    expect(row?.bands.S4.value).toBe(result.startMs);
+    expect(row?.bands.S1.band).toBe('pass');
+    expect(result.verdict).toBe('pass');
   });
 });

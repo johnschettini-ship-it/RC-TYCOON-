@@ -81,8 +81,14 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
   const top = el('table');
   const first = r.scenes.find((s) => s.error === undefined);
   top.append(
-    row(text('ui.realBench.start'), r.startMs === null ? text('ui.realBench.band.na') : `${r.startMs} ms`, first?.bands.S4 ?? null, 'S4'),
-    row(text('ui.realBench.device'), `DPR ${r.device.devicePixelRatio}, ${r.device.canvasPx.join(' × ')} px (${r.device.viewportCss.join(' × ')})`),
+    row(text('ui.realBench.start'), r.startMs === null ? text('ui.realBench.band.na') : text('ui.realBench.ms', { n: r.startMs }), first?.bands.S4 ?? null, 'S4'),
+    row(text('ui.realBench.device'), text('ui.realBench.deviceValue', {
+        dpr: r.device.devicePixelRatio,
+        w: r.device.canvasPx[0],
+        h: r.device.canvasPx[1],
+        cssW: r.device.viewportCss[0],
+        cssH: r.device.viewportCss[1],
+      })),
     row(text('ui.realBench.fallbacks'), r.fallbacksUsed.join(', ') || text('ui.realBench.none')),
   );
   box.append(top);
@@ -98,12 +104,15 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
       t.append(
         row(text('ui.realBench.frame'), `${s.frameP50} / ${s.frameP95} / ${s.frameP99}`, b.S1, 'S1'),
         row(text('ui.realBench.slowFrames'), `${s.framesOver33} / ${s.frames}`),
+        row(text('ui.realBench.longestGap'), `${s.longestGapMs}`),
+        row(text('ui.realBench.hiddenGaps'), `${s.droppedHiddenGaps}`),
         row(text('ui.realBench.work'), `${s.workP95}`),
         row(text('ui.realBench.memory'), `${s.peakMB} / ${s.endMB}`, b.S2, 'S2'),
-        row(text('ui.realBench.turns'), s.turns.map((x) => `${x.dir === 1 ? '↻' : '↺'}${x.ms}`).join(' '), b.S3, 'S3'),
+        row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
         row(text('ui.realBench.placement'), `${s.placementLongestFrameMs} (${s.placements})`),
         row(text('ui.realBench.incomplete'), `${s.incompleteFrames}`),
         row(text('ui.realBench.caps'), `${s.capEvents}`),
+        row(text('ui.realBench.fallbacks'), s.fallbacksUsed.join(', ') || text('ui.realBench.none')),
       );
     }
     box.append(t);

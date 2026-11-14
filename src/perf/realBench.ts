@@ -7,16 +7,18 @@
  *   5 s warm-up (not counted) → 10 s pan → zoom 2, 1, 0.5, 2 (1 s each) → 4 turns 1 s apart → 20 scenery
  *   placements beside a path, 100 ms apart, through `game.dispatch` → 5 s idle.
  * Frame times are the gaps between drawn frames (`Game.onFrame`, after the renderer drew), so a frame that took long
- * to draw shows. A turn's time runs from the Turn action (`rotateView`, as the Turn button calls it) to the first
+ * to draw shows. Every gap counts, a visible stall of seconds included; only a gap that spans a hidden page is left
+ * out (and counted in `droppedHiddenGaps`). A turn's time runs from the Turn action (`rotateView`, as the Turn button calls it) to the first
  * frame drawn at the new rotation with `look.incomplete() === 0`.
  *
  * Kill-rule bands (spec §6): S1 frame p95 33 ms (the rule is for `build2`; shown for every park), S2 peak decoded
  * memory 128 MB (the decode budget F2), S3 a turn 250 ms the Turn button's way (clockwise) and 500 ms the other way,
  * S4 app start to the first complete park frame 4 s (first row only), S5 app size: not measurable in the game
- * (the bake report gives it), always `n/a`.
+ * (the bake report gives it), always `n/a`. A missing instrument gives `n/a`, never a pass: S2 without the set
+ * manager, S3 and S4 without the realistic look (their times are still recorded).
  *
- * The bench never saves: the parks start at least 1,700 ticks before a month's end and a scene runs about 30 s
- * (≤ 600 ticks at 1×), so the month-start autosave cannot fire; and the title screen stays open underneath.
+ * The bench never saves: autosave is off for the run (`game.settings`, put back after), and every perf save also
+ * starts more than `BENCH_MAX_SCENE_MS` of 1× ticks before a month start (unit test).
  */
 import { centerOnTile, panCamera, rotateView } from '../input/camera';
 import type { Speed } from '../loop';
@@ -35,6 +37,8 @@ export interface BenchGame {
   setSpeed(speed: Speed): void;
   dispatch(cmd: Command): CommandResult;
   onFrame(cb: () => void): void;
+  /** Player settings: the bench turns `autosave` off for the run and puts it back after. */
+  settings: { get(key: 'autosave'): boolean; set(key: 'autosave', value: boolean): boolean };
 }
 
 export interface BenchScene {
@@ -71,6 +75,11 @@ export interface BenchOptions {
    * run; the e2e smoke (`?bench=quick`) uses 0.1. Turn times and their limits are not scaled.
    */
   timeScale?: number;
+  /**
+   * Calls `onHide` whenever the page is hidden; returns the unsubscribe. A frame gap that spans a hidden page is not a
+   * frame (the browser stops drawing) and is counted in `droppedHiddenGaps` instead. Default: `visibilitychange`.
+   */
+  watchHidden?: (onHide: () => void) => () => void;
 }
 
 export type BandResult = 'pass' | 'fail' | 'n/a';
@@ -102,6 +111,10 @@ export interface BenchRow {
   frameP95: number;
   frameP99: number;
   framesOver33: number;
+  /** Longest frame gap measured, ms (a visible stall of any length counts). */
+  longestGapMs: number;
+  /** Frame gaps that spanned a hidden page: left out of every frame statistic. */
+  droppedHiddenGaps: number;
   /** Main-thread work per frame, p95 (perf probe). */
   workP95: number;
   /** Measured frames that skipped an object whose set was still decoding. */
@@ -116,7 +129,7 @@ export interface BenchRow {
   placementLongestFrameMs: number;
   /** Density-cap changes of the set manager during the scene. */
   capEvents: number;
-  /** Ids drawn with today's art so far (the look's list is for the whole run). */
+  /** Ids first drawn with today's art during this scene (the run's full list is `RealBenchResult.fallbacksUsed`). */
   fallbacksUsed: string[];
   bands: { S1: Band; S2: Band; S3: Band; S4: Band; S5: Band };
 }
@@ -144,9 +157,15 @@ const PAN_PX_PER_S = 240;
 const ZOOMS = [2, 1, 0.5, 2] as const;
 const TURN_TIMEOUT_MS = 5000;
 const PLACEMENTS = 20;
-/** A longer gap is a hidden tab, not a frame (as the perf probe). */
-const MAX_GAP_MS = 1000;
 const SLOW_FRAME_MS = 33;
+/** S4's wait for the first complete frame gives up after this long. */
+const FIRST_FRAME_TIMEOUT_MS = 10_000;
+
+/**
+ * The longest a scene can run at time scale 1: S4's wait, warm-up, pan, zoom holds, four turns that all time out,
+ * placements, idle. The month-start autosave guard (unit test) checks every save against it.
+ */
+export const BENCH_MAX_SCENE_MS = FIRST_FRAME_TIMEOUT_MS + 5000 + 10_000 + ZOOMS.length * 1000 + BENCH_TURNS.length * TURN_TIMEOUT_MS + PLACEMENTS * 100 + 5000;
 const MB = 1024 * 1024;
 
 const r1 = (v: number): number => Math.round(v * 10) / 10;
@@ -167,6 +186,15 @@ function defaultDevice(): BenchDevice {
     viewportCss: [w.innerWidth ?? 0, w.innerHeight ?? 0],
     userAgent: w.navigator?.userAgent ?? '',
   };
+}
+
+function defaultWatchHidden(onHide: () => void): () => void {
+  if (typeof document === 'undefined') return () => undefined;
+  const h = (): void => {
+    if (document.visibilityState === 'hidden') onHide();
+  };
+  document.addEventListener('visibilitychange', h);
+  return () => document.removeEventListener('visibilitychange', h);
 }
 
 /** Empty tiles beside a footpath, nearest to `focus` first. */
@@ -199,7 +227,7 @@ export function placementSpots(world: World, focus: number): number[] {
 
 function emptyRow(id: string, error: string): BenchRow {
   return {
-    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, workP95: 0, incompleteFrames: 0, peakMB: 0, endMB: 0,
+    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, peakMB: 0, endMB: 0,
     turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, fallbacksUsed: [],
     bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150) },
   };
@@ -225,22 +253,27 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   let waiters: Array<() => void> = [];
   let lastT = -1;
   /** The scene's measurement, or null in the warm-up. */
-  let rec: { gaps: number[]; incomplete: number; peak: number; placing: boolean; placeMax: number } | null = null;
+  let rec: { gaps: number[]; hidden: number; incomplete: number; placing: boolean; placeMax: number } | null = null;
   let sampleMem = false;
   let scenePeakBytes = 0;
+  /** The page was hidden since the last frame: the next gap is not a frame. */
+  let hiddenSinceFrame = false;
+  const unwatch = (opts.watchHidden ?? defaultWatchHidden)(() => {
+    hiddenSinceFrame = true;
+  });
   game.onFrame(() => {
     if (!live) return;
     const now = clock();
-    if (rec) {
-      if (lastT >= 0) {
-        const dt = now - lastT;
-        if (dt >= 0 && dt <= MAX_GAP_MS) {
-          rec.gaps.push(dt);
-          if (rec.placing && dt > rec.placeMax) rec.placeMax = dt;
-        }
+    if (rec && lastT >= 0) {
+      const dt = now - lastT;
+      if (hiddenSinceFrame) rec.hidden++;
+      else if (dt >= 0) {
+        rec.gaps.push(dt);
+        if (rec.placing && dt > rec.placeMax) rec.placeMax = dt;
       }
-      if (incomplete() > 0) rec.incomplete++;
     }
+    if (rec && incomplete() > 0) rec.incomplete++;
+    hiddenSinceFrame = false;
     if (sampleMem && sets) scenePeakBytes = Math.max(scenePeakBytes, sets.residentBytes());
     lastT = now;
     const w = waiters;
@@ -254,6 +287,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
 
   const wasEnabled = probe.enabled;
   probe.enabled = true;
+  // No autosave during the run, whatever screen the tester left open (restored in `finally`).
+  const autosaveWas = game.settings.get('autosave');
+  if (autosaveWas) game.settings.set('autosave', false);
+  const fallbacksSeen = new Set<string>();
   const rows: BenchRow[] = [];
   let startMs: number | null = null;
   try {
@@ -265,10 +302,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         rows.push(emptyRow(scene.id, loaded.error));
         continue;
       }
+      // Cap changes from the load on belong to this scene.
       const capsAtStart = sets?.capEvents().length ?? 0;
-      const peakAtStart = sets?.peakBytes() ?? 0;
-      scenePeakBytes = sets?.residentBytes() ?? 0;
-      sampleMem = true;
       game.setWorld(loaded.world);
       const map = loaded.world.state.map;
       const focus = scene.focus ? scene.focus.y * map.width + scene.focus.x : Math.floor(map.height / 2) * map.width + Math.floor(map.width / 2);
@@ -278,11 +313,16 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       centerOnTile(cam, map, focus);
       game.setSpeed(1);
       const loadAt = clock();
+      // The first frame of the new park: its `endFrame` frees the previous park's sets (not wanted any more), so
+      // the scene's memory is counted from here.
+      await frame();
+      const peakAtStart = sets?.peakBytes() ?? 0;
+      scenePeakBytes = sets?.residentBytes() ?? 0;
+      sampleMem = true;
 
       // S4: the first complete frame of the first park.
       if (startMs === null) {
-        do await frame();
-        while (incomplete() > 0 && clock() - loadAt < TURN_TIMEOUT_MS * 2);
+        while (incomplete() > 0 && clock() - loadAt < FIRST_FRAME_TIMEOUT_MS) await frame();
         const firstComplete = clock();
         startMs = opts.appReadyMs !== undefined ? opts.appReadyMs + (firstComplete - runStart) : firstComplete;
       }
@@ -290,7 +330,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       // Warm-up (not counted).
       await waitUntil(loadAt + WARMUP_MS);
       probe.reset();
-      const r = { gaps: [] as number[], incomplete: 0, peak: 0, placing: false, placeMax: 0 };
+      const r = { gaps: [] as number[], hidden: 0, incomplete: 0, placing: false, placeMax: 0 };
       rec = r;
 
       // Pan: right, down, left, up.
@@ -330,7 +370,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         }
         const ms = clock() - t0;
         const limitMs = dir === 1 ? BENCH_LIMITS.turnMs : BENCH_LIMITS.turnOtherMs;
-        turns.push({ dir, ms: r1(ms), limitMs, band: ms <= limitMs && !timedOut ? 'pass' : 'fail', timedOut });
+        // Without the realistic look there is nothing to wait for: the time is recorded, the band is n/a.
+        const verdict: BandResult = look === null ? 'n/a' : ms <= limitMs && !timedOut ? 'pass' : 'fail';
+        turns.push({ dir, ms: r1(ms), limitMs, band: verdict, timedOut });
         await waitUntil(t0 + TURN_EVERY_MS);
       }
 
@@ -370,6 +412,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       const slowest = turns.reduce((m, t) => Math.max(m, t.ms), 0);
       const first = rows.every((x) => x.error !== undefined);
       const frameP95 = percentile(r.gaps, 0.95);
+      const fresh = (look?.fallbacksUsed() ?? []).filter((id) => !fallbacksSeen.has(id));
+      for (const id of fresh) fallbacksSeen.add(id);
       rows.push({
         id: scene.id,
         frames: r.gaps.length,
@@ -377,6 +421,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         frameP95: r1(frameP95),
         frameP99: r1(percentile(r.gaps, 0.99)),
         framesOver33: r.gaps.filter((g) => g > SLOW_FRAME_MS).length,
+        longestGapMs: r1(r.gaps.reduce((m, g) => Math.max(m, g), 0)),
+        droppedHiddenGaps: r.hidden,
         workP95: r1(snap.workP95),
         incompleteFrames: r.incomplete,
         peakMB: r1(peakBytes / MB),
@@ -386,12 +432,18 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         placementFailures: failures,
         placementLongestFrameMs: r1(r.placeMax),
         capEvents: (sets?.capEvents().length ?? 0) - capsAtStart,
-        fallbacksUsed: look?.fallbacksUsed() ?? [],
+        fallbacksUsed: fresh,
+        // A missing instrument never reads as a pass: no set manager → S2 n/a; no realistic look → S3 and S4 n/a.
         bands: {
           S1: band(r.gaps.length > 0 ? frameP95 : null, BENCH_LIMITS.frameP95Ms, 'ms'),
-          S2: band(peakBytes / MB, BENCH_LIMITS.peakMB, 'MB'),
-          S3: { value: r1(slowest), limit: BENCH_LIMITS.turnMs, unit: 'ms', band: turns.every((t) => t.band === 'pass') ? 'pass' : 'fail' },
-          S4: first ? band(startMs, BENCH_LIMITS.startMs, 'ms') : NA('ms', BENCH_LIMITS.startMs),
+          S2: sets ? band(peakBytes / MB, BENCH_LIMITS.peakMB, 'MB') : NA('MB', BENCH_LIMITS.peakMB),
+          S3: {
+            value: r1(slowest),
+            limit: BENCH_LIMITS.turnMs,
+            unit: 'ms',
+            band: look === null ? 'n/a' : turns.every((t) => t.band === 'pass') ? 'pass' : 'fail',
+          },
+          S4: first && look !== null ? band(startMs, BENCH_LIMITS.startMs, 'ms') : { ...NA('ms', BENCH_LIMITS.startMs), value: first && startMs !== null ? r1(startMs) : null },
           S5: NA('MB', 150),
         },
       });
@@ -399,8 +451,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   } finally {
     live = false;
     rec = null;
+    unwatch();
     probe.enabled = wasEnabled;
     game.setSpeed(0);
+    if (autosaveWas) game.settings.set('autosave', true);
   }
 
   const failed = rows.some((x) => Object.values(x.bands).some((b) => b.band === 'fail'));
@@ -426,7 +480,7 @@ export function resultsText(r: RealBenchResult): string {
     }
     const b = s.bands;
     lines.push(
-      `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}; work p95 ${s.workP95} ms; ` +
+      `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; caps ${s.capEvents}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band}`,

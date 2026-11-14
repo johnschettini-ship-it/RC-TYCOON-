@@ -44,9 +44,13 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
       expect(s.turns).toHaveLength(4);
       expect(s.placements).toBe(20);
     }
+    // No save written. The only possible new key is the test build's own settings (autosave off for the run, then
+    // back on); every key carries the test build's prefix.
     const keysAfter = await page.evaluate(() => Object.keys(localStorage).sort());
-    expect(keysAfter).toEqual(keysBefore);
+    expect(keysAfter.filter((k) => k !== 'tcreal:tc.settings')).toEqual(keysBefore.filter((k) => k !== 'tcreal:tc.settings'));
+    expect(keysAfter.some((k) => k.includes('tc.save'))).toBe(false);
     expect(keysAfter.every((k) => k.startsWith('tcreal:'))).toBe(true);
+    expect(await page.evaluate(() => (window as unknown as { __tc: { settings: { get(k: string): unknown } } }).__tc.settings.get('autosave'))).toBe(true);
 
     // The card fits a 390 px phone: no sideways scrolling inside it.
     await page.setViewportSize({ width: 390, height: 844 });
