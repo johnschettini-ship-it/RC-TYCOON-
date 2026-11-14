@@ -20,7 +20,7 @@ import { aliasItemMap } from '../render/real/aliases';
 import type { BenchMode } from '../render/real/benchParam';
 import { PERF_SCENES, SCALE_SCENE, type PerfSceneId } from '../../tests/perf/sceneInfo';
 import { spriteMemory } from '../render/spriteCache';
-import { BENCH_PHASES, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
+import { BENCH_PHASES, ratioText, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
 
 /** The saves, as text. Literal paths, so the bundler makes one lazy chunk each. */
 const SAVES: Record<PerfSceneId | 'scale', () => Promise<{ default: string }>> = {
@@ -86,6 +86,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
   const verdict = el('p', `rb-verdict rb-${r.verdict}`, text(`ui.realBench.verdict.${r.verdict}`));
   verdict.dataset.verdict = r.verdict;
   box.append(h, verdict);
+  if (r.scenes.some((s) => s.ratioChanges.some((c) => c.to < c.from))) box.append(el('p', 'rb-verdict rb-fail', text('ui.realBench.notSharp')));
 
   const top = el('table');
   const first = r.scenes.find((s) => s.error === undefined);
@@ -122,10 +123,11 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
         ...BENCH_PHASES.map((p) => row(text(`ui.realBench.phase.${p}`), text('ui.realBench.phaseValue', { p95: s.phases[p].p95, pct: s.phases[p].over33Pct, n: s.phases[p].frames }))),
         row(text('ui.realBench.hiddenGaps'), `${s.droppedHiddenGaps}`),
         row(text('ui.realBench.work'), `${s.workP95}`),
-        row(text('ui.realBench.memory'), `${s.peakMB} / ${s.endMB}`, b.S2, 'S2'),
+        row(text('ui.realBench.memory'), `${s.peakMB} / ${s.endMB}`),
         row(text('ui.realBench.split'), s.peakSplitMB ? text('ui.realBench.splitValue', { ...s.peakSplitMB }) : text('ui.realBench.band.na')),
         row(text('ui.realBench.other'), s.otherMB ? text('ui.realBench.otherValue', { ...s.otherMB }) : text('ui.realBench.band.na')),
-        row(text('ui.realBench.allPeak'), s.allPeakMB === null ? text('ui.realBench.band.na') : `${s.allPeakMB}`),
+        row(text('ui.realBench.allPeak'), s.allPeakMB === null ? text('ui.realBench.band.na') : `${s.allPeakMB}`, b.S2, 'S2'),
+        row(text('ui.realBench.ratio'), ratioText(s).replace('render ratio ', '')),
         row(text('ui.realBench.density'), s.densities.join(' / ') || text('ui.realBench.band.na')),
         row(text('ui.realBench.turns'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.ms })).join(' '), b.S3, 'S3'),
         row(text('ui.realBench.sharpen'), s.turns.map((x) => text(x.dir === 1 ? 'ui.realBench.turnCw' : 'ui.realBench.turnCcw', { ms: x.sharpenMs ?? text('ui.realBench.band.na') })).join(' ')),

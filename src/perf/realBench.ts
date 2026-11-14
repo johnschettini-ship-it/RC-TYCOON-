@@ -107,6 +107,12 @@ export interface BenchOptions {
    * read). Sampled every measured frame; each row reports their peaks and the peak of everything together.
    */
   otherMemory?: () => OtherMemory;
+  /**
+   * The render ratio the renderer draws at now, null when it cannot be read (a blind instrument: the row then says
+   * `ratio n/a`, never "unchanged"). Default: `canvas.dataset.pixelRatio` of `#game`, set by the renderer on every
+   * plan change. Read once per sampled frame; the last reading is kept across scenes.
+   */
+  renderRatio?: () => number | null;
   /** Reading every compressed art file before the run (the card does it), reported apart from S4. */
   artDownload?: { ms: number; bytes: number; files: number };
   /** Navigation start to the boot's first complete frame, network included (shown for information). */
@@ -219,6 +225,16 @@ export interface BenchRow {
    */
   otherMB: { terrain: number; staticLayer: number; sprites: number; blobs: number } | null;
   allPeakMB: number | null;
+  /**
+   * Render ratio changes during the scene, including one between the previous scene's last reading and this
+   * scene's first (frame 0); `frame` counts sampled frames from the scene's start.
+   */
+  ratioChanges: { frame: number; from: number; to: number }[];
+  /** First and last render ratio read in the scene; null when no reading was obtained (`ratio n/a`). */
+  ratioAtStart: number | null;
+  ratioAtEnd: number | null;
+  /** Canvas size in device pixels when the scene started; null without a canvas. */
+  canvasAtStart: [number, number] | null;
   /** Held memory by owner at the scene's peak and at its end, MiB (null without the set manager's split). */
   peakSplitMB: MemorySplit | null;
   endSplitMB: MemorySplit | null;
@@ -295,6 +311,12 @@ function defaultDevice(): BenchDevice {
   };
 }
 
+function defaultRenderRatio(): number | null {
+  const doc = (globalThis as { document?: Document }).document;
+  const v = Number((doc?.getElementById('game') as HTMLCanvasElement | null | undefined)?.dataset.pixelRatio);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
 function defaultWatchHidden(onHide: () => void): () => void {
   if (typeof document === 'undefined') return () => undefined;
   const h = (): void => {
@@ -340,7 +362,7 @@ const noPhases = (): Record<BenchPhase, PhaseFrames> => Object.fromEntries(BENCH
 
 function emptyRow(id: string, error: string): BenchRow {
   return {
-    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, phases: noPhases(), otherMB: null, allPeakMB: null, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, degradedFrames: 0, degradedMax: 0, peakMB: 0, endMB: 0,
+    id, error, frames: 0, frameP50: 0, frameP95: 0, frameP99: 0, framesOver33: 0, longestGapMs: 0, phases: noPhases(), otherMB: null, allPeakMB: null, ratioChanges: [], ratioAtStart: null, ratioAtEnd: null, canvasAtStart: null, droppedHiddenGaps: 0, workP95: 0, incompleteFrames: 0, degradedFrames: 0, degradedMax: 0, peakMB: 0, endMB: 0,
     turns: [], placements: 0, placementFailures: 0, placementLongestFrameMs: 0, capEvents: 0, cappedAtStart: false, densities: [], peakSplitMB: null, endSplitMB: null, stalls: [], fallbacksUsed: [],
     bands: { S1: NA('ms', BENCH_LIMITS.frameP95Ms), S2: NA('MB', BENCH_LIMITS.peakMB), S3: NA('ms', BENCH_LIMITS.turnMs), S4: NA('ms', BENCH_LIMITS.startMs), S5: NA('MB', 150), S6g: NA('ms', BENCH_LIMITS.longestGapMs) },
   };
@@ -382,6 +404,12 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   let otherPeak: OtherMemory | null = null;
   let allPeak = 0;
   let sampleMem = false;
+  let ratioChanges: { frame: number; from: number; to: number }[] = [];
+  let ratioFrame = 0;
+  /** The last ratio read, kept across scenes so a drop between scenes is seen. */
+  let lastRatio: number | null = null;
+  let ratioAtStart: number | null = null;
+  const readRatio = opts.renderRatio ?? defaultRenderRatio;
   let scenePeakBytes = 0;
   let scenePeakSplit: MemorySplit | null = null;
   /** The page was hidden since the last frame: the next gap is not a frame. */
@@ -408,6 +436,15 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       if (deg > rec.degradedMax) rec.degradedMax = deg;
     }
     hiddenSinceFrame = false;
+    if (sampleMem) {
+      const ratio = readRatio();
+      if (ratio !== null) {
+        if (ratioAtStart === null) ratioAtStart = ratio;
+        if (lastRatio !== null && ratio !== lastRatio) ratioChanges.push({ frame: ratioFrame, from: lastRatio, to: ratio });
+        lastRatio = ratio;
+      }
+      ratioFrame++;
+    }
     if (sampleMem && opts.otherMemory) {
       const o = opts.otherMemory();
       const p = (otherPeak ??= { terrain: 0, staticLayer: 0, sprites: 0, blobs: 0 });
@@ -472,6 +509,11 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       const peakAtStart = sets?.peakBytes() ?? 0;
       scenePeakBytes = sets?.residentBytes() ?? 0;
       scenePeakSplit = splitMB();
+      ratioChanges = [];
+      ratioFrame = 0;
+      ratioAtStart = null;
+      const dev = (opts.device ?? defaultDevice)();
+      const canvasAtStart: [number, number] | null = dev.canvasPx[0] > 0 && dev.canvasPx[1] > 0 ? [dev.canvasPx[0], dev.canvasPx[1]] : null;
       sampleMem = true;
       otherPeak = null;
       allPeak = 0;
@@ -612,6 +654,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         phases: Object.fromEntries(BENCH_PHASES.map((p) => [p, phaseFrames(r.byPhase[p])])) as Record<BenchPhase, PhaseFrames>,
         otherMB: op ? { terrain: r1(op.terrain / MB), staticLayer: r1(op.staticLayer / MB), sprites: r1(op.sprites / MB), blobs: r1(op.blobs / MB) } : null,
         allPeakMB: op ? r1(Math.max(allPeak, peakBytes) / MB) : null,
+        ratioChanges: [...ratioChanges],
+        ratioAtStart,
+        ratioAtEnd: lastRatio,
+        canvasAtStart,
         droppedHiddenGaps: r.hidden,
         workP95: r1(snap.workP95),
         incompleteFrames: r.incomplete,
@@ -633,7 +679,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         // A missing instrument never reads as a pass: no set manager → S2 n/a; no realistic look → S3 and S4 n/a.
         bands: {
           S1: band(r.gaps.length > 0 ? frameP95 : null, BENCH_LIMITS.frameP95Ms, 'ms'),
-          S2: sets ? band(peakBytes / MB, BENCH_LIMITS.peakMB, 'MB') : NA('MB', BENCH_LIMITS.peakMB),
+          // S2 is ALL picture memory (managed sets, tints, ground, today's terrain, static layer, sprites, art blobs) for
+          // either look. Without `otherMemory` the total is unknown, so S2 is n/a (a managed-only figure must not pass).
+          S2: op ? band(Math.max(allPeak, peakBytes) / MB, BENCH_LIMITS.peakMB, 'MB') : NA('MB', BENCH_LIMITS.peakMB),
           S3: {
             value: r1(slowest),
             limit: BENCH_LIMITS.turnMs,
@@ -683,9 +731,16 @@ export function splitText(m: MemorySplit | null): string {
   return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground} MB` : 'n/a';
 }
 
+/** `render ratio 2→1 at frame 200`, `render ratio 2 (unchanged)`, or `ratio n/a` when nothing could be read. */
+export function ratioText(s: Pick<BenchRow, 'ratioChanges' | 'ratioAtStart'>): string {
+  if (s.ratioAtStart === null) return 'ratio n/a';
+  return s.ratioChanges.length ? s.ratioChanges.map((c) => `render ratio ${c.from}→${c.to} at frame ${c.frame}`).join(', ') : `render ratio ${s.ratioAtStart} (unchanged)`;
+}
+
 /** The copied results: a few summary lines, then the result as JSON (as the phone test). */
 export function resultsText(r: RealBenchResult): string {
-  const lines = [`Stage 1 bench (${r.look === 'real' ? 'realistic' : "today's"} look): ${r.verdict}`, `look: ${r.look === 'real' ? 'realistic' : "today's"}`];
+  const reduced = r.scenes.some((s) => s.ratioChanges.some((c) => c.to < c.from));
+  const lines = [`Stage 1 bench (${r.look === 'real' ? 'realistic' : "today's"} look): ${r.verdict}${reduced ? ' (not at full sharpness: the game lowered its render ratio during the run)' : ''}`, `look: ${r.look === 'real' ? 'realistic' : "today's"}`];
   lines.push(`start (S4) ${r.startMs ?? 'n/a'} ms; DPR ${r.device.devicePixelRatio}; canvas ${r.device.canvasPx.join('x')}; ${r.device.userAgent}`);
   const dl = r.artDownload;
   lines.push(`art download ${dl ? `${dl.MB} MB, ${dl.files} files in ${dl.ms} ms` : 'n/a'} (before the run, not in S4); boot to first complete frame ${r.bootCompleteMs ?? 'n/a'} ms (network included)`);
@@ -702,6 +757,7 @@ export function resultsText(r: RealBenchResult): string {
         `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; degraded ${s.degradedFrames} frames (most ${s.degradedMax}); caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +
+        `canvas at start ${s.canvasAtStart?.join('x') ?? 'n/a'}; ${ratioText(s)}; ` +
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band} S6g ${b.S6g.band}`,
     );
   }
