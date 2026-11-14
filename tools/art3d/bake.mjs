@@ -180,5 +180,13 @@ const mb = (n) => (n / 1e6).toFixed(2);
   const baked = report.filter((r) => !r.cached).length;
   console.log(`items: ${report.length} (${baked} baked, ${report.length - baked} from cache); ${((Date.now() - t0) / 1000).toFixed(1)} s total`);
   console.log(problems.length === 0 ? 'index OK' : `${problems.length} index problem(s)`);
-  if (pageErrors || problems.length) process.exit(1);
+
+  // size report beside index.json; S5 (app art <= 150 MB) fails the bake when the projected full art passes it
+  const sizes = new Map(readdirSync(outDir).map((n) => [n, statSync(join(outDir, n)).size]));
+  const sr = N.sizeReport(index, sizes);
+  writeFileSync(join(outDir, 'size-report.json'), JSON.stringify({ ...sr, s5LimitBytes: N.S5_LIMIT_BYTES, note: 'track projected per type from one baked steel_coaster (18 pieces): underestimates' }, null, 1));
+  console.log(`size: baked ${mb(sr.totalCompressed)} MB, projected full ${mb(sr.projectedFull)} MB (S5 limit ${mb(N.S5_LIMIT_BYTES)} MB; track is underestimated: one baked steel_coaster stands for 12 track types)`);
+  const s5 = sr.projectedFull > N.S5_LIMIT_BYTES;
+  if (s5) console.log(`S5 FAIL: projected full art passes ${mb(N.S5_LIMIT_BYTES)} MB`);
+  if (pageErrors || problems.length || s5) process.exit(1);
 })().catch((e) => { console.error(e); process.exit(1); });

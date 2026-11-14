@@ -39,7 +39,7 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
       if (!Number.isFinite(f.ox) || !Number.isFinite(f.oy)) problems.push(`${set.key}: frame ${k} has non-finite ox/oy`);
     }
   }
-  for (const f of files) if (f !== 'index.json' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
+  for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
 
   // every item at every density the index lists, and no other density
   const listed = new Set<number>(index.densities as readonly number[]);
