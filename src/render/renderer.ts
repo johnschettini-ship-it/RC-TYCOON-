@@ -42,7 +42,7 @@ import { CLASSIC_HOLD } from './real/setManager';
 import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
-import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
+import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion, restartAutoWarmup } from '../perf/quality';
 import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM, REAL_CLASSIC_SPRITE_MB } from '../data/tuning/perf';
 import {
   rotateCameraView,
@@ -972,6 +972,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   /** `auto` quality steps the render scale down when frames stay too slow (`../perf/quality.ts`). */
   const autoScale = new AutoScale(BUDGET_DESKTOP_FRAME_P95_MS);
   let lastDrawAt = -1;
+  /**
+   * Realistic build only: the world drawn last (a different one is a park load: new game, save, scenario, bench) and
+   * whether the realistic look's first complete frame after that load is still to come. Both restart the `auto`
+   * warm-up (`restartAutoWarmup`), so the frames that load and decode a park are never judged as play.
+   */
+  let drawnWorld: World | null = null;
+  let awaitingComplete = false;
 
   /** Pixel ratio, zoom buckets, guest LOD zoom, and the shared sprite memory budget from the device and quality. */
   function applyPlan(): void {
@@ -1137,6 +1144,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       syncDrawCounter();
       spriteMemory.beginFrame();
       if (planVersion !== renderQualityVersion()) applyPlan();
+      if (import.meta.env.VITE_ART === 'real' && world !== drawnWorld) {
+        drawnWorld = world;
+        awaitingComplete = true;
+        restartAutoWarmup(autoScale);
+      }
       autoFrame();
       const t0 = debug && typeof performance !== 'undefined' ? performance.now() : 0;
       const s = world.state;
@@ -1209,7 +1221,14 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       if (lod) dots.draw(ctx, Math.max(1, Math.round(GUEST_LOD_W * dpr)), Math.max(1, Math.round(GUEST_LOD_H * dpr)));
       list.sort();
       drawList(world);
-      if (import.meta.env.VITE_ART === 'real' && L && (L.incomplete() > 0 || (ground && !ground.complete))) perfProbe.countIncomplete();
+      if (import.meta.env.VITE_ART === 'real' && L) {
+        if (L.incomplete() > 0 || (ground && !ground.complete)) perfProbe.countIncomplete();
+        else if (awaitingComplete) {
+          // The park's first complete frame: its decode frames were load frames, the warm-up starts again from here.
+          awaitingComplete = false;
+          restartAutoWarmup(autoScale);
+        }
+      }
       mgmt.drawWeather(ctx, world, canvas.width, canvas.height, alpha);
       for (const l of layers) l.drawAfterObjects?.(ctx, world, tool, frame);
 

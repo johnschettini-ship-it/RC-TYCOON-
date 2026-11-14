@@ -76,7 +76,11 @@ export function renderPlan(quality: RenderQuality, device: DeviceClass, dpr: num
   };
 }
 
-/** Frames ignored after a start, a load, a resize, or a quality change (sprite and chunk warm-up). */
+/**
+ * Frames ignored after a start, a resize, or a quality change (sprite and chunk warm-up). In the VITE_ART=real build
+ * also after a park load and after the realistic look's first complete frame following it (`restartAutoWarmup`);
+ * the website build leaves a load out (its renderer has no such hook, so its output stays as it was).
+ */
 export const AUTO_WARMUP_FRAMES = 120;
 /** Frames per evaluation window. */
 export const AUTO_WINDOW_FRAMES = 60;
@@ -94,7 +98,8 @@ export class AutoScale {
   /** Highest render scale `auto` may use now (Infinity = the device's best). */
   maxRatio = Infinity;
   private readonly window = new Float64Array(AUTO_WINDOW_FRAMES);
-  private frames = 0;
+  /** Frames counted since the last (re)start; read and cleared by `restartAutoWarmup` only. */
+  frames = 0;
 
   constructor(public budgetMs: number) {}
 
@@ -117,6 +122,17 @@ export class AutoScale {
     this.maxRatio = 1;
     return true;
   }
+}
+
+/**
+ * Restart the warm-up without undoing a step down (no step back up on a load: a slow device stays at 1×). The next
+ * `AUTO_WARMUP_FRAMES` frames are ignored again and the window starts empty. The realistic build's renderer calls it
+ * when a park finishes loading (a new world is drawn) and on the realistic look's first complete frame after that:
+ * the frames that decode a park's art are load frames, not play (batch 0 phone run 1: they stepped a phone with a
+ * steady 21 ms p95 down to 1× 27 frames into the first park). A free function, so the website build drops it.
+ */
+export function restartAutoWarmup(a: AutoScale): void {
+  a.frames = 0;
 }
 
 let quality: RenderQuality = 'auto';

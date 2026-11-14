@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AutoScale, AUTO_WARMUP_FRAMES, AUTO_WINDOW_FRAMES, deviceClass, renderPlan } from '../../../src/perf/quality';
+import { AutoScale, AUTO_WARMUP_FRAMES, AUTO_WINDOW_FRAMES, deviceClass, renderPlan, restartAutoWarmup } from '../../../src/perf/quality';
 
 describe('device class (Phase 6 §4.6)', () => {
   const fine = { coarsePointer: false, deviceMemoryGb: undefined };
@@ -69,5 +69,35 @@ describe('auto render scale', () => {
     a.reset();
     expect(a.maxRatio).toBe(Infinity);
     expect(run(a, 60, AUTO_WARMUP_FRAMES)).toBe(false);
+  });
+
+  it('restartAutoWarmup (a park load, the first complete realistic frame): load frames are not judged', () => {
+    // Batch 0 phone run 1: the warm-up was spent before the park loaded, so its decode frames filled a window.
+    const a = new AutoScale(40);
+    run(a, 16, AUTO_WARMUP_FRAMES + 30);
+    restartAutoWarmup(a);
+    // The load: slow frames, all inside the new warm-up.
+    expect(run(a, 200, 20)).toBe(false);
+    expect(run(a, 16, AUTO_WARMUP_FRAMES - 20 + AUTO_WINDOW_FRAMES * 3)).toBe(false);
+    expect(a.maxRatio).toBe(Infinity);
+    // Without the restart the same frames step down (the window holds 20 slow frames of 60).
+    const b = new AutoScale(40);
+    run(b, 16, AUTO_WARMUP_FRAMES + 30);
+    expect(run(b, 200, 20) || run(b, 16, AUTO_WINDOW_FRAMES)).toBe(true);
+    expect(b.maxRatio).toBe(1);
+  });
+
+  it('restartAutoWarmup keeps a step down (no step back up on a load) and judges again after the warm-up', () => {
+    const a = new AutoScale(40);
+    run(a, 16, AUTO_WARMUP_FRAMES);
+    run(a, 60, AUTO_WINDOW_FRAMES);
+    expect(a.maxRatio).toBe(1);
+    restartAutoWarmup(a);
+    expect(a.maxRatio).toBe(1);
+    // At full ratio, slow play after the warm-up still steps down.
+    const c = new AutoScale(40);
+    restartAutoWarmup(c);
+    expect(run(c, 60, AUTO_WARMUP_FRAMES)).toBe(false);
+    expect(run(c, 60, AUTO_WINDOW_FRAMES)).toBe(true);
   });
 });
