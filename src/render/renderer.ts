@@ -275,13 +275,14 @@ function drawCounter(ctx: CanvasRenderingContext2D): () => void {
  * Today's picture memory (Task 3, spec §5.4 item 4): with a look, today's caches (terrain chunks, static layer,
  * sprites) are held in the set manager every frame as `classic` (`sets.hold`), before its `endFrame`, so the ladder
  * sees all picture memory; their shared budget is `REAL_CLASSIC_SPRITE_MB` on top of the static layer. `counts`
- * gathers today's terrain placeholder chunks over the run (the headless checks read it).
+ * gathers placeholders over the run (the headless checks read it): today's terrain chunks, and the realistic ground's
+ * tiles.
  */
 export interface RealOptions {
   look?: RealLook;
   sets?: { beginFrame(frame: number): void; endFrame(): void; hold?(id: string, bytes: number, upBytes?: number): void };
   ground?: GroundLayer;
-  counts?: { placeholders: number };
+  counts?: { placeholders: number; groundPlaceholders: number };
 }
 
 export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOptions = {}): Renderer {
@@ -1103,6 +1104,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       chunks = terrain.draw(sc, map, env, view, bucket, scale, offX, offY, rot);
       if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.placeholders += terrain.placeholders;
       ground?.draw(sc, map, view, scale, offX, offY, rot, terrain.tracker.version, env);
+      if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.groundPlaceholders += ground?.placeholders ?? 0;
       staticValid = terrain.complete && (!ground || ground.complete);
       setKey(staticKey, cam, map);
       statics.set(STATIC_KEY, { image: staticImage.canvas, w, h, ox: 0, oy: 0, scale: 1 });
@@ -1115,6 +1117,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       chunks = terrain.draw(c, map, env, view, bucket, scale, offX, offY, rot);
       if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.placeholders += terrain.placeholders;
       ground?.draw(c, map, view, scale, offX, offY, rot, terrain.tracker.version, env);
+      if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.groundPlaceholders += ground?.placeholders ?? 0;
     }
     setKey(lastKey, cam, map);
     return chunks;

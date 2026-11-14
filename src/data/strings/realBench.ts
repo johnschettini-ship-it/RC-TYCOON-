@@ -26,11 +26,12 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.phase.placements': 'Placements: frame p95, share over 33 ms',
   'ui.realBench.phase.idle': 'Idle: frame p95, share over 33 ms',
   'ui.realBench.phaseValue': '{p95} ms, {pct}% of {n}',
-  'ui.realBench.other': 'Memory outside the budget at peak',
-  'ui.realBench.otherValue': "today's terrain {terrain} / static layer {staticLayer} / today's sprites {sprites} / compressed art {blobs} MB",
+  'ui.realBench.other': "Today's pictures at peak",
+  'ui.realBench.otherValue': "today's terrain {terrain} / static layer {staticLayer} / today's sprites {sprites} MB",
+  'ui.realBench.blobs': 'Compressed art kept, peak (MB, not in S2)',
   'ui.realBench.ratio': 'Render ratio',
   'ui.realBench.notSharp': 'Not at full sharpness: the game lowered its render ratio during the run',
-  'ui.realBench.allPeak': 'All picture memory together, peak (MB)',
+  'ui.realBench.allPeak': 'Decode memory together, peak (MB)',
   'ui.realBench.hiddenGaps': 'Gaps while hidden (not counted)',
   'ui.realBench.ms': '{n} ms',
   'ui.realBench.deviceValue': 'DPR {dpr}, {w} × {h} px ({cssW} × {cssH})',
@@ -67,5 +68,5 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.band.fail': 'fail',
   'ui.realBench.band.na': 'n/a',
   'ui.realBench.note':
-    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way (a turn may first show at density 2; turns until sharp is the time to full density, not in S3), S4 start 4 s, counted with all art already downloaded (the download is shown apart), S6g no frame gap over 500 ms (a proposal). S1 is shown per phase too, with the share of frames over 33 ms. S2 counts the decode budget only; the memory outside it (today\'s terrain and static layer, which are still drawn, today\'s sprites and the compressed art) is shown next to it, and all of it together. S5 (app size) comes from the bake report. Numbers from a desktop or headless browser are not phone numbers: a phone draws at most 2 device pixels per CSS pixel, so it uses density 2 at zoom 1 and density 4 at zoom 2',
+    'Times are in milliseconds, memory in MB. n/a means the value could not be measured here (no realistic art or no picture memory count), never a pass. Limits: S1 frame p95 33 ms (the rule is for build2), S2 peak picture memory 128 MB, S3 a turn 250 ms clockwise and 500 ms the other way (a turn may first show at density 2; turns until sharp is the time to full density, not in S3), S4 start 4 s, counted with all art already downloaded (the download is shown apart), S6g no frame gap over 500 ms (a proposal). S1 is shown per phase too, with the share of frames over 33 ms. S2 counts all decoded picture memory against the decode budget: the managed sets with today\'s terrain, static layer and sprites; the compressed art files kept once read are shown apart and are not in S2. S5 (app size) comes from the bake report. Numbers from a desktop or headless browser are not phone numbers: a phone draws at most 2 device pixels per CSS pixel, so it uses density 2 at zoom 1 and density 4 at zoom 2',
 };

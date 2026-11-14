@@ -31,7 +31,7 @@ export interface RealLook {
   /**
    * The same ground piece from the other density's set when that one is decoded (density 2 first), or null: what
    * RealGround draws while `groundPiece` answers null (a zoom step, a lifted demotion), so a tile it lays is never
-   * empty (Task 3). The set is used (kept from freeing), never wanted; no count, no fallback listed.
+   * empty (Task 3). The set is only peeked: never used (pinned) or wanted; no count, no fallback listed.
    */
   groundStandIn?(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): Sprite | null;
   /**

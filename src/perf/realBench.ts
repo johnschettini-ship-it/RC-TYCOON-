@@ -460,7 +460,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       p.blobs = Math.max(p.blobs, o.blobs);
       // Today's caches are also held in the set manager (`classic`, Task 3): counted once, from `otherMemory`.
       const managed = (sets?.residentBytes() ?? 0) - (sets?.split?.().classic ?? 0);
-      allPeak = Math.max(allPeak, managed + o.terrain + o.staticLayer + o.sprites + o.blobs);
+      // S2 is the decode budget (F2): the compressed art kept once read is not in it (shown on its own line).
+      allPeak = Math.max(allPeak, managed + o.terrain + o.staticLayer + o.sprites);
     }
     if (sampleMem && sets) {
       const now = sets.residentBytes();
@@ -687,8 +688,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
         // A missing instrument never reads as a pass: no set manager → S2 n/a; no realistic look → S3 and S4 n/a.
         bands: {
           S1: band(r.gaps.length > 0 ? frameP95 : null, BENCH_LIMITS.frameP95Ms, 'ms'),
-          // S2 is ALL picture memory (managed sets, tints, ground, today's terrain, static layer, sprites, art blobs) for
-          // either look. Without `otherMemory` the total is unknown, so S2 is n/a (a managed-only figure must not pass).
+          // S2 is the decode budget F2 (controller ruling, Task 3): all decoded picture memory (managed sets, tints,
+          // ground, today's terrain, static layer, sprites) for either look; the compressed art files kept once read are
+          // not in it (`otherMB.blobs`, shown apart). Without `otherMemory` the total is unknown, so S2 is n/a.
           S2: op ? band(Math.max(allPeak, peakBytes) / MB, BENCH_LIMITS.peakMB, 'MB') : NA('MB', BENCH_LIMITS.peakMB),
           S3: {
             value: r1(slowest),
@@ -729,9 +731,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   };
 }
 
-/** `terrain / static layer / sprites / compressed MB`, or n/a. */
+/** `terrain / static layer / sprites MB` (in S2), or n/a. */
 export function otherText(m: BenchRow['otherMB']): string {
-  return m ? `today's terrain ${m.terrain} / static layer ${m.staticLayer} / today's sprites ${m.sprites} / compressed art ${m.blobs} MB` : 'n/a';
+  return m ? `today's terrain ${m.terrain} / static layer ${m.staticLayer} / today's sprites ${m.sprites} MB` : 'n/a';
 }
 
 /** `sets / tints / ground MB` (and today's caches held in the budget, when reported), or n/a. */
@@ -761,7 +763,7 @@ export function resultsText(r: RealBenchResult): string {
     lines.push(
       `${s.id}${s.infoOnly ? ' (information only, not in the verdict)' : ''}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `by phase ${BENCH_PHASES.map((p) => `${p} p95 ${s.phases[p].p95} ms (${s.phases[p].over33Pct}% >33)`).join(', ')}; ` +
-        `peak ${s.peakMB} MB, end ${s.endMB} MB; outside the budget ${otherText(s.otherMB)}, all together peak ${s.allPeakMB ?? 'n/a'} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
+        `peak ${s.peakMB} MB, end ${s.endMB} MB; outside the set manager ${otherText(s.otherMB)}, decode memory together peak ${s.allPeakMB ?? 'n/a'} MB (S2); compressed art kept ${s.otherMB ? `${s.otherMB.blobs} MB` : 'n/a'} (not in S2); turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +
         `placements ${s.placements} (longest frame ${s.placementLongestFrameMs} ms); incomplete ${s.incompleteFrames}; degraded ${s.degradedFrames} frames (most ${s.degradedMax}); caps ${s.capEvents} (capped at start: ${s.cappedAtStart ? 'yes' : 'no'}); ` +
         `density ${s.densities.map((d) => `d${d}`).join('/') || 'n/a'}; held at peak ${splitText(s.peakSplitMB)}, end ${splitText(s.endSplitMB)}; timed-out waits ${s.stalls.map((x) => x.at).join(', ') || 'none'}; ` +

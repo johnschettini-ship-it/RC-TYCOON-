@@ -532,4 +532,21 @@ describe('today\'s memory inside the decode budget (Task 3)', () => {
     expect((b.sprites ?? 0) + (b.other ?? 0)).toBeLessThanOrEqual(m.REAL_CLASSIC_SPRITE_MB * MB);
     expect((b.sprites ?? 0) + (b.other ?? 0)).toBeGreaterThan(0);
   });
+
+  it('counts the realistic ground\'s placeholder tiles next to today\'s terrain placeholders', async () => {
+    const m = await fresh();
+    const world = park();
+    // Every terrain baked, no piece decoded yet: covered chunks draw placeholder tiles.
+    const look = { density: () => 2 as const, groundPiece: () => null, groundBaked: () => true };
+    const ground = new m.RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const counts = { placeholders: 0, groundPlaceholders: 0 };
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), ground, counts });
+    r.resize(W, H, 1);
+    r.draw(world, camAt(world), defaultToolState(), 0);
+    expect(ground.placeholders).toBeGreaterThan(0);
+    expect(counts.groundPlaceholders).toBe(ground.placeholders);
+    r.draw(world, camAt(world), defaultToolState(), 0);
+    expect(counts.groundPlaceholders).toBe(2 * ground.placeholders);
+  });
 });

@@ -301,4 +301,37 @@ describe('realistic ground cover (VITE_ART=real only, stage 1 round 3; Task 3)',
       vi.unstubAllEnvs();
     }
   });
+
+  it('a covered chunk is freed once per covering, not every frame; uncovered and built again, it is freed again', async () => {
+    const { vi } = await import('vitest');
+    vi.stubEnv('VITE_ART', 'real');
+    try {
+      install();
+      const map = generateMap({ width: 2 * CHUNK_SIZE, height: CHUNK_SIZE });
+      const layer = new TerrainLayer();
+      const env: TerrainEnv = { seed: 1, rides: [], stalls: [] };
+      const view = { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 };
+      const ctx = make(100, 100).getContext() as CanvasRenderingContext2D;
+      layer.sync(map);
+      layer.draw(ctx, map, env, view, 1, 1, 0, 0, 0);
+      const imgs = (layer as unknown as { images: { delete(k: number): void; peek(k: number): boolean } }).images;
+      let deletes = 0;
+      const del = imgs.delete.bind(imgs);
+      imgs.delete = (k: number) => { deletes++; del(k); };
+      const covered: TerrainEnv = { ...env, cover: (c) => c === 0 };
+      layer.draw(ctx, map, covered, view, 1, 1, 0, 0, 0);
+      expect(deletes).toBe(16);
+      expect(imgs.peek(1)).toBe(false);
+      layer.draw(ctx, map, covered, view, 1, 1, 0, 0, 0);
+      expect(deletes).toBe(16);
+      // Uncovered: today's terrain builds it again; covered again: freed again.
+      layer.draw(ctx, map, env, view, 1, 1, 0, 0, 0);
+      expect(imgs.peek(1)).toBe(true);
+      layer.draw(ctx, map, covered, view, 1, 1, 0, 0, 0);
+      expect(deletes).toBe(32);
+      expect(imgs.peek(1)).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

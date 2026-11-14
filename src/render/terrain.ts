@@ -458,6 +458,11 @@ export class TerrainLayer {
   /** Chunks the last `draw` showed as a placeholder (not built yet). */
   placeholders = 0;
   /**
+   * The realistic test build only (declared, never emitted in the website build): 1 for a chunk whose images were
+   * freed when the realistic ground covered it, so a covered chunk is not freed again every frame; 0 once uncovered.
+   */
+  declare private coverFreed?: Uint8Array;
+  /**
    * The last `draw` showed every visible chunk with its final image and nothing is waiting to be refined: the
    * same frame drawn again would look the same (the renderer's static layer may keep it, Phase 6 §4.6 step 4).
    */
@@ -606,9 +611,18 @@ export class TerrainLayer {
       // The realistic test build (folded away in the website build): a chunk the realistic ground lays in full this
       // frame is not built or drawn, and every image of it is freed, in view or not (all buckets, rotations and the
       // exact scale): the realistic ground draws its own stand-ins on a zoom step or a lifted demotion (Task 3).
-      if (import.meta.env.VITE_ART === 'real' && env.cover?.(c)) {
-        for (let key = c * KEYS_PER_CHUNK; key < (c + 1) * KEYS_PER_CHUNK; key++) this.images.delete(key);
-        continue;
+      if (import.meta.env.VITE_ART === 'real') {
+        if (env.cover?.(c)) {
+          // Once per covering: the chunk builds no image while covered (draw and prefetch skip it).
+          let freed = this.coverFreed;
+          if (!freed || freed.length !== n) freed = this.coverFreed = new Uint8Array(n);
+          if (!freed[c]) {
+            for (let key = c * KEYS_PER_CHUNK; key < (c + 1) * KEYS_PER_CHUNK; key++) this.images.delete(key);
+            freed[c] = 1;
+          }
+          continue;
+        }
+        if (this.coverFreed && this.coverFreed.length === n) this.coverFreed[c] = 0;
       }
       const g = this.bounds[c] as ChunkGeom;
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
@@ -715,6 +729,7 @@ export class TerrainLayer {
       const key = c * KEYS_PER_CHUNK + r * 4 + bi;
       if (this.images.peek(key)) continue;
       this.images.set(key, this.build(map, c, bucket, env, r, g));
+      if (import.meta.env.VITE_ART === 'real' && this.coverFreed) this.coverFreed[c] = 0;
       this.prefetched++;
       return true;
     }

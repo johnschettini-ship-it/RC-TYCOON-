@@ -930,7 +930,7 @@ describe('RealLook: tinting under a per-frame budget (round 3 item 4, Task 4)', 
 });
 
 describe('RealLook.groundStandIn (Task 3: RealGround never leaves a tile empty)', () => {
-  it('gives the ground piece from the other density\'s ready set, used (kept) but not wanted or counted', () => {
+  it('gives the ground piece from the other density\'s ready set, peeked: never used (pinned), wanted or counted', () => {
     const { sets, look } = setup();
     // Density 4 (zoom 2 at ratio 2.625): the density-4 set not decoded, its density-2 set ready.
     look.prepare(emptyWorld(), 0, VIEW, 2, 2.625);
@@ -938,7 +938,7 @@ describe('RealLook.groundStandIn (Task 3: RealGround never leaves a tile empty)'
     expect(look.groundStandIn!('grass', 0, 1, 0)).toBeNull();
     sets.setState(setKey('ground', 'grass', 2, 0), 'ready');
     expect(look.groundStandIn!('grass', 0, 1, 0)!.scale).toBe(2);
-    expect(sets.used).toEqual([setKey('ground', 'grass', 2, 0)]);
+    expect(sets.used).toEqual([]);
     expect(look.groundStandIn!('grass', 3, 2, 0)).toBeNull(); // no such frame
     expect(sets.wants).toEqual([]);
     // Density 2 with only the density-4 set ready (zooming out): that one, scaled down by the ground.
@@ -965,5 +965,67 @@ describe('RealLook.groundBaked (Task 3)', () => {
     expect(sets.wants).toEqual([]);
     expect(sets.used).toEqual([]);
     expect(look.fallbacksUsed()).toEqual([]);
+  });
+});
+
+describe('ground stand-ins never pin a set (Task 3 fix round 1: S3 livelock, cap)', () => {
+  /** Ground grass only: the density-2 set 256 B, the density-4 set 1 KiB; a real set manager whose budget fits the density-4 set alone. */
+  function groundOnly(budget: number) {
+    const d2 = { ...entry('ground', 'grass', 2, 'all', { 's0:v1': FRAME }), sheets: [{ file: 'g2', w: 8, h: 8 }] };
+    const d4 = { ...entry('ground', 'grass', 4, 'all', { 's0:v1': { ...FRAME, sheet: 'g4' } }), sheets: [{ file: 'g4', w: 16, h: 16 }] };
+    d2.frames = { 's0:v1': { ...FRAME, sheet: 'g2' } };
+    const index: RealIndex = { ...makeIndex(), sets: [d2, d4] };
+    const size: Record<string, number> = { g2: 8, g4: 16 };
+    const io = {
+      read: async (f: string) => new Blob([f]),
+      decode: async (b: Blob): Promise<Decoded> => {
+        const w = size[await b.text()] as number;
+        return { image: new PixCanvas(w, w) as unknown as CanvasImageSource, bytes: w * w * 4, close() {} };
+      },
+    };
+    const sets = new SetManager(index, io, budget, () => undefined);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    let n = 0;
+    /** One frame of the ground: prepare at (zoom, dpr), its piece or else the stand-in, end the frame. */
+    const frame = (zoom: number, dpr: number, extra?: () => void): Sprite | null | undefined => {
+      sets.beginFrame(++n);
+      look.prepare(emptyWorld(), 0, VIEW, zoom, dpr);
+      const sp = look.groundPiece('grass', 0, 1, 0) ?? look.groundStandIn!('grass', 0, 1, 0);
+      extra?.();
+      sets.endFrame();
+      return sp;
+    };
+    return { sets, look, flush, frame, d2: d2.key, d4: d4.key };
+  }
+
+  it('zoom 0.5 → 2 near the budget: the density-2 set is not kept by its stand-in, and the density-4 decode starts with no cap', async () => {
+    const t = groundOnly(1100);
+    for (let f = 0; f < 3; f++) { t.frame(0.5, 2); await t.flush(); }
+    expect(t.sets.state(t.d2)).toBe('ready');
+    // Zoom 2 at ratio 2: density 4. The density-2 piece stands in for a frame, then its set goes so the 1 KiB fits.
+    const got: (Sprite | null | undefined)[] = [];
+    for (let f = 0; f < 6; f++) { got.push(t.frame(2, 2)); await t.flush(); }
+    expect(got[0]!.scale).toBe(2);
+    expect(t.sets.state(t.d2)).toBe('none');
+    expect(t.sets.state(t.d4)).toBe('ready');
+    expect(got.at(-1)!.scale).toBe(4);
+    expect(t.sets.capEvents()).toEqual([]);
+    expect(t.sets.densityCap()).toBe(4);
+  });
+
+  it('the cap frees the density-4 set even while it stands in for the density-2 one', async () => {
+    const t = groundOnly(1100);
+    for (let f = 0; f < 3; f++) { t.frame(2, 2); await t.flush(); }
+    expect(t.sets.state(t.d4)).toBe('ready');
+    // Something else needs 300 B: over the budget, so the density drops to 2 everywhere (the cap).
+    const other = () => t.sets.hold('other', 300);
+    const got: (Sprite | null | undefined)[] = [];
+    for (let f = 0; f < 8; f++) { got.push(t.frame(2, 2, other)); await t.flush(); }
+    expect(t.sets.densityCap()).toBe(2);
+    // The density-4 piece stood in while the density-2 set could not fit, then the cap freed it and density 2 landed.
+    expect(t.sets.state(t.d4)).toBe('none');
+    expect(t.sets.state(t.d2)).toBe('ready');
+    expect(got.at(-1)!.scale).toBe(2);
   });
 });

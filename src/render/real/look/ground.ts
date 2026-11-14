@@ -19,8 +19,10 @@ export function makeGroundGetters(core: LookCore, sets: RealSets): Pick<RealLook
       for (const d of [2, 4] as const) {
         const key = core.resolveAt(rec, rot, d);
         if (key === undefined || key === own || sets.state(key) !== 'ready') continue;
-        // Used (kept from freeing while it stands in), not wanted: the set of the current density is the one wanted.
-        const rs = sets.use(key);
+        // Peeked, never used or wanted: a stand-in must not pin the other density's set (a pinned set counts in what
+        // a decode must fit beside but not in the ladder's pressure, so the wanted set could starve; and the cap
+        // could never free a density-4 set standing in). Safe for this frame's draw: sets are freed at endFrame.
+        const rs = sets.peek ? sets.peek(key) : null;
         if (!rs) continue;
         const code = groundCode(terrain, slopeMask, variant, join);
         const meta = core.metaOf(rs);
