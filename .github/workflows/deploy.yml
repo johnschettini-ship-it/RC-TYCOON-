@@ -52,6 +52,48 @@ jobs:
         run: |
           npm ci
           npx vite build --mode app --outDir ../dist/pixel-test
+      # The owner gate for phase 8c stage 1 (branch phase8c-stage1, never merged): the realistic art reader and the
+      # bench, built with VITE_ART=real and served at /real-game/ (open /real-game/?art=real&bench=1 for the bench).
+      # The sprites are baked here by tools/art3d/bake.mjs in headless Chromium (the Playwright installed above).
+      # The bake keeps a per-item cache in dist-art/cache, keyed on the bake tools, so an unchanged kit is a warm
+      # run (S8: 60 minutes warm, 4 hours cold). The log prints the bake's time and size lines for the report.
+      - uses: actions/checkout@v4
+        with:
+          ref: phase8c-stage1
+          path: real-game-src
+      - name: Install the realistic game dependencies
+        working-directory: real-game-src
+        run: npm ci
+      - name: Restore the bake cache
+        uses: actions/cache@v4
+        with:
+          path: real-game-src/dist-art/cache
+          key: real-game-bake-${{ hashFiles('real-game-src/tools/art3d/**') }}
+          restore-keys: |
+            real-game-bake-
+      - name: Bake the realistic game art
+        working-directory: real-game-src
+        run: |
+          start=$(date +%s)
+          node tools/art3d/bake.mjs --out dist-art/real | tee ../real-game-bake.log
+          echo "bake wall time: $(( $(date +%s) - start )) s"
+          echo "---- bake size and time lines ----"
+          grep -E '^(total:|items:|kind |index )' ../real-game-bake.log
+          du -sh dist-art/real dist-art/cache
+      - name: Check the baked index
+        working-directory: real-game-src
+        run: npx tsx tools/art3d/checkIndex.ts dist-art/real
+      - name: Build the realistic game
+        working-directory: real-game-src
+        env:
+          VITE_ART: real
+        run: npx vite build --outDir ../dist/real-game
+      - name: Copy the baked art into the realistic game
+        run: |
+          mkdir -p dist/real-game/art
+          cp -r real-game-src/dist-art/real dist/real-game/art/real
+          test -f dist/real-game/index.html
+          test -f dist/real-game/art/real/index.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
