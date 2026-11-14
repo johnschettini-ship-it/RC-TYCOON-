@@ -52,14 +52,14 @@ jobs:
         run: |
           npm ci
           npx vite build --mode app --outDir ../dist/pixel-test
-      # The owner gate for phase 8c stage 1 (branch phase8c-stage1, never merged): the realistic art reader and the
-      # bench, built with VITE_ART=real and served at /real-game/ (open /real-game/?art=real&bench=1 for the bench).
+      # The owner gate for phase 8c (stage 1, now the full build: branch phase8c-full, never merged): the realistic
+      # art reader and the bench, built with VITE_ART=real and served at /real-game/ (open /real-game/?art=real&bench=1 for the bench).
       # The sprites are baked here by tools/art3d/bake.mjs in headless Chromium (the Playwright installed above).
       # The bake keeps a per-item cache in dist-art/cache, keyed on the bake tools, so an unchanged kit is a warm
       # run (S8: 60 minutes warm, 4 hours cold). The log prints the bake's time and size lines for the report.
       - uses: actions/checkout@v4
         with:
-          ref: phase8c-stage1
+          ref: phase8c-full
           path: real-game-src
       - name: Install the realistic game dependencies
         working-directory: real-game-src
@@ -94,6 +94,13 @@ jobs:
           cp -r real-game-src/dist-art/real dist/real-game/art/real
           test -f dist/real-game/index.html
           test -f dist/real-game/art/real/index.json
+      # Batch review page (full build plan, task 6): every baked item in today's look and the realistic look, side by
+      # side at phone width, served at /real-game/review/.
+      - name: Shoot the batch review page
+        working-directory: real-game-src
+        run: |
+          node tools/art3d/reviewShots.mjs --root ../dist/real-game --out ../dist/real-game/review
+          test -f ../dist/real-game/review/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
