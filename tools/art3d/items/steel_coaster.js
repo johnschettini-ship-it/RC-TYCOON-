@@ -53,11 +53,30 @@ function tube(l, u, r, n = 8) {
   return [pts];
 }
 
+// The swept parts run EXT m on past both piece ends, along the end tangents. A tile picture is clipped to its tile,
+// and on a slope the spine (below the rail line) leans past the piece end into the next tile while the next
+// piece's spine leans back into this one: without the run-on both slivers are lost and every tile seam on a slope
+// shows a gap. The run-on stands in for the neighbour there; the clip keeps it out of the next tile.
+const EXT = 0.75;
+function extended(F) {
+  const n = F.NS;
+  const ext = (i, sgn) => F.P[i].clone().addScaledVector(F.Tn[i], sgn * EXT);
+  return {
+    ...F,
+    P: [ext(0, -1), ...F.P, ext(n, 1)],
+    Tn: [F.Tn[0], ...F.Tn, F.Tn[n]],
+    Lt: [F.Lt[0], ...F.Lt, F.Lt[n]],
+    Up: [F.Up[0], ...F.Up, F.Up[n]],
+    NS: n + 2,
+  };
+}
+
 function railModel(K, s, special, mats) {
   const F = framesOf(s);
+  const FX = extended(F);
   const g = new THREE.Group();
-  g.add(sweep(F, [...tube(-GAUGE, 0, 0.055), ...tube(GAUGE, 0, 0.055)], mats.rail, { uvLen: 2 }));
-  g.add(sweep(F, boxProfile(0, -0.42, 0.26, 0.3), mats.rail, { uvLen: 2 }));
+  g.add(sweep(FX, [...tube(-GAUGE, 0, 0.055), ...tube(GAUGE, 0, 0.055)], mats.rail, { uvLen: 2 }));
+  g.add(sweep(FX, boxProfile(0, -0.42, 0.26, 0.3), mats.rail, { uvLen: 2 }));
   const ties = new Beams();
   for (let i = 0; i <= F.NS; i += 4) {
     const p = F.P[i], l = F.Lt[i], u = F.Up[i];
@@ -66,9 +85,11 @@ function railModel(K, s, special, mats) {
     ties.add(at(GAUGE, -0.02), at(0, -0.36), 0.07, 0.05, u);
   }
   g.add(ties.mesh(mats.rail));
-  if (special === 'brakes' || special === 'blockBrake') g.add(sweep(F, boxProfile(0, -0.14, 0.05, 0.16), K.mat.darkSteel, { uvLen: 2 }));
+  if (special === 'brakes' || special === 'blockBrake') g.add(sweep(FX, boxProfile(0, -0.14, 0.05, 0.16), K.mat.darkSteel, { uvLen: 2 }));
   if (special === 'station') {
-    for (const side of [-1, 1]) g.add(sweep(F, boxProfile(side * 1.55, -0.5, 1.9, 0.12), K.mat.boards, { uvLen: 2 }));
+    // platforms either side, their deck 0.15 m over the rail line (a station is built on the ground, rail line at
+    // ground height: lower, they were under the ground)
+    for (const side of [-1, 1]) g.add(sweep(FX, boxProfile(side * 1.4, 0.05, 1.6, 0.2), K.mat.boards, { uvLen: 2 }));
   }
   return g;
 }
@@ -101,7 +122,16 @@ export default {
     const supMat = new THREE.MeshPhysicalMaterial({ color: SUPPORT, roughness: 0.45, metalness: 0.3, clearcoat: 0.3 });
     const bs = B.newScene();
 
-    // ---- rails: per heading, piece and rail tile, clipped to the tile
+    // ---- rails: per heading, piece and rail tile, clipped to the tile.
+    // The clip planes are global, so they cut the hold-out ground to the tile too, and anything under the ground
+    // (the spine of a rail on the ground) then shows through beside the tile. A ShaderMaterial without the clipping
+    // chunk is never clipped: it holds out the whole ground while the rails are shot.
+    const holdOut = bs.ground.material;
+    bs.ground.material = new THREE.ShaderMaterial({
+      vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'void main() { gl_FragColor = vec4(0.0); }',
+      colorWrite: false,
+    });
     for (let t = 0; t < 4; t++) {
       const set = B.set('rail', item, t, true);
       for (const [id, pc] of Object.entries(track.pieces)) {
@@ -121,6 +151,7 @@ export default {
       }
       B.log(`rail r${t} done`);
     }
+    bs.ground.material = holdOut;
 
     // ---- supports per heading: foot, 1 m segment, top (the game stacks them)
     for (let t = 0; t < 4; t++) {

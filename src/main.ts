@@ -8,12 +8,19 @@ import { tileToScreen } from './render/iso';
 import { attachInput } from './input';
 import { mountUI } from './ui';
 import { createWorld } from './sim/world';
-import { browserStore } from './save';
+import { browserStore, deserialize } from './save';
+import { centerOnTile } from './input/camera';
+import type { ViewRotation } from './render/view';
 import { SettingsStore } from './settings';
 import { initI18n } from './i18n';
 import { mountA11y } from './a11y';
 import { mountAudio } from './audio';
 import { registerOffline } from './offline';
+
+/** The realistic build's debug hook (`window.__tcReal`). */
+interface RealDebug extends Partial<RealOptions> {
+  load(json: string, focus: { x: number; y: number }, zoom?: number, rotation?: ViewRotation): string | null;
+}
 
 function boot(real?: RealOptions): void {
   const canvas = document.getElementById('game') as HTMLCanvasElement | null;
@@ -50,8 +57,21 @@ function boot(real?: RealOptions): void {
   // Stage 1 benchmark (`?bench=1`; `?bench=quick` for the e2e smoke): VITE_ART=real build with the realistic look
   // only. S4's first part is the navigation start to the boot's first complete frame, watched from the first frame.
   if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') {
-    // Debug hook for the realistic art check (Task 9b, headless): the look, set manager and ground of this boot.
-    (window as unknown as { __tcReal?: RealOptions }).__tcReal = real;
+    // Debug hook for the realistic art check (headless screenshots, Task 9b): the look, set manager and ground of this
+    // boot, and `load`, which loads a save text through the game (never through storage) and frames it like the bench.
+    (window as unknown as { __tcReal?: RealDebug }).__tcReal = {
+      ...real,
+      load(json, focus, zoom = 1, rotation = 0) {
+        const loaded = deserialize(json);
+        if (!loaded.ok) return loaded.error;
+        game.setWorld(loaded.world);
+        const m = loaded.world.state.map;
+        game.camera.rotation = rotation;
+        game.camera.zoom = zoom;
+        centerOnTile(game.camera, m, focus.y * m.width + focus.x);
+        return null;
+      },
+    };
     const bench = new URLSearchParams(location.search).get('bench');
     if (bench === '1' || bench === 'quick') {
       let readyMs: number | undefined;
