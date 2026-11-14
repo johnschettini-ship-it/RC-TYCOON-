@@ -1,6 +1,7 @@
 // Guests (stage 1, spec §6 / plan F6 subset): 2 body types (b0 man, b1 woman) x 4 outfits, 4 facings (the game moves
-// guests in 4 directions), standing, 8 walk frames and a sitting pose. Set guest:b<B>o<O>, rot 'all' (facings are
-// view directions), frames [`f<facing 0-3>`, `w0` (stand) | `w1` | `w2` (opposite strides) | `c<0-7>` | `sit`]. Anchor: the feet point
+// guests in 4 directions), standing, two opposite strides and a sitting pose. Set guest:b<B>o<O>, rot 'all' (facings
+// are view directions), frames [`f<facing 0-3>`, `w0` (stand) | `w1` | `w2` (opposite strides) | `sit`]: only the
+// frames the reader (look.ts `guest`) asks for, so no decoded byte is spent on unused pictures. Anchor: the feet point
 // (renderer.ts collectGuests: the guest's interpolated map position at its height); a sitter's anchor is the seat's
 // ground point, the body sits 0.47 m up (on the bench drawn under it). Shirts are baked light grey and marked in the
 // mask so the game tints them to its 12 shirt colours. Each walking or standing picture carries its own soft shadow.
@@ -35,11 +36,14 @@ export default {
       const look = randomLook(900 + b * 10 + k, { balloon: null, backpack: null, bag: null, ...o, top: SHIRT, h: b === 0 ? 1.76 : 1.64, build: 1 });
       const set = B.set('guest', `b${b}o${k}`, 'all', true);
       for (let f = 0; f < 4; f++) {
-        // pictures: stand, 8 walk phases (c0-c7), sit. The renderer's walk values 0-2 (Task 8) are w0 = stand and
-        // w1 / w2 = the two opposite strides (c0, c4); c0-c7 is the full cycle for a later 8-frame walk.
-        const poses = [['stand', ['w0'], { kind: 'stand' }]];
-        for (let c = 0; c < 8; c++) poses.push([`c${c}`, [`c${c}`, ...(c === 0 ? ['w1'] : c === 4 ? ['w2'] : [])], { kind: 'walk', phase: (c / 8) * Math.PI * 2 }]);
-        poses.push(['sit', ['sit'], { kind: 'sit' }]);
+        // pictures: stand, the two opposite strides, sit. The renderer's walk values 0-2 (Task 8) are w0 = stand and
+        // w1 / w2 = walk phases 0 and pi. A later 8-frame walk adds its phases here (and to the reader) together.
+        const poses = [
+          ['stand', ['w0'], { kind: 'stand' }],
+          ['w1', ['w1'], { kind: 'walk', phase: 0 }],
+          ['w2', ['w2'], { kind: 'walk', phase: Math.PI }],
+          ['sit', ['sit'], { kind: 'sit' }],
+        ];
         for (const [name, keys, pose] of poses) {
           const sit = name === 'sit';
           const p = person(look, pose);
