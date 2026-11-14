@@ -294,7 +294,7 @@ describe('RealGround at high zoom: tiles straight into the target, no chunk (rou
     }
   });
 
-  it('a piece not decoded yet leaves the ground incomplete (today\'s terrain shows there); switching from chunks frees them', () => {
+  it('a piece not decoded yet leaves the ground incomplete (a placeholder shows there); switching from chunks frees them', () => {
     terrainClock.now = () => 0;
     const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
     let ready = true;
@@ -340,61 +340,58 @@ describe('RealGround covers: today\'s terrain left out under realistic chunks (r
     t.ground.draw(t.ctx, map, VIEW_ALL, 1, 0, 0, 0, 1);
     t.ground.beginCover(map, 1, 0, 1);
     expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([true, true, true, false]);
-    // Another rotation, scale or a terrain change: nothing covered until drawn again.
+    // Another rotation, another scale, or a terrain change that left the chunk's tiles alone: still covered (Task 3:
+    // a smaller old chunk, the tiles, the other density or a placeholder stands in, never nothing).
     t.ground.beginCover(map, 1, 1, 1);
-    expect(t.ground.covers(0)).toBe(false);
+    expect(t.ground.covers(0)).toBe(true);
+    expect(t.ground.covers(3)).toBe(false);
     t.ground.beginCover(map, 2, 0, 1);
-    expect(t.ground.covers(0)).toBe(false);
+    expect(t.ground.covers(0)).toBe(true);
     t.ground.beginCover(map, 1, 0, 2);
-    expect(t.ground.covers(0)).toBe(false);
+    expect(t.ground.covers(0)).toBe(true);
   });
 
-  /** A direct-mode ground whose fake look also answers `groundReady` (no side effect) for tiles out of view. */
-  function directSetup(state: { ready: boolean; density: 2 | 4 }) {
+  /** A direct-mode ground; `ready` false answers null (not decoded), `baked` false answers undefined (not in the bake). */
+  function directSetup(state: { ready: boolean; density: 2 | 4; baked?: boolean }) {
     const asked: string[] = [];
-    const readyAsked: string[] = [];
     const look = {
       density: () => state.density,
-      groundPiece(terrain: string) { asked.push(terrain); return state.ready ? piece() : null; },
-      groundReady(terrain: string) { readyAsked.push(terrain); return state.ready; },
+      groundPiece(terrain: string) { asked.push(terrain); return state.baked === false ? undefined : state.ready ? piece() : null; },
     };
     const ground = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
     const ctx = new FakeCanvas(800, 600).getContext() as CanvasRenderingContext2D;
-    return { ground, ctx, asked, readyAsked };
+    return { ground, ctx, asked };
   }
 
-  it('direct tiles: covered when every tile of the chunk had a piece at the last draw; out-of-view tiles are only checked, never asked', () => {
+  it('direct tiles: covered when every tile in view had a piece at the last draw; tiles out of view are never asked', () => {
     terrainClock.now = () => 0;
     const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
     const map = world.state.map;
-    const st = { ready: true, density: 4 as 2 | 4 };
+    const st = { ready: true, density: 4 as 2 | 4, baked: true };
     const t = directSetup(st);
     t.ground.beginCover(map, 4, 0, 1);
     expect(t.ground.covers(0)).toBe(false);
-    // Only a corner of the map in view: its tiles are drawn (asked); the chunks' other tiles only checked.
+    // Only a corner of the map in view: its tiles are drawn (asked), the chunk's other tiles are not asked.
     t.ground.draw(t.ctx, map, { x0: -40, y0: -40, x1: 40, y1: 40 }, 4, 0, 0, 0, 1);
     expect(t.asked.length).toBe(t.ground.tilesDrawn);
     expect(t.asked.length).toBeLessThan(64);
-    expect(t.readyAsked.length).toBeGreaterThan(0);
     t.ground.beginCover(map, 4, 0, 1);
     expect(t.ground.covers(0)).toBe(true);
-    // A piece not decoded: the chunk is not covered, and only in-view tiles count as incomplete.
+    // A piece not decoded: still covered, the tile draws a placeholder (Task 3).
     st.ready = false;
     t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    expect(t.ground.placeholders).toBe(16 * 16);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(true);
+    // A piece the bake lacks: a placeholder this frame, then today's terrain (not covered).
+    st.baked = false;
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    expect(t.ground.placeholders).toBe(16 * 16);
     t.ground.beginCover(map, 4, 0, 1);
     expect(t.ground.covers(0)).toBe(false);
   });
 
-  it('direct tiles without groundReady: a chunk partly out of view is never covered', () => {
-    terrainClock.now = () => 0;
-    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
-    const t = setupWith(() => 4);
-    t.ground.draw(t.ctx, world.state.map, { x0: -40, y0: -40, x1: 40, y1: 40 }, 4, 0, 0, 0, 1);
-    t.ground.beginCover(world.state.map, 4, 0, 1);
-    expect(t.ground.covers(0)).toBe(false);
-  });
-
-  it('direct tiles: a density change (cap or lift) uncovers every chunk until drawn again (fix round 2, 1)', () => {
+  it('direct tiles: a density change (cap or lift) keeps every chunk covered (Task 3: the other density stands in)', () => {
     terrainClock.now = () => 0;
     const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
     const map = world.state.map;
@@ -405,10 +402,7 @@ describe('RealGround covers: today\'s terrain left out under realistic chunks (r
     expect(t.ground.covers(0)).toBe(true);
     st.density = 2;
     t.ground.beginCover(map, 4, 0, 1);
-    expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([false, false, false, false]);
-    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
-    t.ground.beginCover(map, 4, 0, 1);
-    expect(t.ground.covers(0)).toBe(true);
+    expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([true, true, true, true]);
   });
 
   it('a draw that throws covers nothing until a draw completes (fix round 2, 4)', () => {
@@ -443,3 +437,149 @@ describe('RealGround join cache (round 3 fix 5)', () => {
   });
 });
 
+
+describe('RealGround never leaves an empty tile (Task 3: today\'s terrain is freed under it)', () => {
+  /** A ground whose fake look answers density-4 pieces only when `d4`, and a density-2 stand-in only when `d2`. */
+  function twinSetup(st: { density: 2 | 4; d4: boolean; d2: boolean }) {
+    const d2 = { image: new FakeCanvas(1, 1) as unknown as CanvasImageSource, w: 4, h: 4, ox: 2, oy: 0, scale: 2 };
+    const d4 = { image: new FakeCanvas(1, 1) as unknown as CanvasImageSource, w: 8, h: 8, ox: 4, oy: 0, scale: 4 };
+    const look = {
+      density: () => st.density,
+      groundPiece: () => (st.density === 2 ? (st.d2 ? d2 : null) : st.d4 ? d4 : null),
+      groundStandIn: () => (st.density === 4 && st.d2 ? d2 : null),
+    };
+    const ground = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const screen = new FakeCanvas(800, 600);
+    return { ground, screen, ctx: screen.getContext() as CanvasRenderingContext2D, d2, d4 };
+  }
+  const frame = (t: ReturnType<typeof twinSetup>, map: ReturnType<typeof createWorld>['state']['map'], scale: number, version = 1) => {
+    t.ground.beginCover(map, scale, 0, version);
+    const covered = [0, 1, 2, 3].map((c) => t.ground.covers(c));
+    t.screen.reset();
+    t.ground.draw(t.ctx, map, VIEW_ALL, scale, 0, 0, 0, version);
+    t.ground.endFrame();
+    return covered;
+  };
+
+  it('no empty tile on a zoom step', () => {
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    const st = { density: 2 as 2 | 4, d4: false, d2: true };
+    const t = twinSetup(st);
+    frame(t, map, 2);
+    expect(frame(t, map, 2)).toEqual([true, true, true, true]);
+    // Zoom 1 → 2 on a phone drawing at render ratio 2: screen scale 2 → 4, density 4, its pieces not decoded yet.
+    st.density = 4;
+    // Still covered (today's terrain stays freed), and every tile draws its density-2 piece in that same frame.
+    expect(frame(t, map, 4)).toEqual([true, true, true, true]);
+    expect(t.ground.tilesDrawn).toBe(16 * 16);
+    expect(t.screen.draws.filter((d) => (d.image as unknown) === t.d2.image)).toHaveLength(16 * 16);
+    expect(t.ground.complete).toBe(false); // soft: sharpens when density 4 lands
+    // Neither density decoded (the density-2 set was freed meanwhile): a placeholder per tile, never nothing.
+    st.d2 = false;
+    expect(frame(t, map, 4)).toEqual([true, true, true, true]);
+    expect(t.ground.tilesDrawn).toBe(0);
+    expect(t.ground.placeholders).toBe(16 * 16);
+    expect(t.screen.count('fill')).toBe(16 * 16);
+    // Density 4 lands: every tile from its own piece, complete again.
+    st.d4 = true;
+    frame(t, map, 4);
+    expect(t.screen.draws.filter((d) => (d.image as unknown) === t.d4.image)).toHaveLength(16 * 16);
+    expect(t.ground.complete).toBe(true);
+  });
+
+  it('no hole when demotions lift', () => {
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    // Density 4 at scale 4 throughout; the ground's density-4 set demoted, so its pieces come from density 2.
+    const st = { density: 4 as 2 | 4, d4: true, d2: true };
+    const t = twinSetup(st);
+    frame(t, map, 4);
+    expect(frame(t, map, 4)).toEqual([true, true, true, true]);
+    // The demotion lifts at the same density: the density-4 set is wanted again and not decoded yet.
+    st.d4 = false;
+    expect(frame(t, map, 4)).toEqual([true, true, true, true]);
+    expect(t.ground.tilesDrawn + t.ground.placeholders).toBe(16 * 16);
+    expect(t.ground.tilesDrawn).toBe(16 * 16);
+  });
+
+  it('a zoom step between chunk scales draws the old chunk scaled until the new one is built', () => {
+    let now = 0;
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    const st = { density: 2 as 2 | 4, d4: false, d2: true };
+    const t = twinSetup(st);
+    frame(t, map, 1);
+    // Scale 1 → 2 with time for one new chunk only: the other three draw their scale-1 chunk, scaled.
+    terrainClock.now = () => (now += FIRST_BUILD_BUDGET_MS);
+    expect(frame(t, map, 2)).toEqual([true, true, true, true]);
+    expect(t.ground.builds).toBe(1);
+    expect(t.screen.draws).toHaveLength(4);
+    terrainClock.now = () => 0;
+    frame(t, map, 2);
+    expect(t.ground.complete).toBe(true);
+    expect(t.screen.draws).toHaveLength(4);
+  });
+
+  it('a covered chunk with no picture draws its tiles directly while the frame\'s budget lasts, then a flat placeholder', () => {
+    let now = 0;
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    let room = true;
+    const d2 = piece();
+    const look = { density: () => 2 as const, groundPiece: () => d2 };
+    const ground = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never, admit: () => room });
+    const screen = new FakeCanvas(800, 600);
+    const ctx = screen.getContext() as CanvasRenderingContext2D;
+    ground.draw(ctx, map, VIEW_ALL, 1, 0, 0, 0, 1);
+    ground.endFrame();
+    // A view turn: no chunk of the new turn yet, and no room to make one: every tile straight into the target.
+    room = false;
+    ground.beginCover(map, 1, 1, 1);
+    expect([0, 1, 2, 3].map((c) => ground.covers(c))).toEqual([true, true, true, true]);
+    ground.draw(ctx, map, VIEW_ALL, 1, 0, 0, 1, 1);
+    expect(ground.tilesDrawn).toBe(16 * 16);
+    expect(ground.complete).toBe(false);
+    // Room again but no time: one chunk built, then one flat placeholder for each of the other three.
+    room = true;
+    terrainClock.now = () => (now += FIRST_BUILD_BUDGET_MS);
+    screen.reset();
+    ground.draw(ctx, map, VIEW_ALL, 1, 0, 0, 1, 1);
+    expect(ground.builds).toBe(1);
+    expect(ground.tilesDrawn).toBe(0);
+    expect(ground.placeholders).toBe(3 * 64);
+    expect(screen.count('fill')).toBe(3);
+    terrainClock.now = () => 0;
+  });
+
+  it('a chunk not drawn yet is covered when the bake has a ground set for every tile\'s terrain (groundBaked)', () => {
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    map.water[tileIndex(map, 12, 12)] = 200; // chunk 3 has a water tile; this bake has no water set
+    const asked: string[] = [];
+    const look = { density: () => 2 as const, groundPiece: () => null, groundBaked: (t: string, rot: number) => (asked.push(`${t}:${rot}`), t !== 'water') };
+    const ground = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const screen = new FakeCanvas(800, 600);
+    // A new park, nothing drawn, no piece decoded yet: today's terrain is left out where the bake will lay the ground.
+    ground.beginCover(map, 1, 2, 1);
+    expect([0, 1, 2, 3].map((c) => ground.covers(c))).toEqual([true, true, true, false]);
+    expect(asked).toContain('grass:2');
+    // Asked once per terrain and chunk, then remembered.
+    const n = asked.length;
+    ground.covers(0);
+    expect(asked.length).toBe(n);
+    // The draw keeps that promise: placeholders until the pieces decode, never nothing.
+    ground.draw(screen.getContext() as CanvasRenderingContext2D, map, VIEW_ALL, 1, 0, 0, 2, 1);
+    expect(ground.placeholders).toBe(3 * 64);
+  });
+
+  it('a terrain change uncovers only the chunk whose tiles changed', () => {
+    terrainClock.now = () => 0;
+    const map = createWorld({ seed: 3, parkName: 'G', mapSize: 16 }).state.map;
+    const t = twinSetup({ density: 2, d4: false, d2: true });
+    frame(t, map, 1);
+    map.content[tileIndex(map, 2, 2)] = Content.Footpath;
+    t.ground.beginCover(map, 1, 0, 2);
+    expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([false, true, true, true]);
+  });
+});

@@ -9,10 +9,19 @@
  *   the point `viewTileSX/SY` give (the bake's ground anchor, Task 9).
  * - A piece that answers `undefined` (no such set in the bake) is left out of the chunk: today's terrain, drawn
  *   underneath by the renderer, shows through there. A piece that answers `null` (set still decoding) leaves the
- *   chunk unbuilt this frame (today's terrain shows) and the ground incomplete.
+ *   chunk unbuilt this frame and the ground incomplete.
+ * - Cover (Task 3): today's terrain frees every image of a chunk this ground covers (`covers`), so a covered chunk is
+ *   never left empty, not even for one frame: a chunk known to have a baked piece for every tile (built full, or every
+ *   tile in view drawn from a piece) stays covered across view turns, zoom steps, density changes (a cap, a demotion
+ *   lifting) and terrain changes elsewhere. While its own picture is not ready it draws a stand-in: its smaller chunk
+ *   of the old scale (a zoom in), scaled; else, within the frame's first-build budget, its tiles directly, each from
+ *   its piece, the same piece of the other density (`look.groundStandIn`: the density-2 twin on a zoom in) or a flat
+ *   placeholder diamond; else one flat placeholder for the chunk. A stand-in leaves the ground incomplete. A new map,
+ *   a changed tile or a piece the bake lacks uncovers the chunk (today's terrain draws it).
  * - Chunks are built at `groundScale`: the screen scale (zoom × dpr) rounded up to a step, never above the look's
- *   density, so a chunk holds no pixel the screen cannot show. Chunks of another rotation or scale are freed as soon
- *   as the ground draws at a new one.
+ *   density, so a chunk holds no pixel the screen cannot show. Chunks of another rotation or a larger scale are freed
+ *   as soon as the ground draws at a new one; a smaller chunk stays only as the stand-in until its replacement is
+ *   built (freed at the end of the first frame it does not stand in).
  * - Above `DIRECT_ABOVE_SCALE` (a phone at zoom 2: screen scale 4) no chunk is made (round 3 item 3): an 8 × 8 chunk
  *   at scale 4 is about 2048 × 1100 px, and the view's chunks took about 60 MB of the 128 MB budget. The tiles in the
  *   view are drawn straight into the target (the static layer when the view is still, the screen while it moves),
@@ -48,6 +57,11 @@ const PAD = 2;
 const KEEP_FRAMES = 120;
 /** Chunk scales: the screen scale is rounded up to one of these (so a pinch does not rebuild every frame). */
 const SCALE_STEPS = [1, 1.5, 2, 3, 4] as const;
+/** Placeholder colours of a tile with no piece decoded yet, by ground terrain (today's terrain colours). */
+const PLACEHOLDER: Readonly<Record<string, string>> = { path: '#dcc79c', queue: '#a9c0d2', water: '#4f86b8' };
+const PLACEHOLDER_GRASS = '#67b24b';
+/** One bit per ground terrain (`groundTerrain`), to ask `groundBaked` once per terrain in a chunk. */
+const TERRAIN_BIT: Readonly<Record<string, number>> = { grass: 1, path: 2, queue: 4, water: 8 };
 /** Above this screen scale (zoom × dpr) the tiles in the view are drawn straight into the target, with no chunk. */
 export const DIRECT_ABOVE_SCALE = 2;
 
@@ -134,7 +148,10 @@ export class RealGround implements GroundLayer {
   complete = false;
   /** Chunks built by the last `draw` (tests). */
   builds = 0;
+  /** Chunks of the current scale (or the last one, before a draw at a new scale), by chunk index. */
   private readonly chunks = new Map<number, Chunk>();
+  /** Chunks of an old scale kept as stand-ins until their replacement is built, by chunk index. */
+  private readonly old = new Map<number, Chunk>();
   private readonly make: (w: number, h: number) => CanvasLike;
   private readonly reported = new Set<string>();
   private version = -1;
@@ -150,26 +167,31 @@ export class RealGround implements GroundLayer {
   private orderRot = -1;
   /** Direct tiles: path and queue join masks (map terms) by map tile (−1: not known yet), cleared on a terrain change. */
   private joins = new Int16Array(0);
-  /** Tiles drawn by the last direct `draw` (tests, bench). */
+  /** Tiles drawn from a piece (its own or the other density's) by the last `draw` (tests, bench). */
   tilesDrawn = 0;
-  /** Direct tiles: per chunk, 1 when every tile of it had a realistic piece at the last draw, for `directRot`/`directVersion`. */
-  private directFull = new Uint8Array(0);
-  private directRot = -1;
-  private directVersion = -1;
-  /** The look's density at the last direct draw: a cap or lift (4 ↔ 2) changes every piece's set. */
-  private directDensity = 0;
+  /** Tiles drawn as a flat placeholder by the last `draw` (no piece decoded at either density). */
+  placeholders = 0;
+  /**
+   * Per chunk, for the tiles whose fingerprint is `fullSig`: 1 when every tile is known to have a baked piece (built
+   * full, every tile in view drawn from a piece or a stand-in for a piece still decoding, or every tile's terrain has a
+   * ground set in the bake: `look.groundBaked`), 2 when a tile lacks one, 0 not known yet. Kept across view turns: the
+   * bake has ground pieces for every turn (`rot: 'all'` sets), so a turn draws stand-ins instead of today's terrain.
+   */
+  private full = new Uint8Array(0);
+  private fullSig = new Uint32Array(0);
+  /** The map `full` is for. */
+  private fullMap: MapState | null = null;
+  /** The rotation `beginCover` was told (for `groundBaked`). */
+  private coverRot: ViewRotation = 0;
+  /** The terrain version `full` was last checked against. */
+  private fullVersion = -1;
   /** The last `draw` threw: nothing counts as covered until a draw completes. */
   private drawFailed = false;
-  /** What `beginCover` was told for this frame (`coverScale` 0: nothing covers). */
-  private coverRot = -1;
-  private coverScale = 0;
-  private coverDirect = false;
+  /** What `beginCover` was told for this frame. */
   private coverOk = false;
-  /** The last `draw` drew tiles directly. */
-  private wasDirect = false;
 
   constructor(
-    private readonly look: Pick<RealLook, 'groundPiece' | 'density'> & Partial<Pick<RealLook, 'groundReady'>>,
+    private readonly look: Pick<RealLook, 'groundPiece' | 'density'> & Partial<Pick<RealLook, 'groundStandIn' | 'groundBaked'>>,
     private readonly opts: RealGroundOptions = {},
   ) {
     this.make = opts.makeCanvas ?? defaultCanvas;
@@ -201,12 +223,17 @@ export class RealGround implements GroundLayer {
     return h >>> 0;
   }
 
-  private free(key: number, c: Chunk): void {
+  private free(from: Map<number, Chunk>, key: number, c: Chunk): void {
     c.canvas.width = 0;
     c.canvas.height = 0;
     this.bytes -= c.bytes;
     this.upBytes -= c.upBytes;
-    this.chunks.delete(key);
+    from.delete(key);
+  }
+
+  private freeAll(): void {
+    for (const [k, c] of [...this.chunks]) this.free(this.chunks, k, c);
+    for (const [k, c] of [...this.old]) this.free(this.old, k, c);
   }
 
   private holdNow(): void {
@@ -218,6 +245,33 @@ export class RealGround implements GroundLayer {
     if (this.reported.has(m)) return;
     this.reported.add(m);
     this.opts.onError?.(err);
+  }
+
+  /** Records whether chunk `c` has a baked piece for every tile (1) or lacks one (2), for the tiles it has now. */
+  private markFull(map: MapState, c: number, full: boolean, sig?: number): void {
+    const f = full ? 1 : 2;
+    const cxN = Math.ceil(map.width / CHUNK_SIZE);
+    if (this.full[c] !== f || sig !== undefined) this.fullSig[c] = sig ?? this.sig(map, c % cxN, Math.floor(c / cxN));
+    this.full[c] = f;
+  }
+
+  /**
+   * The cover record for `map` at terrain version `version`: started over for a new map; after a terrain change only
+   * the chunks whose tiles (or ring) changed are dropped.
+   */
+  private checkFull(map: MapState, version: number): void {
+    const cxN = Math.ceil(map.width / CHUNK_SIZE);
+    const n = cxN * Math.ceil(map.height / CHUNK_SIZE);
+    if (map !== this.fullMap || this.full.length !== n) {
+      this.full = new Uint8Array(n);
+      this.fullSig = new Uint32Array(n);
+      this.fullMap = map;
+      this.fullVersion = version;
+      return;
+    }
+    if (version === this.fullVersion) return;
+    this.fullVersion = version;
+    for (let c = 0; c < n; c++) if (this.full[c] !== 0 && this.fullSig[c] !== this.sig(map, c % cxN, Math.floor(c / cxN))) this.full[c] = 0;
   }
 
   /** The chunk image, or null when one of its pieces is not decoded yet or its canvas could not be made. */
@@ -288,13 +342,25 @@ export class RealGround implements GroundLayer {
     }
   }
 
+  private blit(ctx: CanvasRenderingContext2D, ch: Chunk, scale: number, offX: number, offY: number): void {
+    ch.lastFrame = this.frame;
+    const sp = ch.sprite;
+    if (sp.w <= 1) return;
+    const f = scale / sp.scale;
+    const x0 = Math.round(offX - sp.ox * f);
+    const y0 = Math.round(offY - sp.oy * f);
+    ctx.drawImage(sp.image, x0, y0, Math.round(offX + (sp.w - sp.ox) * f) - x0, Math.round(offY + (sp.h - sp.oy) * f) - y0);
+  }
+
   private drawChunks(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number {
     this.builds = 0;
     this.lastDraw = this.frame;
     const cxN = Math.ceil(map.width / CHUNK_SIZE);
     const cyN = Math.ceil(map.height / CHUNK_SIZE);
+    // The cover record first (it compares against the map and the rotation of the last draw).
+    this.checkFull(map, version);
     if (map !== this.map) {
-      for (const [k, c] of [...this.chunks]) this.free(k, c);
+      this.freeAll();
       this.map = map;
       this.orderRot = -1;
     }
@@ -305,24 +371,28 @@ export class RealGround implements GroundLayer {
     // Join cache for direct tiles only (chunks keep their joins in their pixels); dropped when chunks draw.
     if (!direct) this.joins = new Int16Array(0);
     else if (changed || this.joins.length !== map.width * map.height) this.joins = new Int16Array(map.width * map.height).fill(-1);
-    const density = this.look.density(scale, 1);
-    if (direct && (!this.wasDirect || this.directFull.length !== cxN * cyN || this.directRot !== rot || changed || this.directDensity !== density)) {
-      this.directFull = new Uint8Array(cxN * cyN);
-      this.directRot = rot;
-      this.directDensity = density;
-    }
-    this.directVersion = version;
-    this.wasDirect = direct;
     const cs = direct ? 0 : groundScale(scale, this.look.density(scale, 1));
     const upScale = groundScale(scale, pickDensity(scale, 1, 4));
-    // Chunks of another rotation or scale are never drawn again at this one: free them now (all of them when the
-    // tiles are drawn directly).
-    for (const [k, c] of [...this.chunks]) if (c.rot !== rot || c.scale !== cs) this.free(k, c);
+    // Chunks of another rotation are never drawn again at this one, nor any chunk while tiles are drawn directly:
+    // free them now. A smaller chunk of another scale (a zoom in) becomes the stand-in until its replacement is built;
+    // a larger one (a zoom out) is freed, as it would hold more than the new one (tiles or a placeholder stand in).
+    for (const [k, c] of [...this.old]) if (direct || c.rot !== rot || c.scale > cs) this.free(this.old, k, c);
+    for (const [k, c] of [...this.chunks]) {
+      if (direct || c.rot !== rot || c.scale > cs) this.free(this.chunks, k, c);
+      else if (c.scale !== cs) {
+        const prev = this.old.get(k);
+        if (prev) this.free(this.old, k, prev);
+        this.chunks.delete(k);
+        this.old.set(k, c);
+      }
+    }
     let complete = true;
     let drawn = 0;
     let t0 = 0;
-    let firstBuilds = 0;
+    /** New chunks built and tile stand-ins drawn this frame (under `FIRST_BUILD_BUDGET_MS` from `t0`). */
+    let work = 0;
     this.tilesDrawn = 0;
+    this.placeholders = 0;
     if (this.orderRot !== rot || changed) {
       const keys: number[] = [];
       for (let c = 0; c < cxN * cyN; c++) {
@@ -337,53 +407,71 @@ export class RealGround implements GroundLayer {
       const cy = (c - cx) / cxN;
       const key = c;
       let ch = this.chunks.get(key);
-      if (ch && changed && ch.sig !== this.sig(map, cx, cy)) {
-        this.free(key, ch);
-        ch = undefined;
+      if (changed) {
+        const sig = ch || this.old.has(key) ? this.sig(map, cx, cy) : 0;
+        if (ch && ch.sig !== sig) {
+          this.free(this.chunks, key, ch);
+          ch = undefined;
+        }
+        const o = this.old.get(key);
+        if (o && o.sig !== sig) this.free(this.old, key, o);
       }
       const g = chunkBounds(map, cx, cy, rot);
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      // Covered this frame (today's terrain left it out and freed its images): something is always drawn.
+      const covered = this.full[key] === 1;
       if (direct) {
         const r = this.drawTiles(ctx, map, cx, cy, view, scale, offX, offY, rot, env);
         if (!r.complete) complete = false;
-        this.directFull[key] = r.full ? 1 : 0;
+        this.markFull(map, key, r.full);
         drawn++;
         continue;
       }
       if (!ch) {
-        if (firstBuilds === 0) t0 = terrainClock.now();
-        if (firstBuilds > 0 && terrainClock.now() - t0 >= FIRST_BUILD_BUDGET_MS) {
-          complete = false;
-          continue;
+        let built: Chunk | null = null;
+        // New chunks and tile stand-ins share the frame's first-build budget (at least one piece of work a frame).
+        const timeLeft = work === 0 || terrainClock.now() - t0 < FIRST_BUILD_BUDGET_MS;
+        if (work === 0) t0 = terrainClock.now();
+        if (timeLeft) {
+          // Room first (the whole chunk box; an emptier chunk gives the difference back below).
+          const need = (Math.ceil((g.right - g.left) * cs) + PAD * 2) * (Math.ceil((g.bottom - g.top) * cs) + PAD * 2) * 4;
+          if (!this.opts.admit || this.opts.admit('ground', this.bytes + need, this.upBytes + Math.round(need * (upScale / cs) ** 2))) {
+            work++;
+            built = this.build(map, cx, cy, rot, cs, upScale, this.sig(map, cx, cy), env);
+          } else {
+            // No room: the old-scale stand-in gives its memory back; the tiles are drawn directly instead.
+            const o = this.old.get(key);
+            if (o) this.free(this.old, key, o);
+          }
         }
-        // Room first (the whole chunk box; an emptier chunk gives the difference back below).
-        const need = (Math.ceil((g.right - g.left) * cs) + PAD * 2) * (Math.ceil((g.bottom - g.top) * cs) + PAD * 2) * 4;
-        if (this.opts.admit && !this.opts.admit('ground', this.bytes + need, this.upBytes + Math.round(need * (upScale / cs) ** 2))) {
-          complete = false;
-          continue;
-        }
-        firstBuilds++;
-        const built = this.build(map, cx, cy, rot, cs, upScale, this.sig(map, cx, cy), env);
-        if (!built) {
+        if (built) {
+          this.builds++;
+          ch = built;
+          this.chunks.set(key, ch);
+          this.bytes += ch.bytes;
+          this.upBytes += ch.upBytes;
+          this.markFull(map, key, ch.full, ch.sig);
+          const o = this.old.get(key);
+          if (o) this.free(this.old, key, o);
+          this.holdNow();
+        } else {
           complete = false;
           this.holdNow();
+          if (!covered) continue;
+          // A stand-in: the old-scale chunk, scaled; else, while the frame's budget lasts, the tiles straight into the
+          // target; else one flat placeholder for the chunk.
+          const o = this.old.get(key);
+          if (o) this.blit(ctx, o, scale, offX, offY);
+          else if (work === 0 || terrainClock.now() - t0 < FIRST_BUILD_BUDGET_MS) {
+            if (work++ === 0) t0 = terrainClock.now();
+            this.markFull(map, key, this.drawTiles(ctx, map, cx, cy, view, scale, offX, offY, rot, env).full);
+          } else this.chunkPlaceholder(ctx, map, cx, cy, rot, scale, offX, offY);
+          drawn++;
           continue;
         }
-        this.builds++;
-        ch = built;
-        this.chunks.set(key, ch);
-        this.bytes += ch.bytes;
-        this.upBytes += ch.upBytes;
-        this.holdNow();
       }
-      ch.lastFrame = this.frame;
-      const sp = ch.sprite;
-      if (sp.w <= 1) continue;
-      const f = scale / sp.scale;
-      const x0 = Math.round(offX - sp.ox * f);
-      const y0 = Math.round(offY - sp.oy * f);
-      ctx.drawImage(sp.image, x0, y0, Math.round(offX + (sp.w - sp.ox) * f) - x0, Math.round(offY + (sp.h - sp.oy) * f) - y0);
-      drawn++;
+      this.blit(ctx, ch, scale, offX, offY);
+      if (ch.sprite.w > 1) drawn++;
     }
     this.holdNow();
     this.complete = complete;
@@ -391,17 +479,16 @@ export class RealGround implements GroundLayer {
   }
 
   /**
-   * Direct tiles (screen scale above `DIRECT_ABOVE_SCALE`): the tiles of chunk (cx, cy) inside `view`, back to front,
-   * straight into `ctx` at the screen's scale. False when a piece is not decoded yet (the ground is incomplete).
+   * The tiles of chunk (cx, cy) inside `view`, back to front, straight into `ctx` at the screen's scale: above
+   * `DIRECT_ABOVE_SCALE` always, below it as a covered chunk's stand-in. Each tile from its piece; while that is not
+   * decoded, the other density's piece (`groundStandIn`) or a flat placeholder, never nothing (incomplete). `full`:
+   * no tile in view lacked a baked piece.
    */
   private drawTiles(ctx: CanvasRenderingContext2D, map: MapState, cx: number, cy: number, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, env: GroundEnv | undefined): { complete: boolean; full: boolean } {
     const vr = chunkViewRect(map, cx, cy, rot);
     let complete = true;
-    // Every tile of the chunk has a realistic piece: today's terrain can then leave the chunk out next frame
-    // (`covers`). Tiles in view are drawn; tiles out of view are only checked with `groundReady` (no want, no
-    // incomplete count). Without `groundReady` a chunk partly out of view is never covered (`allIn`).
     let full = true;
-    let allIn = true;
+    const cached = this.joins.length > 0;
     for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
       for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
         const v = s - u;
@@ -411,31 +498,27 @@ export class RealGround implements GroundLayer {
         const ax = (u - v) * HW;
         const ay = (u + v) * HH - hz;
         // A piece spans its tile (64 × 32 px at zoom 1) and hangs at most its height down (cliff faces).
-        const out = ax + HW + 8 < view.x0 || ax - HW - 8 > view.x1 || ay + 2 * HH + hz + 8 < view.y0 || ay - 16 > view.y1;
-        if (out && (!full || !this.look.groundReady)) {
-          if (!this.look.groundReady) allIn = false;
-          continue;
-        }
+        if (ax + HW + 8 < view.x0 || ax - HW - 8 > view.x1 || ay + 2 * HH + hz + 8 < view.y0 || ay - 16 > view.y1) continue;
         const terrain = groundTerrain(map, i);
         let join: number | undefined;
         if (env && (terrain === 'path' || terrain === 'queue')) {
-          let raw = this.joins[i] as number;
-          if (raw < 0) this.joins[i] = raw = pathJoinMask(map, i, env.rides, env.stalls);
+          let raw = cached ? (this.joins[i] as number) : -1;
+          if (raw < 0) {
+            raw = pathJoinMask(map, i, env.rides, env.stalls);
+            if (cached) this.joins[i] = raw;
+          }
           join = rotateSlopeMask(raw, rot);
         }
         const slope = rotateSlopeMask(map.slope[i] as number, rot);
-        if (out) {
-          // Out of view: only whether its piece is ready (no want, no incomplete count), for `covers`.
-          if (!(this.look.groundReady as NonNullable<RealLook['groundReady']>)(terrain, slope, groundVariant(m.x, m.y), rot, join)) full = false;
-          continue;
-        }
-        const sp = this.look.groundPiece(terrain, slope, groundVariant(m.x, m.y), rot, join);
-        if (!sp) full = false;
+        let sp = this.look.groundPiece(terrain, slope, groundVariant(m.x, m.y), rot, join);
         if (sp === null) {
           complete = false;
+          sp = this.look.groundStandIn?.(terrain, slope, groundVariant(m.x, m.y), rot, join) ?? null;
+        } else if (sp === undefined) full = false;
+        if (!sp) {
+          this.placeholder(ctx, terrain, ax, ay, scale, offX, offY);
           continue;
         }
-        if (!sp) continue;
         const k = scale / sp.scale;
         const x0 = Math.round(offX + ax * scale - sp.ox * k);
         const y0 = Math.round(offY + ay * scale - sp.oy * k);
@@ -443,43 +526,106 @@ export class RealGround implements GroundLayer {
         this.tilesDrawn++;
       }
     }
-    return { complete, full: full && allIn };
+    return { complete, full };
   }
 
-  /** See `GroundLayer.beginCover`: the frame's rotation, scale and terrain version, before today's terrain draws. */
-  beginCover(map: MapState, scale: number, rot: ViewRotation, version: number): void {
+  /** A covered chunk with no stand-in this frame (the budget is spent): one flat diamond at its mean height. */
+  private chunkPlaceholder(ctx: CanvasRenderingContext2D, map: MapState, cx: number, cy: number, rot: ViewRotation, scale: number, offX: number, offY: number): void {
+    const vr = chunkViewRect(map, cx, cy, rot);
+    let sum = 0;
+    let count = 0;
+    for (let y = cy * CHUNK_SIZE; y < Math.min(map.height, (cy + 1) * CHUNK_SIZE); y++) {
+      for (let x = cx * CHUNK_SIZE; x < Math.min(map.width, (cx + 1) * CHUNK_SIZE); x++) {
+        sum += map.heights[y * map.width + x] as number;
+        count++;
+      }
+    }
+    const lift = (count > 0 ? sum / count : 0) * STEP_PX;
+    const X = (u: number, v: number): number => (u - v) * HW * scale + offX;
+    const Y = (u: number, v: number): number => ((u + v) * HH - lift) * scale + offY;
+    ctx.beginPath();
+    ctx.moveTo(X(vr.u0, vr.v0), Y(vr.u0, vr.v0));
+    ctx.lineTo(X(vr.u1, vr.v0), Y(vr.u1, vr.v0));
+    ctx.lineTo(X(vr.u1, vr.v1), Y(vr.u1, vr.v1));
+    ctx.lineTo(X(vr.u0, vr.v1), Y(vr.u0, vr.v1));
+    ctx.closePath();
+    ctx.fillStyle = PLACEHOLDER_GRASS;
+    ctx.fill();
+    this.placeholders += count;
+  }
+
+  /** A tile with no piece to draw: a flat diamond at its base height in a plain colour of its terrain. */
+  private placeholder(ctx: CanvasRenderingContext2D, terrain: string, ax: number, ay: number, scale: number, offX: number, offY: number): void {
+    const x = offX + ax * scale;
+    const y = offY + ay * scale;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + HW * scale, y + HH * scale);
+    ctx.lineTo(x, y + 2 * HH * scale);
+    ctx.lineTo(x - HW * scale, y + HH * scale);
+    ctx.closePath();
+    ctx.fillStyle = PLACEHOLDER[terrain] ?? PLACEHOLDER_GRASS;
+    ctx.fill();
+    this.placeholders++;
+  }
+
+  /** See `GroundLayer.beginCover`: the frame's map and terrain version, before today's terrain draws. */
+  beginCover(map: MapState, _scale: number, rot: ViewRotation, version: number): void {
+    // A draw that threw: nothing counts as covered until a draw completes.
+    this.coverOk = !this.drawFailed;
     this.coverRot = rot;
-    this.coverDirect = scale > DIRECT_ABOVE_SCALE + 1e-6;
-    this.coverScale = this.coverDirect ? 0 : groundScale(scale, this.look.density(scale, 1));
-    // A terrain change or a new map may rebuild any chunk this frame: nothing counts as covered until it drew again.
-    this.coverOk = map === this.map && version === this.version && !this.drawFailed;
-    // Direct tiles: the pieces of the last draw were of this density (a cap or lift changes every set).
-    if (this.coverDirect && this.directDensity !== this.look.density(scale, 1)) this.coverOk = false;
+    // A new map starts the record over; a terrain change forgets only the chunks whose tiles (or the ring around
+    // them, for path joins) changed.
+    this.checkFull(map, version);
   }
 
   /**
-   * True when this frame's `draw` will lay chunk `chunk` in full from realistic pieces: a built chunk of this rotation
-   * and scale with every tile from a piece, or (direct tiles) a chunk whose every tile had a piece at the last draw at
-   * this rotation and terrain version. A chunk with a piece missing or not decoded is never covered, so today's
-   * terrain stays under it.
+   * True when this frame's `draw` will lay chunk `chunk` in full: every tile is known to have a baked piece for its
+   * tiles as they are now (see the header: until its own picture is ready it draws a stand-in).
+   * A chunk with a piece missing from the bake is never covered, so today's terrain stays under it.
    */
   covers(chunk: number): boolean {
     if (!this.coverOk) return false;
-    if (this.coverDirect) return this.wasDirect && this.directRot === this.coverRot && this.directVersion === this.version && this.directFull[chunk] === 1;
-    const c = this.chunks.get(chunk);
-    return !!c && c.full && c.rot === this.coverRot && c.scale === this.coverScale;
+    if (this.full[chunk] === 0 && this.look.groundBaked && this.fullMap) {
+      // Not drawn yet (a new park, a chunk coming into view, a changed tile): covered when the bake has a ground set
+      // for every tile's terrain, so today's terrain never builds under it (a frame the bake lacks shows a placeholder
+      // for a frame, then uncovers the chunk).
+      const map = this.fullMap;
+      const cxN = Math.ceil(map.width / CHUNK_SIZE);
+      const cx = chunk % cxN;
+      const cy = Math.floor(chunk / cxN);
+      let seen = 0;
+      let ok = true;
+      for (let y = cy * CHUNK_SIZE; ok && y < Math.min(map.height, (cy + 1) * CHUNK_SIZE); y++) {
+        for (let x = cx * CHUNK_SIZE; x < Math.min(map.width, (cx + 1) * CHUNK_SIZE); x++) {
+          const t = groundTerrain(map, y * map.width + x);
+          const bit = TERRAIN_BIT[t] ?? 0;
+          if (seen & bit) continue;
+          seen |= bit;
+          if (!this.look.groundBaked(t, this.coverRot)) {
+            ok = false;
+            break;
+          }
+        }
+      }
+      this.markFull(map, chunk, ok);
+    }
+    return this.full[chunk] === 1;
   }
 
   /**
    * Every frame, before the set manager's `endFrame`: the chunks of the last draw stay on screen while the static
-   * layer is reused; chunks not on screen for `KEEP_FRAMES` frames are freed.
+   * layer is reused; chunks not on screen for `KEEP_FRAMES` frames are freed, old-scale stand-ins as soon as a frame
+   * did not need them.
    */
   endFrame(): void {
     if (this.lastDraw !== this.frame) {
       for (const c of this.chunks.values()) if (c.lastFrame === this.lastDraw) c.lastFrame = this.frame;
+      for (const c of this.old.values()) if (c.lastFrame === this.lastDraw) c.lastFrame = this.frame;
       this.lastDraw = this.frame;
     }
-    for (const [k, c] of [...this.chunks]) if (c.lastFrame < this.frame - KEEP_FRAMES) this.free(k, c);
+    for (const [k, c] of [...this.chunks]) if (c.lastFrame < this.frame - KEEP_FRAMES) this.free(this.chunks, k, c);
+    for (const [k, c] of [...this.old]) if (c.lastFrame < this.frame) this.free(this.old, k, c);
     this.holdNow();
     this.frame++;
   }
@@ -494,7 +640,7 @@ export class RealGround implements GroundLayer {
     for (const [k, c] of idle) {
       if (freed >= needBytes) break;
       freed += c.bytes;
-      this.free(k, c);
+      this.free(this.chunks, k, c);
     }
     if (freed > 0) this.holdNow();
     return freed;
@@ -502,7 +648,7 @@ export class RealGround implements GroundLayer {
 
   /** Frees every chunk canvas. */
   dispose(): void {
-    for (const [k, c] of [...this.chunks]) this.free(k, c);
+    this.freeAll();
     this.opts.hold?.('ground', 0);
   }
 }

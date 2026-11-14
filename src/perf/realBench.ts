@@ -82,8 +82,11 @@ export interface BenchDevice {
   userAgent: string;
 }
 
-/** Resident picture memory by owner, bytes (MB in a bench row). */
-export interface MemorySplit { sets: number; tints: number; ground: number }
+/**
+ * Resident picture memory by owner, bytes (MB in a bench row). `classic`: today's picture caches held in the set
+ * manager's budget by the renderer (Task 3); absent from a set manager that does not report it.
+ */
+export interface MemorySplit { sets: number; tints: number; ground: number; classic?: number }
 
 /** Picture memory outside the set manager, bytes (MB in a bench row): see `BenchOptions.otherMemory`. */
 export interface OtherMemory { terrain: number; staticLayer: number; sprites: number; blobs: number }
@@ -386,7 +389,10 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
   const incomplete = (): number => (look?.incomplete() ?? 0) + (ground && !ground.complete ? 1 : 0);
   const splitMB = (): MemorySplit | null => {
     const sp = sets?.split?.();
-    return sp ? { sets: r1(sp.sets / MB), tints: r1(sp.tints / MB), ground: r1(sp.ground / MB) } : null;
+    if (!sp) return null;
+    const out: MemorySplit = { sets: r1(sp.sets / MB), tints: r1(sp.tints / MB), ground: r1(sp.ground / MB) };
+    if (sp.classic !== undefined) out.classic = r1(sp.classic / MB);
+    return out;
   };
   const stall = (at: string): BenchStall => ({
     at,
@@ -452,7 +458,9 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       p.staticLayer = Math.max(p.staticLayer, o.staticLayer);
       p.sprites = Math.max(p.sprites, o.sprites);
       p.blobs = Math.max(p.blobs, o.blobs);
-      allPeak = Math.max(allPeak, (sets?.residentBytes() ?? 0) + o.terrain + o.staticLayer + o.sprites + o.blobs);
+      // Today's caches are also held in the set manager (`classic`, Task 3): counted once, from `otherMemory`.
+      const managed = (sets?.residentBytes() ?? 0) - (sets?.split?.().classic ?? 0);
+      allPeak = Math.max(allPeak, managed + o.terrain + o.staticLayer + o.sprites + o.blobs);
     }
     if (sampleMem && sets) {
       const now = sets.residentBytes();
@@ -726,9 +734,9 @@ export function otherText(m: BenchRow['otherMB']): string {
   return m ? `today's terrain ${m.terrain} / static layer ${m.staticLayer} / today's sprites ${m.sprites} / compressed art ${m.blobs} MB` : 'n/a';
 }
 
-/** `sets / tints / ground MB`, or n/a. */
+/** `sets / tints / ground MB` (and today's caches held in the budget, when reported), or n/a. */
 export function splitText(m: MemorySplit | null): string {
-  return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground} MB` : 'n/a';
+  return m ? `sets ${m.sets} / tints ${m.tints} / ground ${m.ground}${m.classic !== undefined ? ` / today's ${m.classic}` : ''} MB` : 'n/a';
 }
 
 /** `render ratio 2→1 at frame 200`, `render ratio 2 (unchanged)`, or `ratio n/a` when nothing could be read. */

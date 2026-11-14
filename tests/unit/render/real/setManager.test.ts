@@ -382,7 +382,7 @@ describe('SetManager: memory held outside it (final review C1, I3, T5)', () => {
     expect(order).toEqual(['ground 50']);
     expect(m.densityCap()).toBe(4);
     expect(m.capEvents()).toEqual([]);
-    expect(m.split()).toEqual({ sets: 200, tints: 0, ground: 50 });
+    expect(m.split()).toEqual({ sets: 200, tints: 0, ground: 50, classic: 0 });
   });
 
   it('a reclaimer that throws is reported and the ladder goes on', async () => {
@@ -463,7 +463,7 @@ describe('SetManager: memory held outside it (final review C1, I3, T5)', () => {
     const snap = m.snapshot();
     expect(snap.queueHead).toEqual({ key: A.key, estimate: 100, priority: 'ahead' });
     expect(snap.held).toEqual({ ground: 30, 'guest:b0o0:d2:rall#ff0000': 20 });
-    expect(snap.split).toEqual({ sets: 0, tints: 20, ground: 30 });
+    expect(snap.split).toEqual({ sets: 0, tints: 20, ground: 30, classic: 0 });
     expect(snap.committed).toBe(50);
     expect(snap.capped).toBe(false);
     expect(snap.demoted).toEqual([]);

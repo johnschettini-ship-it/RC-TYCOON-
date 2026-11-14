@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CHUNK_CACHE_MB, chunkBounds, chunkViewRect, EXACT_SETTLE_FRAMES, FIRST_BUILD_BUDGET_MS, grassShade, TerrainLayer, terrainClock } from '../../../src/render/terrain';
+import { CHUNK_CACHE_MB, chunkBounds, chunkViewRect, EXACT_SETTLE_FRAMES, FIRST_BUILD_BUDGET_MS, grassShade, TerrainLayer, terrainClock, type TerrainEnv } from '../../../src/render/terrain';
 import { generateMap, tileIndex } from '../../../src/sim/map';
 import { CHUNK_SIZE } from '../../../src/render/terrainTracker';
 import { GROUND_LEVEL } from '../../../src/data/tuning/core';
@@ -264,36 +264,40 @@ describe('terrain chunk builds per frame (Phase 6 §4.6: a view turn is not one 
   });
 });
 
-describe('realistic ground cover (VITE_ART=real only, stage 1 round 3)', () => {
-  it('a covered chunk is not drawn, frees only its images of this rotation and bucket (others stay as stand-ins), and is not prefetched', async () => {
+describe('realistic ground cover (VITE_ART=real only, stage 1 round 3; Task 3)', () => {
+  it('a covered chunk (env.cover) is not drawn, frees every image it has (all buckets, rotations, exact), and is not prefetched', async () => {
     const { vi } = await import('vitest');
-    const { realGroundCover } = await import('../../../src/render/terrain');
     vi.stubEnv('VITE_ART', 'real');
     try {
       install();
       const map = generateMap({ width: 2 * CHUNK_SIZE, height: CHUNK_SIZE });
       const layer = new TerrainLayer();
-      const env = { seed: 1, rides: [], stalls: [] };
+      const env: TerrainEnv = { seed: 1, rides: [], stalls: [] };
       const view = { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 };
       const ctx = make(100, 100).getContext() as CanvasRenderingContext2D;
       layer.sync(map);
-      // Bucket 1 and bucket 2 images of both chunks at rotation 0.
+      // Bucket 1 and bucket 2 images of both chunks at rotation 0, and rotation 1 at bucket 2.
       layer.draw(ctx, map, env, view, 1, 1, 0, 0, 0);
       // Refines from a stand-in are limited per frame: draw a few frames.
       for (let k = 0; k < 3; k++) layer.draw(ctx, map, env, view, 2, 2, 0, 0, 0);
+      layer.draw(ctx, map, env, view, 2, 2, 0, 0, 1);
       const imgs = (layer as unknown as { images: { peek(k: number): unknown } }).images;
-      const has = (c: number, bi: number) => !!imgs.peek(c * 16 + bi);
-      expect([has(0, 1), has(0, 2), has(1, 1), has(1, 2)]).toEqual([true, true, true, true]);
-      realGroundCover.covers = (c) => c === 0;
+      const has = (c: number, k: number) => !!imgs.peek(c * 16 + k);
+      expect([has(0, 1), has(0, 2), has(0, 6), has(1, 1), has(1, 2), has(1, 6)]).toEqual([true, true, true, true, true, true]);
+      const covered: TerrainEnv = { ...env, cover: (c) => c === 0 };
       const canvas = make(100, 100);
-      expect(layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, env, view, 2, 2, 0, 0, 0)).toBe(1);
-      // Chunk 0 at bucket 2 freed; its bucket 1 image kept as a stand-in; chunk 1 untouched.
-      expect([has(0, 1), has(0, 2), has(1, 1), has(1, 2)]).toEqual([true, false, true, true]);
-      // No turn prefetch for the covered chunk: only chunk 1 is built for rotation 1.
-      while (layer.prefetch(map, env, view, 2, 1)) { /* builds one a call */ }
+      expect(layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, covered, view, 2, 2, 0, 0, 0)).toBe(1);
+      // Chunk 0: every image freed (nothing to stand in for: the realistic ground draws its own stand-ins); chunk 1 untouched.
+      expect([has(0, 1), has(0, 2), has(0, 6), has(1, 1), has(1, 2), has(1, 6)]).toEqual([false, false, false, true, true, true]);
+      // No turn prefetch for the covered chunk: only chunk 1 is built for rotation 2.
+      while (layer.prefetch(map, covered, view, 2, 2)) { /* builds one a call */ }
       expect(layer.prefetched).toBe(1);
+      // A chunk out of view that the ground covers is freed too (its images would only wait for the LRU).
+      layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, env, view, 2, 2, 0, 0, 0);
+      expect(has(0, 2)).toBe(true);
+      layer.draw(canvas.getContext() as CanvasRenderingContext2D, map, covered, { x0: 1e5, y0: 1e5, x1: 1e6, y1: 1e6 }, 2, 2, 0, 0, 0);
+      expect(has(0, 2)).toBe(false);
     } finally {
-      realGroundCover.covers = null;
       vi.unstubAllEnvs();
     }
   });

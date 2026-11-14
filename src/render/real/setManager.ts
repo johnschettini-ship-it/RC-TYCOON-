@@ -36,19 +36,24 @@ export interface SetSnapshot {
   resident: number;
   /** Bytes the frame asked to make (`admit`) and was refused for want of room. */
   refused: number;
-  /** Held bytes by holder id (`ground`, `<set key>#<colour>` for a tinted sheet). */
+  /** Held bytes by holder id (`ground`, `classic`, `<set key>#<colour>` for a tinted sheet). */
   held: Record<string, number>;
-  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks. */
+  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks, today's picture caches. */
   split: MemorySplit;
   capped: boolean;
   demoted: SetKey[];
 }
 
 /** Resident bytes by owner. */
-export interface MemorySplit { sets: number; tints: number; ground: number }
+export interface MemorySplit { sets: number; tints: number; ground: number; classic: number }
 
-/** The holder id the ground uses; every other holder id is a tinted sheet. */
+/** The holder id the ground uses. */
 export const GROUND_HOLD = 'ground';
+/**
+ * The holder id of today's picture caches (terrain chunks, static layer, today's sprites), held by the renderer every
+ * frame so the ladder sees all picture memory (spec §5.4 item 4). Every holder id other than these two is a tinted sheet.
+ */
+export const CLASSIC_HOLD = 'classic';
 
 export type Priority = 'now' | 'ahead';
 
@@ -269,12 +274,13 @@ export class SetManager {
     this.roomFrames = 0;
   }
 
-  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks. */
+  /** Resident bytes by owner: decoded sets, tinted sheets, ground chunks, today's picture caches. */
   split(): MemorySplit {
     let sets = 0;
     for (const r of this.recs.values()) sets += r.bytes;
     const ground = this.held.get(GROUND_HOLD) ?? 0;
-    return { sets, tints: this.heldTotal - ground, ground };
+    const classic = this.held.get(CLASSIC_HOLD) ?? 0;
+    return { sets, tints: this.heldTotal - ground - classic, ground, classic };
   }
 
   snapshot(): SetSnapshot {

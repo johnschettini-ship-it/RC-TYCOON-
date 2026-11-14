@@ -916,18 +916,41 @@ describe('RealLook: tinting under a per-frame budget (round 3 item 4)', () => {
   });
 });
 
-describe('RealLook.groundReady (fix round 2, 3)', () => {
-  it('says whether a ground piece would draw, with no want, no use, no count and no fallback', () => {
+describe('RealLook.groundStandIn (Task 3: RealGround never leaves a tile empty)', () => {
+  it('gives the ground piece from the other density\'s ready set, used (kept) but not wanted or counted', () => {
+    const { sets, look } = setup();
+    // Density 4 (zoom 2 at ratio 2.625): the density-4 set not decoded, its density-2 set ready.
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2.625);
+    sets.wants = [];
+    expect(look.groundStandIn!('grass', 0, 1, 0)).toBeNull();
+    sets.setState(setKey('ground', 'grass', 2, 0), 'ready');
+    expect(look.groundStandIn!('grass', 0, 1, 0)!.scale).toBe(2);
+    expect(sets.used).toEqual([setKey('ground', 'grass', 2, 0)]);
+    expect(look.groundStandIn!('grass', 3, 2, 0)).toBeNull(); // no such frame
+    expect(sets.wants).toEqual([]);
+    // Density 2 with only the density-4 set ready (zooming out): that one, scaled down by the ground.
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.wants = [];
+    sets.setState(setKey('ground', 'grass', 2, 0), 'none');
+    sets.setState(setKey('ground', 'grass', 4, 0), 'ready');
+    expect(look.groundStandIn!('grass', 0, 1, 0)!.scale).toBe(4);
+    expect(sets.wants).toEqual([]);
+    expect(look.incomplete()).toBe(0);
+    expect(look.fallbacksUsed()).toEqual([]);
+  });
+});
+
+describe('RealLook.groundBaked (Task 3)', () => {
+  it('says whether the bake has a ground set for the terrain at this turn and density, with no side effect', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     sets.wants = [];
-    expect(look.groundReady!('grass', 0, 1, 0)).toBe(false);
-    sets.setState(setKey('ground', 'grass', 2, 0), 'ready');
-    expect(look.groundReady!('grass', 0, 1, 0)).toBe(true);
-    expect(look.groundReady!('grass', 3, 2, 0)).toBe(false); // no such frame
+    expect(look.groundBaked!('grass', 0)).toBe(true);
+    expect(look.groundBaked!('water', 0)).toBe(false);
+    sets.setState(setKey('ground', 'grass', 2, 1), 'failed');
+    expect(look.groundBaked!('grass', 1)).toBe(false);
     expect(sets.wants).toEqual([]);
     expect(sets.used).toEqual([]);
-    expect(look.incomplete()).toBe(0);
     expect(look.fallbacksUsed()).toEqual([]);
   });
 });

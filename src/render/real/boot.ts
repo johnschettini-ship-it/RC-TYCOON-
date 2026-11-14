@@ -109,5 +109,5 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
     setCardArt(cardPicture(sets));
   }
   setStepPx(REAL_STEP_PX);
-  return { look, sets, ground };
+  return { look, sets, ground, counts: { placeholders: 0 } };
 }

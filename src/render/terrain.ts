@@ -43,6 +43,12 @@ export interface TerrainEnv {
   seed: number;
   rides: readonly Ride[];
   stalls: readonly Stall[];
+  /**
+   * The realistic test build only (VITE_ART=real; never set in the website build): true when the realistic ground
+   * lays that chunk in full this frame (`RealGround.covers`), so today's terrain neither builds nor draws it and frees
+   * every image it has of it (spec §5.4 item 4: picture memory under the realistic ground is wasted).
+   */
+  cover?: ((chunk: number) => boolean) | null;
 }
 
 /** Deterministic shade choice for tile (x, y). */
@@ -425,14 +431,6 @@ const EXACT_SLOT = 3;
 /** Image cache keys per chunk: 4 rotations × 4 bucket slots. */
 const KEYS_PER_CHUNK = 16;
 
-/**
- * The realistic test build only (VITE_ART=real; unreferenced and dropped from the website build): `covers(chunk)` is
- * true when the realistic ground will lay that chunk in full this frame (every tile from a realistic piece), so
- * today's terrain neither builds nor draws it. Set by the renderer from `RealGround.covers`. `placeholders` counts the
- * placeholder chunks drawn (the headless checks read it).
- */
-export const realGroundCover: { covers: ((chunk: number) => boolean) | null; placeholders: number } = { covers: null, placeholders: 0 };
-
 /** Phase 4 §8 `CHUNK_CACHE_MB` (32 MB on phones, §11): chunk image memory cap at 4 bytes per pixel. */
 export const CHUNK_CACHE_MB = 64;
 export const CHUNK_CACHE_MB_PHONE = 32;
@@ -605,16 +603,15 @@ export class TerrainLayer {
     const n = this.order.length;
     for (let k = 0; k < n; k++) {
       const c = this.order[k] as number;
-      const g = this.bounds[c] as ChunkGeom;
-      if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
       // The realistic test build (folded away in the website build): a chunk the realistic ground lays in full this
-      // frame is not built or drawn, and its images of this rotation and bucket (and exact scale) are freed; the
-      // other buckets' images stay as stand-ins for the next zoom step, when the realistic ground is not laid yet.
-      if (import.meta.env.VITE_ART === 'real' && realGroundCover.covers?.(c)) {
-        this.images.delete(c * KEYS_PER_CHUNK + r * 4 + bi);
-        this.images.delete(c * KEYS_PER_CHUNK + r * 4 + EXACT_SLOT);
+      // frame is not built or drawn, and every image of it is freed, in view or not (all buckets, rotations and the
+      // exact scale): the realistic ground draws its own stand-ins on a zoom step or a lifted demotion (Task 3).
+      if (import.meta.env.VITE_ART === 'real' && env.cover?.(c)) {
+        for (let key = c * KEYS_PER_CHUNK; key < (c + 1) * KEYS_PER_CHUNK; key++) this.images.delete(key);
         continue;
       }
+      const g = this.bounds[c] as ChunkGeom;
+      if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
       const base = c * KEYS_PER_CHUNK + r * 4;
       let sp: Sprite | undefined;
       // An exact-scale image of this very scale draws 1:1.
@@ -642,7 +639,6 @@ export class TerrainLayer {
             if (firstBuilds > 0 && terrainClock.now() - firstStart >= FIRST_BUILD_BUDGET_MS) {
               this.drawPlaceholder(ctx, map, c, r, scale, offX, offY);
               this.placeholders++;
-              if (import.meta.env.VITE_ART === 'real') realGroundCover.placeholders++;
               complete = false;
               continue;
             }
@@ -715,7 +711,7 @@ export class TerrainLayer {
       const g = bounds[c] as ChunkGeom;
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
       // Realistic test build: no prefetch for a chunk the realistic ground covers (it would be built, then freed).
-      if (import.meta.env.VITE_ART === 'real' && realGroundCover.covers?.(c)) continue;
+      if (import.meta.env.VITE_ART === 'real' && env.cover?.(c)) continue;
       const key = c * KEYS_PER_CHUNK + r * 4 + bi;
       if (this.images.peek(key)) continue;
       this.images.set(key, this.build(map, c, bucket, env, r, g));

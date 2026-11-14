@@ -29,10 +29,16 @@ export interface RealLook {
   /** A ground piece; `join` (path and queue: the join mask in view terms, as `render/paths.ts`) picks the kerb piece. */
   groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): Sprite | null | undefined;
   /**
-   * Whether `groundPiece` with these arguments would give a picture now, with no side effect (no want, no count,
-   * no fallback listed): RealGround asks it for tiles out of view (round 3 fix round 2).
+   * The same ground piece from the other density's set when that one is decoded (density 2 first), or null: what
+   * RealGround draws while `groundPiece` answers null (a zoom step, a lifted demotion), so a tile it lays is never
+   * empty (Task 3). The set is used (kept from freeing), never wanted; no count, no fallback listed.
    */
-  groundReady?(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): boolean;
+  groundStandIn?(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): Sprite | null;
+  /**
+   * Whether the bake has a ground set for `terrain` at this turn and the current density that has not failed (no
+   * side effect): RealGround covers a chunk it has not drawn yet when every tile's terrain has one (Task 3).
+   */
+  groundBaked?(terrain: string, rot: ViewRotation): boolean;
   /** Frees every tinted sheet (closes its canvases, releases its hold). The look stays usable. */
   dispose(): void;
   /**

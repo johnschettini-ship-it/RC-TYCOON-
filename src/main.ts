@@ -7,7 +7,6 @@ import { pageStorage, startRealBuild } from './render/real/storagePrefix';
 import { benchMode } from './render/real/benchParam';
 import { tileToScreen } from './render/iso';
 import { spriteMemory } from './render/spriteCache';
-import { realGroundCover } from './render/terrain';
 import { attachInput } from './input';
 import { mountUI } from './ui';
 import { createWorld } from './sim/world';
@@ -77,7 +76,7 @@ function boot(real?: RealOptions): void {
       (window as unknown as { __tcReal?: RealDebug }).__tcReal = {
         ...real,
         memory: () => spriteMemory.breakdown(),
-        placeholders: () => realGroundCover.placeholders,
+        placeholders: () => real?.counts?.placeholders ?? 0,
         load(json, focus, zoom = 1, rotation = 0) {
           const loaded = deserialize(json);
           if (!loaded.ok) return loaded.error;

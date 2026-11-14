@@ -666,6 +666,19 @@ describe('bench honesty (round 3 item 6)', () => {
     const none = await quick(() => undefined);
     expect(none.result.scenes[0]).toMatchObject({ otherMB: null, allPeakMB: null });
   });
+
+  it('today\'s caches held in the budget (classic, Task 3) are counted once in all picture memory', { timeout: 60_000 }, async () => {
+    // The set manager holds 70 MB, 40 MB of them today's caches, which otherMemory also reports (30 + 5 + 5).
+    const otherMemory = () => ({ terrain: 30 * MB, staticLayer: 5 * MB, sprites: 5 * MB, blobs: 9 * MB });
+    const split = { sets: 20 * MB, tints: 5 * MB, ground: 5 * MB, classic: 40 * MB };
+    const { result } = await quick(() => undefined, { otherMemory, sets: { capEvents: () => [], peakBytes: () => 70 * MB, residentBytes: () => 70 * MB, split: () => split } });
+    const row = result.scenes[0]!;
+    // 30 managed + 40 today's + 9 compressed, not 70 + 40 + 9.
+    expect(row.allPeakMB).toBe(79);
+    expect(row.bands.S2.value).toBe(79);
+    expect(row.peakSplitMB).toEqual({ sets: 20, tints: 5, ground: 5, classic: 40 });
+    expect(resultsText(result)).toContain("held at peak sets 20 / tints 5 / ground 5 / today's 40 MB");
+  });
 });
 
 describe('the scale park\'s item map (round 3 item 7)', () => {
