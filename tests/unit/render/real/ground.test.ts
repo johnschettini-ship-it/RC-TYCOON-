@@ -349,22 +349,82 @@ describe('RealGround covers: today\'s terrain left out under realistic chunks (r
     expect(t.ground.covers(0)).toBe(false);
   });
 
-  it('direct tiles: covered when every tile of the chunk had a piece at the last draw; a piece not decoded uncovers it', () => {
+  /** A direct-mode ground whose fake look also answers `groundReady` (no side effect) for tiles out of view. */
+  function directSetup(state: { ready: boolean; density: 2 | 4 }) {
+    const asked: string[] = [];
+    const readyAsked: string[] = [];
+    const look = {
+      density: () => state.density,
+      groundPiece(terrain: string) { asked.push(terrain); return state.ready ? piece() : null; },
+      groundReady(terrain: string) { readyAsked.push(terrain); return state.ready; },
+    };
+    const ground = new RealGround(look, { makeCanvas: (w, h) => new FakeCanvas(w, h) as never });
+    const ctx = new FakeCanvas(800, 600).getContext() as CanvasRenderingContext2D;
+    return { ground, ctx, asked, readyAsked };
+  }
+
+  it('direct tiles: covered when every tile of the chunk had a piece at the last draw; out-of-view tiles are only checked, never asked', () => {
     terrainClock.now = () => 0;
     const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
     const map = world.state.map;
-    let ready = true;
-    const t = setupWith(() => 4, {}, () => (ready ? piece() : null));
+    const st = { ready: true, density: 4 as 2 | 4 };
+    const t = directSetup(st);
     t.ground.beginCover(map, 4, 0, 1);
     expect(t.ground.covers(0)).toBe(false);
-    // Only a corner of the map in view: the chunks' other tiles are asked too (not drawn).
+    // Only a corner of the map in view: its tiles are drawn (asked); the chunks' other tiles only checked.
     t.ground.draw(t.ctx, map, { x0: -40, y0: -40, x1: 40, y1: 40 }, 4, 0, 0, 0, 1);
+    expect(t.asked.length).toBe(t.ground.tilesDrawn);
+    expect(t.asked.length).toBeLessThan(64);
+    expect(t.readyAsked.length).toBeGreaterThan(0);
     t.ground.beginCover(map, 4, 0, 1);
     expect(t.ground.covers(0)).toBe(true);
-    ready = false;
+    // A piece not decoded: the chunk is not covered, and only in-view tiles count as incomplete.
+    st.ready = false;
     t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
     t.ground.beginCover(map, 4, 0, 1);
     expect(t.ground.covers(0)).toBe(false);
+  });
+
+  it('direct tiles without groundReady: a chunk partly out of view is never covered', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const t = setupWith(() => 4);
+    t.ground.draw(t.ctx, world.state.map, { x0: -40, y0: -40, x1: 40, y1: 40 }, 4, 0, 0, 0, 1);
+    t.ground.beginCover(world.state.map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(false);
+  });
+
+  it('direct tiles: a density change (cap or lift) uncovers every chunk until drawn again (fix round 2, 1)', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const map = world.state.map;
+    const st = { ready: true, density: 4 as 2 | 4 };
+    const t = directSetup(st);
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(true);
+    st.density = 2;
+    t.ground.beginCover(map, 4, 0, 1);
+    expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([false, false, false, false]);
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(true);
+  });
+
+  it('a draw that throws covers nothing until a draw completes (fix round 2, 4)', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const map = world.state.map;
+    const st = { ready: true, density: 4 as 2 | 4 };
+    const t = directSetup(st);
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    const bad = { drawImage() { throw new Error('boom'); } } as unknown as CanvasRenderingContext2D;
+    t.ground.draw(bad, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(false);
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(true);
   });
 });
 

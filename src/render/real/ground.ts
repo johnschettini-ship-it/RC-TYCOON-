@@ -156,6 +156,10 @@ export class RealGround implements GroundLayer {
   private directFull = new Uint8Array(0);
   private directRot = -1;
   private directVersion = -1;
+  /** The look's density at the last direct draw: a cap or lift (4 ↔ 2) changes every piece's set. */
+  private directDensity = 0;
+  /** The last `draw` threw: nothing counts as covered until a draw completes. */
+  private drawFailed = false;
   /** What `beginCover` was told for this frame (`coverScale` 0: nothing covers). */
   private coverRot = -1;
   private coverScale = 0;
@@ -165,7 +169,7 @@ export class RealGround implements GroundLayer {
   private wasDirect = false;
 
   constructor(
-    private readonly look: Pick<RealLook, 'groundPiece' | 'density'>,
+    private readonly look: Pick<RealLook, 'groundPiece' | 'density'> & Partial<Pick<RealLook, 'groundReady'>>,
     private readonly opts: RealGroundOptions = {},
   ) {
     this.make = opts.makeCanvas ?? defaultCanvas;
@@ -272,7 +276,10 @@ export class RealGround implements GroundLayer {
 
   draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number {
     try {
-      return this.drawChunks(ctx, map, view, scale, offX, offY, rot, version, env);
+      this.drawFailed = true;
+      const n = this.drawChunks(ctx, map, view, scale, offX, offY, rot, version, env);
+      this.drawFailed = false;
+      return n;
     } catch (err) {
       // Never out of the frame: the ground counts as incomplete and today's terrain shows.
       this.report(err);
@@ -298,9 +305,11 @@ export class RealGround implements GroundLayer {
     // Join cache for direct tiles only (chunks keep their joins in their pixels); dropped when chunks draw.
     if (!direct) this.joins = new Int16Array(0);
     else if (changed || this.joins.length !== map.width * map.height) this.joins = new Int16Array(map.width * map.height).fill(-1);
-    if (direct && (!this.wasDirect || this.directFull.length !== cxN * cyN || this.directRot !== rot || changed)) {
+    const density = this.look.density(scale, 1);
+    if (direct && (!this.wasDirect || this.directFull.length !== cxN * cyN || this.directRot !== rot || changed || this.directDensity !== density)) {
       this.directFull = new Uint8Array(cxN * cyN);
       this.directRot = rot;
+      this.directDensity = density;
     }
     this.directVersion = version;
     this.wasDirect = direct;
@@ -388,9 +397,11 @@ export class RealGround implements GroundLayer {
   private drawTiles(ctx: CanvasRenderingContext2D, map: MapState, cx: number, cy: number, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, env: GroundEnv | undefined): { complete: boolean; full: boolean } {
     const vr = chunkViewRect(map, cx, cy, rot);
     let complete = true;
-    // Every tile of the chunk has a realistic piece (those out of view are asked too, not drawn): today's terrain can
-    // then leave the whole chunk out next frame (`covers`).
+    // Every tile of the chunk has a realistic piece: today's terrain can then leave the chunk out next frame
+    // (`covers`). Tiles in view are drawn; tiles out of view are only checked with `groundReady` (no want, no
+    // incomplete count). Without `groundReady` a chunk partly out of view is never covered (`allIn`).
     let full = true;
+    let allIn = true;
     for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
       for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
         const v = s - u;
@@ -401,7 +412,10 @@ export class RealGround implements GroundLayer {
         const ay = (u + v) * HH - hz;
         // A piece spans its tile (64 × 32 px at zoom 1) and hangs at most its height down (cliff faces).
         const out = ax + HW + 8 < view.x0 || ax - HW - 8 > view.x1 || ay + 2 * HH + hz + 8 < view.y0 || ay - 16 > view.y1;
-        if (out && !full) continue;
+        if (out && (!full || !this.look.groundReady)) {
+          if (!this.look.groundReady) allIn = false;
+          continue;
+        }
         const terrain = groundTerrain(map, i);
         let join: number | undefined;
         if (env && (terrain === 'path' || terrain === 'queue')) {
@@ -409,9 +423,14 @@ export class RealGround implements GroundLayer {
           if (raw < 0) this.joins[i] = raw = pathJoinMask(map, i, env.rides, env.stalls);
           join = rotateSlopeMask(raw, rot);
         }
-        const sp = this.look.groundPiece(terrain, rotateSlopeMask(map.slope[i] as number, rot), groundVariant(m.x, m.y), rot, join);
+        const slope = rotateSlopeMask(map.slope[i] as number, rot);
+        if (out) {
+          // Out of view: only whether its piece is ready (no want, no incomplete count), for `covers`.
+          if (!(this.look.groundReady as NonNullable<RealLook['groundReady']>)(terrain, slope, groundVariant(m.x, m.y), rot, join)) full = false;
+          continue;
+        }
+        const sp = this.look.groundPiece(terrain, slope, groundVariant(m.x, m.y), rot, join);
         if (!sp) full = false;
-        if (out) continue;
         if (sp === null) {
           complete = false;
           continue;
@@ -424,7 +443,7 @@ export class RealGround implements GroundLayer {
         this.tilesDrawn++;
       }
     }
-    return { complete, full };
+    return { complete, full: full && allIn };
   }
 
   /** See `GroundLayer.beginCover`: the frame's rotation, scale and terrain version, before today's terrain draws. */
@@ -433,7 +452,9 @@ export class RealGround implements GroundLayer {
     this.coverDirect = scale > DIRECT_ABOVE_SCALE + 1e-6;
     this.coverScale = this.coverDirect ? 0 : groundScale(scale, this.look.density(scale, 1));
     // A terrain change or a new map may rebuild any chunk this frame: nothing counts as covered until it drew again.
-    this.coverOk = map === this.map && version === this.version;
+    this.coverOk = map === this.map && version === this.version && !this.drawFailed;
+    // Direct tiles: the pieces of the last draw were of this density (a cap or lift changes every set).
+    if (this.coverDirect && this.directDensity !== this.look.density(scale, 1)) this.coverOk = false;
   }
 
   /**

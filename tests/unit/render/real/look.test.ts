@@ -102,6 +102,7 @@ class FakeSets implements RealSets {
   }
   want(keys: SetKey[], priority: 'now' | 'ahead'): void { this.wants.push({ keys: [...keys], priority }); }
   use(key: SetKey): ReadySet | null { this.used.push(key); return this.ready.get(key) ?? null; }
+  peek(key: SetKey): ReadySet | null { return this.ready.get(key) ?? null; }
   state(key: SetKey): SetState { return this.states.get(key) ?? 'none'; }
   densityCap(): 2 | 4 { return this.cap; }
   isDemoted(key: SetKey): boolean { return this.demoted.has(key); }
@@ -912,5 +913,21 @@ describe('RealLook: tinting under a per-frame budget (round 3 item 4)', () => {
       images.push(look.guest(0, 1, 1, 2, false)!.image);
     }
     expect(images.map((im) => im === base)).toEqual([true, true, true, false, false]);
+  });
+});
+
+describe('RealLook.groundReady (fix round 2, 3)', () => {
+  it('says whether a ground piece would draw, with no want, no use, no count and no fallback', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.wants = [];
+    expect(look.groundReady!('grass', 0, 1, 0)).toBe(false);
+    sets.setState(setKey('ground', 'grass', 2, 0), 'ready');
+    expect(look.groundReady!('grass', 0, 1, 0)).toBe(true);
+    expect(look.groundReady!('grass', 3, 2, 0)).toBe(false); // no such frame
+    expect(sets.wants).toEqual([]);
+    expect(sets.used).toEqual([]);
+    expect(look.incomplete()).toBe(0);
+    expect(look.fallbacksUsed()).toEqual([]);
   });
 });

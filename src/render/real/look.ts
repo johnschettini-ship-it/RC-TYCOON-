@@ -92,6 +92,11 @@ export interface RealLook {
   shadow(kind: 'ride' | 'stall' | 'scenery', defId: string, rot: ViewRotation): Sprite | null | undefined;
   /** A ground piece; `join` (path and queue: the join mask in view terms, as `render/paths.ts`) picks the kerb piece. */
   groundPiece(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): Sprite | null | undefined;
+  /**
+   * Whether `groundPiece` with these arguments would give a picture now, with no side effect (no want, no count,
+   * no fallback listed): RealGround asks it for tiles out of view (round 3 fix round 2).
+   */
+  groundReady?(terrain: string, slopeMask: number, variant: number, rot: ViewRotation, join?: number): boolean;
   /** Frees every tinted sheet (closes its canvases, releases its hold). The look stays usable. */
   dispose(): void;
   /**
@@ -134,7 +139,7 @@ export interface RealLook {
 export type SupportPart = 'foot' | 'seg' | 'top';
 
 /** The part of `SetManager` RealLook uses (a structural type, so tests can pass a fake). */
-export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'> & Partial<Pick<SetManager, 'starved'>>;
+export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'> & Partial<Pick<SetManager, 'starved' | 'peek'>>;
 
 export interface RealLookOptions {
   /** Canvas factory for tinted sheets. Default: `OffscreenCanvas`, else a DOM canvas. */
@@ -877,6 +882,18 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
     shadow(_kind, defId, rot) {
       return sprite('shadow', gameRec('shadow', defId), defId, rot, 0, null, null);
+    },
+
+    groundReady(terrain, slopeMask, variant, rot, join) {
+      const key = resolveAt(groundRec(terrain), rot, density);
+      if (key === undefined || sets.state(key) !== 'ready') return false;
+      const rs = sets.peek ? sets.peek(key) : null;
+      if (!rs) return false;
+      const code = join !== undefined && (terrain === 'path' || terrain === 'queue') ? -1 - (join & 15) : (slopeMask << 2) | (variant & 3);
+      const meta = metaOf(rs);
+      let r = meta.codes.get(code);
+      if (r === undefined) meta.codes.set(code, (r = lookup(rs, key, frameName('ground', terrain, code))));
+      return typeof r !== 'string';
     },
 
     groundPiece(terrain, slopeMask, variant, rot, join) {

@@ -172,6 +172,12 @@ export class SetManager {
     return r.ready;
   }
 
+  /** The ready set without marking it used (no protection from freeing): for a check, not a draw. */
+  peek(key: SetKey): ReadySet | null {
+    const r = this.recs.get(key);
+    return r && r.state === 'ready' ? r.ready : null;
+  }
+
   state(key: SetKey): SetState {
     return this.recs.get(key)?.state ?? 'none';
   }
