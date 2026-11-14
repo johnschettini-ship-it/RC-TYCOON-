@@ -17,6 +17,7 @@ import type { RealOptions } from '../render/renderer';
 import type { SetManager } from '../render/real/setManager';
 import { FLAT_RIDES } from '../data/catalog/flatRides';
 import { aliasItemMap } from '../render/real/aliases';
+import type { BenchMode } from '../render/real/benchParam';
 import { PERF_SCENES, SCALE_SCENE, type PerfSceneId } from '../../tests/perf/sceneInfo';
 import { spriteMemory } from '../render/spriteCache';
 import { BENCH_PHASES, resultsText, runRealBench, type Band, type BenchScene, type RealBenchResult } from './realBench';
@@ -107,7 +108,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
   box.append(top);
 
   for (const s of r.scenes) {
-    box.append(el('h3', '', s.id));
+    box.append(el('h3', '', s.infoOnly ? text('ui.realBench.infoOnly', { scene: s.id }) : s.id));
     const t = el('table');
     t.dataset.scene = s.id;
     if (s.error !== undefined) {
@@ -180,8 +181,6 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
   return card;
 }
 
-/** The bench's runs: `?bench=1` (the four parks and the scale park), `quick` (the same, every step a tenth as long: the e2e smoke), `scale` (the scale park only). */
-export type BenchMode = 'full' | 'quick' | 'scale';
 
 /**
  * Show the Run button. `boot()` gives the navigation start to the boot's first drawn frame (S4's first part) and to
@@ -215,7 +214,7 @@ export function mountRealBench(game: Game, real: RealOptions | undefined, boot: 
       try {
         // The scale park (round 3 item 7) draws each flat ride type from its own alias sets (added by the realistic
         // boot when the page has `?bench=`), so 18 types decode and count as 18 baked types would.
-        const scale = { id: SCALE_SCENE.id, focus: SCALE_SCENE.focus, itemMap: aliasItemMap(FLAT_RIDES.map((d) => d.id)) };
+        const scale = { id: SCALE_SCENE.id, focus: SCALE_SCENE.focus, itemMap: aliasItemMap(FLAT_RIDES.map((d) => d.id)), infoOnly: true };
         const list = mode === 'scale' ? [scale] : [...PERF_SCENES.map((s) => ({ id: s.id, focus: s.focus })), scale];
         const scenes: BenchScene[] = await Promise.all(list.map(async (s) => ({ ...s, json: (await SAVES[s.id]()).default })));
         const sets = real?.sets && 'capEvents' in real.sets ? (real.sets as unknown as SetManager) : null;

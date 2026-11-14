@@ -327,3 +327,59 @@ describe('RealGround at high zoom: tiles straight into the target, no chunk (rou
     expect(joinsAt(1)).not.toEqual(joinsAt(0));
   });
 });
+
+describe('RealGround covers: today\'s terrain left out under realistic chunks (round 3 fix 2)', () => {
+  it('chunks: covered once built with every tile from a piece; a tile without a piece keeps today\'s terrain under its chunk', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const map = world.state.map;
+    map.water[tileIndex(map, 12, 12)] = 200; // one water tile, in chunk (1, 1): the fake has no water piece
+    const t = setupWith(() => 2, {}, (terrain) => (terrain === 'water' ? undefined : piece()));
+    t.ground.beginCover(map, 1, 0, 1);
+    expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([false, false, false, false]); // nothing built yet
+    t.ground.draw(t.ctx, map, VIEW_ALL, 1, 0, 0, 0, 1);
+    t.ground.beginCover(map, 1, 0, 1);
+    expect([0, 1, 2, 3].map((c) => t.ground.covers(c))).toEqual([true, true, true, false]);
+    // Another rotation, scale or a terrain change: nothing covered until drawn again.
+    t.ground.beginCover(map, 1, 1, 1);
+    expect(t.ground.covers(0)).toBe(false);
+    t.ground.beginCover(map, 2, 0, 1);
+    expect(t.ground.covers(0)).toBe(false);
+    t.ground.beginCover(map, 1, 0, 2);
+    expect(t.ground.covers(0)).toBe(false);
+  });
+
+  it('direct tiles: covered when every tile of the chunk had a piece at the last draw; a piece not decoded uncovers it', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const map = world.state.map;
+    let ready = true;
+    const t = setupWith(() => 4, {}, () => (ready ? piece() : null));
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(false);
+    // Only a corner of the map in view: the chunks' other tiles are asked too (not drawn).
+    t.ground.draw(t.ctx, map, { x0: -40, y0: -40, x1: 40, y1: 40 }, 4, 0, 0, 0, 1);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(true);
+    ready = false;
+    t.ground.draw(t.ctx, map, VIEW_ALL, 4, 0, 0, 0, 1);
+    t.ground.beginCover(map, 4, 0, 1);
+    expect(t.ground.covers(0)).toBe(false);
+  });
+});
+
+describe('RealGround join cache (round 3 fix 5)', () => {
+  it('is allocated only while tiles are drawn directly', () => {
+    terrainClock.now = () => 0;
+    const world = createWorld({ seed: 3, parkName: 'G', mapSize: 16 });
+    const t = setupWith(() => 2);
+    const joins = () => (t.ground as unknown as { joins: Int16Array }).joins.length;
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 2, 0, 0, 0, 1);
+    expect(joins()).toBe(0);
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 4, 0, 0, 0, 1);
+    expect(joins()).toBe(16 * 16);
+    t.ground.draw(t.ctx, world.state.map, VIEW_ALL, 1, 0, 0, 0, 1);
+    expect(joins()).toBe(0);
+  });
+});
+

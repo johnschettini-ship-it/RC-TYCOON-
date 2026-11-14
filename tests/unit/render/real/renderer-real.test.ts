@@ -426,3 +426,29 @@ describe('compile-time gate (website build)', () => {
     }
   });
 });
+
+describe('today\'s terrain under the realistic ground (round 3 fix 2)', () => {
+  it('chunks the ground covers are not drawn by today\'s terrain; the ground is told the frame first', () => {
+    const world = park();
+    const run = (covers: boolean) => {
+      const begun: unknown[] = [];
+      const ground = {
+        complete: true,
+        draw: () => 1,
+        beginCover: (_m: unknown, scale: number, rot: number, version: number) => begun.push([scale, rot, typeof version]),
+        covers: () => covers,
+      };
+      const canvas = make(W, H);
+      const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), ground });
+      r.resize(W, H, 1);
+      r.draw(world, camAt(world), defaultToolState(), 0);
+      return { draws: canvas.draws.length, begun };
+    };
+    const uncovered = run(false);
+    const covered = run(true);
+    expect(covered.begun).toEqual([[1, 0, 'number']]);
+    // The terrain chunk images in view (at least one) are left out.
+    expect(covered.draws).toBeLessThan(uncovered.draws);
+  });
+});
+

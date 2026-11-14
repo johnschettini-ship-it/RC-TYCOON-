@@ -4,7 +4,9 @@ import { Game } from './game';
 import { createCanvasRenderer, type RealOptions } from './render/renderer';
 import { artStyle } from './render/artStyle';
 import { pageStorage, startRealBuild } from './render/real/storagePrefix';
+import { benchMode } from './render/real/benchParam';
 import { tileToScreen } from './render/iso';
+import { spriteMemory } from './render/spriteCache';
 import { attachInput } from './input';
 import { mountUI } from './ui';
 import { createWorld } from './sim/world';
@@ -20,6 +22,8 @@ import { registerOffline } from './offline';
 /** The realistic build's debug hook (`window.__tcReal`). */
 interface RealDebug extends Partial<RealOptions> {
   load(json: string, focus: { x: number; y: number }, zoom?: number, rotation?: ViewRotation): string | null;
+  /** Today's picture caches by label (`spriteMemory.breakdown()`: chunks, static, sprites, other), bytes. */
+  memory(): Record<string, number>;
 }
 
 function boot(real?: RealOptions): void {
@@ -69,6 +73,7 @@ function boot(real?: RealOptions): void {
       // the bench.
       (window as unknown as { __tcReal?: RealDebug }).__tcReal = {
         ...real,
+        memory: () => spriteMemory.breakdown(),
         load(json, focus, zoom = 1, rotation = 0) {
           const loaded = deserialize(json);
           if (!loaded.ok) return loaded.error;
@@ -85,8 +90,8 @@ function boot(real?: RealOptions): void {
     // VITE_ART=real build only: with the
     // realistic look (`?art=real`), or with today's look for comparison (`?art=classic`: no look, set manager or
     // ground, so the memory, turn and start bands read n/a while the frame times are measured the same way).
-    const bench = new URLSearchParams(location.search).get('bench');
-    if (bench === '1' || bench === 'quick' || bench === 'scale') {
+    const bench = benchMode(location.search);
+    if (bench) {
       // S4's first part: the boot's first drawn frame (art not awaited: in the app it is local, here it downloads).
       // Also the boot's first complete frame (network included), shown for information.
       const boot: { firstFrameMs?: number; completeMs?: number } = {};
@@ -95,7 +100,7 @@ function boot(real?: RealOptions): void {
         // Complete as the renderer counts it: no object skipped and the realistic ground laid.
         if (boot.completeMs === undefined && (real?.look?.incomplete() ?? 0) === 0 && (real?.ground?.complete ?? true)) boot.completeMs = performance.now();
       });
-      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => boot, bench === '1' ? 'full' : bench));
+      void import('./perf/realBenchCard').then((m) => m.mountRealBench(game, real, () => boot, bench));
     }
   }
   game.start();

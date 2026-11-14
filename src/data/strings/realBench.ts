@@ -8,6 +8,7 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.loading': 'Loading the benchmark parks',
   'ui.realBench.failed': 'The benchmark stopped: {error}',
   'ui.realBench.title': 'Benchmark results',
+  'ui.realBench.infoOnly': '{scene} (information only: its limits do not decide the result)',
   'ui.realBench.verdict.pass': 'All limits met',
   'ui.realBench.verdict.fail': 'A limit was missed',
   'ui.realBench.copy': 'Copy results',

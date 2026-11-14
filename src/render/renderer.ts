@@ -31,7 +31,7 @@ import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE
 import { drawGhostIcon } from './sprites/props';
 import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
-import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
+import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, realGroundCover, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles, trackTroubleTiles } from './track';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer, PATH_ITEM_IDS } from './management/layer';
@@ -281,6 +281,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   // Compile-time gate: the website build (VITE_ART unset) folds every realistic branch away.
   const L = import.meta.env.VITE_ART === 'real' ? real.look : undefined;
   const ground = import.meta.env.VITE_ART === 'real' ? real.ground : undefined;
+  if (import.meta.env.VITE_ART === 'real') realGroundCover.covers = ground?.covers ? (c) => ground.covers?.(c) ?? false : null;
   // Opaque: every frame clears to the sky colour first.
   const ctx = canvas.getContext('2d', { alpha: false });
   if (!ctx) throw new Error('Canvas 2D is not available');
@@ -1159,6 +1160,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
 
       // Sky and terrain (the static layer when nothing changed).
       terrain.sync(map);
+      // Realistic ground: today's terrain leaves out the chunks it will lay in full (round 3 fix 2).
+      if (import.meta.env.VITE_ART === 'real' && ground?.beginCover) ground.beginCover(map, scale, rot, terrain.tracker.version);
       const chunks = drawStatic(world, cam, map);
       mgmt.begin(scale, offX, offY, dpr, bucket, view, va);
       mgmt.drawGround(world);

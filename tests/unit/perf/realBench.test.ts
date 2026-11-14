@@ -681,3 +681,19 @@ describe('the scale park\'s item map (round 3 item 7)', () => {
     expect(calls).toEqual([null, map, null]);
   });
 });
+
+describe('information-only rows (round 3 fix 4)', () => {
+  it('the scale park shows its bands but does not decide the verdict', { timeout: 60_000 }, async () => {
+    const g = fakeGame();
+    // Every frame 40 ms: S1 fails for both rows.
+    g.extra = () => 24;
+    let done = false;
+    const p = runRealBench(g, [{ id: 'scale', json: sceneJson('s'), infoOnly: true }], () => g.now, { look: g.look, sets: g.sets, timeScale: 0.1 }).finally(() => { done = true; });
+    await g.pump(() => done);
+    const result = await p;
+    expect(result.scenes[0]!.bands.S1.band).toBe('fail');
+    expect(result.scenes[0]!.infoOnly).toBe(true);
+    expect(result.verdict).toBe('pass');
+    expect(resultsText(result)).toMatch(/scale \(information only, not in the verdict\)/);
+  });
+});

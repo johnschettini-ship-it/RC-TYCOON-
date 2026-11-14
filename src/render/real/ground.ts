@@ -69,6 +69,12 @@ export interface GroundEnv {
  */
 export interface GroundLayer {
   complete: boolean;
+  /**
+   * Before today's terrain draws (round 3 fix 2): from then on `covers(chunk)` says whether this ground will lay that
+   * chunk in full this frame, every tile from a realistic piece, so today's terrain can leave it out.
+   */
+  beginCover?(map: MapState, scale: number, rot: ViewRotation, version: number): void;
+  covers?(chunk: number): boolean;
   draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number;
   endFrame?(): void;
 }
@@ -95,6 +101,8 @@ interface Chunk {
   bytes: number;
   /** `bytes` at the scale density 4 would give. */
   upBytes: number;
+  /** Every tile of the chunk drew from a realistic piece (no piece missing from the bake). */
+  full: boolean;
 }
 
 function defaultCanvas(w: number, h: number): CanvasLike {
@@ -144,6 +152,17 @@ export class RealGround implements GroundLayer {
   private joins = new Int16Array(0);
   /** Tiles drawn by the last direct `draw` (tests, bench). */
   tilesDrawn = 0;
+  /** Direct tiles: per chunk, 1 when every tile of it had a realistic piece at the last draw, for `directRot`/`directVersion`. */
+  private directFull = new Uint8Array(0);
+  private directRot = -1;
+  private directVersion = -1;
+  /** What `beginCover` was told for this frame (`coverScale` 0: nothing covers). */
+  private coverRot = -1;
+  private coverScale = 0;
+  private coverDirect = false;
+  private coverOk = false;
+  /** The last `draw` drew tiles directly. */
+  private wasDirect = false;
 
   constructor(
     private readonly look: Pick<RealLook, 'groundPiece' | 'density'>,
@@ -211,6 +230,7 @@ export class RealGround implements GroundLayer {
       if (canvas) canvas.width = canvas.height = 0;
       return null;
     };
+    let full = true;
     try {
       // Back to front by u + v.
       for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
@@ -222,7 +242,10 @@ export class RealGround implements GroundLayer {
           const join = env && (terrain === 'path' || terrain === 'queue') ? rotateSlopeMask(pathJoinMask(map, i, env.rides, env.stalls), rot) : undefined;
           const sp = this.look.groundPiece(terrain, rotateSlopeMask(map.slope[i] as number, rot), groundVariant(m.x, m.y), rot, join);
           if (sp === null) return drop();
-          if (!sp) continue;
+          if (!sp) {
+            full = false;
+            continue;
+          }
           if (!canvas) {
             canvas = this.make(w, h);
             ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null;
@@ -244,7 +267,7 @@ export class RealGround implements GroundLayer {
     const ch = canvas.height;
     const bytes = cw * ch * 4;
     const up = cw > 1 ? Math.round(bytes * (upScale / scale) ** 2) : bytes;
-    return { canvas, sprite: { image: canvas as unknown as CanvasImageSource, w: cw, h: ch, ox, oy, scale }, rot, scale, sig, lastFrame: this.frame, bytes, upBytes: up };
+    return { canvas, sprite: { image: canvas as unknown as CanvasImageSource, w: cw, h: ch, ox, oy, scale }, rot, scale, sig, lastFrame: this.frame, bytes, upBytes: up, full: full && cw > 1 };
   }
 
   draw(ctx: CanvasRenderingContext2D, map: MapState, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, version: number, env?: GroundEnv): number {
@@ -271,8 +294,16 @@ export class RealGround implements GroundLayer {
     // A terrain change: drop the chunks whose tiles changed.
     const changed = version !== this.version;
     this.version = version;
-    if (changed || this.joins.length !== map.width * map.height) this.joins = new Int16Array(map.width * map.height).fill(-1);
     const direct = scale > DIRECT_ABOVE_SCALE + 1e-6;
+    // Join cache for direct tiles only (chunks keep their joins in their pixels); dropped when chunks draw.
+    if (!direct) this.joins = new Int16Array(0);
+    else if (changed || this.joins.length !== map.width * map.height) this.joins = new Int16Array(map.width * map.height).fill(-1);
+    if (direct && (!this.wasDirect || this.directFull.length !== cxN * cyN || this.directRot !== rot || changed)) {
+      this.directFull = new Uint8Array(cxN * cyN);
+      this.directRot = rot;
+    }
+    this.directVersion = version;
+    this.wasDirect = direct;
     const cs = direct ? 0 : groundScale(scale, this.look.density(scale, 1));
     const upScale = groundScale(scale, pickDensity(scale, 1, 4));
     // Chunks of another rotation or scale are never drawn again at this one: free them now (all of them when the
@@ -304,7 +335,9 @@ export class RealGround implements GroundLayer {
       const g = chunkBounds(map, cx, cy, rot);
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
       if (direct) {
-        if (!this.drawTiles(ctx, map, cx, cy, view, scale, offX, offY, rot, env)) complete = false;
+        const r = this.drawTiles(ctx, map, cx, cy, view, scale, offX, offY, rot, env);
+        if (!r.complete) complete = false;
+        this.directFull[key] = r.full ? 1 : 0;
         drawn++;
         continue;
       }
@@ -352,9 +385,12 @@ export class RealGround implements GroundLayer {
    * Direct tiles (screen scale above `DIRECT_ABOVE_SCALE`): the tiles of chunk (cx, cy) inside `view`, back to front,
    * straight into `ctx` at the screen's scale. False when a piece is not decoded yet (the ground is incomplete).
    */
-  private drawTiles(ctx: CanvasRenderingContext2D, map: MapState, cx: number, cy: number, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, env: GroundEnv | undefined): boolean {
+  private drawTiles(ctx: CanvasRenderingContext2D, map: MapState, cx: number, cy: number, view: ViewRect, scale: number, offX: number, offY: number, rot: ViewRotation, env: GroundEnv | undefined): { complete: boolean; full: boolean } {
     const vr = chunkViewRect(map, cx, cy, rot);
     let complete = true;
+    // Every tile of the chunk has a realistic piece (those out of view are asked too, not drawn): today's terrain can
+    // then leave the whole chunk out next frame (`covers`).
+    let full = true;
     for (let s = vr.u0 + vr.v0; s <= vr.u1 + vr.v1 - 2; s++) {
       for (let u = Math.max(vr.u0, s - (vr.v1 - 1)); u <= Math.min(vr.u1 - 1, s - vr.v0); u++) {
         const v = s - u;
@@ -364,7 +400,8 @@ export class RealGround implements GroundLayer {
         const ax = (u - v) * HW;
         const ay = (u + v) * HH - hz;
         // A piece spans its tile (64 × 32 px at zoom 1) and hangs at most its height down (cliff faces).
-        if (ax + HW + 8 < view.x0 || ax - HW - 8 > view.x1 || ay + 2 * HH + hz + 8 < view.y0 || ay - 16 > view.y1) continue;
+        const out = ax + HW + 8 < view.x0 || ax - HW - 8 > view.x1 || ay + 2 * HH + hz + 8 < view.y0 || ay - 16 > view.y1;
+        if (out && !full) continue;
         const terrain = groundTerrain(map, i);
         let join: number | undefined;
         if (env && (terrain === 'path' || terrain === 'queue')) {
@@ -373,6 +410,8 @@ export class RealGround implements GroundLayer {
           join = rotateSlopeMask(raw, rot);
         }
         const sp = this.look.groundPiece(terrain, rotateSlopeMask(map.slope[i] as number, rot), groundVariant(m.x, m.y), rot, join);
+        if (!sp) full = false;
+        if (out) continue;
         if (sp === null) {
           complete = false;
           continue;
@@ -385,7 +424,29 @@ export class RealGround implements GroundLayer {
         this.tilesDrawn++;
       }
     }
-    return complete;
+    return { complete, full };
+  }
+
+  /** See `GroundLayer.beginCover`: the frame's rotation, scale and terrain version, before today's terrain draws. */
+  beginCover(map: MapState, scale: number, rot: ViewRotation, version: number): void {
+    this.coverRot = rot;
+    this.coverDirect = scale > DIRECT_ABOVE_SCALE + 1e-6;
+    this.coverScale = this.coverDirect ? 0 : groundScale(scale, this.look.density(scale, 1));
+    // A terrain change or a new map may rebuild any chunk this frame: nothing counts as covered until it drew again.
+    this.coverOk = map === this.map && version === this.version;
+  }
+
+  /**
+   * True when this frame's `draw` will lay chunk `chunk` in full from realistic pieces: a built chunk of this rotation
+   * and scale with every tile from a piece, or (direct tiles) a chunk whose every tile had a piece at the last draw at
+   * this rotation and terrain version. A chunk with a piece missing or not decoded is never covered, so today's
+   * terrain stays under it.
+   */
+  covers(chunk: number): boolean {
+    if (!this.coverOk) return false;
+    if (this.coverDirect) return this.wasDirect && this.directRot === this.coverRot && this.directVersion === this.version && this.directFull[chunk] === 1;
+    const c = this.chunks.get(chunk);
+    return !!c && c.full && c.rot === this.coverRot && c.scale === this.coverScale;
   }
 
   /**

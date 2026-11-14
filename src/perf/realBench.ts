@@ -71,6 +71,8 @@ export interface BenchScene {
   focus?: { x: number; y: number };
   /** Game id → baked item while this scene runs (the scale park's alias sets, round 3 item 7). */
   itemMap?: Readonly<Record<string, string>>;
+  /** Information only (the scale park): the row shows its bands, but they do not decide the verdict. */
+  infoOnly?: boolean;
 }
 
 export interface BenchDevice {
@@ -171,6 +173,8 @@ export interface BenchStall {
 
 export interface BenchRow {
   id: string;
+  /** Information only: its bands are shown but do not decide the verdict (the scale park). */
+  infoOnly?: boolean;
   /** Why the scene did not run (its save did not load). */
   error?: string;
   /** Frame gaps measured (after the warm-up). */
@@ -598,6 +602,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
       for (const id of fresh) fallbacksSeen.add(id);
       rows.push({
         id: scene.id,
+        ...(scene.infoOnly ? { infoOnly: true } : {}),
         frames: r.gaps.length,
         frameP50: r1(percentile(r.gaps, 0.5)),
         frameP95: r1(frameP95),
@@ -652,7 +657,8 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
     if (autosaveWas) game.settings.set('autosave', true);
   }
 
-  const failed = rows.some((x) => Object.values(x.bands).some((b) => b.band === 'fail'));
+  // Information-only rows (the scale park) show their bands but do not decide the verdict.
+  const failed = rows.some((x) => !x.infoOnly && Object.values(x.bands).some((b) => b.band === 'fail'));
   return {
     format: 'tc-real-bench/1',
     verdict: failed ? 'fail' : 'pass',
@@ -690,7 +696,7 @@ export function resultsText(r: RealBenchResult): string {
     }
     const b = s.bands;
     lines.push(
-      `${s.id}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
+      `${s.id}${s.infoOnly ? ' (information only, not in the verdict)' : ''}: frame p50/p95/p99 ${s.frameP50}/${s.frameP95}/${s.frameP99} ms, >33 ms ${s.framesOver33} of ${s.frames}, longest gap ${s.longestGapMs} ms, hidden gaps ${s.droppedHiddenGaps}; work p95 ${s.workP95} ms; ` +
         `by phase ${BENCH_PHASES.map((p) => `${p} p95 ${s.phases[p].p95} ms (${s.phases[p].over33Pct}% >33)`).join(', ')}; ` +
         `peak ${s.peakMB} MB, end ${s.endMB} MB; outside the budget ${otherText(s.otherMB)}, all together peak ${s.allPeakMB ?? 'n/a'} MB; turns ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.ms}`).join('/')} ms; ` +
         `sharp after ${s.turns.map((t) => `${t.dir === 1 ? '+' : '-'}${t.sharpenMs ?? 'n/a'}`).join('/')} ms; ` +

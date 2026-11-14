@@ -382,6 +382,8 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
   let skipped = 0;
   let softDraws = 0;
   let degradedDraws = 0;
+  /** Sets a getter wanted this frame (`sprite`, once per set a frame). */
+  const lateWanted = new Set<SetKey>();
   /** Tinting time spent this frame (ms) and whether a band was tinted yet (round 3 item 4). */
   let tintSpent = 0;
   let tintBandThisFrame = false;
@@ -436,12 +438,14 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
   /** `tintedSheet`'s answer when the budget has no room for the tinted sheet yet. */
   const NO_ROOM = 'no-room' as const;
+  /** `tintedSheet`'s answer when this frame's tint budget is spent before the sheet was started. */
+  const DEFERRED = 'deferred' as const;
 
   /**
    * Sheet `si` of a ready set tinted with `hex`; undefined when the sheet has no mask in the set (draw untinted);
    * null when tinting this set failed (draw today's art); NO_ROOM when the budget cannot take it now (not ready).
    */
-  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): Tinted | null | undefined | typeof NO_ROOM {
+  function tintedSheet(key: SetKey, rs: ReadySet, si: number, hex: string): Tinted | null | undefined | typeof NO_ROOM | typeof DEFERRED {
     if (tintFailed.has(key)) return null;
     const mi = metaOf(rs).maskOf[si] as number;
     if (mi < 0) return undefined;
@@ -464,6 +468,11 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       const size = base as unknown as { width: number; height: number };
       const want = t.bytes + size.width * size.height * 4;
       const up = rs.density === 2 ? 4 : 1;
+      // The frame's tint budget is spent: start this sheet on a later frame (draw untinted meanwhile, as `soft`).
+      if (tintBandThisFrame && tintSpent >= TINT_FRAME_MS) {
+        if (t.sheets.size === 0) evict(t.id);
+        return DEFERRED;
+      }
       if (!sets.admit(t.id, want, want * up)) {
         if (t.sheets.size === 0) evict(t.id);
         return NO_ROOM;
@@ -515,12 +524,14 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     /** The set actually drawn from (the twin on the soft path): tinted sheets are cached and swept under it. */
     let drawKey = key;
     if (!rs) {
-      // A set nobody wanted this frame (an object outside the scoped rectangle, a placement ghost, a path item kind
-      // not scanned yet): wanted now, with its density-2 twin, so it decodes instead of waiting forever.
-      if (sets.state(key) === 'none') {
-        sets.want([key], 'now');
+      // A set this frame draws but may not have wanted (an object outside the scoped rectangle, a placement ghost, a
+      // path item kind not scanned yet): wanted again every frame it is drawn and not ready, with its density-2 twin,
+      // so a decode that spans frames is not dropped at endFrame (want() of a loading set keeps it and clears a cancel).
+      // Once per set a frame.
+      if (!lateWanted.has(key)) {
+        lateWanted.add(key);
         const tw = twinOf(rec, rot, key);
-        if (tw !== undefined && sets.state(tw) === 'none') sets.want([tw], 'now');
+        sets.want(tw !== undefined && sets.state(tw) !== 'ready' && sets.state(tw) !== 'failed' ? [tw, key] : [key], 'now');
       }
       // Spec §5.4: never stop drawing, lower density first. A density-4 set not decoded yet draws from its density-2
       // twin when that one is ready (the ahead turn is wanted at density 2), scaled up, and the frame is not
@@ -529,8 +540,9 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
       if (!low) {
         // The last step: the density-2 set this object would step down to has had no room for DEGRADE_FRAMES
-        // prepares (the ladder ran and still cannot fit it): today's art, never nothing. Ground pieces wait (today's
-        // terrain is drawn under them anyway).
+        // prepares (the ladder ran and still cannot fit it): today's art, never nothing. Ground pieces wait: a chunk
+        // with a piece missing or not decoded is never "covered" (`RealGround.covers`), so today's terrain is still
+        // built and drawn under it and the tile shows today's ground meanwhile.
         const floor = twin ?? key;
         if (kind !== 'ground' && sets.starved?.(floor)) {
           if (longWait(starvedSince, floor)) { degradedDraws++; return undefined; }
@@ -566,6 +578,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       return null;
     }
     if (noRoomSince.size) noRoomSince.get(drawKey)?.delete(tint);
+    if (t === DEFERRED) { softDraws++; return r.sprite; }
     if (t === null) { fallbacks.add(`${key}#${tint}`); return undefined; }
     if (t === undefined) return r.sprite;
     const job = t.sheets.get(r.si) as TintJob;
@@ -762,6 +775,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
       skipped = 0;
       softDraws = 0;
       degradedDraws = 0;
+      lateWanted.clear();
       tintSpent = 0;
       tintBandThisFrame = false;
       density = look.density(zoom, dpr);

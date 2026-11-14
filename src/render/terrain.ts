@@ -425,6 +425,13 @@ const EXACT_SLOT = 3;
 /** Image cache keys per chunk: 4 rotations × 4 bucket slots. */
 const KEYS_PER_CHUNK = 16;
 
+/**
+ * The realistic test build only (VITE_ART=real; unreferenced and dropped from the website build): `covers(chunk)` is
+ * true when the realistic ground will lay that chunk in full this frame (every tile from a realistic piece), so
+ * today's terrain neither builds nor draws it. Set by the renderer from `RealGround.covers`.
+ */
+export const realGroundCover: { covers: ((chunk: number) => boolean) | null } = { covers: null };
+
 /** Phase 4 §8 `CHUNK_CACHE_MB` (32 MB on phones, §11): chunk image memory cap at 4 bytes per pixel. */
 export const CHUNK_CACHE_MB = 64;
 export const CHUNK_CACHE_MB_PHONE = 32;
@@ -599,6 +606,12 @@ export class TerrainLayer {
       const c = this.order[k] as number;
       const g = this.bounds[c] as ChunkGeom;
       if (g.right < view.x0 || g.left > view.x1 || g.bottom < view.y0 || g.top > view.y1) continue;
+      // The realistic test build (folded away in the website build): a chunk the realistic ground lays in full this
+      // frame is not built or drawn, and its images are freed (round 3 fix 2).
+      if (import.meta.env.VITE_ART === 'real' && realGroundCover.covers?.(c)) {
+        for (let k = 0; k < KEYS_PER_CHUNK; k++) this.images.delete(c * KEYS_PER_CHUNK + k);
+        continue;
+      }
       const base = c * KEYS_PER_CHUNK + r * 4;
       let sp: Sprite | undefined;
       // An exact-scale image of this very scale draws 1:1.

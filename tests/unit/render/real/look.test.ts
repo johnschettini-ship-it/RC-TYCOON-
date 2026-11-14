@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
 import { createRealLook, DEGRADE_FRAMES, pickDensity, quantisePose, TINT_FRAME_MS, type RealSets } from '../../../../src/render/real/look';
 import { REAL_FALLBACK, realItem } from '../../../../src/render/real/fallbacks';
-import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
+import { SetManager, type Decoded, type ReadySet, type SetState } from '../../../../src/render/real/setManager';
+import type { Sprite } from '../../../../src/render/spriteCache';
 import { createWorld } from '../../../../src/sim/world';
 import type { Ride } from '../../../../src/sim/rides/types';
 import type { Stall } from '../../../../src/sim/stalls/types';
@@ -728,18 +729,67 @@ describe('RealLook: view-scoped loading (round 3 item 1, spec §5.4.2(d))', () =
     expect(look.scope!().walks).toBe(walks + 4);
   });
 
-  it('a set a getter asks for that nobody wanted (outside the scope, a ghost) is wanted then, with its density-2 twin', () => {
+  it('a set a getter asks for that nobody wanted (outside the scope, a ghost) is wanted every frame it is drawn and not ready, with its density-2 twin', () => {
     const { sets, look } = setup();
     look.prepare(farWorld(), 0, viewAt(4, 4), 2, 2);
     sets.wants = [];
     expect(look.ride('big_wheel', 0, 0, 0)).toBeNull();
+    expect(look.ride('big_wheel', 0, 0, 0)).toBeNull(); // once per set a frame
     expect(sets.wanted('now')).toEqual([setKey('ride', 'big_wheel', 2, 0), setKey('ride', 'big_wheel', 4, 0)].sort());
-    // Already loading: not wanted again by the getter (prepare's list stands).
-    sets.wants = [];
+    // Loading: wanted again the next frame (round 3 fix 1), or endFrame would drop it.
     sets.setState(setKey('ride', 'big_wheel', 4, 0), 'loading');
     sets.setState(setKey('ride', 'big_wheel', 2, 0), 'loading');
+    look.prepare(farWorld(), 0, viewAt(4, 4), 2, 2);
+    sets.wants = [];
     look.ride('big_wheel', 0, 0, 0);
-    expect(sets.wanted('now')).toEqual([]);
+    expect(sets.wanted('now')).toEqual([setKey('ride', 'big_wheel', 2, 0), setKey('ride', 'big_wheel', 4, 0)].sort());
+  });
+
+  /** A real SetManager whose decodes land only when the test says (each decode can span many frames). */
+  function realSets(budget: number) {
+    const index = makeIndex();
+    const pending: Array<() => void> = [];
+    const io = {
+      read: async (f: string) => new Blob([f]),
+      decode: (b: Blob) => new Promise<Decoded>((res) => pending.push(() => { void b; res({ image: new PixCanvas(8, 8) as unknown as CanvasImageSource, bytes: 256, close() {} }); })),
+    };
+    const sets = new SetManager(index, io, budget, () => undefined);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    let n = 0;
+    /** One renderer frame: prepare for a view far from the big wheel, ask for it (a ghost), end the frame. */
+    const frame = (): Sprite | null | undefined => {
+      sets.beginFrame(++n);
+      look.prepare(farWorld(), 0, viewAt(4, 4), 1, 1);
+      const sp = look.ride('big_wheel', 0, 0, 0);
+      sets.endFrame();
+      return sp;
+    };
+    return { sets, look, pending, flush, frame };
+  }
+
+  it('with the real set manager: a decode spanning frames for an object outside the scope lands and the object draws', async () => {
+    const { pending, flush, frame } = realSets(1e9);
+    const got: (Sprite | null | undefined)[] = [];
+    for (let f = 0; f < 6; f++) { got.push(frame()); await flush(); }
+    expect(got.every((x) => x === null)).toBe(true);
+    // The decodes land after 6 frames: the set was kept wanted all along (not dropped and restarted).
+    while (pending.length) { pending.shift()!(); await flush(); }
+    expect(frame()).toBeTruthy();
+  });
+
+  it('with the real set manager: a set that can never fit beside what is drawn degrades to today\'s art, counted', async () => {
+    // 256 B budget: the ground and guest sets take it first, so the big wheel's set (256 B) never fits.
+    const { look, pending, flush, frame } = realSets(256);
+    let last: Sprite | null | undefined = null;
+    for (let f = 0; f < DEGRADE_FRAMES + 5; f++) {
+      last = frame();
+      while (pending.length) pending.shift()!();
+      await flush();
+    }
+    expect(last).toBeUndefined();
+    expect(look.degraded!()).toBe(1);
+    expect(look.incomplete()).toBe(0);
   });
 });
 
@@ -835,12 +885,13 @@ describe('RealLook: tinting under a per-frame budget (round 3 item 4)', () => {
     expect(first.map((sp) => sp.image !== base)).toEqual([true, true, false, false]);
     expect(look.soft()).toBe(2);
     expect(look.incomplete()).toBe(0);
-    // All four are admitted and held at once; the next frame tints the other two.
-    expect(sets.held.size).toBe(4);
+    // The two after the budget ran out are not even started (round 3 fix 3): nothing held for them yet.
+    expect(sets.held.size).toBe(2);
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     const second = [1, 2, 3, 4].map((c) => look.guest(0, c, 1, 2, false)!);
     expect(second.every((sp) => sp.image !== base)).toBe(true);
     expect(look.soft()).toBe(0);
+    expect(sets.held.size).toBe(4);
   });
 
   it('a sheet bigger than a band is tinted over several frames; a frame draws tinted once its rows are done', () => {
