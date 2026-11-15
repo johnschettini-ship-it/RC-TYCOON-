@@ -13,13 +13,12 @@ export function rotY(p, phi) {
   return { x: p.x * c + p.z * s, z: -p.x * s + p.z * c };
 }
 
-// `d2Step` (flatRides.js cycleD2): density 2 floors a full frame's slot to this many slots. 4 for the round spinners
-// (4 pictures per 180 degree period: each step turns 45 degrees, a quarter of it, and still reads forwards); 2 for the
-// mill (its 4 pictures per 90 degree period stay: 2 would turn the sails half a period a step, with no direction).
+// `d2Step` (flatRides.js cycleD2): density 2 floors a full frame's slot to this many slots. 2 for all four: every full
+// picture stays, the empty ride shows its rest picture (half the pictures, controller ruling 2026-11-15).
 
 // ------------------------------------------------------------------ teacup_twirl
 export const TEACUP = {
-  period: 16, d2Step: 4, symmetry: Math.PI, subRing: 2.95, cupRing: 0.9,
+  period: 16, d2Step: 2, symmetry: Math.PI, subRing: 2.95, cupRing: 0.9,
   subAngles: [0, 1, 2, 3].map((j) => (j / 4) * TAU + TAU / 8),
   cupAngles: [0, Math.PI],
 };
@@ -44,7 +43,7 @@ export function teacupParts(a) {
 
 // ------------------------------------------------------------------ rocket_rounds
 export const ROCKET = {
-  period: 16, d2Step: 4, symmetry: Math.PI, n: 6, pivotR: 1.2, pivotY: 1.55, arm: 3.25,
+  period: 16, d2Step: 2, symmetry: Math.PI, n: 6, pivotR: 1.2, pivotY: 1.55, arm: 3.25,
   aMin: (-12 * Math.PI) / 180, aMax: (32 * Math.PI) / 180,
 };
 /** Drum yaw and the arm angle of rocket i: up twice per revolution, each rocket its own share. */
@@ -66,7 +65,7 @@ export function rocketParts(a) {
 }
 
 // ------------------------------------------------------------------ kiddie_cars
-export const KIDDIE = { period: 16, d2Step: 4, symmetry: Math.PI, n: 6, lane: 3.9 };
+export const KIDDIE = { period: 16, d2Step: 2, symmetry: Math.PI, n: 6, lane: 3.9 };
 export function kiddieAngles(a) {
   return { spin: TAU * a };
 }

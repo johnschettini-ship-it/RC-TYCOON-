@@ -39,9 +39,10 @@ export function timeKeys(item, opts, pick) {
 //
 // Eighteen rides at density 2 did not fit the 128 MiB budget in one view (the `rides` bench scene). Density 2 serves the
 // far zooms only (zoom x dpr <= 2), so there each ride draws from fewer pictures than at density 4, which is unchanged:
-// - running (full) frames show every other picture of the motion where the motion still reads with half the steps:
-//   the frame floored to the density-2 step, so a run never shows a picture from later in the cycle than the frame and
-//   never steps backwards in it (the floor of a time that only moves forward);
+// - running (full) frames show the frame's picture floored to the density-2 step, so a run never shows a picture from
+//   later in the cycle than the frame and never steps backwards in it (the floor of a time that only moves forward).
+//   Controller ruling 2026-11-15 ("half as many steps"): a ride keeps at least half its density-4 pictures as full
+//   ones; most keep every full picture and drop only the empty moving ones, a few (towers, arenas) every other step;
 // - empty frames show the ride at rest, the empty picture of slot 0: the game starts a run only with riders aboard and
 //   keeps them aboard until it stops (src/sim/rides/flat/update.ts), so an empty ride's frame is slot 0.
 // Every game frame key stays listed at density 2 (the reader looks the same key up at either density, and a density-4
@@ -119,25 +120,23 @@ export const CAROUSEL = { period: (Math.PI * 2) / 5, steps: 16 };
 export const carouselStep = (a) => Math.round((((a / 32) * Math.PI * 2) % CAROUSEL.period) / (CAROUSEL.period / CAROUSEL.steps)) % CAROUSEL.steps;
 
 /**
- * Carousel frame keys: picture `${step}:${occ}`. Density 2: a full frame shows its step floored to an even one (8
- * pictures 9 degrees apart; a game step turns the carousel 22.5 degrees, so the shown turn per step is 13.5 to 31.5
- * degrees, under half the 72 degree period: it still reads forwards); an empty frame shows the rest picture.
+ * Carousel frame keys: picture `${step}:${occ}`. Density 2 (half the pictures, controller ruling 2026-11-15): every
+ * full step stays (16; 8 would leave 9 degree jumps); an empty frame shows the rest picture.
  */
 export function carouselKeys() {
-  const groups = rideKeys('carousel', [0], (a, _s, full) => `${carouselStep(a)}:${full ? 1 : 0}`);
-  return withD2('carousel', groups, [0], (a, _s, full) => (full ? `${carouselStep(a) & ~1}:1` : '0:0'));
+  const pick = (a, _s, full) => `${carouselStep(a)}:${full ? 1 : 0}`;
+  return withD2('carousel', rideKeys('carousel', [0], pick), [0], (a, s, full) => (full ? pick(a, s, true) : '0:0'));
 }
 
 /**
  * Swing tower frame keys: picture `${slot % period}:${swing}:${occ}` (the chairs repeat every `period` angle slots).
- * Density 2: a full frame shows its swing level floored to an even one (levels 0, 2, 4: the chairs fly out in two
- * steps, not four; both angle pictures stay, as one per 45 degrees would stop the canopy turning); an empty frame
- * shows the rest picture.
+ * Density 2 (half the pictures, controller ruling 2026-11-15): every full picture stays (both angles, all five swing
+ * levels); an empty frame shows the rest picture.
  */
 export function swingTowerKeys(period) {
   const pick = (a, s, full) => `${a % period}:${s}:${full ? 1 : 0}`;
   const swings = [0, 1, 2, 3, 4];
-  return withD2('swing_tower', rideKeys('swing_tower', swings, pick), swings, (a, s, full) => (full ? pick(a, s & ~1, true) : pick(0, 0, false)));
+  return withD2('swing_tower', rideKeys('swing_tower', swings, pick), swings, (a, s, full) => (full ? pick(a, s, true) : pick(0, 0, false)));
 }
 
 /**

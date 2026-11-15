@@ -468,14 +468,14 @@ describe('density 2: fewer pictures, the same frames', () => {
   }
   /** Density-2 step in angle slots per ride (carousel: see its own test) and the pictures each density holds. */
   const PLAN: Record<string, { step: number; d4: number; d2: number; walkThrough?: boolean }> = {
-    swing_tower: { step: 2, d4: 20, d2: 7 }, big_wheel: { step: 2, d4: 8, d2: 5 },
+    swing_tower: { step: 2, d4: 20, d2: 11 }, big_wheel: { step: 2, d4: 8, d2: 5 },
     observation_tower: { step: 4, d4: 10, d2: 6 }, drop_tower: { step: 4, d4: 12, d2: 8 },
     gyro_globe: { step: 2, d4: 17, d2: 17 }, spiral_slide: { step: 4, d4: 9, d2: 5 },
-    pendulum_ship: { step: 4, d4: 14, d2: 6 }, magic_carpet: { step: 8, d4: 16, d2: 5 }, flip_arm: { step: 8, d4: 16, d2: 5 },
+    pendulum_ship: { step: 2, d4: 14, d2: 8 }, magic_carpet: { step: 4, d4: 16, d2: 9 }, flip_arm: { step: 4, d4: 16, d2: 9 },
     bumper_cars: { step: 8, d4: 9, d2: 5 }, thunder_disc: { step: 8, d4: 9, d2: 5 },
     mirror_maze: { step: 2, d4: 4, d2: 4, walkThrough: true }, haunted_manor: { step: 2, d4: 4, d2: 4, walkThrough: true },
-    teacup_twirl: { step: 4, d4: 16, d2: 5 }, rocket_rounds: { step: 4, d4: 16, d2: 5 }, kiddie_cars: { step: 4, d4: 16, d2: 5 },
-    merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 0, d4: 32, d2: 9 },
+    teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
+    merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -520,39 +520,21 @@ describe('density 2: fewer pictures, the same frames', () => {
   });
 
   for (const [id, p] of Object.entries(PLAN)) {
-    if (id === 'carousel') continue;
     it(`${id}: density 4 keeps its ${p.d4} pictures; density 2 shows ${p.d2} of them, the frame floored to ${p.step} slots${p.walkThrough ? '' : ', empty at rest'}`, async () => {
       const m = (await rideMaps())[id]!;
       expect(used(m, 4), id).toHaveLength(p.d4);
       expect(used(m, 2), id).toHaveLength(p.d2);
-      d2FloorOk(m, id, p.step, { walkThrough: p.walkThrough, swings: id === 'swing_tower' ? [0, 1, 2, 3, 4] : [0], swingFloor: id === 'swing_tower' });
+      d2FloorOk(m, id, p.step, { walkThrough: p.walkThrough, swings: id === 'swing_tower' ? [0, 1, 2, 3, 4] : [0], });
     });
   }
 
-  it('carousel: density 2 shows the step floored to an even one (9 degrees), so each game step still turns it forwards', async () => {
-    const { carouselStep, CAROUSEL } = await load('items/flatRides.js');
-    const m = (await rideMaps()).carousel!;
-    expect(used(m, 4)).toHaveLength(32);
-    expect(used(m, 2)).toHaveLength(9);
-    // The slot itself is not floored (every even slot has its own, floored, step): the same keys, empty at rest.
-    expect(keysAt(m, 2).sort()).toEqual(keysAt(m, 4).sort());
-    for (let a = 0; a < 32; a++) expect(pictureOf(m, keyAt('carousel', a, false), 2), `slot ${a}`).toBe('0:0');
-    const DEG = Math.PI / 180;
-    let last = -Infinity;
-    for (let a = 0; a <= 64; a += 2) {
-      const id = pictureOf(m, keyAt('carousel', a % 32, true), 2)!;
-      const step = Number(id.split(':')[0]);
-      expect(step, `slot ${a}`).toBe(carouselStep(a % 32) & ~1);
-      // the shown angle, unwrapped: today's angle floored to 9 degrees (never ahead of it, at most 9 degrees behind)
-      const today = (a / 32) * 2 * Math.PI;
-      const shown = Math.floor(today / CAROUSEL.period) * CAROUSEL.period + (step * CAROUSEL.period) / CAROUSEL.steps;
-      expect(today - shown, `slot ${a}`).toBeGreaterThanOrEqual(-1e-9);
-      expect(today - shown, `slot ${a}`).toBeLessThan(9 * DEG);
-      if (a > 0) {
-        expect(shown - last, `slot ${a}: forwards`).toBeGreaterThan(0);
-        expect(shown - last, `slot ${a}: under half the period`).toBeLessThan(CAROUSEL.period / 2);
-      }
-      last = shown;
+  it('half the pictures at most: density 2 keeps at least half of each ride\'s density-4 pictures as full ones (controller ruling 2026-11-15)', async () => {
+    const maps = await rideMaps();
+    for (const [id, p] of Object.entries(PLAN)) {
+      const m = maps[id]!;
+      const full2 = used(m, 2).filter((k) => (m.get(k)!.keys2 ?? m.get(k)!.keys).some((x) => x.endsWith(':occ1')));
+      if (p.walkThrough) continue;
+      expect(full2.length, id).toBeGreaterThanOrEqual(Math.floor(p.d4 / 2));
     }
   });
 

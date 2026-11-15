@@ -44,10 +44,9 @@ export function periodOk(map: Keys, item: string, period: number, full = false):
  * Density 2 against density 4 (flatRides.js withD2): both list the same frame keys, each once; density 2 shows only
  * density-4 pictures; a full frame at slot a shows at density 2 the density-4 picture of slot a floored to `step` slots
  * (so as a run's slot moves forwards, the density-2 picture never comes from a later slot, never steps back, and slot
- * 32 wraps to slot 0); `swingFloor`: its swing level floored to an even one too; an empty frame shows the empty slot-0
- * picture (`walkThrough`: the density-4 picture).
+ * 32 wraps to slot 0); an empty frame shows the empty slot-0 picture (`walkThrough`: the density-4 picture).
  */
-export function d2FloorOk(map: Keys, item: string, step: number, opts: { walkThrough?: boolean; swings?: number[]; swingFloor?: boolean } = {}): void {
+export function d2FloorOk(map: Keys, item: string, step: number, opts: { walkThrough?: boolean; swings?: number[] } = {}): void {
   const k4 = keysAt(map, 4);
   const k2 = keysAt(map, 2);
   expect(new Set(k2).size, `${item}: density-2 keys listed once`).toBe(k2.length);
@@ -55,7 +54,7 @@ export function d2FloorOk(map: Keys, item: string, step: number, opts: { walkThr
   for (const s of opts.swings ?? [0]) {
     for (let a = 0; a <= 32; a++) {
       const full = pictureOf(map, keyAt(item, a % 32, true, s), 2);
-      expect(full, `${item} slot ${a} swing ${s}`).toBe(pictureOf(map, keyAt(item, Math.floor((a % 32) / step) * step, true, opts.swingFloor ? s & ~1 : s)));
+      expect(full, `${item} slot ${a} swing ${s}`).toBe(pictureOf(map, keyAt(item, Math.floor((a % 32) / step) * step, true, s)));
       const empty = pictureOf(map, keyAt(item, a % 32, false, s), 2);
       expect(empty, `${item} slot ${a} empty`).toBe(pictureOf(map, keyAt(item, opts.walkThrough ? a % 32 : 0, false, opts.walkThrough ? s : 0)));
     }

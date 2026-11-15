@@ -38,8 +38,8 @@ export function shipTheta(pose) {
 /** Pendulum Ship frame keys: Map(`<pose>:<occ>` -> { keys, ... }), 7 swing poses x empty / full. */
 export function shipKeys() {
   const pick = (t, full) => `${shipPose(shipLevel(t))}:${full ? 1 : 0}`;
-  // Density 2: every other time step (poses 0, +-2, +-3; 8 per swing cycle).
-  return timeD2('pendulum_ship', timeKeys('pendulum_ship', {}, pick), pick, 2);
+  // Density 2 (half the pictures, controller ruling 2026-11-15): every full pose, the empty ship at rest.
+  return timeD2('pendulum_ship', timeKeys('pendulum_ship', {}, pick), pick, 1);
 }
 
 /** Magic Carpet: arm angle (radians) of time step `t` (0..15): today's phi = 2 PI * slot / 32, one turn per cycle. */
@@ -50,8 +50,8 @@ export function carpetPhi(t) {
 /** Magic Carpet frame keys: Map(`<step>:<occ>` -> ...), 8 positions (every other time step, 45 degrees) x empty / full. */
 export function carpetKeys() {
   const pick = (t, full) => `${t & ~1}:${full ? 1 : 0}`;
-  // Density 2: every other position (4, 90 degrees apart: a one-sided arm still reads forwards).
-  return timeD2('magic_carpet', timeKeys('magic_carpet', {}, pick), pick, 4);
+  // Density 2 (half the pictures, controller ruling 2026-11-15): all 8 full positions, the empty ride at rest.
+  return timeD2('magic_carpet', timeKeys('magic_carpet', {}, pick), pick, 2);
 }
 
 /** Flip Arm: arm angle (radians) of an even angle slot (0..30): today's phi = 2 PI * slot / 32. */
@@ -65,8 +65,8 @@ export function flipPhi(slot) {
  */
 export function flipKeys() {
   const pick = (a, full) => `${a & ~3}:${full ? 1 : 0}`;
-  // Density 2: every other arm angle (4, 90 degrees apart: a one-sided arm still reads forwards).
-  return cycleD2('flip_arm', cycleKeys('flip_arm', { period: 32 }, pick), { period: 32 }, pick, 8);
+  // Density 2 (half the pictures, controller ruling 2026-11-15): all 8 full arm angles, the empty ride at rest.
+  return cycleD2('flip_arm', cycleKeys('flip_arm', { period: 32 }, pick), { period: 32 }, pick, 4);
 }
 
 /**
