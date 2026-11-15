@@ -2,8 +2,12 @@
 // 32 angle slots, phones use the even ones (coarseRideFrame), occupancy is baked as occ0 (empty) and occ1 (full).
 import { rideKeys } from './rideKeys.js';
 
-/** Rides with a front (entrance, boarding side, non-square footprint): they bake rots [0,1,2,3]. The rest are round. */
-export const NON_ROUND = ['bumper_cars', 'pendulum_ship', 'magic_carpet', 'big_wheel', 'haunted_manor', 'mirror_maze', 'thunder_disc', 'drop_tower', 'observation_tower', 'spiral_slide', 'merry_mill'];
+/**
+ * Rides with a front (entrance, boarding side, non-square footprint): they bake rots [0,1,2,3]. The rest are round.
+ * flip_arm (Task 3): square but not round: its arm turns in one vertical plane beside a side pillar, so a view turn
+ * must turn that plane (today's drawFlipArm turns it with st.rotation).
+ */
+export const NON_ROUND = ['bumper_cars', 'pendulum_ship', 'magic_carpet', 'big_wheel', 'haunted_manor', 'mirror_maze', 'thunder_disc', 'drop_tower', 'observation_tower', 'spiral_slide', 'merry_mill', 'flip_arm'];
 
 /**
  * Frame keys for a rotating ride whose pictures repeat every `period` angle slots (even, 2..32, dividing 32).

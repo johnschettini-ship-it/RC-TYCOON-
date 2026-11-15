@@ -33,6 +33,9 @@ describe('itemSpec', () => {
     merry_mill: { m: 11.5, why: '4.8 m sails on a 6.8 m hub top out at 11.6 m, so the lowest gondola boards at the deck; 14.5 m would need sails reaching past the footprint' },
     observation_tower: { m: 32, why: 'a ring cabin for 8 needs a real mast to be worth the ride: 32 m, under the 37 m RIDE_UP_PX margin at density 4; the rule gives 25' },
     gyro_globe: { m: 14, why: 'a realistic gimbal stands its 10.6 m outer ring on a short turntable pedestal, not on a 6 m column; the rule gives 18.5' },
+    pendulum_ship: { m: 13, why: 'real proportions in the 12 x 20 m footprint: 10 m axle, 7.4 m arms, 68 deg swing; the bow finial peaks at 13 m (today\'s 142 px sprite is drawn taller than its swing)' },
+    magic_carpet: { m: 11.5, why: 'real proportions: 5.4 m hubs and 4.4 m arms keep the orbit inside the 12 m width and the carpet just above its boarding deck; riders\' heads peak at 11.5 m' },
+    flip_arm: { m: 13, why: 'real proportions: 7 m hub and a 5 m arm keep the gondola inside the 12 m footprint and just above its deck; its footrest peaks at 13 m' },
   };
 
   it('every height exception has a reason', () => {

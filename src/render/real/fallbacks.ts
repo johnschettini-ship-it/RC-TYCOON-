@@ -17,6 +17,7 @@ const BAKED = [
   'bench', 'bin',
   'steel_coaster',
   'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill',
+  'pendulum_ship', 'magic_carpet', 'flip_arm',
 ] as const;
 
 /** Unbaked items drawn with a baked stand-in. */
