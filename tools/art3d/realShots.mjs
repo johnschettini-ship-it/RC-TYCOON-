@@ -18,7 +18,7 @@ const SAVES = {
   build2: ['build2-128-3000-guests.tcsave.json', { x: 64, y: 64 }],
   build1: ['build1-2000-guests.tcsave.json', { x: 40, y: 30 }],
   phone: ['phone-800-guests.tcsave.json', { x: 40, y: 30 }],
-  rides: ['rides-18-flat-rides-300-guests.tcsave.json', { x: 28, y: 18 }],
+  rides: ['rides-18-flat-rides-300-guests.tcsave.json', { x: 32, y: 32 }],
 };
 const { port, server } = await serve(root);
 const browser = await chromium.launch();

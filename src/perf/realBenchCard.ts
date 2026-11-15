@@ -1,7 +1,7 @@
 /**
  * Stage 1 benchmark page parts (`?art=real&bench=1`, or `?art=classic&bench=1` for today's look): the "Run benchmark" button, the progress line, and the
  * results card. `main.ts` imports this module lazily, and only in the VITE_ART=real build, so the website build has
- * none of it; the four benchmark saves are lazy chunks of this module, loaded when Run is tapped (never through
+ * none of it; the five benchmark saves are lazy chunks of this module, loaded when Run is tapped (never through
  * storage).
  *
  * Before the run, every compressed art file is read into the set manager (progress shown, time reported as the art

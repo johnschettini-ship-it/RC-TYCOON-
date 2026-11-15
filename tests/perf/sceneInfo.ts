@@ -2,6 +2,8 @@
  * The Phase 6 §4.6 benchmark scenes (W4-E): what each save in `tests/perf/` holds. No simulation imports, so the
  * Playwright perf run can read it; `./scenes.ts` builds the saves.
  */
+import { RIDES_FOCUS } from './ridesLayout';
+
 export type PerfSceneId = 'build1' | 'build2' | 'phone' | 'coaster' | 'rides';
 
 export interface PerfSceneInfo {
@@ -23,7 +25,7 @@ export const PERF_SCENES: readonly PerfSceneInfo[] = [
   { id: 'phone', file: 'phone-800-guests.tcsave.json', mapSize: 64, guests: 800, trackRides: 10, flatRides: 14, shows: 0, focus: { x: 40, y: 30 } },
   { id: 'coaster', file: 'coaster-600-guests.tcsave.json', mapSize: 64, guests: 600, trackRides: 1, flatRides: 1, shows: 0, focus: { x: 14, y: 8 } },
   // Phase 8c batch 1: all 18 flat ride types side by side (memory with many different rides on screen).
-  { id: 'rides', file: 'rides-18-flat-rides-300-guests.tcsave.json', mapSize: 64, guests: 300, trackRides: 0, flatRides: 18, shows: 0, focus: { x: 28, y: 18 } },
+  { id: 'rides', file: 'rides-18-flat-rides-300-guests.tcsave.json', mapSize: 64, guests: 300, trackRides: 0, flatRides: 18, shows: 0, focus: { x: RIDES_FOCUS.x, y: RIDES_FOCUS.y } },
 ];
 
 /**
