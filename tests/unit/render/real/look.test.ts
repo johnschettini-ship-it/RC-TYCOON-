@@ -726,18 +726,50 @@ describe('RealLook: view-scoped loading (round 3 item 1, spec §5.4.2(d))', () =
     expect(sets.wanted('now')).not.toContain(k2('stall', 'snack_shack', 0));
   });
 
-  it('one screen of margin: an object just past the view edge is wanted, one two screens away is not', () => {
+  it('one screen of margin: an object just past the view edge is wanted (ahead), one two screens away is not', () => {
     const { sets, look } = setup();
     const world = farWorld();
     // The shack's screen point is (0, 128 + 16) at turn 0; a view one screen width to its right still wants it.
     const v = viewAt(4, 4);
     look.prepare(world, 0, { ...v, x0: v.x0 + 390 + 100, x1: v.x1 + 390 + 100 }, 1, 1);
-    expect(sets.wanted('now')).toContain(k2('stall', 'snack_shack', 0));
+    expect(sets.wanted('ahead')).toContain(k2('stall', 'snack_shack', 0));
     sets.wants = [];
     const { sets: s2, look: l2 } = setup();
     l2.prepare(world, 0, { ...v, x0: v.x0 + 3 * 390, x1: v.x1 + 3 * 390 }, 1, 1);
     expect(s2.wanted('now')).not.toContain(k2('stall', 'snack_shack', 0));
     void sets;
+  });
+
+  it('objects on screen are wanted now, objects only in the margin ahead, at their turn and the ahead turn (owner decision 2026-11-15)', () => {
+    const { sets, look } = setup();
+    const world = farWorld();
+    // A big wheel just past the view's bottom edge (its picture reaches 468 px up from its footprint).
+    world.state.rides.push({ id: 8, kind: 'flat', defId: 'big_wheel', rotation: 0, x: 36, y: 36 } as Ride);
+    const v = viewAt(4, 4);
+    look.prepare(world, 0, v, 1, 1);
+    const now = sets.wanted('now');
+    const ahead = sets.wanted('ahead');
+    expect(now).toContain(k2('stall', 'snack_shack', 0));
+    for (const k of [k2('ride', 'big_wheel', 0), k2('ride', 'big_wheel', 1)]) {
+      expect(ahead, k).toContain(k);
+      expect(now, k).not.toContain(k);
+    }
+    // The view moves (within the scoped rectangle) until the wheel is on screen: now it is wanted now.
+    sets.wants = [];
+    const walks = look.scope!().walks;
+    look.prepare(world, 0, { ...v, y0: v.y0 + 200, y1: v.y1 + 200 }, 1, 1);
+    expect(look.scope!().walks).toBe(walks);
+    expect(sets.wanted('now')).toContain(k2('ride', 'big_wheel', 0));
+    expect(sets.wanted('ahead')).not.toContain(k2('ride', 'big_wheel', 0));
+  });
+
+  it('a set shared by an object on screen and one in the margin is wanted now', () => {
+    const { sets, look } = setup();
+    const world = farWorld();
+    world.state.stalls.push({ id: 9, defId: 'snack_shack', rotation: 0, x: 22, y: 22 } as Stall);
+    look.prepare(world, 0, viewAt(4, 4), 1, 1);
+    expect(sets.wanted('now')).toContain(k2('stall', 'snack_shack', 0));
+    expect(sets.wanted('ahead')).not.toContain(k2('stall', 'snack_shack', 0));
   });
 
   it('does not walk the objects each frame: only when the park\'s objects change or the view leaves the scoped rectangle', () => {
@@ -811,6 +843,46 @@ describe('RealLook: view-scoped loading (round 3 item 1, spec §5.4.2(d))', () =
     // The decodes land after 6 frames: the set was kept wanted all along (not dropped and restarted).
     while (pending.length) { pending.shift()!(); await flush(); }
     expect(frame()).toBeTruthy();
+  });
+
+  it('with the real set manager: sets on screen decode before the margin\'s, and the margin\'s go first under pressure', async () => {
+    const index = makeIndex();
+    const pending: Array<() => void> = [];
+    const io = {
+      read: async (f: string) => new Blob([f]),
+      decode: (b: Blob) => new Promise<Decoded>((res) => pending.push(() => { void b; res({ image: new PixCanvas(8, 8) as unknown as CanvasImageSource, bytes: 256, close() {} }); })),
+    };
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    const world = farWorld();
+    world.state.rides.push({ id: 8, kind: 'flat', defId: 'big_wheel', rotation: 0, x: 36, y: 36 } as Ride);
+    const wheel = setKey('ride', 'big_wheel', 2, 0);
+    const shack = setKey('stall', 'snack_shack', 2, 0);
+    const run = async (budget: number) => {
+      const sets = new SetManager(index, io, budget, () => undefined);
+      const want = sets.want.bind(sets);
+      const now = new Set<SetKey>();
+      sets.want = (keys, pri) => { if (pri === 'now') for (const k of keys) now.add(k); want(keys, pri); };
+      const look = createRealLook(index, sets, { makeCanvas: make });
+      const order: SetKey[] = [];
+      for (let n = 1; n < 40; n++) {
+        sets.beginFrame(n);
+        look.prepare(world, 0, viewAt(4, 4), 1, 1);
+        sets.endFrame();
+        for (const k of [wheel, shack]) if (sets.state(k) === 'ready' && !order.includes(k)) order.push(k);
+        if (pending.length) pending.shift()!();
+        await flush();
+      }
+      return { sets, order, now };
+    };
+    const roomy = await run(1e9);
+    expect(roomy.order).toEqual([shack, wheel]);
+    // Room for what is on screen only: the wheel (ahead) is dropped, never decoded, and the shack is ready.
+    expect(roomy.now.has(wheel)).toBe(false);
+    const onScreen = [...roomy.now].reduce((n, k) => n + index.sets.find((e) => e.key === k)!.sheets.length * 256, 0);
+    const tight = await run(onScreen + 128);
+    expect(tight.sets.state(shack)).toBe('ready');
+    expect(tight.sets.state(wheel)).not.toBe('ready');
+    expect(tight.sets.densityCap()).toBe(4);
   });
 
   it('with the real set manager: a set that can never fit beside what is drawn degrades to today\'s art, counted', async () => {
