@@ -7,7 +7,7 @@
 // these rides have a front (4 rotations) and large pictures, so the 16 time steps share fewer poses: 7 swing poses
 // for the ship (only 63 and 68 degrees share one), 8 carpet positions and 8 arm angles, both evenly spaced (45
 // degrees). Every step shows a pose close to today's at that step (tests/unit/art3d/flatRides.test.ts).
-import { cycleKeys, timeKeys } from './flatRides.js';
+import { cycleD2, cycleKeys, timeD2, timeKeys } from './flatRides.js';
 
 /** Pendulum Ship: peak swing angle (today's SHIP_SWING). */
 export const SHIP_SWING = (68 * Math.PI) / 180;
@@ -37,7 +37,9 @@ export function shipTheta(pose) {
 
 /** Pendulum Ship frame keys: Map(`<pose>:<occ>` -> { keys, ... }), 7 swing poses x empty / full. */
 export function shipKeys() {
-  return timeKeys('pendulum_ship', {}, (t, full) => `${shipPose(shipLevel(t))}:${full ? 1 : 0}`);
+  const pick = (t, full) => `${shipPose(shipLevel(t))}:${full ? 1 : 0}`;
+  // Density 2: every other time step (poses 0, +-2, +-3; 8 per swing cycle).
+  return timeD2('pendulum_ship', timeKeys('pendulum_ship', {}, pick), pick, 2);
 }
 
 /** Magic Carpet: arm angle (radians) of time step `t` (0..15): today's phi = 2 PI * slot / 32, one turn per cycle. */
@@ -47,7 +49,9 @@ export function carpetPhi(t) {
 
 /** Magic Carpet frame keys: Map(`<step>:<occ>` -> ...), 8 positions (every other time step, 45 degrees) x empty / full. */
 export function carpetKeys() {
-  return timeKeys('magic_carpet', {}, (t, full) => `${t & ~1}:${full ? 1 : 0}`);
+  const pick = (t, full) => `${t & ~1}:${full ? 1 : 0}`;
+  // Density 2: every other position (4, 90 degrees apart: a one-sided arm still reads forwards).
+  return timeD2('magic_carpet', timeKeys('magic_carpet', {}, pick), pick, 4);
 }
 
 /** Flip Arm: arm angle (radians) of an even angle slot (0..30): today's phi = 2 PI * slot / 32. */
@@ -60,7 +64,9 @@ export function flipPhi(slot) {
  * angles 45 degrees apart (slots 0, 4, ...), each serving its slot and the one after.
  */
 export function flipKeys() {
-  return cycleKeys('flip_arm', { period: 32 }, (a, full) => `${a & ~3}:${full ? 1 : 0}`);
+  const pick = (a, full) => `${a & ~3}:${full ? 1 : 0}`;
+  // Density 2: every other arm angle (4, 90 degrees apart: a one-sided arm still reads forwards).
+  return cycleD2('flip_arm', cycleKeys('flip_arm', { period: 32 }, pick), { period: 32 }, pick, 8);
 }
 
 /**

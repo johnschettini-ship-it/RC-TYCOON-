@@ -7,7 +7,7 @@
 // riders copied the same way, so the state at a + 1/2 is the state at a turned 180 degrees: period 16 angle slots,
 // 8 pictures per occupancy. Round, static parts 90-degree symmetric (8 stars, 16 bulbs): one set for every view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
-import { cycleKeys } from './flatRides.js';
+import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { ROCKET, rocketAngles } from './spinnerMotion.js';
@@ -194,8 +194,9 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = cycleKeys('rocket_rounds', { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`);
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(g.angle / 32, g.full) }));
+    cycleD2('rocket_rounds', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, ROCKET.d2Step);
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`rocket_rounds: ${pictures.length} pictures`);
-    bakeObject(B, { kind: 'ride', item: 'rocket_rounds', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'rocket_rounds', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

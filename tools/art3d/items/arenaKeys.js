@@ -5,13 +5,17 @@
 // run plays the 32 angle slots twice. The flat rides here only ever run with riders on board (src/sim/rides/flat/
 // update.ts dispatches at riders >= 1), and an empty ride rests at angle 0, so occ0 is baked as ONE rest picture
 // (the ride standing still) for every slot: the budget goes to the running, full pictures.
-import { timeKeys, cycleKeys } from './flatRides.js';
+import { timeKeys, timeD2, cycleKeys } from './flatRides.js';
 
 /**
  * The 16 time steps folded into `pics` pictures (the size rule: compressed <= 4 MB for these two rides, controller ruling): step s shows picture
  * floor(s * pics / 16); picture k is posed at its first step (stepOf), so picture 0 is the start of the cycle.
  */
-const timeFold = (item, pics) => timeKeys(item, {}, (step, full) => (full ? `t${Math.floor((step * pics) / 16)}` : 'rest'));
+const timeFold = (item, pics) => {
+  const pick = (step, full) => (full ? `t${Math.floor((step * pics) / 16)}` : 'rest');
+  // Density 2 (flatRides.js withD2): every other picture (4 per cycle).
+  return timeD2(item, timeKeys(item, {}, pick), pick, 32 / pics);
+};
 
 /** Bumper cars: 8 pictures per cycle (each car jostles round its own spot once per cycle), empty = one rest picture. */
 export const BUMPER_PICS = 8;
@@ -21,7 +25,11 @@ export const bumperKeys = () => timeFold('bumper_cars', BUMPER_PICS);
 export const THUNDER_PICS = 8;
 export const thunderKeys = () => timeFold('thunder_disc', THUNDER_PICS);
 
-/** Walk-throughs: no riders, one occupancy state; 4 light steps that repeat every 8 angle slots. */
+/**
+ * Walk-throughs: no riders, one occupancy state; 4 light steps that repeat every 8 angle slots. Density 2 keeps all 4
+ * (their modules list every picture at both densities): 2 steps would turn the maze's crystal and the manor's light
+ * half a period a step, with no direction.
+ */
 export const LIGHT_STEPS = 4;
 export const mirrorKeys = () => cycleKeys('mirror_maze', { period: 8, walkThrough: true }, (slot) => `l${slot >> 1}`);
 export const manorKeys = () => cycleKeys('haunted_manor', { period: 8, walkThrough: true }, (slot) => `l${slot >> 1}`);

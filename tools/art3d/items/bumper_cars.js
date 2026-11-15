@@ -7,6 +7,7 @@
 // spot (whole frequencies, so the loop closes). Frames: arenaKeys.bumperKeys (16 time steps per cycle folded into 8
 // pictures; the empty ride is one rest picture). Front (deck, sign) at +z: rots [0, 1, 2, 3].
 import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { stripes } from '../textures.js';
 import { signMat } from '../rides.js';
@@ -183,9 +184,9 @@ export default {
     const groups = bumperKeys();
     const pictures = [...groups.entries()].map(([id, g]) => {
       const s = stepOf(id, BUMPER_PICS);
-      return { keys: g.keys, pose: () => m.pose(s.t, s.full) };
+      return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(s.t, s.full) };
     });
     B.log(`bumper_cars: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'bumper_cars', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'bumper_cars', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

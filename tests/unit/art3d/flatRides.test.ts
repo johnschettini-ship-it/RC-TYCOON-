@@ -4,7 +4,7 @@ import { FLAT_RIDES, getFlatRideDef } from '../../../src/data/catalog';
 import { gateIndex } from '../../../src/data/catalog/flatRides';
 import { coarseRideFrame, decodeRideFrame, rideAnimation, rideFrameFor } from '../../../src/render/anim';
 import type { Ride } from '../../../src/sim/rides/types';
-import { keyAt, periodOk, pictureOf, type Keys } from './frameHelpers';
+import { d2FloorOk, keyAt, keysAt, periodOk, pictureOf, type Keys } from './frameHelpers';
 
 // Plain JS build tool without types: import by a computed path so it loads as `any`.
 const dir = new URL('../../../tools/art3d/', import.meta.url);
@@ -440,5 +440,176 @@ describe('Task 5 ride frames', () => {
       expect(REAL_FALLBACK[id], id).toBe(id);
       expect(NON_ROUND, id).toContain(id);
     }
+  });
+});
+
+// Owner decision 2026-11-15 (the `rides` bench scene did not fit 128 MiB): density 2, the far zooms, draws each ride from
+// fewer pictures (flatRides.js withD2). Density 4 keeps every picture. The reader looks up the same frame key at both
+// densities, so each density's table must map every game frame, and the density-2 one must never step backwards.
+describe('density 2: fewer pictures, the same frames', () => {
+  const pick = (a: number, full: boolean) => `${a}:${full ? 1 : 0}`;
+  /** Every flat ride's frame keys (both densities), from the pure modules the bake modules use. */
+  async function rideMaps(): Promise<Record<string, Keys>> {
+    const fr = await load('items/flatRides.js');
+    const tm = await load('items/towerMotion.js');
+    const sw = await load('items/swingers.js');
+    const ar = await load('items/arenaKeys.js');
+    const sp = await load('items/spinnerMotion.js');
+    const out: Record<string, Keys> = {
+      carousel: fr.carouselKeys(), swing_tower: fr.swingTowerKeys(4), big_wheel: fr.bigWheelKeys(),
+      pendulum_ship: sw.shipKeys(), magic_carpet: sw.carpetKeys(), flip_arm: sw.flipKeys(),
+      bumper_cars: ar.bumperKeys(), thunder_disc: ar.thunderKeys(), mirror_maze: ar.mirrorKeys(), haunted_manor: ar.manorKeys(),
+    };
+    for (const id of ['observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide']) out[id] = tm.towerKeys(id);
+    for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
+      out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
+    }
+    return out;
+  }
+  /** Density-2 step in angle slots per ride (carousel: see its own test) and the pictures each density holds. */
+  const PLAN: Record<string, { step: number; d4: number; d2: number; walkThrough?: boolean }> = {
+    swing_tower: { step: 2, d4: 20, d2: 7 }, big_wheel: { step: 2, d4: 8, d2: 5 },
+    observation_tower: { step: 4, d4: 10, d2: 6 }, drop_tower: { step: 4, d4: 12, d2: 8 },
+    gyro_globe: { step: 2, d4: 17, d2: 17 }, spiral_slide: { step: 4, d4: 9, d2: 5 },
+    pendulum_ship: { step: 4, d4: 14, d2: 6 }, magic_carpet: { step: 8, d4: 16, d2: 5 }, flip_arm: { step: 8, d4: 16, d2: 5 },
+    bumper_cars: { step: 8, d4: 9, d2: 5 }, thunder_disc: { step: 8, d4: 9, d2: 5 },
+    mirror_maze: { step: 2, d4: 4, d2: 4, walkThrough: true }, haunted_manor: { step: 2, d4: 4, d2: 4, walkThrough: true },
+    teacup_twirl: { step: 4, d4: 16, d2: 5 }, rocket_rounds: { step: 4, d4: 16, d2: 5 }, kiddie_cars: { step: 4, d4: 16, d2: 5 },
+    merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 0, d4: 32, d2: 9 },
+  };
+  const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
+
+  it('the plan covers every flat ride', () => {
+    expect(Object.keys(PLAN).sort()).toEqual(FLAT_RIDES.map((d) => d.id).sort());
+  });
+
+  it('withD2 lists every frame key once at density 2 and names only the ride\'s own pictures', async () => {
+    const { withD2, cycleKeys, cycleD2, timeKeys, timeD2 } = await load('items/flatRides.js');
+    const m: Keys = withD2('x', cycleKeys('x', { period: 8 }, pick), [0], () => '0:0');
+    expect(keysAt(m, 2).sort()).toEqual(keysAt(m, 4).sort());
+    expect(m.get('0:0')!.keys2).toHaveLength(64);
+    expect(() => withD2('x', cycleKeys('x', { period: 8 }, pick), [0], () => 'nope')).toThrow(/not one of the ride's pictures/);
+    expect(() => cycleD2('x', cycleKeys('x', { period: 8, walkThrough: true }, pick), { period: 8, walkThrough: true }, pick, 4)).toThrow(/walk-through/);
+    // timeD2 floors time steps: step 4 of 16 at density 2 shows the picture of step 4, steps 5 to 7 too.
+    const tpick = (t: number, full: boolean) => `t${t}${full ? 'f' : 'e'}`;
+    const t: Keys = timeD2('x', timeKeys('x', {}, tpick), tpick, 4);
+    for (let a = 0; a < 32; a++) {
+      expect(pictureOf(t, keyAt('x', a, true), 2), `slot ${a}`).toBe(`t${Math.floor((a >> 1) / 4) * 4}f`);
+      expect(pictureOf(t, keyAt('x', a, false), 2), `slot ${a}`).toBe('t0e');
+    }
+  });
+
+  it('d2Api lists a ride picture under keys at density 4 and keys2 at density 2, and leaves other sets alone', async () => {
+    const { d2Api } = await load('items/flatRides.js');
+    const added: [string, string[], number[]][] = [];
+    const B = { densities: [2, 4], set: (kind: string) => ({ add: (keys: string[], shot: Record<number, unknown>) => added.push([kind, keys, Object.keys(shot).map(Number)]) }) };
+    const a = { keys: ['a'], keys2: ['a', 'b'] };
+    const b = { keys: ['b'], keys2: [] };
+    const c = { keys: ['c'] };
+    const api = d2Api(B, [a, b, c]);
+    const ride = api.set('ride', 'x', 0);
+    for (const p of [a, b, c]) ride.add(p.keys, { 2: 'p2', 4: 'p4' });
+    api.set('shadow', 'x', 0).add(['x'], { 2: 's2', 4: 's4' });
+    expect(added).toEqual([
+      ['ride', ['a'], [4]], ['ride', ['a', 'b'], [2]],
+      ['ride', ['b'], [4]],
+      ['ride', ['c'], [4]], ['ride', ['c'], [2]],
+      ['shadow', ['x'], [2, 4]],
+    ]);
+    expect(() => ride.add(['a'], { 2: 'p2' })).toThrow(/not one of the pictures/);
+  });
+
+  for (const [id, p] of Object.entries(PLAN)) {
+    if (id === 'carousel') continue;
+    it(`${id}: density 4 keeps its ${p.d4} pictures; density 2 shows ${p.d2} of them, the frame floored to ${p.step} slots${p.walkThrough ? '' : ', empty at rest'}`, async () => {
+      const m = (await rideMaps())[id]!;
+      expect(used(m, 4), id).toHaveLength(p.d4);
+      expect(used(m, 2), id).toHaveLength(p.d2);
+      d2FloorOk(m, id, p.step, { walkThrough: p.walkThrough, swings: id === 'swing_tower' ? [0, 1, 2, 3, 4] : [0], swingFloor: id === 'swing_tower' });
+    });
+  }
+
+  it('carousel: density 2 shows the step floored to an even one (9 degrees), so each game step still turns it forwards', async () => {
+    const { carouselStep, CAROUSEL } = await load('items/flatRides.js');
+    const m = (await rideMaps()).carousel!;
+    expect(used(m, 4)).toHaveLength(32);
+    expect(used(m, 2)).toHaveLength(9);
+    // The slot itself is not floored (every even slot has its own, floored, step): the same keys, empty at rest.
+    expect(keysAt(m, 2).sort()).toEqual(keysAt(m, 4).sort());
+    for (let a = 0; a < 32; a++) expect(pictureOf(m, keyAt('carousel', a, false), 2), `slot ${a}`).toBe('0:0');
+    const DEG = Math.PI / 180;
+    let last = -Infinity;
+    for (let a = 0; a <= 64; a += 2) {
+      const id = pictureOf(m, keyAt('carousel', a % 32, true), 2)!;
+      const step = Number(id.split(':')[0]);
+      expect(step, `slot ${a}`).toBe(carouselStep(a % 32) & ~1);
+      // the shown angle, unwrapped: today's angle floored to 9 degrees (never ahead of it, at most 9 degrees behind)
+      const today = (a / 32) * 2 * Math.PI;
+      const shown = Math.floor(today / CAROUSEL.period) * CAROUSEL.period + (step * CAROUSEL.period) / CAROUSEL.steps;
+      expect(today - shown, `slot ${a}`).toBeGreaterThanOrEqual(-1e-9);
+      expect(today - shown, `slot ${a}`).toBeLessThan(9 * DEG);
+      if (a > 0) {
+        expect(shown - last, `slot ${a}: forwards`).toBeGreaterThan(0);
+        expect(shown - last, `slot ${a}: under half the period`).toBeLessThan(CAROUSEL.period / 2);
+      }
+      last = shown;
+    }
+  });
+
+  it('a whole run, tick by tick, desktop and phone frames: every frame has a picture at both densities, density 2 never steps back', async () => {
+    const maps = await rideMaps();
+    for (const d of FLAT_RIDES) {
+      const m = maps[d.id]!;
+      const p = PLAN[d.id]!;
+      const riders = Array(d.capacity).fill(0);
+      let lastSlot = 0;
+      for (let t = 0; t <= d.cycleTicks; t++) {
+        const f = rideFrameFor({ defId: d.id, cycle: { phase: 'running', ticks: t } as Ride['cycle'], riders } as never, d);
+        for (const g of [f, coarseRideFrame(f)]) {
+          const { angle, swing } = decodeRideFrame(g);
+          const key = keyAt(d.id, angle, !p.walkThrough, swing);
+          expect(pictureOf(m, key, 4), `${d.id} tick ${t} d4`).toBeDefined();
+          expect(pictureOf(m, key, 2), `${d.id} tick ${t} d2`).toBeDefined();
+        }
+        // The density-2 picture comes from the slot floored to the step: it follows the slot, which only moves
+        // forwards and wraps to 0 at the end of a turn.
+        const slot = decodeRideFrame(f).angle;
+        if (slot < lastSlot) expect(lastSlot, `${d.id} tick ${t}: wraps only at the end of a turn`).toBeGreaterThanOrEqual(28);
+        lastSlot = slot;
+      }
+      const end = rideFrameFor({ defId: d.id, cycle: { phase: 'running', ticks: d.cycleTicks } as Ride['cycle'], riders } as never, d);
+      const { angle, swing } = decodeRideFrame(end);
+      expect(pictureOf(m, keyAt(d.id, angle, !p.walkThrough, swing), 2), `${d.id}: a run ends on its start picture`).toBe(pictureOf(m, keyAt(d.id, 0, !p.walkThrough), 2));
+    }
+  });
+
+  it('an empty flat ride never runs in the game, so its density-2 rest picture is all an empty frame needs', async () => {
+    const { makeTestWorld, placeRideDirect } = await import('../../helpers/world');
+    const { updateFlatRides } = await import('../../../src/sim/rides/flat/update');
+    for (const d of FLAT_RIDES) {
+      const world = makeTestWorld();
+      const ride = placeRideDirect(world, d.id, 10, 10);
+      ride.status = 'open';
+      for (let i = 0; i < 3 * d.cycleTicks; i++) {
+        updateFlatRides(world);
+        world.state.tick++;
+        expect(ride.cycle.phase, d.id).not.toBe('running');
+      }
+    }
+  });
+
+  it('each ride module bakes its density-2 keys: d2Api, keys2 on every picture (walk-throughs list every picture at both)', () => {
+    for (const { id } of FLAT_RIDES) {
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      if (PLAN[id]!.walkThrough) {
+        expect(src, id).not.toContain('d2Api');
+        continue;
+      }
+      expect(src, id).toContain('bakeObject(d2Api(B, pictures), {');
+      expect(src, id).toMatch(/keys2: gr?\.keys2/);
+    }
+    // the spinners' density-2 step is the one the test above checks
+    const spin = readFileSync(new URL('items/teacup_twirl.js', dir), 'utf8');
+    expect(spin).toContain("cycleD2('teacup_twirl', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, TEACUP.d2Step);");
   });
 });

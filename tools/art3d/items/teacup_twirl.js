@@ -7,7 +7,7 @@
 // state at a + 1/2 the state at a turned 180 degrees (turntable j lands where j + 2 was, in the same pose). Period 16
 // angle slots: 8 pictures per occupancy. Round, static parts 90-degree symmetric: one set serves every view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
-import { cycleKeys } from './flatRides.js';
+import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { TEACUP, teacupAngles } from './spinnerMotion.js';
@@ -172,8 +172,9 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = cycleKeys('teacup_twirl', { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`);
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(g.angle / 32, g.full) }));
+    cycleD2('teacup_twirl', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, TEACUP.d2Step);
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`teacup_twirl: ${pictures.length} pictures`);
-    bakeObject(B, { kind: 'ride', item: 'teacup_twirl', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'teacup_twirl', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

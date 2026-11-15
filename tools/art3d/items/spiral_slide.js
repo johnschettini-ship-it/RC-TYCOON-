@@ -8,6 +8,7 @@
 // per run (REVOLUTIONS default) end where they started. Empty, the ride is at rest (the game runs a ride only with riders): one picture. Front (door, run-out):
 // one set per view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import * as T from '../textures.js';
 import { frames, sweep, onTrack, rider } from '../rides.js';
@@ -136,8 +137,8 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = towerKeys('spiral_slide');
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(g.angle, g.full) }));
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle, g.full) }));
     B.log(`spiral_slide: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'spiral_slide', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'spiral_slide', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

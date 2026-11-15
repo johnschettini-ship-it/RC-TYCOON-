@@ -87,6 +87,20 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
     const ok = !!rots && (rots.has('all') || rots.has(String(set.rot)) || (set.rot === 'all' && rots.size > 0));
     if (!ok) problems.push(`${set.key}: no shadow set`);
   }
+  // The reader looks a frame key up at whichever density it draws (a density-4 set's twin stands in for it, the cap
+  // lowers it), so a set's two densities list the same frame keys, even where density 2 has fewer pictures (rides).
+  const byTurn = new Map<string, Set<string>>();
+  for (const set of index.sets) if (set.density === 4) byTurn.set(`${set.kind}:${set.item}:r${set.rot}`, new Set(Object.keys(set.frames)));
+  for (const set of index.sets) {
+    if (set.density !== 2) continue;
+    const up = byTurn.get(`${set.kind}:${set.item}:r${set.rot}`);
+    if (!up) continue;
+    const low = Object.keys(set.frames);
+    const missing = [...up].filter((k) => !(k in set.frames));
+    const extra = low.filter((k) => !up.has(k));
+    if (missing.length) problems.push(`${set.key}: ${missing.length} frame keys of density 4 missing at density 2 (${missing.slice(0, 3).join(', ')})`);
+    if (extra.length) problems.push(`${set.key}: ${extra.length} frame keys not at density 4 (${extra.slice(0, 3).join(', ')})`);
+  }
   return problems;
 }
 

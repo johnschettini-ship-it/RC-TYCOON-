@@ -7,6 +7,7 @@
 // Steps at the same height share a picture (9 heights); empty, the ride is at rest (the game runs a ride only with
 // riders): one picture. Front (entrance, exit, booth): one set per view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
 import { HEIGHT_Q, heightStep, towerKeys, TOWER_GATES } from './towerMotion.js';
@@ -126,8 +127,8 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = towerKeys('observation_tower');
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(heightStep('observation_tower', g.angle >> 1) / HEIGHT_Q, g.full) }));
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(heightStep('observation_tower', g.angle >> 1) / HEIGHT_Q, g.full) }));
     B.log(`observation_tower: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'observation_tower', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'observation_tower', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

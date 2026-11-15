@@ -105,6 +105,25 @@ describe('checkIndex', () => {
     const r = i.sets.find((s) => s.kind === 'ride')!; r.rot = 'all'; r.key = setKey('ride', 'carousel', 2, 'all');
     expect(problems(i, filesOf(i)).filter((p) => p.includes('no shadow set'))).toEqual([]);
   });
+  it('a set lists the same frame keys at both densities, though density 2 may have fewer pictures (d2 steps)', () => {
+    // density 4 beside the fixture's density 2, for every set
+    const i = clone();
+    i.densities = [2, 4];
+    i.sets = [...i.sets, ...i.sets.map((s) => ({ ...structuredClone(s), density: 4 as const, key: setKey(s.kind, s.item, 4, s.rot) }))];
+    expect(problems(i)).toEqual([]);
+    // density 2 shows both frames of r0 with one picture: still the same keys, fine
+    const low = i.sets.find((s) => s.key === 'ride:carousel:d2:r0')!;
+    const [k0, k1] = Object.keys(low.frames) as [string, string];
+    low.frames[k1] = { ...low.frames[k0]! };
+    expect(problems(i)).toEqual([]);
+    // a key density 2 does not list, and one density 4 does not
+    delete low.frames[k1];
+    low.frames['carousel:f9:occ0'] = { ...low.frames[k0]! };
+    expect(problems(i).sort()).toEqual([
+      `ride:carousel:d2:r0: 1 frame keys not at density 4 (carousel:f9:occ0)`,
+      `ride:carousel:d2:r0: 1 frame keys of density 4 missing at density 2 (${k1})`,
+    ].sort());
+  });
   it('rot all satisfies rotations', () => {
     const i = clone(); const r = i.sets.find((s) => s.kind === 'ride')!;
     i.sets = [r]; r.rot = 'all';
