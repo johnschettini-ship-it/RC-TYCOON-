@@ -88,7 +88,9 @@ describe('sizeReport', () => {
     const run = (bytes: number): number => {
       const dir = mkdtempSync(join(tmpdir(), 'sizefix-'));
       writeFileSync(join(dir, 'a.webp'), Buffer.alloc(bytes));
-      writeFileSync(join(dir, 'index.json'), JSON.stringify(index([set('ride', 'carousel', 2, 'all', 'a.webp'), set('ride', 'carousel', 4, 'all', 'a.webp')])));
+      writeFileSync(join(dir, 's.webp'), Buffer.alloc(100));
+      // with its shadow sets: the index check wants every ride's shadow
+      writeFileSync(join(dir, 'index.json'), JSON.stringify(index([set('ride', 'carousel', 2, 'all', 'a.webp'), set('ride', 'carousel', 4, 'all', 'a.webp'), set('shadow', 'carousel', 2, 'all', 's.webp'), set('shadow', 'carousel', 4, 'all', 's.webp')])));
       return spawnSync('npx', ['tsx', 'tools/art3d/checkIndexCli.ts', dir], { encoding: 'utf8' }).status ?? -1;
     };
     expect(run(10_000_000)).toBe(1); // 10 MB x 18 rides is over 150 MB

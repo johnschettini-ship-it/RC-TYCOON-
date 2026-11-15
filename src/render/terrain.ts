@@ -13,7 +13,7 @@ import type { Ride } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
 import { bucketIndex, SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { ZoomBucket } from './camera';
-import { isPhoneScreen, makeCanvas } from './canvas';
+import { classicGate, isNotMade, isPhoneScreen, makeCanvas, notMadeSprite } from './canvas';
 import { STEP_PX } from './iso';
 import { JOIN_E, JOIN_N, JOIN_S, JOIN_W, pathJoinMask } from './paths';
 import { mapToView, rotateSlopeMask, viewCornerHeights, viewSize, viewToMap, type ViewRotation } from './view';
@@ -555,6 +555,8 @@ export class TerrainLayer {
     const g = geom ?? (this.bounds[chunk] as ChunkGeom);
     const w = Math.ceil((g.right - g.left) * scale) + CHUNK_PAD * 2;
     const h = Math.ceil((g.bottom - g.top) * scale) + CHUNK_PAD * 2;
+    // Realistic build: room in the decode budget first (canvas.ts classicGate); refused, the caller keeps a stand-in.
+    if (import.meta.env.VITE_ART === 'real' && classicGate.admit && !classicGate.admit(w * h * 4)) return notMadeSprite();
     const { canvas, ctx } = makeCanvas(w, h);
     const ox = CHUNK_PAD - g.left * scale;
     const oy = CHUNK_PAD - g.top * scale;
@@ -643,9 +645,14 @@ export class TerrainLayer {
               complete = false;
             } else {
               sp = this.build(map, c, exact ? scale : bucket, env, r);
-              this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
-              if (exact) exactBuilds++;
-              else refines++;
+              if (import.meta.env.VITE_ART === 'real' && isNotMade(sp)) {
+                sp = standIn;
+                complete = false;
+              } else {
+                this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
+                if (exact) exactBuilds++;
+                else refines++;
+              }
             }
           } else {
             // Nothing to stand in: build within the frame's first-build budget, else a placeholder for now.
@@ -657,6 +664,12 @@ export class TerrainLayer {
               continue;
             }
             sp = this.build(map, c, exact ? scale : bucket, env, r);
+            if (import.meta.env.VITE_ART === 'real' && isNotMade(sp)) {
+              this.drawPlaceholder(ctx, map, c, r, scale, offX, offY);
+              this.placeholders++;
+              complete = false;
+              continue;
+            }
             this.images.set(exact ? base + EXACT_SLOT : base + bi, sp);
             firstBuilds++;
           }
@@ -728,7 +741,12 @@ export class TerrainLayer {
       if (import.meta.env.VITE_ART === 'real' && env.cover?.(c)) continue;
       const key = c * KEYS_PER_CHUNK + r * 4 + bi;
       if (this.images.peek(key)) continue;
-      this.images.set(key, this.build(map, c, bucket, env, r, g));
+      if (import.meta.env.VITE_ART === 'real') {
+        // Realistic build: refused room, nothing was built (and prefetch is spare work: stop for this frame).
+        const sp = this.build(map, c, bucket, env, r, g);
+        if (isNotMade(sp)) return false;
+        this.images.set(key, sp);
+      } else this.images.set(key, this.build(map, c, bucket, env, r, g));
       if (import.meta.env.VITE_ART === 'real' && this.coverFreed) this.coverFreed[c] = 0;
       this.prefetched++;
       return true;

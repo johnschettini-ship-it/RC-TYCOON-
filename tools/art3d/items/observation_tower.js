@@ -1,14 +1,18 @@
 // Observation Tower (gentle flat ride, 2 x 2 tiles, 32 m): a white steel mast with blue bands and a glazed ring
 // cabin for 8 seated riders that climbs the mast and comes back down once per turn (today's `wave(angle)`), on a
-// square concrete pad with a timber boarding deck, a railing with the entrance at the front and an operator's booth.
+// square concrete pad with a timber boarding deck, a railing with the entrance at the front and the exit at the back
+// on the sim's gate column (towerMotion.js TOWER_GATES), and an operator's booth.
 // The motion is not a rotation, so the 16 even angle slots are 16 time steps of the lift (towerMotion.js timeKeys);
 // the game turns 2 turns per run (REVOLUTIONS default), so the cabin rises twice per run and ends at the deck.
 // Steps at the same height share a picture (9 heights); empty, the ride is at rest (the game runs a ride only with
-// riders): one picture. Front (entrance, booth): one set per view turn.
+// riders): one picture. Front (entrance, exit, booth): one set per view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
-import { HEIGHT_Q, heightStep, towerKeys } from './towerMotion.js';
+import { HEIGHT_Q, heightStep, towerKeys, TOWER_GATES } from './towerMotion.js';
+
+const G = TOWER_GATES.observation_tower;
 
 const MAST_R = 0.55;
 const MAST_TOP = 29.4;
@@ -23,26 +27,34 @@ function build() {
   const root = new THREE.Group();
   const navy = new THREE.MeshPhysicalMaterial({ map: K.tx.paint.map, color: '#20577f', metalness: 0.35, roughness: 0.45, clearcoat: 0.5 });
   const sky = new THREE.MeshPhysicalMaterial({ map: K.tx.paint.map, color: '#3f9fd2', metalness: 0.3, roughness: 0.4, clearcoat: 0.5 });
-  // pad, deck, railing (entrance gap at the front, +z)
+  // pad, deck, railing with the entrance gap where the sim's gate column crosses it at the front (+z) and the exit
+  // gap where it crosses at the back (TOWER_GATES)
   root.add(M(new THREE.BoxGeometry(7.7, 0.25, 7.7), mat.concrete).translateY(0.125));
   root.add(M(new THREE.CylinderGeometry(3.55, 3.6, 0.13, 64), mat.deck).translateY(0.315));
   const RR = 3.45;
   const N_RAIL = 40;
+  const gaps = [G.entrance, G.exit].map(([x, z]) => Math.atan2(z, x));
+  const inGap = (a) => gaps.some((g) => Math.abs(Math.atan2(Math.sin(a - g), Math.cos(a - g))) < 0.32);
   for (let i = 0; i < N_RAIL; i++) {
     const a0 = (i / N_RAIL) * Math.PI * 2, a1 = ((i + 1) / N_RAIL) * Math.PI * 2;
-    const mid = (a0 + a1) / 2;
-    if (Math.abs(mid - Math.PI / 2) < 0.32) continue; // the entrance
+    if (inGap((a0 + a1) / 2)) continue;
     const p0 = V(Math.cos(a0) * RR, 0.38, Math.sin(a0) * RR), p1 = V(Math.cos(a1) * RR, 0.38, Math.sin(a1) * RR);
     root.add(rod(p0, p0.clone().setY(1.43), 0.028, mat.stainless, 6));
     root.add(rod(p0.clone().setY(1.43), p1.clone().setY(1.43), 0.03, mat.stainless, 6));
     root.add(rod(p0.clone().setY(0.9), p1.clone().setY(0.9), 0.018, mat.stainless, 6));
   }
-  // entrance arch with a sign board
-  for (const s of [-1, 1]) root.add(M(new THREE.BoxGeometry(0.14, 2.5, 0.14), navy).translateX(s * 1.15).translateY(1.6).translateZ(RR));
-  root.add(M(new THREE.BoxGeometry(2.6, 0.42, 0.12), sky).translateY(2.75).translateZ(RR));
-  // operator's booth on the front-left corner of the pad
+  // entrance and exit arches over the gaps, facing out, with a sign board (the exit's is smaller, white)
+  gaps.forEach((a, k) => {
+    const arch = new THREE.Group();
+    arch.position.set(Math.cos(a) * RR, 0, Math.sin(a) * RR);
+    arch.rotation.y = Math.PI / 2 - a; // local +z points out
+    root.add(arch);
+    for (const s of [-1, 1]) arch.add(M(new THREE.BoxGeometry(0.14, 2.5, 0.14), navy).translateX(s * 1.15).translateY(1.6));
+    arch.add(k === 0 ? M(new THREE.BoxGeometry(2.6, 0.42, 0.12), sky).translateY(2.75) : M(new THREE.BoxGeometry(2.0, 0.3, 0.1), mat.steelWhite).translateY(2.7));
+  });
+  // operator's booth on the front-right corner of the pad, clear of the gate column
   const booth = new THREE.Group();
-  booth.position.set(-3.05, 0.25, 3.05);
+  booth.position.set(3.05, 0.25, 3.05);
   booth.rotation.y = Math.PI / 4;
   booth.add(M(new THREE.BoxGeometry(1.1, 1.0, 1.1), mat.whiteTimber).translateY(0.5));
   booth.add(M(new THREE.BoxGeometry(1.1, 0.95, 1.1), mat.glass, false).translateY(1.48));
@@ -115,8 +127,8 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = towerKeys('observation_tower');
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(heightStep('observation_tower', g.angle >> 1) / HEIGHT_Q, g.full) }));
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(heightStep('observation_tower', g.angle >> 1) / HEIGHT_Q, g.full) }));
     B.log(`observation_tower: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'observation_tower', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'observation_tower', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

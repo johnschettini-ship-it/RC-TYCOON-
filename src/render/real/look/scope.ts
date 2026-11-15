@@ -14,7 +14,11 @@ import type { RealKind, SetKey } from '../indexFormat';
 import type { LookCore } from './core';
 import type { Combo, ItemRec, RealSets, ScopeObject } from './types';
 
-/** View scope (spec §5.4.2(d)): objects inside the view plus this many screens on each side are wanted. */
+/**
+ * View scope (spec §5.4.2(d)): objects inside the view plus this many screens on each side are wanted. Objects on
+ * screen are wanted 'now'; the ones only in the margin 'ahead', at density 2 (owner decision 2026-11-15): they queue behind every
+ * set on screen and are the first the ladder drops, so a turn or a full park decodes what is seen first.
+ */
 const SCOPE_MARGIN = 1;
 /**
  * The scoped objects are found for this much more on each side (screens), and reused while the view with its margin
@@ -73,6 +77,13 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
   let scopedRot = -1;
   let scopedObjects = 0;
   let marks = new Uint8Array(0);
+  /** The scoped objects with their screen points at `scopedRot`, for the on-screen split. */
+  let scopedAt: { o: ScopeObject; sx: number; sy: number }[] = [];
+  /** The last split: the combos of the objects on screen and of those only in the margin, for `splitView` and `scoped`. */
+  let split: { on: number[]; margin: number[] } = { on: [], margin: [] };
+  let splitOf: number[] | null = null;
+  const splitView = { x0: NaN, y0: NaN, x1: NaN, y1: NaN };
+  let seen = new Uint8Array(0);
   const affine: ViewAffine = viewAffine(0, 1, 1);
 
   /** What changes when the park's built objects change (not guests): lists, their last ids, track piece counts. */
@@ -177,11 +188,13 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     marks.fill(0);
     let n = 0;
     const out: number[] = [];
+    scopedAt = [];
     for (const o of objects) {
       const sx = viewPointSX(affine, o.fx, o.fy);
       const sy = viewPointSY(affine, o.fx, o.fy, o.z);
       if (sx + o.rx < x0 || sx - o.rx > x1 || sy + o.down < y0 || sy - o.up > y1) continue;
       n++;
+      scopedAt.push({ o, sx, sy });
       const { a, b, c } = o;
       if (a >= 0 && !marks[a]) { marks[a] = 1; out.push(a); }
       if (b >= 0 && !marks[b]) { marks[b] = 1; out.push(b); }
@@ -196,6 +209,32 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     return out;
   }
 
+  /**
+   * The scoped combos split into those of objects on screen (`view` itself) and those of objects only in the margin
+   * (a combo shared with an object on screen is on screen). Found again only when the view or the scope changes.
+   */
+  function splitScope(view: ViewRect): { on: number[]; margin: number[] } {
+    if (splitOf === scoped && view.x0 === splitView.x0 && view.y0 === splitView.y0 && view.x1 === splitView.x1 && view.y1 === splitView.y1) return split;
+    if (seen.length < combos.length) seen = new Uint8Array(combos.length * 2);
+    else seen.fill(0);
+    const on: number[] = [];
+    const margin: number[] = [];
+    const inView = (e: { o: ScopeObject; sx: number; sy: number }): boolean =>
+      !(e.sx + e.o.rx < view.x0 || e.sx - e.o.rx > view.x1 || e.sy + e.o.down < view.y0 || e.sy - e.o.up > view.y1);
+    for (const e of scopedAt) {
+      if (!inView(e)) continue;
+      for (const c of [e.o.a, e.o.b, e.o.c]) if (c >= 0 && !seen[c]) { seen[c] = 1; on.push(c); }
+    }
+    for (const e of scopedAt) {
+      if (inView(e)) continue;
+      for (const c of [e.o.a, e.o.b, e.o.c]) if (c >= 0 && !seen[c]) { seen[c] = 2; margin.push(c); }
+    }
+    split = { on, margin };
+    splitOf = scoped;
+    splitView.x0 = view.x0; splitView.y0 = view.y0; splitView.x1 = view.x1; splitView.y1 = view.y1;
+    return split;
+  }
+
   return {
     prepare(world, rot, view, density) {
       const sig = sigOf(world);
@@ -208,7 +247,8 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
         lastPathScan = core.frameNo;
         scanPathItems(world);
       }
-      const inView = scope(world, rot, view);
+      scope(world, rot, view);
+      const { on, margin } = splitScope(view);
       const ahead = ((rot + 1) % 4) as ViewRotation;
       const now = new Set<SetKey>();
       const later = new Set<SetKey>();
@@ -242,11 +282,27 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
           }
         }
       };
-      // Ground first (its sets decode first), then the objects in scope, then guests, staff and path items.
+      /**
+       * Objects only in the scope's margin (not drawn yet): their turn and the ahead turn, ahead and at density 2 only,
+       * like the ahead turn (a quarter of the size: a pan shows them at once and sharpens as their density-4 sets land,
+       * and big density-4 margin decodes do not hold the two decode slots when a turn starts).
+       */
+      const wantMargin = (ids: readonly number[]): void => {
+        for (const id of ids) {
+          const { rec, everyTurn, turn } = combos[id] as Combo;
+          for (const t of everyTurn ? [0, 1, 2, 3] : [turn + rot, turn + ahead]) {
+            const k = resolveAt(rec, (t % 4) as ViewRotation, 2);
+            if (k !== undefined) later.add(k);
+          }
+        }
+      };
+      // Ground first (its sets decode first), then the objects on screen, guests, staff and path items, then the
+      // objects in the scope's margin (ahead).
       want(always.slice(0, groundItems.length));
-      want(inView);
+      want(on);
       want(always.slice(groundItems.length));
       want(pathCombos);
+      wantMargin(margin);
       // The card pictures: one small set, always loaded (src/render/real/cards.ts).
       if (core.has(CARD_SET)) now.add(CARD_SET);
       for (const k of twins) now.delete(k);

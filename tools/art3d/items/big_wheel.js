@@ -2,11 +2,12 @@
 // with the gondolas. The wheel turns by the game's ride angle (32 steps per turn); 16 gondolas in 4 colours, and
 // the riders of gondola i copied from gondola i mod 4, so the wheel repeats every 90 degrees: the phone's 16 even
 // angles need 4 pictures per occupancy. Not round, so one set per sprite rotation (boarding steps at the front).
-import { THREE, kit, placeOnFootprint, bakeObject, rideKeys } from './common.js';
+import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { BIG_WHEEL_PERIOD, bigWheelKeys, d2Api } from './flatRides.js';
 import { ferrisWheel } from '../rides.js';
 
 const N = 16;
-const PERIOD_STEPS = 8; // 90 degrees in game angle steps (32 per turn)
+const PERIOD_STEPS = BIG_WHEEL_PERIOD; // 90 degrees in game angle steps (32 per turn)
 
 function build() {
   const K = kit();
@@ -37,9 +38,9 @@ export default {
   bake(B) {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
-    const groups = rideKeys('big_wheel', [0], (a, _s, full) => `${a % PERIOD_STEPS}:${full ? 1 : 0}`);
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(((g.angle % PERIOD_STEPS) / 32) * Math.PI * 2, g.full) }));
+    const groups = bigWheelKeys(); // flatRides.js: the pictures, and density 2's
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(((g.angle % PERIOD_STEPS) / 32) * Math.PI * 2, g.full) }));
     B.log(`big_wheel: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'big_wheel', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'big_wheel', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

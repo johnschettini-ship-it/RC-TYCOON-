@@ -2,13 +2,14 @@
 // horses in two alternating designs, 5 inner horses, every ring, rib, stripe and bulb count a divisor of 72 degrees),
 // so 16 pictures 4.5 degrees apart show every angle the game asks for, and, being round, one set serves all four
 // view turns (rot 'all'; a turn only shifts the phase). Scaled to fit its 12 m footprint.
-import { THREE, kit, placeOnFootprint, fitScale, bakeObject, rideKeys } from './common.js';
+import { THREE, kit, placeOnFootprint, fitScale, bakeObject } from './common.js';
+import { CAROUSEL, carouselKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
 
 const R = 5.8;
-const PERIOD = (Math.PI * 2) / 5; // 72 degrees
-const STEPS = 16; // pictures per period (4.5 degrees apart)
+const PERIOD = CAROUSEL.period; // 72 degrees
+const STEPS = CAROUSEL.steps; // pictures per period (4.5 degrees apart)
 
 function build() {
   const K = kit();
@@ -89,14 +90,13 @@ export default {
   bake(B) {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
-    // picture id = index of the angle inside one 72 degree period
-    const pick = (a, _s, full) => `${Math.round((((a / 32) * Math.PI * 2) % PERIOD) / (PERIOD / STEPS)) % STEPS}:${full ? 1 : 0}`;
-    const groups = rideKeys('carousel', [0], pick);
+    // picture id = index of the angle inside one 72 degree period (flatRides.js carouselKeys, with density 2's)
+    const groups = carouselKeys();
     const pictures = [...groups.entries()].map(([id, g]) => {
       const p = Number(id.split(':')[0]);
-      return { keys: g.keys, pose: () => { m.spin.rotation.y = (p * PERIOD) / STEPS; for (const r of m.riders) r.visible = g.full; } };
+      return { keys: g.keys, keys2: g.keys2, pose: () => { m.spin.rotation.y = (p * PERIOD) / STEPS; for (const r of m.riders) r.visible = g.full; } };
     });
     B.log(`carousel: scale ${m.scale.toFixed(3)}, ${pictures.length} pictures`);
-    bakeObject(B, { kind: 'ride', item: 'carousel', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'carousel', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

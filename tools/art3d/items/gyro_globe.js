@@ -6,6 +6,7 @@
 // slots, 16 pictures full and one at rest empty (the game runs a ride only with riders; towerMotion.js cycleKeys),
 // and the game's 2 turns per run (REVOLUTIONS default) end where they started. Round, with no entrance (a ring of bollards): one set serves every view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
 import { gyroAngles, towerKeys } from './towerMotion.js';
@@ -131,8 +132,8 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = towerKeys('gyro_globe');
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(g.angle, g.full) }));
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle, g.full) }));
     B.log(`gyro_globe: ${pictures.length} pictures`);
-    bakeObject(B, { kind: 'ride', item: 'gyro_globe', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'gyro_globe', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

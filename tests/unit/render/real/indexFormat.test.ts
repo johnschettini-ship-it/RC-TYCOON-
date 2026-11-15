@@ -92,6 +92,42 @@ describe('checkIndex', () => {
     const i = clone(); i.sets = i.sets.filter((s) => s.key !== 'ride:carousel:d2:r2');
     expect(problems(i).some((p) => p.includes('missing rotation 2'))).toBe(true);
   });
+  it('a ride without its shadow set (the towers lost theirs to a blank render, batch 1 fix)', () => {
+    const i = clone(); i.sets = i.sets.filter((s) => s.kind !== 'shadow');
+    expect(problems(i).filter((p) => p.includes('no shadow set')).sort()).toEqual([0, 1, 2, 3].map((r) => `ride:carousel:d2:r${r}: no shadow set`));
+  });
+  it('a shadow set per turn covers only its own turn; an object baked for every turn takes per-turn shadows only for every turn', () => {
+    const i = clone();
+    const sh = i.sets.find((s) => s.kind === 'shadow')!;
+    sh.rot = 1; sh.key = setKey('shadow', 'carousel', 2, 1);
+    expect(problems(i).filter((p) => p.includes('no shadow set')).sort()).toEqual([0, 2, 3].map((r) => `ride:carousel:d2:r${r}: no shadow set`));
+    i.sets = i.sets.filter((s) => s.kind === 'shadow' || s.key === 'ride:carousel:d2:r0');
+    const r = i.sets.find((s) => s.kind === 'ride')!; r.rot = 'all'; r.key = setKey('ride', 'carousel', 2, 'all');
+    // An object baked for every turn with shadows per turn needs one for every turn (fix round 1, M2): one is not enough.
+    expect(problems(i, filesOf(i)).filter((p) => p.includes('no shadow set'))).toEqual(['ride:carousel:d2:rall: no shadow set']);
+    const one = i.sets.find((s) => s.kind === 'shadow')!;
+    for (const t of [0, 2, 3] as const) i.sets.push({ ...structuredClone(one), rot: t, key: setKey('shadow', 'carousel', 2, t) });
+    expect(problems(i, filesOf(i)).filter((p) => p.includes('no shadow set'))).toEqual([]);
+  });
+  it('a set lists the same frame keys at both densities, though density 2 may have fewer pictures (d2 steps)', () => {
+    // density 4 beside the fixture's density 2, for every set
+    const i = clone();
+    i.densities = [2, 4];
+    i.sets = [...i.sets, ...i.sets.map((s) => ({ ...structuredClone(s), density: 4 as const, key: setKey(s.kind, s.item, 4, s.rot) }))];
+    expect(problems(i)).toEqual([]);
+    // density 2 shows both frames of r0 with one picture: still the same keys, fine
+    const low = i.sets.find((s) => s.key === 'ride:carousel:d2:r0')!;
+    const [k0, k1] = Object.keys(low.frames) as [string, string];
+    low.frames[k1] = { ...low.frames[k0]! };
+    expect(problems(i)).toEqual([]);
+    // a key density 2 does not list, and one density 4 does not
+    delete low.frames[k1];
+    low.frames['carousel:f9:occ0'] = { ...low.frames[k0]! };
+    expect(problems(i).sort()).toEqual([
+      `ride:carousel:d2:r0: 1 frame keys not at density 4 (carousel:f9:occ0)`,
+      `ride:carousel:d2:r0: 1 frame keys of density 4 missing at density 2 (${k1})`,
+    ].sort());
+  });
   it('rot all satisfies rotations', () => {
     const i = clone(); const r = i.sets.find((s) => s.kind === 'ride')!;
     i.sets = [r]; r.rot = 'all';

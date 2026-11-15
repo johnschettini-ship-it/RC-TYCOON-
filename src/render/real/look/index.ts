@@ -13,7 +13,8 @@
  * At density 4, an object whose density-4 set is still loading draws from its density-2 set when that one is ready
  * (scaled; counted by `soft()`, not by `incomplete()`), so a turn or a zoom never waits for density 4 (spec §5.4).
  * `prepare` wants the current turn at the chosen density ('now'), with the density-2 twin of each density-4 set not
- * ready yet ('now', first), and the ahead turn at density 2 only ('ahead').
+ * ready yet ('now', first), and the ahead turn at density 2 only ('ahead'). Objects only in the view scope's margin
+ * (off screen) are wanted 'ahead' at density 2 (`./scope.ts`): on-screen sets decode first and margin sets drop first.
  *
  * Sprites are atlas sprites: `image` is the decoded sheet and `sx`/`sy` the frame's rectangle in it. Tinted sprites
  * (sheet with a mask) point into the shared tint atlas (spec §5.7, Task 4, `../tintAtlas.ts`): each (frame, colour)

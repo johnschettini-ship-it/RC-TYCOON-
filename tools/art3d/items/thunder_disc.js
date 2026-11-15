@@ -6,6 +6,7 @@
 // entrance at the front (+z), exit at the back. Frames: arenaKeys.thunderKeys (16 time steps per cycle, 2 per
 // picture; the empty ride is one rest picture at the bottom). The track runs along x: rots [0, 1, 2, 3].
 import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { painted, gloss, slab, bulbs } from './arenaKit.js';
@@ -172,9 +173,9 @@ export default {
     const groups = thunderKeys();
     const pictures = [...groups.entries()].map(([id, g]) => {
       const s = stepOf(id, THUNDER_PICS);
-      return { keys: g.keys, pose: () => m.pose(s.t, s.full) };
+      return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(s.t, s.full) };
     });
     B.log(`thunder_disc: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'thunder_disc', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'thunder_disc', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

@@ -9,6 +9,7 @@
 // sprite rotation (rots [0,1,2,3]).
 // Model frame: long axis along z (the footprint's 5 tiles at rotation 0), axle along x.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { shipKeys, shipTheta, GATES } from './swingers.js';
@@ -240,9 +241,9 @@ export default {
     const groups = shipKeys();
     const pictures = [...groups.entries()].map(([id, g]) => {
       const p = Number(id.split(':')[0]);
-      return { keys: g.keys, pose: () => m.pose(p, g.full) };
+      return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(p, g.full) };
     });
     B.log(`pendulum_ship: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(B, { kind: 'ride', item: 'pendulum_ship', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'pendulum_ship', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

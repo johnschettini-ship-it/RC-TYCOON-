@@ -24,6 +24,8 @@ export interface Sprite {
   scale: number;
   sx?: number;
   sy?: number;
+  /** Realistic build: the answer of a build refused room (canvas.ts `notMadeSprite`): drawn as nothing, never cached. */
+  notMade?: boolean;
 }
 
 const hashMemo = new Map<string, number>();
@@ -197,6 +199,8 @@ export class SpriteCache {
   }
 
   set(key: number, sprite: Sprite): void {
+    // Realistic build: a build refused room (canvas.ts classicGate) is not kept; the next frame builds it again.
+    if (import.meta.env.VITE_ART === 'real' && sprite.notMade) return;
     const old = this.map.get(key);
     if (old) {
       this.pixels -= old.sprite.w * old.sprite.h;

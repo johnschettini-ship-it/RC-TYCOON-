@@ -13,9 +13,12 @@ export function rotY(p, phi) {
   return { x: p.x * c + p.z * s, z: -p.x * s + p.z * c };
 }
 
+// `d2Step` (flatRides.js cycleD2): density 2 floors a full frame's slot to this many slots. 2 for all four: every full
+// picture stays, the empty ride shows its rest picture (half the pictures, controller ruling 2026-11-15).
+
 // ------------------------------------------------------------------ teacup_twirl
 export const TEACUP = {
-  period: 16, symmetry: Math.PI, subRing: 2.95, cupRing: 0.9,
+  period: 16, d2Step: 2, symmetry: Math.PI, subRing: 2.95, cupRing: 0.9,
   subAngles: [0, 1, 2, 3].map((j) => (j / 4) * TAU + TAU / 8),
   cupAngles: [0, Math.PI],
 };
@@ -40,7 +43,7 @@ export function teacupParts(a) {
 
 // ------------------------------------------------------------------ rocket_rounds
 export const ROCKET = {
-  period: 16, symmetry: Math.PI, n: 6, pivotR: 1.2, pivotY: 1.55, arm: 3.25,
+  period: 16, d2Step: 2, symmetry: Math.PI, n: 6, pivotR: 1.2, pivotY: 1.55, arm: 3.25,
   aMin: (-12 * Math.PI) / 180, aMax: (32 * Math.PI) / 180,
 };
 /** Drum yaw and the arm angle of rocket i: up twice per revolution, each rocket its own share. */
@@ -62,7 +65,7 @@ export function rocketParts(a) {
 }
 
 // ------------------------------------------------------------------ kiddie_cars
-export const KIDDIE = { period: 16, symmetry: Math.PI, n: 6, lane: 3.9 };
+export const KIDDIE = { period: 16, d2Step: 2, symmetry: Math.PI, n: 6, lane: 3.9 };
 export function kiddieAngles(a) {
   return { spin: TAU * a };
 }
@@ -77,7 +80,7 @@ export function kiddieParts(a) {
 }
 
 // ------------------------------------------------------------------ merry_mill (a front: baked per view turn)
-export const MILL = { period: 8, symmetry: 0, sails: 4, sail: 4.8, hubY: 6.8 };
+export const MILL = { period: 8, d2Step: 2, symmetry: 0, sails: 4, sail: 4.8, hubY: 6.8 };
 /** Sail wheel angle about the windshaft (rotation.z of the wheel). */
 export function millAngles(a) {
   return { sails: -TAU * a + Math.PI / 4 };

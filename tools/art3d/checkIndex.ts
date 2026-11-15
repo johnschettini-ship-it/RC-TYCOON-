@@ -72,6 +72,36 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
     if (g.rots.has('all')) continue;
     for (const r of ['0', '1', '2', '3']) if (!g.rots.has(r)) problems.push(`${id}: missing rotation ${r}`);
   }
+
+  // every placed object (ride, stall, scenery) has its shadow: same item and density, its turn or 'all'. An object
+  // baked for every turn (rot 'all') takes shadows per turn instead (a path item's shadow is turned by its side), but
+  // then one for every turn: a lost one would leave that side drawing today's shadow (fix round 1, M2). A shadow the
+  // bake lost (empty picture) left the object drawing today's shadow in the game, which no other check saw.
+  const shadows = new Map<string, Set<string>>();
+  for (const set of index.sets) if (set.kind === 'shadow') {
+    const id = `${set.item}:d${set.density}`;
+    shadows.set(id, (shadows.get(id) ?? new Set<string>()).add(String(set.rot)));
+  }
+  for (const set of index.sets) {
+    if (set.kind !== 'ride' && set.kind !== 'stall' && set.kind !== 'scenery') continue;
+    const rots = shadows.get(`${set.item}:d${set.density}`);
+    const ok = !!rots && (rots.has('all') || rots.has(String(set.rot)) || (set.rot === 'all' && ['0', '1', '2', '3'].every((r) => rots.has(r))));
+    if (!ok) problems.push(`${set.key}: no shadow set`);
+  }
+  // The reader looks a frame key up at whichever density it draws (a density-4 set's twin stands in for it, the cap
+  // lowers it), so a set's two densities list the same frame keys, even where density 2 has fewer pictures (rides).
+  const byTurn = new Map<string, Set<string>>();
+  for (const set of index.sets) if (set.density === 4) byTurn.set(`${set.kind}:${set.item}:r${set.rot}`, new Set(Object.keys(set.frames)));
+  for (const set of index.sets) {
+    if (set.density !== 2) continue;
+    const up = byTurn.get(`${set.kind}:${set.item}:r${set.rot}`);
+    if (!up) continue;
+    const low = Object.keys(set.frames);
+    const missing = [...up].filter((k) => !(k in set.frames));
+    const extra = low.filter((k) => !up.has(k));
+    if (missing.length) problems.push(`${set.key}: ${missing.length} frame keys of density 4 missing at density 2 (${missing.slice(0, 3).join(', ')})`);
+    if (extra.length) problems.push(`${set.key}: ${extra.length} frame keys not at density 4 (${extra.slice(0, 3).join(', ')})`);
+  }
   return problems;
 }
 

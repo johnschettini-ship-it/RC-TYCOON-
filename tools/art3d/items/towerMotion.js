@@ -3,7 +3,7 @@
 // the frame's angle slot (0-31), which is the fraction of the CURRENT turn: the game turns REVOLUTIONS[defId] ?? 2
 // turns per run (src/render/anim.ts; none of these rides has an entry, so 2), so every motion here is one whole
 // cycle per turn and plays twice per run, starting and ending at rest (slot 0) as today's look does.
-import { cycleKeys, timeKeys } from './flatRides.js';
+import { cycleD2, cycleKeys, timeD2, timeKeys } from './flatRides.js';
 
 const TAU = Math.PI * 2;
 
@@ -64,17 +64,49 @@ export function heightStep(item, step) {
  */
 export function towerKeys(item) {
   const full = (id) => (_a, f) => (f ? id(_a) : 'rest');
+  const step2 = TOWER_D2_STEP[item];
   switch (item) {
     case 'observation_tower':
-    case 'drop_tower':
+    case 'drop_tower': {
       // Steps at the same height show the same picture (the cabin or carriage is the only moving part): the lift
       // rises and falls symmetrically (steps t and 16 - t), the drop rests at the bottom and holds at the top (DROP_SNAP).
-      return timeKeys(item, {}, full((t) => `h${heightStep(item, t)}`));
+      const pick = full((t) => `h${heightStep(item, t)}`);
+      return timeD2(item, timeKeys(item, {}, pick), pick, step2);
+    }
     case 'gyro_globe':
-      return cycleKeys(item, { period: 32 }, full((a) => `a${a}`));
-    case 'spiral_slide':
-      return cycleKeys(item, { period: SLIDE_PERIOD }, full((a) => `a${a}`));
+    case 'spiral_slide': {
+      const opts = { period: item === 'gyro_globe' ? 32 : SLIDE_PERIOD };
+      const pick = full((a) => `a${a}`);
+      return cycleD2(item, cycleKeys(item, opts, pick), opts, pick, step2);
+    }
     default:
       throw new Error(`towerKeys: not a tower ride: ${item}`);
   }
 }
+
+/**
+ * Density 2 (flatRides.js withD2): the step a full frame is floored to, in its keys' unit (time steps for timeD2, angle
+ * slots for cycleD2). Lift and drop: every other time step (8 per turn). Spiral slide: every other picture (4 slots: 4
+ * per half turn, riders an eighth of the slide apart). Gyro globe: every
+ * picture, as density 4: its pod turns 3 times per turn, so 8 pictures would move it 135 degrees a step and the pod
+ * and the middle ring (90 degrees a step, half its symmetry) would read as turning backwards or not at all.
+ */
+export const TOWER_D2_STEP = { observation_tower: 2, drop_tower: 2, spiral_slide: 4, gyro_globe: 2 };
+
+/**
+ * Entrances and exits of the three 2 x 2 towers in the model frame ([x, z] metres, footprint centred, front at +z, x
+ * along the front edge): the sim's gates (src/sim/footprint.ts flatRideGates) are the front-row tile of column
+ * floor((w - 1) / 2) (src/data/catalog/flatRides.ts gateIndex) and the back-row tile of the same column; for w = 2
+ * that is column 0, centre x = -2 m. Each model puts its openings there:
+ *   observation_tower: the gaps and arches in the round railing (radius 3.45 m) where the column crosses it;
+ *   drop_tower: the gaps and arches in the square railing's front and back sides (z = +-3.3 m);
+ *   spiral_slide: the queue's mouth at the pad's front edge, and the spot on the run-out where riders land and step
+ *   off (the run-out ends SLIDE_RUNOUT metres further on, -x, still on the exit tile).
+ */
+export const TOWER_GATES = {
+  observation_tower: { entrance: [-2, 2.81], exit: [-2, -2.81] },
+  drop_tower: { entrance: [-2, 3.3], exit: [-2, -3.3] },
+  spiral_slide: { entrance: [-2, 3.3], exit: [-2, -2.75] },
+};
+/** Spiral slide: metres of run-out past the landing spot (TOWER_GATES.spiral_slide.exit), towards -x. */
+export const SLIDE_RUNOUT = 1.1;

@@ -9,6 +9,7 @@
 // Non-square, so one set per sprite rotation (rots [0,1,2,3]).
 // Model frame: long axis along x (the footprint's 4 tiles at rotation 0); the carpet orbits in the y-z plane.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { carpetKeys, carpetPhi, GATES } from './swingers.js';
@@ -177,9 +178,9 @@ export default {
     const groups = carpetKeys();
     const pictures = [...groups.entries()].map(([id, g]) => {
       const pos = Number(id.split(':')[0]);
-      return { keys: g.keys, pose: () => m.pose(carpetPhi(pos), g.full) };
+      return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(carpetPhi(pos), g.full) };
     });
     B.log(`magic_carpet: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(B, { kind: 'ride', item: 'magic_carpet', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'magic_carpet', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

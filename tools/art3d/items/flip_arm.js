@@ -9,6 +9,7 @@
 // plane beside the column), so one set per sprite rotation (rots [0,1,2,3]); see NON_ROUND in items/flatRides.js.
 // Model frame: the arm turns about the z axis; the column stands behind it (-z), the gondola reaches out to +z.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { flipKeys, flipPhi, GATES } from './swingers.js';
@@ -138,9 +139,9 @@ export default {
     const groups = flipKeys();
     const pictures = [...groups.entries()].map(([id, gr]) => {
       const slot = Number(id.split(':')[0]);
-      return { keys: gr.keys, pose: () => m.pose(flipPhi(slot), gr.full) };
+      return { keys: gr.keys, keys2: gr.keys2, pose: () => m.pose(flipPhi(slot), gr.full) };
     });
     B.log(`flip_arm: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(B, { kind: 'ride', item: 'flip_arm', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'flip_arm', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

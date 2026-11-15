@@ -51,19 +51,22 @@ export interface MemorySplit { sets: number; tints: number; ground: number; clas
 export const GROUND_HOLD = 'ground';
 /**
  * The holder id of today's picture caches (terrain chunks, static layer, today's sprites), held by the renderer every
- * frame so the ladder sees all picture memory (spec §5.4 item 4). Every holder id other than these two is a tint-atlas page (`tint:<page>`, `tint:scratch`).
+ * frame so the ladder sees all picture memory (spec §5.4 item 4). Since the owner decision of 2026-11-15 it grows only
+ * through `admit`: the static layer counts at the canvas size from the first frame (admitted before it is made), and
+ * today's sprites and chunks are admitted before they are made (src/render/canvas.ts classicGate). Every holder id
+ * other than these two is a tint-atlas page (`tint:<page>`, `tint:scratch`).
  */
 export const CLASSIC_HOLD = 'classic';
 
 /**
- * The reserve the game keeps inside its 128 MiB budget for holds that grow without asking (`classic`: today's picture
- * caches, recorded after the frame is drawn; `tint:scratch`: the tint scratch canvas, at most about one tall frame).
+ * The reserve the game keeps inside its 128 MiB budget for holds that grow without asking: `tint:scratch` (the tint
+ * scratch canvas, at most about one tall frame), and `classic` where the renderer has no `admit` to call (tests).
  * Decodes and admits fill to the budget less this, so a frame's growth of those holds stays under the budget (final
- * review I1: they had pushed resident memory to 127.7–127.9 MiB headless and could cross 128). 2 MiB: today's sprites
- * and the scratch canvas grew by well under 1 MiB a frame in the Task 3 and 4b bench runs. The static layer (about
- * 5 MiB on a phone) is bigger, but it is made when the view first stands still and kept while the canvas size holds
- * (a resize, or an eviction from today's caches, makes it again). A jump bigger than the reserve still lands above the
- * budget for that frame; the ladder makes room in the same `endFrame`.
+ * review I1: they had pushed resident memory to 127.7–127.9 MiB headless and could cross 128). 2 MiB: the scratch
+ * canvas grew by well under 1 MiB a frame in the Task 3 and 4b bench runs. `classic` itself no longer grows unasked
+ * (owner decision 2026-11-15): the static layer (about 5 MiB on a phone, more than this reserve: it was the late jump
+ * past it in the batch 1 `rides` scene) is counted at the canvas size from the first frame, and today's sprites are
+ * admitted before they are made.
  */
 export const HOLD_RESERVE_BYTES = 2 * 1024 * 1024;
 
@@ -226,9 +229,9 @@ export class SetManager {
    * Counts `bytes` made outside the set manager in the budget under `id`, replacing what `id` held before; 0 releases
    * it. Held bytes are resident, limit new decodes and add pressure. `upBytes` is what the same holding would take at
    * density 4 (default `bytes`): the cap lifts only when that fits too. Holders: RealLook's tint-atlas pages
-   * (`tint:<page>`) and RealGround's chunks (`ground`) come through `admit` before they are made; the tint scratch
-   * canvas (`tint:scratch`) and today's picture caches (`classic`, recorded by the renderer after the frame is drawn)
-   * are held here without asking, which is why decodes and admits leave `HOLD_RESERVE_BYTES` free.
+   * (`tint:<page>`), RealGround's chunks (`ground`) and today's picture caches (`classic`, held by the renderer at what
+   * it admitted) come through `admit` before they are made; the tint scratch canvas (`tint:scratch`) is held here
+   * without asking, which is why decodes and admits leave `HOLD_RESERVE_BYTES` free.
    */
   hold(id: string, bytes: number, upBytes = bytes): void {
     this.heldTotal -= this.held.get(id) ?? 0;
@@ -251,16 +254,25 @@ export class SetManager {
    * this frame (so the ladder makes room) and false is returned: draw the object as not ready yet.
    */
   admit(id: string, bytes: number, upBytes = bytes): boolean {
-    const now = this.held.get(id) ?? 0;
-    if (bytes <= now || this.committed() - now + bytes <= this.limit) {
-      this.hold(id, bytes, upBytes);
-      return true;
-    }
-    const grow = bytes - now;
+    if (this.tryAdmit(id, bytes, upBytes)) return true;
+    const grow = bytes - (this.held.get(id) ?? 0);
     const before = this.refusedById.get(id) ?? 0;
     if (grow > before) {
       this.refused += grow - before;
       this.refusedById.set(id, grow);
+    }
+    return false;
+  }
+
+  /**
+   * `admit` without the refusal: when it does not fit nothing changes and nothing counts as pressure. For memory the
+   * caller can do without (today's static layer) or will try to make room for itself first (today's sprites).
+   */
+  tryAdmit(id: string, bytes: number, upBytes = bytes): boolean {
+    const now = this.held.get(id) ?? 0;
+    if (bytes <= now || this.committed() - now + bytes <= this.limit) {
+      this.hold(id, bytes, upBytes);
+      return true;
     }
     return false;
   }

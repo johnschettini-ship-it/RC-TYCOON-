@@ -8,7 +8,7 @@
 // occupancy and view turn. (Earlier versions: a mill turning on its base needed 32 pictures, 40 MB per turn at
 // density 4; a mill always facing the viewer read wrong after a view turn.)
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
-import { cycleKeys } from './flatRides.js';
+import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { MILL, millAngles } from './spinnerMotion.js';
@@ -193,8 +193,9 @@ export default {
     const [w, d] = B.input.spec.footprintTiles;
     const m = build();
     const groups = cycleKeys('merry_mill', { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`);
-    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(g.angle / 32, g.full) }));
+    cycleD2('merry_mill', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, MILL.d2Step);
+    const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`merry_mill: ${pictures.length} pictures`);
-    bakeObject(B, { kind: 'ride', item: 'merry_mill', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'merry_mill', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

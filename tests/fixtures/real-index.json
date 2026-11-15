@@ -190,6 +190,31 @@
      "oy": -60
     }
    }
+  },
+  {
+   "key": "shadow:carousel:d2:rall",
+   "kind": "shadow",
+   "item": "carousel",
+   "density": 2,
+   "rot": "all",
+   "sheets": [
+    {
+     "file": "shadow-carousel-d2.webp",
+     "w": 128,
+     "h": 64
+    }
+   ],
+   "frames": {
+    "carousel": {
+     "sheet": "shadow-carousel-d2.webp",
+     "sx": 0,
+     "sy": 0,
+     "w": 96,
+     "h": 40,
+     "ox": -48,
+     "oy": -20
+    }
+   }
   }
  ],
  "bytes": {
