@@ -75,9 +75,9 @@ function build() {
   const flag = M(new THREE.PlaneGeometry(0.75, 0.4), std({ color: '#7fd0f0', roughness: 0.8, side: THREE.DoubleSide }));
   flag.position.set(0.38, 14.2, 0);
   root.add(flag);
-  // the chute: a helix from the right of the top deck, 2.25 turns down (right, front, left, back: its low last turn
-  // passes the door 3.2 m up) to the back, then a straight run-out to the left along the back row: riders land at the
-  // exit (G.exit) and the chute ends SLIDE_RUNOUT further on, inside the exit tile
+  // the chute: a helix from the right of the top deck, 2.25 turns down (the angle decreases: right, back, left, front;
+  // its low last turn passes the door 3.2 m up) to the back, then a straight run-out to the left along the back row:
+  // riders land at the exit (G.exit) and the chute ends SLIDE_RUNOUT further on, inside the exit tile
   const A_END = -Math.PI / 2;
   const pts = [];
   const NSP = 200;

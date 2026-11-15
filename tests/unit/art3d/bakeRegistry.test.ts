@@ -1,4 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES } from '../../../src/data/catalog';
 import { REAL_FALLBACK } from '../../../src/render/real/fallbacks';
@@ -69,13 +70,48 @@ describe('cache key covers the code an item is built from', () => {
     }
     return null;
   };
-  // runtime imports only: `import type` is erased and cannot change a picture
+  // Runtime imports only (`import type` is erased and cannot change a picture), read from the syntax tree: a regex
+  // comment strip took `items/*.js` inside a line comment of items/common.js for a block comment and swallowed the
+  // file's imports (re-review N1).
   const importsOf = (u: URL): string[] => {
-    const src = readFileSync(u, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const text = readFileSync(u, 'utf8');
+    const sf = ts.createSourceFile(u.pathname, text, ts.ScriptTarget.Latest, false, /\.ts$/.test(u.pathname) ? ts.ScriptKind.TS : ts.ScriptKind.JS);
     const out: string[] = [];
-    for (const m of src.matchAll(/(?:^|[^.\w])(?:import|export)\s(?!type\s)[^'"`;]*?from\s*['"](\.[^'"]+)['"]|(?:^|[^.\w])import\s*['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/gm)) out.push((m[1] ?? m[2] ?? m[3]) as string);
+    const add = (n: ts.Node | undefined): void => { if (n && ts.isStringLiteral(n) && n.text.startsWith('.')) out.push(n.text); };
+    const visit = (n: ts.Node): void => {
+      if (ts.isImportDeclaration(n)) { if (!n.importClause?.isTypeOnly) add(n.moduleSpecifier); }
+      else if (ts.isExportDeclaration(n)) { if (!n.isTypeOnly) add(n.moduleSpecifier); }
+      else if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword) add(n.arguments[0]);
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
     return out;
   };
+  /** One-line relative runtime imports and re-exports, counted line by line with no comment handling: a floor for `importsOf`. */
+  const naiveImportCount = (u: URL): number =>
+    readFileSync(u, 'utf8').split('\n').filter((l) => /^\s*(?:import|export)\s+(?!type\s)[^;'"]*?from\s*['"]\.|^\s*import\s*['"]\./.test(l)).length;
+
+  it('reads every import of items/common.js, whose first line comment holds `/*` (N1)', () => {
+    const common = new URL('items/common.js', dir);
+    expect(readFileSync(common, 'utf8').split('\n')[0]).toContain('/*');
+    expect(importsOf(common)).toEqual(expect.arrayContaining(['../kit.js', './rideKeys.js', '../../../src/render/real/indexFormat']));
+  });
+
+  it('finds no fewer imports in any bake module than a line-by-line count does', () => {
+    const walk = (d: URL): URL[] => readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? (e.name === 'vendor' ? [] : walk(new URL(`${e.name}/`, d))) : /\.(js|ts|mjs)$/.test(e.name) ? [new URL(e.name, d)] : []);
+    const files = walk(dir);
+    expect(files.length).toBeGreaterThan(30);
+    for (const f of files) expect(importsOf(f).length, f.pathname.replace(root.pathname, '')).toBeGreaterThanOrEqual(naiveImportCount(f));
+  });
+
+  it('items/index.js imports exactly the ITEM_LIST modules (N2)', async () => {
+    const { ITEM_LIST } = await load('items/registry.js');
+    const index = new URL('items/index.js', dir);
+    const got = importsOf(index).map((s) => new URL(s, index).href).sort();
+    const want = ITEM_LIST.map((it: { file: string }) => new URL(it.file, dir).href).sort();
+    expect(got).toEqual([...new Set(want)].sort());
+  });
 
   // Files not followed further, each with the reason its own imports cannot change a picture and the names taken
   // from it. `listed`: the file itself is in SHARED or deps (its own text can change a picture).
