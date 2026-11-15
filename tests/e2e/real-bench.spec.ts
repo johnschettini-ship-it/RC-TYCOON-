@@ -35,12 +35,12 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
 
     const card = page.getByTestId('real-bench-card');
     await expect(card).toBeVisible({ timeout: 340_000 });
-    // The four parks and the scale park (round 3 item 7).
-    for (const id of ['build1', 'build2', 'phone', 'coaster', 'scale']) await expect(card.locator(`table[data-scene="${id}"]`)).toBeVisible();
-    await expect(card.locator('tr[data-check="S3"]')).toHaveCount(5);
-    await expect(card.locator('tr[data-check="S6g"]')).toHaveCount(5);
+    // The five parks and the scale park (round 3 item 7).
+    for (const id of ['build1', 'build2', 'phone', 'coaster', 'rides', 'scale']) await expect(card.locator(`table[data-scene="${id}"]`)).toBeVisible();
+    await expect(card.locator('tr[data-check="S3"]')).toHaveCount(6);
+    await expect(card.locator('tr[data-check="S6g"]')).toHaveCount(6);
     const result = await page.evaluate(() => (window as unknown as { __tcBench: { scenes: Array<{ id: string; error?: string; turns: unknown[]; placements: number }> } }).__tcBench);
-    expect(result.scenes.map((s) => s.id)).toEqual(['build1', 'build2', 'phone', 'coaster', 'scale']);
+    expect(result.scenes.map((s) => s.id)).toEqual(['build1', 'build2', 'phone', 'coaster', 'rides', 'scale']);
     for (const s of result.scenes) {
       expect(s.error).toBeUndefined();
       expect(s.turns).toHaveLength(4);

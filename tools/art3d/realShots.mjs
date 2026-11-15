@@ -5,7 +5,7 @@
 // fallbacksUsed, decoded memory, the set manager's cap events, then the page console.
 //   VITE_ART=real npx vite build --outDir <dir> && cp -r dist-art/real <dir>/art/real
 //   node tools/art3d/realShots.mjs <dir> <out dir> <scene>:<zoom>:<rotation>[:<x>,<y>[:<name>]] ...
-// scene: coaster | build2 | build1 | phone. Env: HIDE_UI=1 hides the interface (art only); ART=classic;
+// scene: coaster | build2 | build1 | phone | rides. Env: HIDE_UI=1 hides the interface (art only); ART=classic;
 // PATCH='<js>' runs in the page before the shots (e.g. stub look.rail to compare with today's art).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +18,7 @@ const SAVES = {
   build2: ['build2-128-3000-guests.tcsave.json', { x: 64, y: 64 }],
   build1: ['build1-2000-guests.tcsave.json', { x: 40, y: 30 }],
   phone: ['phone-800-guests.tcsave.json', { x: 40, y: 30 }],
+  rides: ['rides-18-flat-rides-300-guests.tcsave.json', { x: 32, y: 32 }],
 };
 const { port, server } = await serve(root);
 const browser = await chromium.launch();

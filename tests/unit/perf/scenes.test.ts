@@ -9,6 +9,10 @@ import { deserialize, GAME_VERSION, serialize, validateState } from '../../../sr
 import { canOpenTrackRide } from '../../../src/sim/rides/track/api';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { stepTick } from '../../../src/sim/tick';
+import { FLAT_RIDES } from '../../../src/data/catalog/flatRides';
+import { mapPointToWorld, tileCentreWorld } from '../../../src/input/camera';
+import { Content } from '../../../src/sim/map';
+import type { World } from '../../../src/sim/types';
 import { buildPerfScene, PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT } from '../../perf/scenes';
 
 const DIR = join(__dirname, '../../perf');
@@ -83,5 +87,85 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     expect(s.guests.length).toBeLessThanOrEqual(SCALE_SCENE.guests);
     for (let k = 0; k < 20; k++) stepTick(r.world);
     expect(validateState(r.world.state)).toBeNull();
+  });
+
+  /** Rides whose footprint (box of its 4 corners, game projection) is inside / touches the bench's phone view. */
+  function inView(world: World, zoom: number, rot: 0 | 1 | 2 | 3): { inside: number; touching: number } {
+    const map = world.state.map;
+    const f = PERF_SCENES.find((x) => x.id === 'rides')!.focus;
+    const c = tileCentreWorld(map, f.y * map.width + f.x, rot);
+    const hx = 390 / 2 / zoom;
+    const hy = 844 / 2 / zoom;
+    let inside = 0;
+    let touching = 0;
+    for (const r of world.state.rides) {
+      const def = FLAT_RIDES.find((d) => d.id === r.defId)!;
+      const pts = [[r.x, r.y], [r.x + def.w, r.y], [r.x, r.y + def.d], [r.x + def.w, r.y + def.d]].map(([a, b]) => mapPointToWorld(map, a as number, b as number, 0, rot));
+      const minX = Math.min(...pts.map((p) => p.sx));
+      const maxX = Math.max(...pts.map((p) => p.sx));
+      const minY = Math.min(...pts.map((p) => p.sy));
+      const maxY = Math.max(...pts.map((p) => p.sy));
+      if (minX >= c.sx - hx && maxX <= c.sx + hx && minY >= c.sy - hy && maxY <= c.sy + hy) inside++;
+      if (maxX >= c.sx - hx && minX <= c.sx + hx && maxY >= c.sy - hy && minY <= c.sy + hy) touching++;
+    }
+    return { inside, touching };
+  }
+
+  it('rides (phase 8c batch 1): each of the 18 flat rides once, open, connected, about 300 guests', { timeout: 60_000 }, () => {
+    const info = PERF_SCENES.find((x) => x.id === 'rides');
+    expect(info).toBeDefined();
+    const r = deserialize(readFileSync(join(DIR, info!.file), 'utf8'));
+    if (!r.ok) throw new Error(r.error);
+    const s = r.world.state;
+    const flat = s.rides.filter((x) => x.kind === 'flat');
+    expect(flat.map((x) => x.defId).sort()).toEqual(FLAT_RIDES.map((d) => d.id).sort());
+    expect(info!.flatRides).toBe(18);
+    expect(info!.trackRides).toBe(0);
+    // Paths: from the park entrance over footpath and queue tiles, every ride's entrance and exit tile is reached.
+    const reach = new Set<number>([s.map.entranceTile]);
+    const todo = [s.map.entranceTile];
+    while (todo.length > 0) {
+      const t = todo.pop() as number;
+      const x = t % s.map.width;
+      for (const n of [x > 0 ? t - 1 : -1, x < s.map.width - 1 ? t + 1 : -1, t - s.map.width, t + s.map.width]) {
+        if (n < 0 || n >= s.map.content.length || reach.has(n)) continue;
+        if (s.map.content[n] !== Content.Footpath && s.map.content[n] !== Content.Queue) continue;
+        reach.add(n);
+        todo.push(n);
+      }
+    }
+    for (const ride of flat) {
+      const def = FLAT_RIDES.find((d) => d.id === ride.defId)!;
+      expect(ride.status, ride.defId).toBe('open');
+      expect(ride.x + def.w, ride.defId).toBeLessThanOrEqual(s.map.width);
+      expect(ride.y + def.d, ride.defId).toBeLessThanOrEqual(s.map.height);
+      expect(ride.entrance, ride.defId).not.toBeNull();
+      expect(reach.has(ride.entrance!.outside), `${ride.defId} entrance`).toBe(true);
+      expect(reach.has(ride.exit!.outside), `${ride.defId} exit`).toBe(true);
+    }
+    expect(s.guests.length).toBeGreaterThanOrEqual(285);
+    expect(s.guests.length).toBeLessThanOrEqual(300);
+  });
+
+  it('rides: the bench camera sees the park (zoom 0.5 from the focus, 390 x 844)', { timeout: 60_000 }, () => {
+    const r = deserialize(readFileSync(join(DIR, PERF_SCENES.find((x) => x.id === 'rides')!.file), 'utf8'));
+    if (!r.ok) throw new Error(r.error);
+    // The bench holds zoom 0.5 at rotation 0 (rotation 2 is the same band, turned over): all 18 footprints inside.
+    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 18, touching: 18 });
+    // Rotations 1 and 3 turn the band across the narrow view: the view cannot hold 18 (it fits 12 tiles of
+    // |u-v| there); the measured counts (7 inside, 10 touching) are the floor.
+    for (const rot of [1, 3] as const) {
+      const v = inView(r.world, 0.5, rot);
+      expect(v.inside, `rot ${rot}`).toBeGreaterThanOrEqual(7);
+      expect(v.touching, `rot ${rot}`).toBeGreaterThanOrEqual(10);
+    }
+    // Zoom 2 at the focus (the bench's first and last zoom step): the narrow view sees a strip of the band.
+    expect(inView(r.world, 2, 0).touching).toBeGreaterThanOrEqual(6);
+  });
+
+  it('rides: the committed save is what buildPerfScene(rides) builds', { timeout: 120_000 }, () => {
+    const info = PERF_SCENES.find((x) => x.id === 'rides')!;
+    const fresh = serialize(buildPerfScene('rides'), GAME_VERSION, SCENE_SAVED_AT);
+    expect(readFileSync(join(DIR, info.file), 'utf8')).toBe(fresh);
   });
 });
