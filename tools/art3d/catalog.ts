@@ -24,21 +24,22 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   carousel: 8,
   big_wheel: 15,
   swing_tower: 18,
-  // Batch 1 (phase 8c): today's drawn height in px / STEP_PX (8) rounded to 0.5 m, so picking and gameplay sizes match.
+  // Batch 1 (phase 8c): the rule is today's drawn height in px / STEP_PX (8) rounded to 0.5 m, so picking and
+  // gameplay sizes match; a ride with a comment is a realistic-model exception (catalog.test.ts HEIGHT_EXCEPTIONS).
   teacup_twirl: 6.5,
-  bumper_cars: 7.5,
+  bumper_cars: 7.5, // realistic: a one-storey pavilion, crown sign to 7.5 m (today's px count the floor depth)
   rocket_rounds: 10.5,
   spiral_slide: 14.5,
   observation_tower: 32, // realistic: a ring-cabin observation tower (catalog.test.ts HEIGHT_EXCEPTIONS)
-  mirror_maze: 8,
+  mirror_maze: 8, // realistic: a 5.3 m pavilion with the crystal on its roof (today's px count the floor depth)
   haunted_manor: 14.5,
   pendulum_ship: 13, // Task 3: the bow finial at full swing (10 m axle, 7.4 m arms); see HEIGHT_EXCEPTIONS
-  thunder_disc: 11,
+  thunder_disc: 11, // the U-track's 8 m ends plus the lightning signs (today's px count the floor depth)
   drop_tower: 26,
   flip_arm: 13, // Task 3: the gondola's footrest at the top of the turn (7 m hub, 5 m arm)
   magic_carpet: 11.5, // Task 3: riders' heads at the top of the orbit (5.4 m hubs, 4.4 m arms)
-  kiddie_cars: 7,
-  merry_mill: 11.5,
+  kiddie_cars: 7, // realistic: a children's car ride, gold ball on a short mast (today's flag mast is drawn tall)
+  merry_mill: 11.5, // realistic: 4.8 m sails on a 6.8 m hub, so the lowest gondola boards at the deck
   gyro_globe: 14, // realistic: the gimbal stands on a short turntable pedestal (catalog.test.ts HEIGHT_EXCEPTIONS)
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {

@@ -77,7 +77,7 @@ describe('card pictures', () => {
     const ctx = fakeCtx();
     expect(draw(ctx, 'fizz_stand', 168, 120, 7)).toBe(false);
     expect(draw(ctx, 'mini_railway', 168, 120, 7)).toBe(false);
-    expect(draw(ctx, 'drop_tower', 168, 120, 7)).toBe(false);
+    expect(draw(ctx, 'wooden_coaster', 168, 120, 7)).toBe(false); // a classic item (not baked)
     expect(draw(ctx, 'big_wheel', 168, 120, 7)).toBe(false); // baked item, no frame in this set
     expect(cardPicture({ use: () => null })(ctx, 'carousel', 168, 120, 7)).toBe(false);
     expect(ctx.calls).toEqual([]);
