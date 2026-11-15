@@ -29,6 +29,10 @@ import spiral_slide from './spiral_slide.js';
 import pendulum_ship from './pendulum_ship.js';
 import magic_carpet from './magic_carpet.js';
 import flip_arm from './flip_arm.js';
+import bumper_cars from './bumper_cars.js';
+import mirror_maze from './mirror_maze.js';
+import haunted_manor from './haunted_manor.js';
+import thunder_disc from './thunder_disc.js';
 
 export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
-  observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm };
+  observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc };

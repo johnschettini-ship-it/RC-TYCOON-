@@ -26,14 +26,14 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   swing_tower: 18,
   // Batch 1 (phase 8c): today's drawn height in px / STEP_PX (8) rounded to 0.5 m, so picking and gameplay sizes match.
   teacup_twirl: 6.5,
-  bumper_cars: 13.5,
+  bumper_cars: 7.5,
   rocket_rounds: 10.5,
   spiral_slide: 14.5,
   observation_tower: 32, // realistic: a ring-cabin observation tower (catalog.test.ts HEIGHT_EXCEPTIONS)
-  mirror_maze: 10.5,
+  mirror_maze: 8,
   haunted_manor: 14.5,
   pendulum_ship: 13, // Task 3: the bow finial at full swing (10 m axle, 7.4 m arms); see HEIGHT_EXCEPTIONS
-  thunder_disc: 13.5,
+  thunder_disc: 11,
   drop_tower: 26,
   flip_arm: 13, // Task 3: the gondola's footrest at the top of the turn (7 m hub, 5 m arm)
   magic_carpet: 11.5, // Task 3: riders' heads at the top of the orbit (5.4 m hubs, 4.4 m arms)

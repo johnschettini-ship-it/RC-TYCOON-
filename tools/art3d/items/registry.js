@@ -12,6 +12,7 @@ export const SHARED = [
 const RIDE_DEPS = ['../../src/render/anim.ts', 'items/flatRides.js'];
 const TOWER_DEPS = [...RIDE_DEPS, 'items/towerMotion.js'];
 const SWINGER_DEPS = [...RIDE_DEPS, 'items/swingers.js', 'items/swingParts.js'];
+const ARENA_DEPS = [...RIDE_DEPS, 'items/arenaKeys.js', 'items/arenaKit.js'];
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = ['items/scenery.js'];
 
@@ -31,6 +32,7 @@ export const CARD_ITEMS = [
   { id: 'carousel', kind: 'ride' }, { id: 'swing_tower', kind: 'ride' }, { id: 'big_wheel', kind: 'ride' },
   { id: 'observation_tower', kind: 'ride' }, { id: 'drop_tower', kind: 'ride' }, { id: 'gyro_globe', kind: 'ride' }, { id: 'spiral_slide', kind: 'ride' },
   { id: 'pendulum_ship', kind: 'ride' }, { id: 'magic_carpet', kind: 'ride' }, { id: 'flip_arm', kind: 'ride' },
+  { id: 'bumper_cars', kind: 'ride' }, { id: 'mirror_maze', kind: 'ride' }, { id: 'haunted_manor', kind: 'ride' }, { id: 'thunder_disc', kind: 'ride' },
   { id: 'snack_shack', kind: 'stall' },
   ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
   { id: 'steel_coaster', kind: 'track' },
@@ -53,6 +55,10 @@ export const ITEM_LIST = [
   { id: 'pendulum_ship', file: 'items/pendulum_ship.js', catalog: ['ride', 'pendulum_ship'], deps: SWINGER_DEPS },
   { id: 'magic_carpet', file: 'items/magic_carpet.js', catalog: ['ride', 'magic_carpet'], deps: SWINGER_DEPS },
   { id: 'flip_arm', file: 'items/flip_arm.js', catalog: ['ride', 'flip_arm'], deps: SWINGER_DEPS },
+  { id: 'bumper_cars', file: 'items/bumper_cars.js', catalog: ['ride', 'bumper_cars'], deps: ARENA_DEPS },
+  { id: 'mirror_maze', file: 'items/mirror_maze.js', catalog: ['ride', 'mirror_maze'], deps: ARENA_DEPS },
+  { id: 'haunted_manor', file: 'items/haunted_manor.js', catalog: ['ride', 'haunted_manor'], deps: ARENA_DEPS },
+  { id: 'thunder_disc', file: 'items/thunder_disc.js', catalog: ['ride', 'thunder_disc'], deps: ARENA_DEPS },
   { id: 'snack_shack', file: 'items/snack_shack.js', catalog: ['stall', 'snack_shack'] },
   { id: 'oak_round', file: 'items/oak_round.js', catalog: ['scenery', 'oak_round'], deps: SCENERY_DEPS },
   { id: 'pine_tall', file: 'items/pine_tall.js', catalog: ['scenery', 'pine_tall'], deps: SCENERY_DEPS },

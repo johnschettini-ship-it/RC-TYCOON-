@@ -18,6 +18,7 @@ const BAKED = [
   'steel_coaster',
   'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill',
   'pendulum_ship', 'magic_carpet', 'flip_arm',
+  'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc',
 ] as const;
 
 /** Unbaked items drawn with a baked stand-in. */

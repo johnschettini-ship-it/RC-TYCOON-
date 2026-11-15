@@ -36,6 +36,9 @@ describe('itemSpec', () => {
     pendulum_ship: { m: 13, why: 'real proportions in the 12 x 20 m footprint: 10 m axle, 7.4 m arms, 68 deg swing; the bow finial peaks at 13 m (today\'s 142 px sprite is drawn taller than its swing)' },
     magic_carpet: { m: 11.5, why: 'real proportions: 5.4 m hubs and 4.4 m arms keep the orbit inside the 12 m width and the carpet just above its boarding deck; riders\' heads peak at 11.5 m' },
     flip_arm: { m: 13, why: 'real proportions: 7 m hub and a 5 m arm keep the gondola inside the 12 m footprint and just above its deck; its footrest peaks at 13 m' },
+    bumper_cars: { m: 7.5, why: 'a real one-storey pavilion: 4.7 m clear under the fascia, crown sign to 7.5 m; 106 px counts the 4x4 floor depth' },
+    mirror_maze: { m: 8, why: 'a 5.3 m pavilion with the crystal on its roof stand to 8 m; 82 px counts the 3x3 floor depth' },
+    thunder_disc: { m: 11, why: 'U-track ends at 8 m (as today: 74 px / 8 = 9.25 m to the rail) plus the lightning signs; 106 px counts the floor depth' },
   };
 
   it('every height exception has a reason', () => {

@@ -40,13 +40,17 @@ import spiral_slide from './spiral_slide.js';
 import pendulum_ship from './pendulum_ship.js';
 import magic_carpet from './magic_carpet.js';
 import flip_arm from './flip_arm.js';
+import bumper_cars from './bumper_cars.js';
+import mirror_maze from './mirror_maze.js';
+import haunted_manor from './haunted_manor.js';
+import thunder_disc from './thunder_disc.js';
 
 /** The box a card picture fits, in density-2 px (about the card preview's 168 x 120 CSS px, less its padding). */
 export const CARD_W = 160;
 export const CARD_H = 114;
 
 const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
-  observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm };
+  observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc };
 
 /** The set (kind, rot) whose first picture is the card, by card kind. */
 const WANT = {
