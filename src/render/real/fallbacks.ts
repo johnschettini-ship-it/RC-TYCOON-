@@ -15,6 +15,7 @@ const BAKED = [
   'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole',
   'bench', 'bin',
   'steel_coaster',
+  'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc',
 ] as const;
 
 /** Unbaked items drawn with a baked stand-in. */

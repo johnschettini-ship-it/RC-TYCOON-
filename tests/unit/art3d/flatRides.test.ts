@@ -60,3 +60,69 @@ describe('timeKeys', () => {
     expect(pictureOf(m, keyAt('x', 6, true))).toBe(pictureOf(m, keyAt('x', 6, false)));
   });
 });
+
+// Task 5 (buildings and arenas): bumper_cars, thunder_disc (time steps), mirror_maze, haunted_manor (walk-throughs).
+describe('Task 5 ride frames', () => {
+  const RIDES: [string, string, number][] = [['bumper_cars', 'bumperKeys', 32], ['thunder_disc', 'thunderKeys', 32], ['mirror_maze', 'mirrorKeys', 8], ['haunted_manor', 'manorKeys', 8]];
+  for (const [id, fn, period] of RIDES) {
+    it(`${id}: slot 32 wraps to slot 0, frames run in order (period ${period})`, async () => {
+      const keys = await load('items/arenaKeys.js');
+      const m: Keys = keys[fn]();
+      periodOk(m, id, period, true);
+      periodOk(m, id, period, false);
+    });
+  }
+
+  it('bumper_cars and thunder_disc: a whole run (REVOLUTIONS) plays the time cycle a whole number of times, never backwards', async () => {
+    const keys = await load('items/arenaKeys.js');
+    const { rideFrameFor } = await import('../../../src/render/anim');
+    const { getFlatRideDef } = await import('../../../src/data/catalog');
+    for (const [id, fn, pics] of [['bumper_cars', 'bumperKeys', keys.BUMPER_PICS], ['thunder_disc', 'thunderKeys', keys.THUNDER_PICS]] as const) {
+      const def = getFlatRideDef(id);
+      if (!def) throw new Error(id);
+      const m: Keys = keys[fn]();
+      const at = (ticks: number): number => {
+        const f = rideFrameFor({ defId: id, cycle: { phase: 'running', ticks }, riders: [1] as never }, def);
+        const id2 = pictureOf(m, keyAt(id, f & 31, true));
+        return Number((id2 as string).slice(1));
+      };
+      // rest (start and end of a run) shows step 0
+      expect(at(0), id).toBe(0);
+      expect(at(def.cycleTicks), id).toBe(0);
+      let wraps = 0;
+      let last = 0;
+      for (let t = 1; t <= def.cycleTicks; t++) {
+        const s = at(t);
+        if (s < last) { wraps++; expect(last, `${id} tick ${t}: only the last step wraps`).toBe(pics - 1); expect(s).toBe(0); }
+        else expect(s - last, `${id} tick ${t}: no skipped picture`).toBeLessThanOrEqual(1);
+        last = s;
+      }
+      // REVOLUTIONS[id] ?? 2 (anim.ts): the ride ends where it started after exactly that many cycles
+      expect(wraps, id).toBe(2);
+      // the empty ride is one rest picture
+      const empty = new Set<string>();
+      for (let a = 0; a < 32; a++) empty.add(pictureOf(m, keyAt(id, a, false)) as string);
+      expect([...empty], id).toEqual(['rest']);
+    }
+  });
+
+  it('walk-throughs bake 4 light steps and one occupancy state', async () => {
+    const keys = await load('items/arenaKeys.js');
+    for (const fn of ['mirrorKeys', 'manorKeys']) {
+      const m: Keys = keys[fn]();
+      expect(m.size, fn).toBe(keys.LIGHT_STEPS);
+    }
+  });
+
+  it('every Task 5 ride is baked: registry, card, BAKED, not a stand-in, rots [0,1,2,3] (NON_ROUND)', async () => {
+    const { ITEM_LIST, CARD_ITEMS } = await load('items/registry.js');
+    const { NON_ROUND } = await load('items/flatRides.js');
+    const { REAL_FALLBACK } = await import('../../../src/render/real/fallbacks');
+    for (const [id] of RIDES) {
+      expect(ITEM_LIST.some((x: { id: string }) => x.id === id), id).toBe(true);
+      expect(CARD_ITEMS.some((x: { id: string; kind: string }) => x.id === id && x.kind === 'ride'), id).toBe(true);
+      expect(REAL_FALLBACK[id], id).toBe(id);
+      expect(NON_ROUND, id).toContain(id);
+    }
+  });
+});

@@ -29,12 +29,16 @@ import shrub_round from './shrub_round.js';
 import boulder from './boulder.js';
 import lamp_globe from './lamp_globe.js';
 import bunting_pole from './bunting_pole.js';
+import bumper_cars from './bumper_cars.js';
+import mirror_maze from './mirror_maze.js';
+import haunted_manor from './haunted_manor.js';
+import thunder_disc from './thunder_disc.js';
 
 /** The box a card picture fits, in density-2 px (about the card preview's 168 x 120 CSS px, less its padding). */
 export const CARD_W = 160;
 export const CARD_H = 114;
 
-const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole };
+const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bumper_cars, mirror_maze, haunted_manor, thunder_disc };
 
 /** The set (kind, rot) whose first picture is the card, by card kind. */
 const WANT = {

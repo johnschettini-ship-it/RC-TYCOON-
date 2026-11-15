@@ -18,5 +18,9 @@ import ground from './ground.js';
 import steel_coaster from './steel_coaster.js';
 import facade from './facade.js';
 import cards from './cards.js';
+import bumper_cars from './bumper_cars.js';
+import mirror_maze from './mirror_maze.js';
+import haunted_manor from './haunted_manor.js';
+import thunder_disc from './thunder_disc.js';
 
-export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards };
+export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, bumper_cars, mirror_maze, haunted_manor, thunder_disc };

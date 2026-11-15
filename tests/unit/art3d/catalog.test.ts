@@ -29,6 +29,9 @@ describe('itemSpec', () => {
     carousel: { m: 8, why: 'baked in stage 1 and seen by the owner; the rule gives 12.5' },
     swing_tower: { m: 18, why: 'baked in stage 1 and seen by the owner; 146 / 8 = 18.25 is a tie, the rule rounds up to 18.5' },
     big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
+    bumper_cars: { m: 7.5, why: 'a real one-storey pavilion: 4.7 m clear under the fascia, crown sign to 7.5 m; 106 px counts the 4x4 floor depth' },
+    mirror_maze: { m: 8, why: 'a 5.3 m pavilion with the crystal on its roof stand to 8 m; 82 px counts the 3x3 floor depth' },
+    thunder_disc: { m: 11, why: 'U-track ends at 8 m (as today: 74 px / 8 = 9.25 m to the rail) plus the lightning signs; 106 px counts the floor depth' },
   };
 
   it('every height exception has a reason', () => {
