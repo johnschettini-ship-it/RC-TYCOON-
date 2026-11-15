@@ -29,6 +29,7 @@ const SAVES: Record<PerfSceneId | 'scale', () => Promise<{ default: string }>> =
   build2: () => import('../../tests/perf/build2-128-3000-guests.tcsave.json?raw'),
   phone: () => import('../../tests/perf/phone-800-guests.tcsave.json?raw'),
   coaster: () => import('../../tests/perf/coaster-600-guests.tcsave.json?raw'),
+  rides: () => import('../../tests/perf/rides-18-flat-rides-300-guests.tcsave.json?raw'),
 };
 
 const CSS = `

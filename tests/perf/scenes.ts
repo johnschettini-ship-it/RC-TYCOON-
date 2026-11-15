@@ -7,6 +7,8 @@
  *   queues, 24 stalls, raised plateaus, a pond, painted ground, 60 scenery items, 2 show sites, 12 staff, and
  *   3,000 guests.
  * - `phone`: the master §10 phone scene: the `build1` park with 800 guests.
+ * - `rides`: the phase 8c batch 1 park on the 64 × 64 map: all 18 flat ride types once (6 × 3 grid of path cells),
+ *   each with its own queue, open, and 300 guests. It tests memory with many different rides on screen.
  *
  * Every guest is a real guest (needs, temperament, decisions), so a perf run measures real ticks. The track rides
  * are a test harness: they are set open without gates (no queue path can reach a station inside its loop), so
@@ -24,7 +26,7 @@ import type { StaffType } from '../../src/data/catalog/types';
 import { canOpenTrackRide } from '../../src/sim/rides/track/api';
 import { addGuestDirect } from '../helpers/world';
 import { SCALE_SCENE, type PerfSceneId } from './sceneInfo';
-import { FLAT_RIDES } from '../../src/data/catalog/flatRides';
+import { FLAT_RIDES, gateIndex } from '../../src/data/catalog/flatRides';
 
 export { PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT, type PerfSceneId, type PerfSceneInfo } from './sceneInfo';
 
@@ -319,8 +321,42 @@ function buildScale(): World {
   return world;
 }
 
+/**
+ * The rides park (phase 8c batch 1): every flat ride type once on a 6 × 3 grid of cells (8 × 9 tiles), within two
+ * phone screens. Footpath lines run along every cell edge, each ride's exit tile is on the line north of it, and a
+ * queue runs from its entrance (front edge, tile `gateIndex(w)`) to the line south of it. Rides are placed in
+ * catalogue order; a footprint refusal throws (the layout is fixed so that none is dropped).
+ */
+function buildRides(): World {
+  const world = createWorld({ seed: 8181, parkName: 'Rides Perf Park' });
+  world.state.park.cash = 100_000_000;
+  const xs = [4, 12, 20, 28, 36, 44, 52];
+  const ys = [4, 13, 22, 31];
+  for (const y of ys) run(world, { type: 'buildPathLine', x0: 4, y0: y, x1: 52, y1: y, kind: 'footpath' });
+  for (const x of xs) run(world, { type: 'buildPathLine', x0: x, y0: 4, x1: x, y1: 31, kind: 'footpath' });
+  // Entrance stub at (31, 60) joined to the south line.
+  run(world, { type: 'buildPathLine', x0: 31, y0: 32, x1: 31, y1: 59, kind: 'footpath' });
+  FLAT_RIDES.forEach((def, k) => {
+    const l = xs[k % 6] as number;
+    const m = ys[Math.floor(k / 6)] as number;
+    const x = l + 2;
+    const y = m + 1;
+    const id = run(world, { type: 'placeRide', defId: def.id, x, y, rotation: 0 });
+    run(world, { type: 'buildPathLine', x0: x + gateIndex(def.w), y0: y + def.d, x1: x + gateIndex(def.w), y1: m + 8, kind: 'queue' });
+    run(world, { type: 'setRideOpen', rideId: id, open: true });
+  });
+  ['snack_shack', 'fizz_stand', 'restrooms'].forEach((defId, k) => {
+    run(world, { type: 'placeStall', defId, x: 33 + 2 * k, y: 33, rotation: 3 });
+  });
+  hire(world, { groundskeeper: 2, mechanic: 2 });
+  addGuests(world, 300, 3003);
+  for (let k = 0; k < SETTLE_TICKS; k++) stepTick(world);
+  return world;
+}
+
 export function buildPerfScene(id: PerfSceneId | 'scale'): World {
   if (id === 'scale') return buildScale();
+  if (id === 'rides') return buildRides();
   if (id === 'coaster') return buildCoaster();
   if (id === 'build2') return buildBuild2();
   return buildBuild1(id === 'phone' ? 800 : 2_000);

@@ -1,5 +1,5 @@
 /**
- * The stage 1 bench's runs by `?bench=` (VITE_ART=real build only): `1` the four parks and the scale park, `quick`
+ * The stage 1 bench's runs by `?bench=` (VITE_ART=real build only): `1` the five parks and the scale park, `quick`
  * the same with every step a tenth as long (the e2e smoke), `scale` the scale park alone; anything else, no bench.
  * `main.ts` mounts the bench and `boot.ts` adds the scale park's alias sets for exactly these values.
  */

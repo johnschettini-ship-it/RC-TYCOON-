@@ -9,6 +9,7 @@ import { deserialize, GAME_VERSION, serialize, validateState } from '../../../sr
 import { canOpenTrackRide } from '../../../src/sim/rides/track/api';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { stepTick } from '../../../src/sim/tick';
+import { FLAT_RIDES } from '../../../src/data/catalog/flatRides';
 import { buildPerfScene, PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT } from '../../perf/scenes';
 
 const DIR = join(__dirname, '../../perf');
@@ -83,5 +84,31 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     expect(s.guests.length).toBeLessThanOrEqual(SCALE_SCENE.guests);
     for (let k = 0; k < 20; k++) stepTick(r.world);
     expect(validateState(r.world.state)).toBeNull();
+  });
+
+  it('rides (phase 8c batch 1): each of the 18 flat rides once, open, inside the map, about 300 guests', { timeout: 60_000 }, () => {
+    const info = PERF_SCENES.find((x) => x.id === 'rides');
+    expect(info).toBeDefined();
+    const r = deserialize(readFileSync(join(DIR, info!.file), 'utf8'));
+    if (!r.ok) throw new Error(r.error);
+    const s = r.world.state;
+    const flat = s.rides.filter((x) => x.kind === 'flat');
+    expect(flat.map((x) => x.defId).sort()).toEqual(FLAT_RIDES.map((d) => d.id).sort());
+    expect(new Set(flat.map((x) => x.defId)).size).toBe(18);
+    expect(info!.flatRides).toBe(18);
+    expect(info!.trackRides).toBe(0);
+    for (const ride of flat) {
+      const def = FLAT_RIDES.find((d) => d.id === ride.defId)!;
+      expect(ride.status, ride.defId).toBe('open');
+      expect(ride.x, ride.defId).toBeGreaterThanOrEqual(0);
+      expect(ride.y, ride.defId).toBeGreaterThanOrEqual(0);
+      expect(ride.x + def.w, ride.defId).toBeLessThanOrEqual(s.map.width);
+      expect(ride.y + def.d, ride.defId).toBeLessThanOrEqual(s.map.height);
+      // Close together: every ride within two screens (a phone shows about 28 × 28 tiles) of the focus.
+      expect(Math.abs(ride.x - info!.focus.x), ride.defId).toBeLessThanOrEqual(28);
+      expect(Math.abs(ride.y - info!.focus.y), ride.defId).toBeLessThanOrEqual(28);
+    }
+    expect(s.guests.length).toBeGreaterThanOrEqual(285);
+    expect(s.guests.length).toBeLessThanOrEqual(300);
   });
 });
