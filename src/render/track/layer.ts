@@ -763,6 +763,11 @@ export class TrackLayer {
       this.builds++;
       const f = this.frameRef;
       sp = buildSprite(sl.bounds, this.bucket, (c) => paintSlice(c, sl, f));
+      // Realistic build: refused room (canvas.ts classicGate), nothing was made: the plain rail, and ask again next frame.
+      if (import.meta.env.VITE_ART === 'real' && sp.notMade) {
+        this.drawPlainSlice(ctx, sl);
+        return;
+      }
       sl.sprites[bi] = sp;
     }
     this.blit(ctx, sp, sl.ax, sl.ay);
@@ -902,6 +907,8 @@ export class TrackLayer {
     let sp = set[slot] ?? null;
     if (!sp) {
       sp = buildSprite(GATE_BOUNDS, this.bucket, (c) => paintGateBooth(c, kind, colour));
+      // Realistic build: refused room, nothing was made or kept: no booth this frame, asked again next frame.
+      if (import.meta.env.VITE_ART === 'real' && sp.notMade) return;
       set[slot] = sp;
     }
     this.blit(ctx, sp, this.gateAx[gi] as number, this.gateAy[gi] as number);
@@ -946,6 +953,11 @@ export class TrackLayer {
       const pitch = (ps / 24) * Math.PI * 2;
       const roll = (rs / 16) * Math.PI * 2;
       sp = buildSprite(CAR_BOUNDS, this.bucket, (cx) => paintCar(cx, shapeName, yaw, pitch, hex, front === 1, Math.sin(roll), Math.cos(roll)));
+      // Realistic build: refused room, nothing was made (and the cache keeps nothing): the plain car this frame.
+      if (import.meta.env.VITE_ART === 'real' && sp.notMade) {
+        this.drawPlainCar(ctx, i);
+        return;
+      }
       this.carCache.set(key, sp);
     }
     const wx = c.x[i] as number;

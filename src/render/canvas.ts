@@ -54,7 +54,11 @@ const PAD = 2;
  * the decode budget before they are made, as everything else in it does (owner decision 2026-11-15). The renderer
  * sets `admit` for the length of a frame (`SetManager.admit` under the `classic` hold). Refused, nothing is made: the
  * builder answers `notMadeSprite()`, which draws nothing and is never cached (`SpriteCache.set`), `refused` counts it
- * (the frame is incomplete) and a later frame asks again once the ladder has made room.
+ * (the frame is incomplete) and a later frame asks again once the ladder has made room. A caller that keeps the
+ * sprite outside a `SpriteCache` must not keep this answer either (track slices, gate booths, cars).
+ * Not counted after the frame: track slice and gate booth images (kept by the track layer, not in a SpriteCache, so
+ * not in `spriteMemory`); they are admitted when made, then drop out of the `classic` count. In the realistic build
+ * only unbaked track types and the booths use them (a few small images).
  */
 export const classicGate: { admit: ((bytes: number) => boolean) | null; refused: number } = { admit: null, refused: 0 };
 let notMade: Sprite | null = null;
