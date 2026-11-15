@@ -7,14 +7,16 @@
 export const SHARED = [
   'vendor/three-0.160.0.module.min.js', 'kit.js', 'textures.js', 'people.js', 'rides.js', 'post.js', 'bakeView.js', 'camera.ts', 'bakePage.ts',
   'items/common.js', 'items/rideKeys.js', '../../src/render/real/indexFormat.ts', '../../src/render/artStyle.ts', '../../src/render/iso.ts',
+  // imported by the files above (camera.ts, iso.ts, rideKeys.js): bakeRegistry.test.ts follows the imports
+  '../../src/render/view.ts', '../../src/render/heightStep.ts', '../../src/data/tuning/track.ts', '../../src/render/anim.ts',
 ];
 
-const RIDE_DEPS = ['../../src/render/anim.ts', 'items/flatRides.js'];
+const RIDE_DEPS = ['items/flatRides.js'];
 const TOWER_DEPS = [...RIDE_DEPS, 'items/towerMotion.js'];
 const SWINGER_DEPS = [...RIDE_DEPS, 'items/swingers.js', 'items/swingParts.js'];
 const ARENA_DEPS = [...RIDE_DEPS, 'items/arenaKeys.js', 'items/arenaKit.js'];
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
-const PATH_ITEM_DEPS = ['items/scenery.js'];
+const PATH_ITEM_DEPS = SCENERY_DEPS; // bench and bin bake through items/scenery.js, which imports sprites.ts
 
 /** The steel coaster pieces of the coaster test park (tests/perf/scenes.ts), plus the left turn. */
 export const COASTER_PIECES = [

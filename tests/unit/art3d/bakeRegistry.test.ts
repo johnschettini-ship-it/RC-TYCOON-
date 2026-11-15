@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES } from '../../../src/data/catalog';
 import { REAL_FALLBACK } from '../../../src/render/real/fallbacks';
@@ -36,7 +36,7 @@ describe('stage 1 bake list', () => {
 
 describe('batch 1 flat rides', () => {
   const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel', 'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill', 'observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide', 'pendulum_ship', 'magic_carpet', 'flip_arm', 'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc'];
-  it('the three baked rides are in the registry and their own baked item (not a stand-in)', async () => {
+  it('every baked ride is in the registry and is its own baked item (not a stand-in)', async () => {
     const { ITEM_LIST } = await load('items/registry.js');
     const ids = new Set(ITEM_LIST.map((x: { id: string }) => x.id));
     for (const id of BAKED_RIDES) {
@@ -48,6 +48,109 @@ describe('batch 1 flat rides', () => {
     const { CARD_ITEMS } = await load('items/registry.js');
     for (const id of BAKED_RIDES) expect(CARD_ITEMS.some((c: { id: string; kind: string }) => c.id === id && c.kind === 'ride'), id).toBe(true);
   });
-  // Each ride task turns its todo into: in ITEM_LIST, REAL_FALLBACK[id] === id (so not in STAND_INS), has a card frame.
-  for (const d of FLAT_RIDES.filter((r) => !BAKED_RIDES.includes(r.id))) it.todo(`${d.id} is baked: ITEM_LIST, BAKED, not a stand-in, card frame`);
+  it('every flat ride in the game is baked (batch 1 covers all of FLAT_RIDES)', () => {
+    expect(FLAT_RIDES.map((r) => r.id).sort()).toEqual([...BAKED_RIDES].sort());
+  });
+});
+
+// The cache key hashes SHARED + an item's file + its deps (bake.mjs): a code file an item imports but the registry
+// does not list would not re-bake the item when it changes (a stale picture). Follow each item module's relative
+// imports, transitively, inside tools/art3d and src, and require every file reached to be listed.
+describe('cache key covers the code an item is built from', () => {
+  const root = new URL('../../../', import.meta.url);
+  const inTree = (u: URL) => u.href.startsWith(new URL('tools/art3d/', root).href) || u.href.startsWith(new URL('src/', root).href);
+  const resolve = (spec: string, from: URL): URL | null => {
+    const base = new URL(spec, from);
+    for (const ext of ['', '.ts', '.js', '/index.ts', '/index.js']) {
+      const u = new URL(base.href + ext);
+      if (existsSync(u) && !u.pathname.endsWith('/')) {
+        try { readFileSync(u); return u; } catch { /* a directory */ }
+      }
+    }
+    return null;
+  };
+  // runtime imports only: `import type` is erased and cannot change a picture
+  const importsOf = (u: URL): string[] => {
+    const src = readFileSync(u, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const out: string[] = [];
+    for (const m of src.matchAll(/(?:^|[^.\w])(?:import|export)\s(?!type\s)[^'"`;]*?from\s*['"](\.[^'"]+)['"]|(?:^|[^.\w])import\s*['"](\.[^'"]+)['"]|import\(\s*['"](\.[^'"]+)['"]\s*\)/gm)) out.push((m[1] ?? m[2] ?? m[3]) as string);
+    return out;
+  };
+
+  // Files not followed further, each with the reason its own imports cannot change a picture and the names taken
+  // from it. `listed`: the file itself is in SHARED or deps (its own text can change a picture).
+  const LEAF_USE: Record<string, { why: string; names: string[]; listed: boolean }> = {
+    'tools/art3d/items/index.js': {
+      why: 'the dispatch table: bakePage.ts runs ITEMS[id] for the item it bakes, and each item module is keyed in its own entry (the first test here checks the table imports every module)',
+      names: ['ITEMS'],
+      listed: false,
+    },
+    'src/render/scenery/sprites.ts': {
+      listed: true,
+      why: 'items/scenery.js takes only sceneryFrame from it, a pure function of SCENERY_FRAME in the same file; the rest of its import graph is the canvas sprite drawing the bake never calls',
+      names: ['sceneryFrame'],
+    },
+  };
+
+  it('every relative import reached from each item module is in SHARED or the item\'s deps', async () => {
+    const { ITEM_LIST, SHARED } = await load('items/registry.js');
+    const missing = new Set<string>();
+    for (const it of ITEM_LIST) {
+      const listed = new Set([...SHARED, it.file, ...(it.deps ?? [])].map((f: string) => new URL(f, dir).href));
+      const seen = new Set<string>();
+      // the item's module, and the SHARED code every bake runs (bakePage.ts, the kit, the camera)
+      const todo = [it.file, ...SHARED].filter((f: string) => /\.(js|ts|mjs)$/.test(f) && !f.startsWith('vendor/')).map((f: string) => new URL(f, dir));
+      while (todo.length) {
+        const u = todo.pop()!;
+        if (seen.has(u.href)) continue;
+        seen.add(u.href);
+        for (const spec of importsOf(u)) {
+          const r = resolve(spec, u);
+          expect(r, `${it.id}: ${spec} from ${u.pathname} resolves`).not.toBeNull();
+          if (!r || !inTree(r)) continue;
+          const leaf = LEAF_USE[r.pathname.replace(root.pathname, '')];
+          if (leaf && !leaf.listed) continue;
+          if (!listed.has(r.href)) missing.add(`${it.id}: ${r.pathname.replace(root.pathname, '')} (imported by ${u.pathname.replace(root.pathname, '')})`);
+          if (LEAF_USE[r.pathname.replace(root.pathname, '')]) continue;
+          todo.push(r);
+        }
+      }
+      expect(seen.size, it.id).toBeGreaterThan(1);
+    }
+    expect([...missing], 'not in SHARED or the item\'s deps').toEqual([]);
+  });
+
+  it('a file not followed (LEAF_USE) is only used for the names its reason gives', () => {
+    const users = ITEM_FILES_IMPORTING_LEAVES();
+    for (const [leaf, { why, names }] of Object.entries(LEAF_USE)) {
+      expect(why.trim().length, leaf).toBeGreaterThan(0);
+      const imports = users.filter((u) => u.leaf === leaf);
+      expect(imports.length, `${leaf} is imported by a bake module`).toBeGreaterThan(0);
+      for (const u of imports) expect(u.names, `${u.from} imports from ${leaf}`).toEqual(names);
+    }
+    // sceneryFrame reads nothing but SCENERY_FRAME
+    const sprites = readFileSync(new URL('src/render/scenery/sprites.ts', root), 'utf8');
+    const body = sprites.slice(sprites.indexOf('export function sceneryFrame'), sprites.indexOf('\n}\n', sprites.indexOf('export function sceneryFrame')));
+    expect(body.replace(/SCENERY_FRAME\.\w+/g, '').match(/[A-Z_]{3,}|\w+\(/g) ?? [], 'sceneryFrame calls or reads nothing else').toEqual(['sceneryFrame(']);
+  });
+
+  /** Every import, in a tools/art3d module, of a LEAF_USE file: which names it takes. */
+  function ITEM_FILES_IMPORTING_LEAVES(): { from: string; leaf: string; names: string[] }[] {
+    const out: { from: string; leaf: string; names: string[] }[] = [];
+    const walk = (d: URL) => {
+      for (const e of readdirSync(d, { withFileTypes: true })) {
+        if (e.isDirectory()) { if (e.name !== 'vendor') walk(new URL(`${e.name}/`, d)); continue; }
+        if (!/\.(js|ts|mjs)$/.test(e.name)) continue;
+        const u = new URL(e.name, d);
+        for (const m of readFileSync(u, 'utf8').matchAll(/import\s*\{([^}]*)\}\s*from\s*['"](\.[^'"]+)['"]/g)) {
+          const r = resolve(m[2] as string, u);
+          if (!r) continue;
+          const leaf = r.pathname.replace(root.pathname, '');
+          if (LEAF_USE[leaf]) out.push({ from: u.pathname.replace(root.pathname, ''), leaf, names: (m[1] as string).split(',').map((x) => x.trim()).filter((x) => x && !x.startsWith('type ')) });
+        }
+      }
+    };
+    walk(dir);
+    return out;
+  }
 });
