@@ -5,11 +5,13 @@
 // rotation, so the 16 even angle slots are 16 time steps (towerMotion.js timeKeys); the game turns 2 turns per run
 // (REVOLUTIONS default), so the carriage drops twice per run and ends at the bottom. Steps at the same height share
 // a picture (11 heights, towerMotion.js DROP_SNAP); empty, the ride is at rest (the game runs a ride only with riders): one picture. Front
-// (entrance): one set per view turn.
+// (entrance at the front, exit at the back, both on the sim's gate column, towerMotion.js TOWER_GATES): one set per view turn.
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
-import { HEIGHT_Q, heightStep, towerKeys } from './towerMotion.js';
+import { HEIGHT_Q, heightStep, towerKeys, TOWER_GATES } from './towerMotion.js';
+
+const G = TOWER_GATES.drop_tower;
 
 const COL = 1.1; // column side
 const COL_TOP = 23.6;
@@ -38,7 +40,7 @@ function build() {
   const orange = new THREE.MeshPhysicalMaterial({ map: K.tx.paint.map, color: '#e4652f', metalness: 0.3, roughness: 0.45, clearcoat: 0.5 });
   const yellow = new THREE.MeshPhysicalMaterial({ map: K.tx.paint.map, color: '#f4b92e', metalness: 0.3, roughness: 0.4, clearcoat: 0.6 });
   const copper = std({ color: '#b5713f', metalness: 0.9, roughness: 0.35 });
-  // pad, deck, railing with the entrance at the front (+z)
+  // pad, deck, railing with the entrance at the front (+z) and the exit at the back
   root.add(M(new THREE.BoxGeometry(7.7, 0.25, 7.7), mat.concrete).translateY(0.125));
   root.add(M(new THREE.BoxGeometry(6.9, 0.1, 6.9), mat.deck).translateY(0.3));
   const H = 3.3;
@@ -48,19 +50,24 @@ function build() {
     root.add(rod(a.clone().setY(1.4), b.clone().setY(1.4), 0.032, mat.stainless, 6));
     root.add(rod(a.clone().setY(0.88), b.clone().setY(0.88), 0.02, mat.stainless, 6));
   };
-  const cs = [[-H, -H], [H, -H], [H, H], [-H, H]];
-  for (let i = 0; i < 4; i++) {
-    const [x0, z0] = cs[i], [x1, z1] = cs[(i + 1) % 4];
-    const n = 5;
-    for (let k = 0; k < n; k++) {
-      const t0 = k / n, t1 = (k + 1) / n;
-      const p0 = V(x0 + (x1 - x0) * t0, 0.35, z0 + (z1 - z0) * t0), p1 = V(x0 + (x1 - x0) * t1, 0.35, z0 + (z1 - z0) * t1);
-      if (i === 2 && (k === 2)) continue; // the entrance, middle of the front side
-      railSeg(p0, p1);
-    }
+  // the square's sides, corner to corner; the front (+z) and back sides open on the sim's gate column (TOWER_GATES)
+  // with a GAP-wide entrance and exit, the rest in posts about 1.3 m apart
+  const GAP = 1.32;
+  const run = (p, q) => {
+    const n = Math.max(1, Math.round(p.distanceTo(q) / 1.32));
+    for (let k = 0; k < n; k++) railSeg(p.clone().lerp(q, k / n), p.clone().lerp(q, (k + 1) / n));
+  };
+  run(V(-H, 0.35, H), V(-H, 0.35, -H));
+  run(V(H, 0.35, H), V(H, 0.35, -H));
+  for (const [gx, gz] of [G.entrance, G.exit]) {
+    run(V(-H, 0.35, gz), V(gx - GAP / 2, 0.35, gz));
+    run(V(gx + GAP / 2, 0.35, gz), V(H, 0.35, gz));
   }
-  for (const s of [-1, 1]) root.add(M(new THREE.BoxGeometry(0.16, 2.6, 0.16), red).translateX(s * 0.66).translateY(1.6).translateZ(H));
-  root.add(M(new THREE.BoxGeometry(1.7, 0.4, 0.12), yellow).translateY(2.8).translateZ(H));
+  // entrance and exit arches over the gaps, with a sign board (the exit's is smaller, white)
+  for (const [k, [gx, gz]] of [G.entrance, G.exit].entries()) {
+    for (const s of [-1, 1]) root.add(M(new THREE.BoxGeometry(0.16, 2.6, 0.16), red).translateX(gx + s * 0.66).translateY(1.6).translateZ(gz));
+    root.add(k === 0 ? M(new THREE.BoxGeometry(1.7, 0.4, 0.12), yellow).translateX(gx).translateY(2.8).translateZ(gz) : M(new THREE.BoxGeometry(1.4, 0.3, 0.1), mat.steelWhite).translateX(gx).translateY(2.75).translateZ(gz));
+  }
   // machine housing at the foot of the column
   root.add(M(new THREE.BoxGeometry(2.3, 1.05, 2.3), orange).translateY(0.35 + 0.525));
   root.add(M(new THREE.BoxGeometry(2.4, 0.08, 2.4), mat.darkSteel).translateY(1.44));

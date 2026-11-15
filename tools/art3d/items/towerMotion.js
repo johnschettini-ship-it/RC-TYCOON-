@@ -78,3 +78,21 @@ export function towerKeys(item) {
       throw new Error(`towerKeys: not a tower ride: ${item}`);
   }
 }
+
+/**
+ * Entrances and exits of the three 2 x 2 towers in the model frame ([x, z] metres, footprint centred, front at +z, x
+ * along the front edge): the sim's gates (src/sim/footprint.ts flatRideGates) are the front-row tile of column
+ * floor((w - 1) / 2) (src/data/catalog/flatRides.ts gateIndex) and the back-row tile of the same column; for w = 2
+ * that is column 0, centre x = -2 m. Each model puts its openings there:
+ *   observation_tower: the gaps and arches in the round railing (radius 3.45 m) where the column crosses it;
+ *   drop_tower: the gaps and arches in the square railing's front and back sides (z = +-3.3 m);
+ *   spiral_slide: the queue's mouth at the pad's front edge, and the spot on the run-out where riders land and step
+ *   off (the run-out ends SLIDE_RUNOUT metres further on, -x, still on the exit tile).
+ */
+export const TOWER_GATES = {
+  observation_tower: { entrance: [-2, 2.81], exit: [-2, -2.81] },
+  drop_tower: { entrance: [-2, 3.3], exit: [-2, -3.3] },
+  spiral_slide: { entrance: [-2, 3.3], exit: [-2, -2.75] },
+};
+/** Spiral slide: metres of run-out past the landing spot (TOWER_GATES.spiral_slide.exit), towards -x. */
+export const SLIDE_RUNOUT = 1.1;

@@ -245,6 +245,34 @@ describe('tower rides (Task 4)', () => {
     expect(towerKeys('drop_tower').size).toBe(11 + 1); // bottom, top held, the ends snapped (DROP_SNAP: size rule)
     expect(DROP_SNAP).toBeLessThanOrEqual(0.05); // at most 1 m of the 19.9 m travel
   });
+
+  it('the 2 x 2 towers\' entrances and exits sit on the sim\'s gate tiles: column floor((w - 1) / 2), front row (+z) and back row', async () => {
+    const { TOWER_GATES, SLIDE_RUNOUT } = await load('items/towerMotion.js');
+    const TILE = 4;
+    const ids = ['observation_tower', 'drop_tower', 'spiral_slide'];
+    expect(Object.keys(TOWER_GATES).sort()).toEqual([...ids].sort());
+    for (const id of ids) {
+      const d = def(id);
+      const colX = (gateIndex(d.w) + 0.5) * TILE - (d.w * TILE) / 2; // model x of the gate column's centre
+      const half = (d.d * TILE) / 2;
+      const { entrance, exit } = TOWER_GATES[id];
+      expect(entrance[0], `${id} entrance x`).toBe(colX);
+      expect(exit[0], `${id} exit x`).toBe(colX);
+      expect(entrance[1], `${id} entrance on the front row`).toBeGreaterThan(half - TILE);
+      expect(entrance[1], id).toBeLessThan(half);
+      expect(exit[1], `${id} exit on the back row`).toBeLessThan(-half + TILE);
+      expect(exit[1], id).toBeGreaterThan(-half);
+      // each model builds its openings from the table, not from its own numbers
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      expect(src, id).toContain(`TOWER_GATES.${id}`);
+    }
+    expect(TOWER_GATES.drop_tower.entrance[0]).toBe(-2);
+    // the slide's run-out ends past the landing, towards -x, still on the exit tile (column 0: x in (-4, 0))
+    const [lx] = TOWER_GATES.spiral_slide.exit;
+    expect(SLIDE_RUNOUT).toBeGreaterThan(0);
+    expect(lx - SLIDE_RUNOUT).toBeGreaterThan(-def('spiral_slide').w * TILE / 2 + 0.5);
+    expect(readFileSync(new URL('items/spiral_slide.js', dir), 'utf8')).toMatch(/gx - SLIDE_RUNOUT/);
+  });
 });
 
 // Task 3 (swingers): the bake follows today's motion, which reads st.angle = slot / 32 (one motion cycle per 32 angle
