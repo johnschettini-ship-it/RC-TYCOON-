@@ -11,12 +11,21 @@ const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
 describe('NON_ROUND', () => {
-  it('is exactly the rides with a front, and all of them are flat rides', async () => {
+  it('names flat rides only', async () => {
     const { NON_ROUND } = await load('items/flatRides.js');
-    expect([...NON_ROUND].sort()).toEqual(['bumper_cars', 'big_wheel', 'drop_tower', 'haunted_manor', 'magic_carpet', 'mirror_maze', 'observation_tower', 'pendulum_ship', 'spiral_slide', 'thunder_disc', 'merry_mill', 'flip_arm'].sort());
     const ids = new Set(FLAT_RIDES.map((d) => d.id));
     for (const id of NON_ROUND) expect(ids.has(id), id).toBe(true);
   });
+  // The list is what the bake turns by: each ride module bakes one set per view turn exactly when it has a front.
+  for (const { id } of FLAT_RIDES) {
+    it(`${id}: its module bakes rots [0, 1, 2, 3] if it is in NON_ROUND, else one 'all' set`, async () => {
+      const { NON_ROUND } = await load('items/flatRides.js');
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      const rots = [...src.matchAll(/rots: (\[0, 1, 2, 3\]|'all')/g)].map((m) => m[1]);
+      expect(rots, `${id}: one bakeObject call`).toHaveLength(1);
+      expect(rots[0], id).toBe(NON_ROUND.includes(id) ? '[0, 1, 2, 3]' : "'all'");
+    });
+  }
 });
 
 describe('cycleKeys', () => {
@@ -76,9 +85,6 @@ describe('spinner periods', () => {
       const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
       expect(src).toMatch(/export const PERIOD = [A-Z]+\.period;/);
       expect(src).toMatch(new RegExp(`cycleKeys\\('${id}', \\{ period: PERIOD \\}, \\(a, full\\) => \`\\$\\{a\\}:\\$\\{full \\? 1 : 0\\}\`\\)`));
-      const { NON_ROUND } = await load('items/flatRides.js');
-      if (NON_ROUND.includes(id)) expect(src, 'a front: one set per view turn').toMatch(/rots: \[0, 1, 2, 3\]/);
-      else expect(src, 'round: one set for every view turn').toMatch(/rots: 'all'/);
       const { cycleKeys } = await load('items/flatRides.js');
       const m: Keys = cycleKeys(id, { period }, pick);
       expect(m.size).toBe(period);
