@@ -72,10 +72,10 @@ describe('card pictures', () => {
     expect(ctx.calls.some((c) => c.op === 'clearRect')).toBe(true);
   });
 
-  it('a stand-in (teacup_twirl draws as the carousel in the park), a classic item, a missing frame or a set not ready: today\'s preview', () => {
+  it('a stand-in (fizz_stand draws as the snack shack in the park), a classic item, a missing frame or a set not ready: today\'s preview', () => {
     const draw = cardPicture({ use: (k) => (k === CARD_SET ? ready : null) });
     const ctx = fakeCtx();
-    expect(draw(ctx, 'teacup_twirl', 168, 120, 7)).toBe(false);
+    expect(draw(ctx, 'fizz_stand', 168, 120, 7)).toBe(false);
     expect(draw(ctx, 'mini_railway', 168, 120, 7)).toBe(false);
     expect(draw(ctx, 'drop_tower', 168, 120, 7)).toBe(false);
     expect(draw(ctx, 'big_wheel', 168, 120, 7)).toBe(false); // baked item, no frame in this set

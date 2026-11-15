@@ -29,6 +29,8 @@ describe('itemSpec', () => {
     carousel: { m: 8, why: 'baked in stage 1 and seen by the owner; the rule gives 12.5' },
     swing_tower: { m: 18, why: 'baked in stage 1 and seen by the owner; 146 / 8 = 18.25 is a tie, the rule rounds up to 18.5' },
     big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
+    kiddie_cars: { m: 7, why: 'a children\'s car ride: canopy peak 5.9 m, gold ball on a short mast at 7 m; today\'s 78 px flag mast (9.75 m) is drawn tall' },
+    merry_mill: { m: 11.5, why: '4.8 m sails on a 6.8 m hub top out at 11.6 m, so the lowest gondola boards at the deck; 14.5 m would need sails reaching past the footprint' },
   };
 
   it('every height exception has a reason', () => {

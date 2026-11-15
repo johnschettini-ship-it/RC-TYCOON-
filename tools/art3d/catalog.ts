@@ -37,8 +37,8 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   drop_tower: 26,
   flip_arm: 17,
   magic_carpet: 16.5,
-  kiddie_cars: 10,
-  merry_mill: 14.5,
+  kiddie_cars: 7,
+  merry_mill: 11.5,
   gyro_globe: 18.5,
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {

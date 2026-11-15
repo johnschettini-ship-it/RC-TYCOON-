@@ -30,6 +30,10 @@ export const CARD_ITEMS = [
   { id: 'snack_shack', kind: 'stall' },
   ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
   { id: 'steel_coaster', kind: 'track' },
+  { id: 'teacup_twirl', kind: 'ride' },
+  { id: 'rocket_rounds', kind: 'ride' },
+  { id: 'kiddie_cars', kind: 'ride' },
+  { id: 'merry_mill', kind: 'ride' },
 ];
 
 export const ITEM_LIST = [
@@ -52,6 +56,10 @@ export const ITEM_LIST = [
   {
     id: 'steel_coaster', file: 'items/steel_coaster.js', track: { type: 'steel_coaster', pieces: COASTER_PIECES } },
   { id: 'facade', file: 'items/facade.js' },
+  { id: 'teacup_twirl', file: 'items/teacup_twirl.js', catalog: ['ride', 'teacup_twirl'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  { id: 'kiddie_cars', file: 'items/kiddie_cars.js', catalog: ['ride', 'kiddie_cars'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
 ];
 
 // One small card picture per baked game item, in one set preview:cards:d2:rall (frames keyed by item id), for the

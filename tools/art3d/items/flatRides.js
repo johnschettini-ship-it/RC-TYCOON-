@@ -3,7 +3,7 @@
 import { rideKeys } from './rideKeys.js';
 
 /** Rides with a front (entrance, boarding side, non-square footprint): they bake rots [0,1,2,3]. The rest are round. */
-export const NON_ROUND = ['bumper_cars', 'pendulum_ship', 'magic_carpet', 'big_wheel', 'haunted_manor', 'mirror_maze', 'thunder_disc', 'drop_tower', 'observation_tower', 'spiral_slide'];
+export const NON_ROUND = ['bumper_cars', 'pendulum_ship', 'magic_carpet', 'big_wheel', 'haunted_manor', 'mirror_maze', 'thunder_disc', 'drop_tower', 'observation_tower', 'spiral_slide', 'merry_mill'];
 
 /**
  * Frame keys for a rotating ride whose pictures repeat every `period` angle slots (even, 2..32, dividing 32).
