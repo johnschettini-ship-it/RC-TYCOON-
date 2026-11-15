@@ -24,16 +24,23 @@ describe('itemSpec', () => {
     pendulum_ship: 142, thunder_disc: 106, drop_tower: 208, flip_arm: 136,
     magic_carpet: 132, kiddie_cars: 78, merry_mill: 116, gyro_globe: 148,
   };
-  // carousel and swing_tower were baked in stage 1 and the owner has seen them; the rule would give 12.5 m and 18.5 m
-  // (146 / 8 = 18.25 is a tie between 18 and 18.5). Kept as baked, reported.
-  const KEPT_AS_BAKED: Record<string, number> = { carousel: 8, swing_tower: 18 };
+  // The px / 8 rule is a starting value. A ride may deviate (a realistic height) with a one-line reason here.
+  const HEIGHT_EXCEPTIONS: Record<string, { m: number; why: string }> = {
+    carousel: { m: 8, why: 'baked in stage 1 and seen by the owner; the rule gives 12.5' },
+    swing_tower: { m: 18, why: 'baked in stage 1 and seen by the owner; 146 / 8 = 18.25 is a tie, the rule rounds up to 18.5' },
+    big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
+  };
 
-  it('every flat ride height is today\'s pixel height / 8 rounded to 0.5 m (carousel, swing_tower kept as baked)', () => {
+  it('every height exception has a reason', () => {
+    for (const [id, e] of Object.entries(HEIGHT_EXCEPTIONS)) expect(e.why.trim().length, id).toBeGreaterThan(0);
+  });
+
+  it('every flat ride is at its exception height, or at today\'s pixel height / 8 rounded to 0.5 m', () => {
     for (const r of FLAT_RIDES) {
       const px = TODAY_PX[r.id];
       expect(px, `${r.id} has no today's height`).toBeDefined();
       const rule = Math.round(((px as number) / 8) * 2) / 2;
-      expect(itemSpec('ride', r.id).heightM, r.id).toBe(KEPT_AS_BAKED[r.id] ?? rule);
+      expect(itemSpec('ride', r.id).heightM, r.id).toBe(HEIGHT_EXCEPTIONS[r.id]?.m ?? rule);
     }
   });
 

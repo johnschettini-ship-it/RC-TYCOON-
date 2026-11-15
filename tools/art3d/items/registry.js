@@ -9,7 +9,7 @@ export const SHARED = [
   'items/common.js', 'items/rideKeys.js', '../../src/render/real/indexFormat.ts', '../../src/render/artStyle.ts', '../../src/render/iso.ts',
 ];
 
-const RIDE_DEPS = ['../../src/render/anim.ts'];
+const RIDE_DEPS = ['../../src/render/anim.ts', 'items/flatRides.js'];
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = ['items/scenery.js'];
 

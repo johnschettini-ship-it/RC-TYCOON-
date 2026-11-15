@@ -1,39 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES } from '../../../src/data/catalog';
-import { encodeRideFrame } from '../../../src/render/anim';
-import { frameKey } from '../../../src/render/real/indexFormat';
+import { keyAt, periodOk, pictureOf, type Keys } from './frameHelpers';
 
 // Plain JS build tool without types: import by a computed path so it loads as `any`.
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
-
-type Keys = Map<string, { keys: string[] }>;
-
-/** Picture id that serves a frame key. */
-function pictureOf(map: Keys, key: string): string | undefined {
-  for (const [id, e] of map) if (e.keys.includes(key)) return id;
-  return undefined;
-}
-const keyAt = (item: string, angle: number, full: boolean) => frameKey([item, `f${encodeRideFrame(angle, 0, 0)}`, full ? 'occ1' : 'occ0']);
-
-/**
- * Reused by every ride task: a ride's pictures repeat with its period. Slot 0 and slot 32 (wrapped) show the same
- * picture, slot `period` shows slot 0's picture again, and within the first period consecutive slots map to
- * pictures in baking order (never backwards).
- */
-export function periodOk(map: Keys, item: string, period: number, full = false): void {
-  expect(pictureOf(map, keyAt(item, 32, full))).toBe(pictureOf(map, keyAt(item, 0, full)));
-  expect(pictureOf(map, keyAt(item, period % 32, full))).toBe(pictureOf(map, keyAt(item, 0, full)));
-  const order = [...map.keys()];
-  let last = -1;
-  for (let a = 0; a < period; a += 2) {
-    const id = pictureOf(map, keyAt(item, a, full));
-    expect(id, `slot ${a}`).toBeDefined();
-    const i = order.indexOf(id as string);
-    expect(i, `slot ${a} out of order`).toBeGreaterThanOrEqual(last);
-    last = i;
-  }
-}
 
 describe('NON_ROUND', () => {
   it('is exactly the rides with a front, and all of them are flat rides', async () => {

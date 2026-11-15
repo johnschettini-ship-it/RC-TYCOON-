@@ -21,7 +21,8 @@ export function cycleKeys(item, opts, pick) {
 
 /**
  * Frame keys for motion that is not a rotation (swing, drop, lift): the 16 even angle slots are 16 time steps of
- * the cycle. `pick(step, full)` gets step 0..15. `walkThrough` rides bake one occupancy state.
+ * the cycle. The game turns REVOLUTIONS (default 2, src/render/anim.ts) per run, so a 16-step time cycle plays
+ * twice per run unless the ride adds a REVOLUTIONS entry in src/render/anim.ts. `pick(step, full)` gets step 0..15. `walkThrough` rides bake one occupancy state.
  */
 export function timeKeys(item, opts, pick) {
   const { walkThrough = false } = opts ?? {};
