@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { contentHash, itemSpec } from '../../../tools/art3d/catalog';
+import { CONTENT_RIDE_ART } from '../../../src/render/sprites/content';
 import { FLAT_RIDES, SCENERY, STALLS } from '../../../src/data/catalog';
 
 describe('itemSpec', () => {
@@ -14,6 +15,37 @@ describe('itemSpec', () => {
       expect(s.footprintTiles).toEqual([r.w, r.d]);
       expect(s.heightM).toBeGreaterThan(0);
     }
+  });
+
+  // Today's drawn height in px (HEIGHTS in src/render/sprites/rides.ts, CONTENT_RIDE_ART in sprites/content/index.ts).
+  const TODAY_PX: Record<string, number> = {
+    carousel: 100, big_wheel: 118, swing_tower: 146, teacup_twirl: 50,
+    bumper_cars: 106, rocket_rounds: 84, spiral_slide: 114, observation_tower: 200, mirror_maze: 82, haunted_manor: 116,
+    pendulum_ship: 142, thunder_disc: 106, drop_tower: 208, flip_arm: 136,
+    magic_carpet: 132, kiddie_cars: 78, merry_mill: 116, gyro_globe: 148,
+  };
+  // The px / 8 rule is a starting value. A ride may deviate (a realistic height) with a one-line reason here.
+  const HEIGHT_EXCEPTIONS: Record<string, { m: number; why: string }> = {
+    carousel: { m: 8, why: 'baked in stage 1 and seen by the owner; the rule gives 12.5' },
+    swing_tower: { m: 18, why: 'baked in stage 1 and seen by the owner; 146 / 8 = 18.25 is a tie, the rule rounds up to 18.5' },
+    big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
+  };
+
+  it('every height exception has a reason', () => {
+    for (const [id, e] of Object.entries(HEIGHT_EXCEPTIONS)) expect(e.why.trim().length, id).toBeGreaterThan(0);
+  });
+
+  it('every flat ride is at its exception height, or at today\'s pixel height / 8 rounded to 0.5 m', () => {
+    for (const r of FLAT_RIDES) {
+      const px = TODAY_PX[r.id];
+      expect(px, `${r.id} has no today's height`).toBeDefined();
+      const rule = Math.round(((px as number) / 8) * 2) / 2;
+      expect(itemSpec('ride', r.id).heightM, r.id).toBe(HEIGHT_EXCEPTIONS[r.id]?.m ?? rule);
+    }
+  });
+
+  it('the content ride art heights in the table match the game', () => {
+    for (const [id, art] of Object.entries(CONTENT_RIDE_ART)) expect(TODAY_PX[id], id).toBe(art.height);
   });
 
   it('tall rides stand taller than the carousel', () => {

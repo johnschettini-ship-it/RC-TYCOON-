@@ -1,5 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { FLAT_RIDES } from '../../../src/data/catalog';
+import { REAL_FALLBACK } from '../../../src/render/real/fallbacks';
 import { itemSpec } from '../../../tools/art3d/catalog';
 
 // Plain JS build tools without types: import by a computed path so they load as `any`.
@@ -30,4 +32,18 @@ describe('stage 1 bake list', () => {
     const ids = new Set(ITEM_LIST.map((x: { id: string }) => x.id));
     for (const id of REAL_FALLBACK_IDS) expect(ids.has(id), id).toBe(true);
   });
+});
+
+describe('batch 1 flat rides', () => {
+  const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel'];
+  it('the three baked rides are in the registry and their own baked item (not a stand-in)', async () => {
+    const { ITEM_LIST } = await load('items/registry.js');
+    const ids = new Set(ITEM_LIST.map((x: { id: string }) => x.id));
+    for (const id of BAKED_RIDES) {
+      expect(ids.has(id), id).toBe(true);
+      expect(REAL_FALLBACK[id], id).toBe(id);
+    }
+  });
+  // Each ride task turns its todo into: in ITEM_LIST, REAL_FALLBACK[id] === id (so not in STAND_INS), has a card frame.
+  for (const d of FLAT_RIDES.filter((r) => !BAKED_RIDES.includes(r.id))) it.todo(`${d.id} is baked: ITEM_LIST, BAKED, not a stand-in, card frame`);
 });

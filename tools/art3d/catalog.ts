@@ -24,6 +24,22 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   carousel: 8,
   big_wheel: 15,
   swing_tower: 18,
+  // Batch 1 (phase 8c): today's drawn height in px / STEP_PX (8) rounded to 0.5 m, so picking and gameplay sizes match.
+  teacup_twirl: 6.5,
+  bumper_cars: 13.5,
+  rocket_rounds: 10.5,
+  spiral_slide: 14.5,
+  observation_tower: 25,
+  mirror_maze: 10.5,
+  haunted_manor: 14.5,
+  pendulum_ship: 18,
+  thunder_disc: 13.5,
+  drop_tower: 26,
+  flip_arm: 17,
+  magic_carpet: 16.5,
+  kiddie_cars: 10,
+  merry_mill: 14.5,
+  gyro_globe: 18.5,
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,
