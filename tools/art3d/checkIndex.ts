@@ -72,6 +72,21 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
     if (g.rots.has('all')) continue;
     for (const r of ['0', '1', '2', '3']) if (!g.rots.has(r)) problems.push(`${id}: missing rotation ${r}`);
   }
+
+  // every placed object (ride, stall, scenery) has its shadow: same item and density, its turn (or 'all'; an object
+  // baked for every turn takes a shadow of any turn, as a path item's shadow is turned by its side). A shadow the bake
+  // lost (empty picture) left the object drawing today's shadow in the game, which no other check saw.
+  const shadows = new Map<string, Set<string>>();
+  for (const set of index.sets) if (set.kind === 'shadow') {
+    const id = `${set.item}:d${set.density}`;
+    shadows.set(id, (shadows.get(id) ?? new Set<string>()).add(String(set.rot)));
+  }
+  for (const set of index.sets) {
+    if (set.kind !== 'ride' && set.kind !== 'stall' && set.kind !== 'scenery') continue;
+    const rots = shadows.get(`${set.item}:d${set.density}`);
+    const ok = !!rots && (rots.has('all') || rots.has(String(set.rot)) || (set.rot === 'all' && rots.size > 0));
+    if (!ok) problems.push(`${set.key}: no shadow set`);
+  }
   return problems;
 }
 

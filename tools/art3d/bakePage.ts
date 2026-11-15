@@ -228,10 +228,19 @@ function placeSun(bs: BakeScene, box: any): void {
 
 interface Raw { px: Uint8Array; W: number; H: number }
 
+/** The largest render target side the GPU draws: past it the render reads back blank (no error). */
+function maxRenderPx(): number {
+  const gl = renderer.getContext();
+  const vp = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
+  return Math.min(renderer.capabilities.maxTextureSize, gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number, vp[0] as number, vp[1] as number);
+}
+const tooBig = (r: Rect): boolean => Math.max(r.x1 - r.x0, r.y1 - r.y0) > maxRenderPx();
+
 function render(bs: BakeScene, rect: Rect, mode: 'color' | 'flat'): Raw {
   const t0 = performance.now();
   const W = rect.x1 - rect.x0;
   const H = rect.y1 - rect.y0;
+  if (tooBig(rect)) throw new Error(`a ${W}x${H} px render is over the GPU's ${maxRenderPx()} px limit (it would read back blank)`);
   const cam = bakeCamera(0, renderD as BakeDensity);
   const { camera, modelScale } = makeBakeCamera(THREE, cam, { widthPx: W, heightPx: H, originPx: [-rect.x0, -rect.y0] });
   bs.world.scale.copy(modelScale);
@@ -363,6 +372,15 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
   if (shadow) {
     const reach = box.max.y * 1.4 + 0.5;
     sb = new THREE.Box3(new THREE.Vector3(box.min.x - reach, 0, box.min.z - reach), new THREE.Vector3(box.max.x + reach, 0.01, box.max.z + reach));
+    // Round a tall object that reach passes the GPU's render size (the 26 m drop tower's was 10456 px wide against
+    // 8192: the read-back was blank and the tower had no shadow set). Then only the side the shadow falls on: the
+    // footprint, and the footprint moved `reach` away from the sun.
+    if (tooBig(rectOfBox(sb, cam, o.margin ?? 2))) {
+      const s = sunDir();
+      const away = new THREE.Vector3(-s.x, 0, -s.z).normalize().multiplyScalar(reach);
+      const foot = new THREE.Box3(new THREE.Vector3(box.min.x - 0.5, 0, box.min.z - 0.5), new THREE.Vector3(box.max.x + 0.5, 0.01, box.max.z + 0.5));
+      sb = foot.clone().union(foot.clone().translate(away));
+    }
   }
   let rect = rectOfBox(sb, cam, o.margin ?? 2);
   for (let tries = 0; tries < 3; tries++) {
@@ -392,7 +410,10 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
       const mask = maskSrc ? toCanvas(down(maskSrc, f), bb, true) : null;
       out[d] = { canvas: toCanvas(img, bb), mask, ox: rect.x0 / f + bb.x, oy: rect.y0 / f + bb.y };
     }
-    if (!grow) return out;
+    if (!grow) {
+      if (shadow && densities.every((d) => !out[d])) throw new Error('the shadow picture is empty at every density');
+      return out;
+    }
     const gx = Math.ceil((rect.x1 - rect.x0) * 0.25 / snapF) * snapF, gy = Math.ceil((rect.y1 - rect.y0) * 0.25 / snapF) * snapF;
     rect = { x0: rect.x0 - gx, y0: rect.y0 - gy, x1: rect.x1 + gx, y1: rect.y1 + gy };
   }

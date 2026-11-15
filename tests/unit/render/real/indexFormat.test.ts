@@ -92,6 +92,19 @@ describe('checkIndex', () => {
     const i = clone(); i.sets = i.sets.filter((s) => s.key !== 'ride:carousel:d2:r2');
     expect(problems(i).some((p) => p.includes('missing rotation 2'))).toBe(true);
   });
+  it('a ride without its shadow set (the towers lost theirs to a blank render, batch 1 fix)', () => {
+    const i = clone(); i.sets = i.sets.filter((s) => s.kind !== 'shadow');
+    expect(problems(i).filter((p) => p.includes('no shadow set')).sort()).toEqual([0, 1, 2, 3].map((r) => `ride:carousel:d2:r${r}: no shadow set`));
+  });
+  it('a shadow set per turn covers only its own turn; an object baked for every turn takes any shadow turn', () => {
+    const i = clone();
+    const sh = i.sets.find((s) => s.kind === 'shadow')!;
+    sh.rot = 1; sh.key = setKey('shadow', 'carousel', 2, 1);
+    expect(problems(i).filter((p) => p.includes('no shadow set')).sort()).toEqual([0, 2, 3].map((r) => `ride:carousel:d2:r${r}: no shadow set`));
+    i.sets = i.sets.filter((s) => s.kind === 'shadow' || s.key === 'ride:carousel:d2:r0');
+    const r = i.sets.find((s) => s.kind === 'ride')!; r.rot = 'all'; r.key = setKey('ride', 'carousel', 2, 'all');
+    expect(problems(i, filesOf(i)).filter((p) => p.includes('no shadow set'))).toEqual([]);
+  });
   it('rot all satisfies rotations', () => {
     const i = clone(); const r = i.sets.find((s) => s.kind === 'ride')!;
     i.sets = [r]; r.rot = 'all';
