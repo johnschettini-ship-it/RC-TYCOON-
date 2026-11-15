@@ -31,6 +31,8 @@ describe('itemSpec', () => {
     big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
     kiddie_cars: { m: 7, why: 'a children\'s car ride: canopy peak 5.9 m, gold ball on a short mast at 7 m; today\'s 78 px flag mast (9.75 m) is drawn tall' },
     merry_mill: { m: 11.5, why: '4.8 m sails on a 6.8 m hub top out at 11.6 m, so the lowest gondola boards at the deck; 14.5 m would need sails reaching past the footprint' },
+    observation_tower: { m: 32, why: 'a ring cabin for 8 needs a real mast to be worth the ride: 32 m, under the 37 m RIDE_UP_PX margin at density 4; the rule gives 25' },
+    gyro_globe: { m: 14, why: 'a realistic gimbal stands its 10.6 m outer ring on a short turntable pedestal, not on a 6 m column; the rule gives 18.5' },
   };
 
   it('every height exception has a reason', () => {

@@ -10,6 +10,7 @@ export const SHARED = [
 ];
 
 const RIDE_DEPS = ['../../src/render/anim.ts', 'items/flatRides.js'];
+const TOWER_DEPS = [...RIDE_DEPS, 'items/towerMotion.js'];
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = ['items/scenery.js'];
 
@@ -27,6 +28,7 @@ export const COASTER_PIECES = [
  */
 export const CARD_ITEMS = [
   { id: 'carousel', kind: 'ride' }, { id: 'swing_tower', kind: 'ride' }, { id: 'big_wheel', kind: 'ride' },
+  { id: 'observation_tower', kind: 'ride' }, { id: 'drop_tower', kind: 'ride' }, { id: 'gyro_globe', kind: 'ride' }, { id: 'spiral_slide', kind: 'ride' },
   { id: 'snack_shack', kind: 'stall' },
   ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
   { id: 'steel_coaster', kind: 'track' },
@@ -42,6 +44,10 @@ export const ITEM_LIST = [
   { id: 'carousel', file: 'items/carousel.js', catalog: ['ride', 'carousel'], deps: RIDE_DEPS },
   { id: 'swing_tower', file: 'items/swing_tower.js', catalog: ['ride', 'swing_tower'], deps: RIDE_DEPS },
   { id: 'big_wheel', file: 'items/big_wheel.js', catalog: ['ride', 'big_wheel'], deps: RIDE_DEPS },
+  { id: 'observation_tower', file: 'items/observation_tower.js', catalog: ['ride', 'observation_tower'], deps: TOWER_DEPS },
+  { id: 'drop_tower', file: 'items/drop_tower.js', catalog: ['ride', 'drop_tower'], deps: TOWER_DEPS },
+  { id: 'gyro_globe', file: 'items/gyro_globe.js', catalog: ['ride', 'gyro_globe'], deps: TOWER_DEPS },
+  { id: 'spiral_slide', file: 'items/spiral_slide.js', catalog: ['ride', 'spiral_slide'], deps: TOWER_DEPS },
   { id: 'snack_shack', file: 'items/snack_shack.js', catalog: ['stall', 'snack_shack'] },
   { id: 'oak_round', file: 'items/oak_round.js', catalog: ['scenery', 'oak_round'], deps: SCENERY_DEPS },
   { id: 'pine_tall', file: 'items/pine_tall.js', catalog: ['scenery', 'pine_tall'], deps: SCENERY_DEPS },

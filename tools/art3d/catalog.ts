@@ -29,7 +29,7 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   bumper_cars: 13.5,
   rocket_rounds: 10.5,
   spiral_slide: 14.5,
-  observation_tower: 25,
+  observation_tower: 32, // realistic: a ring-cabin observation tower (catalog.test.ts HEIGHT_EXCEPTIONS)
   mirror_maze: 10.5,
   haunted_manor: 14.5,
   pendulum_ship: 18,
@@ -39,7 +39,7 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   magic_carpet: 16.5,
   kiddie_cars: 7,
   merry_mill: 11.5,
-  gyro_globe: 18.5,
+  gyro_globe: 14, // realistic: the gimbal stands on a short turntable pedestal (catalog.test.ts HEIGHT_EXCEPTIONS)
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,
