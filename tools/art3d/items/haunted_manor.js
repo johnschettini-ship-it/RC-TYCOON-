@@ -1,6 +1,7 @@
 // Haunted Manor (walk-through attraction, 4 x 4 tiles, 14.5 m): a crooked two-storey Victorian house in faded
 // lavender clapboard with a steep slate roof, a round corner tower with a witch's-hat roof at the back right
-// (today's look), a porch with an arched, softly glowing door at the front (+z), shuttered windows lit amber, green
+// (today's look), a porch with an arched, softly glowing door at the front (+z) on the entrance gate column
+// (arenaKeys.GATE_X), shuttered windows lit amber, green
 // and violet, an iron fence with a gate gap, a gnarled bare tree, grinning jack-o'-lanterns on the steps and a
 // friendly sheet ghost bobbing by the tower. Spooky but family-friendly: no gore, nothing that hurts. No riders.
 // Light change in 4 steps (arenaKeys.manorKeys, repeating every 8 angle slots): windows flicker, the lanterns
@@ -8,7 +9,7 @@
 import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { painted, glow, slab, canvasTex, hash01 } from './arenaKit.js';
-import { manorKeys, LIGHT_STEPS } from './arenaKeys.js';
+import { manorKeys, LIGHT_STEPS, GATE_X } from './arenaKeys.js';
 
 const HX = 5.4; // house half-width
 const Z0 = -4.6, Z1 = 2.4; // house depth
@@ -16,6 +17,7 @@ const FLOOR = 3.2; // storey height
 const EAVE = 0.6 + FLOOR * 2; // wall top
 const TOWER = { x: 4.4, z: -3.7, r: 1.75, h: 9.0 };
 const TAU = Math.PI * 2;
+const GX = GATE_X.haunted_manor; // the entrance gate column: path, gate, porch and door are centred on it
 
 function pumpkinTex() {
   return canvasTex(256, 128, (g, w, h) => {
@@ -105,7 +107,7 @@ function build() {
   const iron = std({ color: '#1e1a26', metalness: 0.6, roughness: 0.5 });
   // garden: dull lawn, a gravel path to the porch, a stone plinth under the house
   root.add(slab(15.6, 0.18, 15.6, std({ map: rep(tx.grass.map, 3), color: '#8f9a76', roughness: 0.95 }), 0, 0, 0));
-  root.add(slab(2.0, 0.05, 7.8 - Z1 - 0.6, std({ map: rep(tx.slabs.map, 1, 2), color: '#b8ad9a', roughness: 0.9 }), 0, 0.18, (Z1 + 7.8) / 2));
+  root.add(slab(2.0, 0.05, 7.8 - Z1 - 0.6, std({ map: rep(tx.slabs.map, 1, 2), color: '#b8ad9a', roughness: 0.9 }), GX, 0.18, (Z1 + 7.8) / 2));
   root.add(slab(HX * 2 + 0.3, 0.6, Z1 - Z0 + 0.3, mat.stone, 0, 0, (Z0 + Z1) / 2));
   // walls, slightly crooked
   const house = new THREE.Group();
@@ -138,10 +140,10 @@ function build() {
   gw.rotation.y = Math.PI / 2; gw.position.set(0, EAVE, (Z0 + Z1) / 2);
   house.add(gw);
   const cross = pitched(3.4, 3.8, 2.8, 0.3);
-  cross.rotation.y = Math.PI / 2; cross.position.set(0, EAVE - 0.2, Z1 - 1.2);
+  cross.rotation.y = Math.PI / 2; cross.position.set(GX, EAVE - 0.2, Z1 - 1.2);
   house.add(cross);
   const crossWall = gableWall(3.8, 2.8, 3.0);
-  crossWall.position.set(0, EAVE - 0.2, Z1 - 1.35);
+  crossWall.position.set(GX, EAVE - 0.2, Z1 - 1.35);
   house.add(crossWall);
   // ridge cresting and a chimney
   house.add(slab(HX * 2 + 0.8, 0.12, 0.12, iron, 0, EAVE + roofH, (Z0 + Z1) / 2));
@@ -173,27 +175,27 @@ function build() {
   };
   for (const fl of [0, 1]) {
     const y = 0.6 + fl * FLOOR + 0.9;
-    for (const x of fl ? [-3.8, -1.6, 1.6, 3.8] : [-3.8, -2.0, 2.0, 3.8]) addWindow(x, y, Z1 + 0.01, 0);
+    for (const x of fl ? [-4.3, -0.4, 1.9, 4.0] : [1.1, 3.4]) addWindow(x, y, Z1 + 0.01, 0);
     for (const z of [Z0 + 1.6, Z1 - 1.6]) { addWindow(HX + 0.01, y, z, Math.PI / 2); addWindow(-HX - 0.01, y, z, -Math.PI / 2); }
     for (const x of [-3.0, 0, 3.0]) addWindow(x, y, Z0 - 0.01, Math.PI);
   }
-  addWindow(0, EAVE + 0.5, Z1 + 0.16, 0, 0.7, 0.9); // attic window in the cross gable
+  addWindow(GX, EAVE + 0.5, Z1 + 0.16, 0, 0.7, 0.9); // attic window in the cross gable
   // porch: deck, posts, a small roof, the arched glowing door, steps
-  root.add(slab(4.2, 0.55, 1.8, mat.boards, 0, 0.05, Z1 + 0.9));
-  for (let k = 0; k < 3; k++) root.add(slab(2.0, 0.15 * (k + 1), 0.32, mat.stone, 0, 0.05, Z1 + 1.8 + (3 - k) * 0.32 - 0.16));
-  for (const s of [-1, 1]) root.add(slab(0.16, 2.9, 0.16, trim, s * 1.9, 0.6, Z1 + 1.6));
+  root.add(slab(4.2, 0.55, 1.8, mat.boards, GX, 0.05, Z1 + 0.9));
+  for (let k = 0; k < 3; k++) root.add(slab(2.0, 0.15 * (k + 1), 0.32, mat.stone, GX, 0.05, Z1 + 1.8 + (3 - k) * 0.32 - 0.16));
+  for (const s of [-1, 1]) root.add(slab(0.16, 2.9, 0.16, trim, GX + s * 1.9, 0.6, Z1 + 1.6));
   const pr = M(new THREE.BoxGeometry(4.6, 0.12, 2.1), slate);
-  pr.position.set(0, 3.55, Z1 + 0.95); pr.rotation.x = 0.18;
+  pr.position.set(GX, 3.55, Z1 + 0.95); pr.rotation.x = 0.18;
   root.add(pr);
-  root.add(slab(4.4, 0.25, 0.12, trim, 0, 3.3, Z1 + 1.65));
+  root.add(slab(4.4, 0.25, 0.12, trim, GX, 3.3, Z1 + 1.65));
   const doorGlow = glow('#b88cff', 1.6, '#e8dcff');
   const arch = new THREE.Shape();
   arch.moveTo(-0.65, 0); arch.lineTo(0.65, 0); arch.lineTo(0.65, 1.8); arch.absarc(0, 1.8, 0.65, 0, Math.PI, false); arch.lineTo(-0.65, 0);
   const dg = M(new THREE.ShapeGeometry(arch, 16), doorGlow);
-  dg.position.set(0, 0.6, Z1 + 0.02);
+  dg.position.set(GX, 0.6, Z1 + 0.02);
   house.add(dg);
   const door = M(new THREE.ExtrudeGeometry(arch, { depth: 0.06, bevelEnabled: false }), std({ color: '#3b2a24', roughness: 0.7 }));
-  door.scale.set(0.5, 1, 1); door.position.set(-0.33, 0.6, Z1 + 0.05); door.rotation.y = -0.6; // ajar
+  door.scale.set(0.5, 1, 1); door.position.set(GX - 0.33, 0.6, Z1 + 0.05); door.rotation.y = -0.6; // ajar
   house.add(door);
   // round tower at the back right with a witch's-hat roof and a weather vane
   const tw = M(new THREE.CylinderGeometry(TOWER.r, TOWER.r + 0.1, TOWER.h, 32), siding);
@@ -222,22 +224,25 @@ function build() {
   // iron fence along the front, a gate gap at the path, lanterns on the gate posts
   const FZ = 7.5;
   for (const s of [-1, 1]) {
-    for (let k = 0; k <= 12; k++) {
-      const x = s * (1.3 + k * 0.53);
+    const x0 = GX + s * 1.3, x1 = s * 7.66;
+    const n = Math.round(Math.abs(x1 - x0) / 0.53);
+    for (let k = 0; k <= n; k++) {
+      const x = x0 + (k / n) * (x1 - x0);
       root.add(rod(V(x, 0.18, FZ), V(x, 1.3, FZ), 0.025, iron, 5));
       root.add(M(new THREE.ConeGeometry(0.05, 0.16, 6), iron).translateX(x).translateY(1.36).translateZ(FZ));
     }
-    for (const y of [0.45, 1.15]) root.add(rod(V(s * 1.3, y, FZ), V(s * 7.66, y, FZ), 0.025, iron, 5));
-    root.add(slab(0.4, 1.6, 0.4, mat.stone, s * 1.15, 0.18, FZ));
-    root.add(slab(0.24, 0.32, 0.24, glow('#ffc35a', 1.6, '#ffe7b0'), s * 1.15, 1.85, FZ));
-    root.add(M(new THREE.ConeGeometry(0.22, 0.24, 4), iron).translateX(s * 1.15).translateY(2.29).translateZ(FZ).rotateY(Math.PI / 4));
+    for (const y of [0.45, 1.15]) root.add(rod(V(x0, y, FZ), V(x1, y, FZ), 0.025, iron, 5));
+    root.add(slab(0.4, 1.6, 0.4, mat.stone, GX + s * 1.15, 0.18, FZ));
+    root.add(slab(0.24, 0.32, 0.24, glow('#ffc35a', 1.6, '#ffe7b0'), GX + s * 1.15, 1.85, FZ));
+    root.add(M(new THREE.ConeGeometry(0.22, 0.24, 4), iron).translateX(GX + s * 1.15).translateY(2.29).translateZ(FZ).rotateY(Math.PI / 4));
   }
   // garden: bare tree, pumpkins, a crooked lamp
   root.add(bareTree(std({ map: tx.bark.map, color: '#5a4a44', roughness: 0.95 }), -5.6, 5.0));
   const pumpkins = [];
-  for (const [x, z, r, l] of [[-0.75, Z1 + 2.9, 0.32, true], [0.8, Z1 + 2.9, 0.28, true], [1.6, Z1 + 1.4, 0.24, false], [-1.55, Z1 + 1.5, 0.34, true], [4.0, 5.6, 0.4, true], [3.4, 6.0, 0.22, false], [-3.9, 6.3, 0.3, true]]) {
+  for (const [dx, z, r, l] of [[-0.75, Z1 + 2.9, 0.32, true], [0.8, Z1 + 2.9, 0.28, true], [1.6, Z1 + 1.4, 0.24, false], [-1.55, Z1 + 1.5, 0.34, true], [6.0, 5.6, 0.4, true], [5.4, 6.0, 0.22, false], [-3.4, 6.3, 0.3, true]]) {
+    const x = GX + dx; // near the porch and path; dx is from the gate column
     const p = pumpkin(r, l);
-    const y = Math.abs(z - (Z1 + 0.9)) < 1 && Math.abs(x) < 2.1 ? 0.6 : (z > Z1 + 1.7 && z < Z1 + 3.0 && Math.abs(x) < 1.1 ? 0.2 : 0.18);
+    const y = Math.abs(z - (Z1 + 0.9)) < 1 && Math.abs(dx) < 2.1 ? 0.6 : (z > Z1 + 1.7 && z < Z1 + 3.0 && Math.abs(dx) < 1.1 ? 0.2 : 0.18);
     p.position.set(x, y + r * 0.7, z);
     p.rotation.y = (hash01(Math.round(x * 10)) - 0.5) * 0.8;
     root.add(p);

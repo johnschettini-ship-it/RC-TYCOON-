@@ -1,14 +1,17 @@
-// Thunder Disc (thrill ride, 4 x 4 tiles, 10.5 m): a steel U-track 13.2 m long on A-frame trestles, rising from the
+// Thunder Disc (thrill ride, 4 x 4 tiles, 11 m): a steel U-track 13.2 m long on A-frame trestles, rising from the
 // boarding platform at its low middle to 8 m at both ends, and a round disc of twelve outward-facing seats (red and
 // yellow, over-the-shoulder restraints) that rolls along the U and spins: as today's look, the disc swings out and
 // back once per cycle (l = 5.2 m * sin) and turns three times; it rides on the track, so it tilts with the slope.
-// Lightning-bolt signs on masts at both ends. Frames: arenaKeys.thunderKeys (16 time steps per cycle, 2 per picture;
-// the empty ride is one rest picture at the bottom). The track runs along x, the platform steps face +z: rots [0..3].
+// Lightning-bolt signs on masts at both ends. Steps climb to the platform at the gate column (arenaKeys.GATE_X):
+// entrance at the front (+z), exit at the back. Frames: arenaKeys.thunderKeys (16 time steps per cycle, 2 per
+// picture; the empty ride is one rest picture at the bottom). The track runs along x: rots [0, 1, 2, 3].
 import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
 import { painted, gloss, slab, bulbs } from './arenaKit.js';
-import { thunderKeys, THUNDER_PICS, stepOf } from './arenaKeys.js';
+import { thunderKeys, THUNDER_PICS, stepOf, GATE_X } from './arenaKeys.js';
+
+const GX = GATE_X.thunder_disc; // entrance and exit column centre
 
 const END = 6.6; // track half-length (today: 1.65 tiles)
 const RISE = 6.9; // track rise from the middle to the ends
@@ -32,22 +35,22 @@ function build() {
   const dark = mat.darkSteel;
   // plinth under the track and the boarding platform
   root.add(slab(15.2, 0.25, 6.6, mat.concrete, 0, 0, 0));
-  root.add(slab(5.2, 0.55, 7.4, mat.concrete, 0, 0, 0.2));
-  root.add(slab(5.0, 0.06, 7.2, painted('#8a8d90', { metalness: 0.1, roughness: 0.8, clearcoat: 0 }), 0, 0.55, 0.2));
-  // steps down to the entrance side (+z)
-  for (let k = 0; k < 3; k++) root.add(slab(2.2, 0.18 * (k + 1), 0.35, mat.concrete, 0, 0, 3.9 + (2 - k) * 0.35));
-  // platform railings, open at the steps and at the disc's path
+  // the platform reaches the gate column (GX): steps up from the entrance (front, +z) and down to the exit (back)
+  const PX0 = -3.0, PX1 = 2.6, PZ0 = -3.5, PZ1 = 3.9;
+  root.add(slab(PX1 - PX0, 0.55, PZ1 - PZ0, mat.concrete, (PX0 + PX1) / 2, 0, (PZ0 + PZ1) / 2));
+  root.add(slab(PX1 - PX0 - 0.2, 0.06, PZ1 - PZ0 - 0.2, painted('#8a8d90', { metalness: 0.1, roughness: 0.8, clearcoat: 0 }), (PX0 + PX1) / 2, 0.55, (PZ0 + PZ1) / 2));
+  for (let k = 0; k < 3; k++) {
+    root.add(slab(1.8, 0.18 * (k + 1), 0.35, mat.concrete, GX, 0, PZ1 + 0.175 + (2 - k) * 0.35));
+    root.add(slab(1.8, 0.18 * (k + 1), 0.35, mat.concrete, GX, 0, PZ0 - 0.175 - (2 - k) * 0.35));
+  }
+  // platform railings along front and back, open at the steps (the sides stay open for the disc)
   const rail = painted('#e9e6df');
-  for (const sz of [-1, 1]) {
-    const z = sz * 3.6 + 0.2;
-    for (const sx of [-1, 1]) {
-      if (sz > 0) {
-        root.add(rod(V(sx * 1.2, 1.6, z), V(sx * 2.5, 1.6, z), 0.035, rail, 8));
-        for (const x of [1.2, 1.85, 2.5]) root.add(rod(V(sx * x, 0.6, z), V(sx * x, 1.6, z), 0.03, rail, 6));
-      } else {
-        root.add(rod(V(-2.5, 1.6, z), V(2.5, 1.6, z), 0.035, rail, 8));
-        for (let k = 0; k <= 4; k++) root.add(rod(V(-2.5 + k * 1.25, 0.6, z), V(-2.5 + k * 1.25, 1.6, z), 0.03, rail, 6));
-      }
+  for (const z of [PZ1 - 0.1, PZ0 + 0.1]) {
+    for (const [x0, x1] of [[PX0 + 0.1, GX - 0.95], [GX + 0.95, PX1 - 0.1]]) {
+      if (x1 - x0 < 0.05) { root.add(rod(V(x0, 0.6, z), V(x0, 1.6, z), 0.03, rail, 6)); continue; }
+      root.add(rod(V(x0, 1.6, z), V(x1, 1.6, z), 0.035, rail, 8));
+      const n = Math.max(1, Math.round((x1 - x0) / 1.2));
+      for (let k = 0; k <= n; k++) { const x = x0 + (k / n) * (x1 - x0); root.add(rod(V(x, 0.6, z), V(x, 1.6, z), 0.03, rail, 6)); }
     }
   }
   // the U-track: two box-girder rails, cross ties, and trestles
@@ -68,7 +71,7 @@ function build() {
     root.add(rod(V(l, y, -GAUGE), V(l, y, GAUGE), 0.07, orange, 8));
   }
   // trestles: A-frames under both rails, braced across
-  for (const l of [-6.2, -4.6, -3.0, 3.0, 4.6, 6.2]) {
+  for (const l of [-6.2, -5.0, -3.8, 3.8, 5.0, 6.2]) {
     const y = trackY(l) - 0.26;
     for (const c of [-GAUGE, GAUGE]) {
       const out = Math.sign(c) * 0.9;
@@ -93,13 +96,13 @@ function build() {
     b.scale.setScalar(1.05);
     root.add(b);
   }
-  // control booth on the platform's far side
+  // control booth on the platform, front right (clear of the gate column)
   const booth = new THREE.Group();
   booth.add(slab(1.4, 1.1, 1.2, painted('#f4efe2'), 0, 0, 0));
   booth.add(slab(1.4, 1.0, 1.2, mat.glass, 0, 1.1, 0));
   for (const [x, z] of [[-0.68, -0.58], [0.68, -0.58], [-0.68, 0.58], [0.68, 0.58]]) booth.add(slab(0.06, 1.0, 0.06, red, x, 1.1, z));
   booth.add(slab(1.6, 0.12, 1.4, red, 0, 2.1, 0));
-  booth.position.set(-2.0, 0.61, -2.9);
+  booth.position.set(1.7, 0.61, 3.0);
   root.add(booth);
 
   // the disc: a carriage (bogie on the rails) under a turning seat ring

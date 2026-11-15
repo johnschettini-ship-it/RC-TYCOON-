@@ -106,6 +106,21 @@ describe('Task 5 ride frames', () => {
     }
   });
 
+  it('each model\'s entrance and exit opening sits on the sim\'s gate column (gateIndex, flatRideGates)', async () => {
+    const { GATE_X } = await load('items/arenaKeys.js');
+    const { gateIndex } = await import('../../../src/data/catalog/flatRides');
+    const { getFlatRideDef } = await import('../../../src/data/catalog');
+    const TILE_M = 4;
+    for (const [id] of RIDES) {
+      const def = getFlatRideDef(id);
+      if (!def) throw new Error(id);
+      // model x: footprint centre = 0, front edge along x at rotation 0 (src/sim/footprint.ts footprintTile)
+      expect(GATE_X[id], id).toBe((gateIndex(def.w) + 0.5) * TILE_M - (def.w * TILE_M) / 2);
+    }
+    expect(GATE_X.bumper_cars).toBe(-2);
+    expect(GATE_X.mirror_maze).toBe(0);
+  });
+
   it('walk-throughs bake 4 light steps and one occupancy state', async () => {
     const keys = await load('items/arenaKeys.js');
     for (const fn of ['mirrorKeys', 'manorKeys']) {

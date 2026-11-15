@@ -8,17 +8,17 @@
 import { timeKeys, cycleKeys } from './flatRides.js';
 
 /**
- * The 16 time steps folded into `pics` pictures (the size rule: compressed <= 2.5 MB per ride): step s shows picture
+ * The 16 time steps folded into `pics` pictures (the size rule: compressed <= 4 MB for these two rides, controller ruling): step s shows picture
  * floor(s * pics / 16); picture k is posed at its first step (stepOf), so picture 0 is the start of the cycle.
  */
 const timeFold = (item, pics) => timeKeys(item, {}, (step, full) => (full ? `t${Math.floor((step * pics) / 16)}` : 'rest'));
 
-/** Bumper cars: 4 pictures per cycle (each car jostles round its own spot once per cycle), empty = one rest picture. */
-export const BUMPER_PICS = 4;
+/** Bumper cars: 8 pictures per cycle (each car jostles round its own spot once per cycle), empty = one rest picture. */
+export const BUMPER_PICS = 8;
 export const bumperKeys = () => timeFold('bumper_cars', BUMPER_PICS);
 
-/** Thunder disc: the disc swings once along the U and spins three turns per cycle (today's look), in 6 pictures. */
-export const THUNDER_PICS = 6;
+/** Thunder disc: the disc swings once along the U and spins three turns per cycle (today's look), in 8 pictures. */
+export const THUNDER_PICS = 8;
 export const thunderKeys = () => timeFold('thunder_disc', THUNDER_PICS);
 
 /** Walk-throughs: no riders, one occupancy state; 4 light steps that repeat every 8 angle slots. */
@@ -31,3 +31,11 @@ export function stepOf(id, pics) {
   if (id === 'rest') return { t: 0, full: false };
   return { t: Math.ceil((Number(id.slice(1)) * 16) / pics) / 16, full: true };
 }
+
+/**
+ * Model x (metres, footprint centre = 0, front at +z) of each ride's entrance and exit opening: the centre of the
+ * sim's gate column floor((w - 1) / 2) (src/data/catalog/flatRides.ts gateIndex, src/sim/footprint.ts
+ * flatRideGates), entrance on the front edge, exit on the back edge of the same column, at every view turn.
+ * w = 4: column 1, x = -2 m; w = 3: column 1, x = 0.
+ */
+export const GATE_X = { bumper_cars: -2, haunted_manor: -2, thunder_disc: -2, mirror_maze: 0 };
