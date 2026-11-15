@@ -6,7 +6,8 @@ import { itemSpec } from '../../../tools/art3d/catalog';
 
 // Plain JS build tools without types: import by a computed path so they load as `any`.
 /** The baked items the stage 1 reader (Task 7 fallbacks.ts) maps game ids to. */
-const REAL_FALLBACK_IDS = ['carousel', 'swing_tower', 'big_wheel', 'snack_shack', 'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole', 'bench', 'bin', 'steel_coaster'];
+const REAL_FALLBACK_IDS = ['carousel', 'swing_tower', 'big_wheel', 'snack_shack', 'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole', 'bench', 'bin', 'steel_coaster',
+  'observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide'];
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -35,7 +36,8 @@ describe('stage 1 bake list', () => {
 });
 
 describe('batch 1 flat rides', () => {
-  const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel'];
+  const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel',
+    'observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide'];
   it('the three baked rides are in the registry and their own baked item (not a stand-in)', async () => {
     const { ITEM_LIST } = await load('items/registry.js');
     const ids = new Set(ITEM_LIST.map((x: { id: string }) => x.id));

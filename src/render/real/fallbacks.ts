@@ -11,6 +11,7 @@ import { TRACK_RIDES } from '../../data/catalog/trackRides';
 /** Items the stage 1 bake draws. `bench` and `bin` are path items, drawn through the scenery kind. */
 const BAKED = [
   'carousel', 'swing_tower', 'big_wheel',
+  'observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide',
   'snack_shack',
   'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole',
   'bench', 'bin',

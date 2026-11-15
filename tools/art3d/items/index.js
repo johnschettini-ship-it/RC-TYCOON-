@@ -18,5 +18,10 @@ import ground from './ground.js';
 import steel_coaster from './steel_coaster.js';
 import facade from './facade.js';
 import cards from './cards.js';
+import observation_tower from './observation_tower.js';
+import drop_tower from './drop_tower.js';
+import gyro_globe from './gyro_globe.js';
+import spiral_slide from './spiral_slide.js';
 
-export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards };
+export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards,
+  observation_tower, drop_tower, gyro_globe, spiral_slide };

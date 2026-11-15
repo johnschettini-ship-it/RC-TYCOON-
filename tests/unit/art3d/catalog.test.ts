@@ -29,6 +29,8 @@ describe('itemSpec', () => {
     carousel: { m: 8, why: 'baked in stage 1 and seen by the owner; the rule gives 12.5' },
     swing_tower: { m: 18, why: 'baked in stage 1 and seen by the owner; 146 / 8 = 18.25 is a tie, the rule rounds up to 18.5' },
     big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
+    observation_tower: { m: 32, why: 'a ring cabin for 8 needs a real mast to be worth the ride: 32 m, under the 37 m RIDE_UP_PX margin at density 4; the rule gives 25' },
+    gyro_globe: { m: 14, why: 'a realistic gimbal stands its 10.6 m outer ring on a short turntable pedestal, not on a 6 m column; the rule gives 18.5' },
   };
 
   it('every height exception has a reason', () => {

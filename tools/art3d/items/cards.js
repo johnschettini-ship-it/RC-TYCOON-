@@ -29,12 +29,17 @@ import shrub_round from './shrub_round.js';
 import boulder from './boulder.js';
 import lamp_globe from './lamp_globe.js';
 import bunting_pole from './bunting_pole.js';
+import observation_tower from './observation_tower.js';
+import drop_tower from './drop_tower.js';
+import gyro_globe from './gyro_globe.js';
+import spiral_slide from './spiral_slide.js';
 
 /** The box a card picture fits, in density-2 px (about the card preview's 168 x 120 CSS px, less its padding). */
 export const CARD_W = 160;
 export const CARD_H = 114;
 
-const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole };
+const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole,
+  observation_tower, drop_tower, gyro_globe, spiral_slide };
 
 /** The set (kind, rot) whose first picture is the card, by card kind. */
 const WANT = {
