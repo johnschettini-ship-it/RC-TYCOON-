@@ -18,7 +18,7 @@ import type { World } from '../sim/types';
 import { coarseRideFrame, GHOST_FRAME_INVALID, GHOST_FRAME_VALID, rideFrameFor } from './anim';
 import { clampCameraToMap, ZOOM_BUCKETS, zoomBucket, type ZoomBucket } from './camera';
 import { drawCardArt } from './cardArt';
-import { makeCanvas, type AnyCanvas } from './canvas';
+import { classicGate, makeCanvas, type AnyCanvas } from './canvas';
 import { footprintColumns, Layer, packDepth, sortIndex, sortKey, viewPointDepth, viewTileDepth, type ColumnTile } from './depth';
 import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } from './fence';
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
@@ -274,13 +274,21 @@ function drawCounter(ctx: CanvasRenderingContext2D): () => void {
  *
  * Today's picture memory (Task 3, spec §5.4 item 4): with a look, today's caches (terrain chunks, static layer,
  * sprites) are held in the set manager every frame as `classic` (`sets.hold`), before its `endFrame`, so the ladder
- * sees all picture memory; their shared budget is `REAL_CLASSIC_SPRITE_MB` on top of the static layer. `counts`
+ * sees all picture memory; their shared budget is `REAL_CLASSIC_SPRITE_MB` on top of the static layer. With
+ * `sets.admit` (owner decision 2026-11-15) nothing of it grows unasked: the static layer counts at the canvas size from
+ * the first frame (admitted before it is made; no room, no static layer), and today's sprites and chunks are admitted
+ * before they are made (`canvas.ts` classicGate; refused, they are not made and the frame is incomplete). `counts`
  * gathers placeholders over the run (the headless checks read it): today's terrain chunks, and the realistic ground's
  * tiles.
  */
 export interface RealOptions {
   look?: RealLook;
-  sets?: { beginFrame(frame: number): void; endFrame(): void; hold?(id: string, bytes: number, upBytes?: number): void };
+  sets?: {
+    beginFrame(frame: number): void;
+    endFrame(): void;
+    hold?(id: string, bytes: number, upBytes?: number): void;
+    admit?(id: string, bytes: number, upBytes?: number): boolean;
+  };
   ground?: GroundLayer;
   counts?: { placeholders: number; groundPlaceholders: number };
 }
@@ -1030,6 +1038,48 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   let staticValid = false;
   /** Frames drawn from the static layer (tests and the debug overlay). */
   let staticReuses = 0;
+  /**
+   * Realistic build with `sets.admit`: the static layer's bytes the `classic` hold counts, the canvas size once admitted
+   * (from the first frame, and again after a resize; made or not), 0 while it has no room: then no static layer is made.
+   */
+  let staticRoom = 0;
+  /** Realistic build with `sets.admit`: what the set manager holds as `classic` this frame, grown only through admit. */
+  let classicHeld = 0;
+  /** Today's memory as the `classic` hold counts it: every cache, the static layer at its admitted size. */
+  const classicBytes = (): number => spriteMemory.bytes - statics.bytes + staticRoom;
+  /**
+   * Start of a frame (realistic build with `sets.admit`): the static layer admitted at the canvas size if it is not yet,
+   * `classic` held at what today's caches hold, and today's builds admitted one by one for the rest of the frame.
+   */
+  type ClassicSets = { hold(id: string, bytes: number): void; admit(id: string, bytes: number): boolean };
+  let classicSets: ClassicSets | null = null;
+  /** `classicGate.admit` while a frame draws: one build's bytes on top of what `classic` holds. */
+  const admitClassic = (bytes: number): boolean => {
+    if (classicSets?.admit(CLASSIC_HOLD, classicHeld + bytes)) {
+      classicHeld += bytes;
+      return true;
+    }
+    classicGate.refused++;
+    return false;
+  };
+  function beginClassic(sets: ClassicSets): void {
+    classicSets = sets;
+    const size = canvas.width * canvas.height * 4;
+    if (staticRoom !== size) {
+      staticRoom = sets.admit(CLASSIC_HOLD, spriteMemory.bytes - statics.bytes + size) ? size : 0;
+      if (!staticRoom) {
+        // No room: no static layer (the one of another size goes), and the next still frame draws its chunks.
+        statics.delete(STATIC_KEY);
+        staticImage = null;
+        staticValid = false;
+        lastKey.w = 0;
+      }
+    }
+    classicHeld = classicBytes();
+    sets.hold(CLASSIC_HOLD, classicHeld);
+    classicGate.refused = 0;
+    classicGate.admit = admitClassic;
+  }
   interface ViewKey {
     cx: number;
     cy: number;
@@ -1127,6 +1177,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       if (import.meta.env.VITE_ART === 'real' && real.counts) real.counts.groundPlaceholders += ground?.placeholders ?? 0;
     }
     setKey(lastKey, cam, map);
+    // Realistic build: no room for the static layer (beginClassic): the next still frame draws its chunks again.
+    if (import.meta.env.VITE_ART === 'real' && L && real.sets?.admit && !staticRoom) lastKey.w = 0;
     return chunks;
   }
 
@@ -1185,6 +1237,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       if (import.meta.env.VITE_ART === 'real' && L) {
         real.sets?.beginFrame(frameNo);
         L.prepare(world, rot, view, cam.zoom, dpr);
+        if (real.sets?.admit && real.sets.hold) beginClassic(real.sets as ClassicSets);
       }
 
       // Sky and terrain (the static layer when nothing changed).
@@ -1222,7 +1275,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       list.sort();
       drawList(world);
       if (import.meta.env.VITE_ART === 'real' && L) {
-        if (L.incomplete() > 0 || (ground && !ground.complete)) perfProbe.countIncomplete();
+        if (L.incomplete() > 0 || (ground && !ground.complete) || classicGate.refused > 0) perfProbe.countIncomplete();
         else if (awaitingComplete) {
           // The park's first complete frame: its decode frames were load frames, the warm-up starts again from here.
           awaitingComplete = false;
@@ -1263,7 +1316,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       if (import.meta.env.VITE_ART === 'real' && L) {
         // Today's picture memory in the budget (Task 3), ground eviction every frame (the static layer may be reused),
         // then the set manager's ladder.
-        real.sets?.hold?.(CLASSIC_HOLD, spriteMemory.bytes);
+        real.sets?.hold?.(CLASSIC_HOLD, real.sets.admit ? classicBytes() : spriteMemory.bytes);
+        classicGate.admit = null;
         ground?.endFrame?.();
         real.sets?.endFrame();
       }

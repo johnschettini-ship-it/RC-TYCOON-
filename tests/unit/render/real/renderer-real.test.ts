@@ -481,11 +481,91 @@ describe('today\'s memory inside the decode budget (Task 3)', () => {
     for (let k = 0; k < 3; k++) {
       r.draw(world, camAt(world, 0, 1 + k * 0.25), defaultToolState(), 0);
       const b = m.spriteMemory.breakdown();
-      const today = (b.chunks ?? 0) + (b.static ?? 0) + (b.sprites ?? 0) + (b.other ?? 0);
-      expect(today).toBeGreaterThan(0);
+      // The static layer counts at the canvas size from the first frame, made or not (owner decision 2026-11-15).
+      const today = (b.chunks ?? 0) + (b.sprites ?? 0) + (b.other ?? 0) + W * H * 4;
+      expect(b.chunks ?? 0).toBeGreaterThan(0);
       expect(sets.snapshot().held.classic).toBe(today);
       expect(sets.split().classic).toBe(today);
     }
+  });
+
+  it('the static layer counts at the canvas size from the first frame: no jump when the view stands still and it is made', async () => {
+    const m = await fresh();
+    const world = park();
+    const sets = new m.SetManager(emptyIndex as never, noIO, 128 * MB, () => undefined);
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
+    r.resize(W, H, 1);
+    const statics: number[] = [];
+    for (let k = 0; k < 4; k++) {
+      r.draw(world, camAt(world), defaultToolState(), 0);
+      const b = m.spriteMemory.breakdown();
+      statics.push(b.static ?? 0);
+      // Before the layer is made and after, it counts at the canvas size: no jump when it is made.
+      expect(sets.snapshot().held.classic, `frame ${k}`).toBe((b.chunks ?? 0) + (b.sprites ?? 0) + (b.other ?? 0) + W * H * 4);
+    }
+    expect(statics[0]).toBe(0); // the first frame of a view never makes it
+    expect(statics[3]).toBe(W * H * 4); // a still view does
+  });
+
+  it('no room for the static layer: it is not made, the view draws its chunks, and the refusal is pressure', async () => {
+    const m = await fresh();
+    const world = park();
+    const probe = new m.SetManager(emptyIndex as never, noIO, 128 * MB, () => undefined);
+    const c0 = make(W, H);
+    const r0 = m.createCanvasRenderer(c0 as unknown as HTMLCanvasElement, { look: fakeLook({}), sets: probe });
+    r0.resize(W, H, 1);
+    r0.draw(world, camAt(world), defaultToolState(), 0);
+    const today = (probe.snapshot().held.classic ?? 0) - W * H * 4;
+    expect(today).toBeLessThan(W * H * 4);
+    const m2 = await fresh();
+    const budget = Math.floor((today + W * H * 4) / 2); // room for today's sprites and chunks, or for the layer: not both
+    const sets = new m2.SetManager(emptyIndex as never, noIO, budget, () => undefined);
+    const canvas = make(W, H);
+    const r = m2.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
+    r.resize(W, H, 1);
+    for (let k = 0; k < 4; k++) {
+      canvas.reset();
+      r.draw(world, camAt(world), defaultToolState(), 0);
+      expect(m2.spriteMemory.breakdown().static ?? 0, `frame ${k}`).toBe(0);
+      expect(sets.peakBytes(), `frame ${k}`).toBeLessThanOrEqual(budget);
+      expect(sets.snapshot().refused, `frame ${k}: the layer asked again`).toBeGreaterThanOrEqual(W * H * 4);
+      // chunks drawn straight to the canvas every frame, not one copy of a static layer
+      expect(canvas.draws.filter((d) => d.w === W && d.h === H && d.x === 0 && d.y === 0).length, `frame ${k}`).toBe(0);
+    }
+  });
+
+  it('today\'s sprites are admitted before they are made: with no room they are not made or kept, the frame is incomplete, and resident memory stays within the budget', async () => {
+    const m = await fresh();
+    const world = park();
+    const look = fakeLook({});
+    // A probe run with room: what today's art of this park takes (static layer included).
+    const probe = new m.SetManager(emptyIndex as never, noIO, 128 * MB, () => undefined);
+    const c0 = make(W, H);
+    const r0 = m.createCanvasRenderer(c0 as unknown as HTMLCanvasElement, { look, sets: probe });
+    r0.resize(W, H, 1);
+    r0.draw(world, camAt(world), defaultToolState(), 0);
+    const need = probe.snapshot().held.classic ?? 0;
+    const sprites = m.spriteMemory.breakdown().sprites ?? 0;
+    expect(sprites).toBeGreaterThan(0);
+    // Room for everything but half of today's sprites.
+    const m2 = await fresh();
+    const budget = need - Math.floor(sprites / 2);
+    const sets = new m2.SetManager(emptyIndex as never, noIO, budget, () => undefined);
+    const canvas = make(W, H);
+    const r = m2.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
+    r.resize(W, H, 1);
+    const perf = await import('../../../../src/perf/stats');
+    perf.perfProbe.enabled = true;
+    perf.perfProbe.reset();
+    for (let k = 0; k < 5; k++) r.draw(world, camAt(world), defaultToolState(), 0);
+    const b = m2.spriteMemory.breakdown();
+    expect(b.sprites ?? 0).toBeGreaterThan(0);
+    expect(b.sprites ?? 0).toBeLessThan(sprites); // the refused ones were not made (or not kept)
+    expect(sets.peakBytes()).toBeLessThanOrEqual(budget);
+    expect(sets.snapshot().held.classic).toBeLessThanOrEqual(budget);
+    expect(perf.perfProbe.snapshot().incompleteFrames).toBeGreaterThan(0);
+    perf.perfProbe.enabled = false;
   });
 
   it('frees every bucket of a covered chunk', async () => {

@@ -50,12 +50,34 @@ export function canvasPixelRatio(cssW: number, cssH: number, dpr: number): numbe
 const PAD = 2;
 
 /**
+ * Realistic build only (folded away in the website build): today's pictures (sprites, terrain chunks) ask for room in
+ * the decode budget before they are made, as everything else in it does (owner decision 2026-11-15). The renderer
+ * sets `admit` for the length of a frame (`SetManager.admit` under the `classic` hold). Refused, nothing is made: the
+ * builder answers `notMadeSprite()`, which draws nothing and is never cached (`SpriteCache.set`), `refused` counts it
+ * (the frame is incomplete) and a later frame asks again once the ladder has made room.
+ */
+export const classicGate: { admit: ((bytes: number) => boolean) | null; refused: number } = { admit: null, refused: 0 };
+let notMade: Sprite | null = null;
+
+/** The picture a refused build answers: one transparent pixel, never cached. */
+export function notMadeSprite(): Sprite {
+  if (!notMade) notMade = { image: makeCanvas(1, 1).canvas, w: 1, h: 1, ox: 0, oy: 0, scale: 1, notMade: true };
+  return notMade;
+}
+
+/** Whether `sp` is the refused build's answer. */
+export function isNotMade(sp: Sprite): boolean {
+  return sp.notMade === true;
+}
+
+/**
  * Draw `paint` (world-pixel coordinates around the anchor) into a new canvas at `scale` image pixels
  * per world pixel. An optional `tint` washes every drawn pixel (ghosts).
  */
 export function buildSprite(bounds: ArtBounds, scale: number, paint: (ctx: Ctx) => void, tint: string | null = null): Sprite {
   const w = Math.max(1, Math.ceil((bounds.right - bounds.left) * scale) + PAD * 2);
   const h = Math.max(1, Math.ceil((bounds.bottom - bounds.top) * scale) + PAD * 2);
+  if (import.meta.env.VITE_ART === 'real' && classicGate.admit && !classicGate.admit(w * h * 4)) return notMadeSprite();
   const { canvas, ctx } = makeCanvas(w, h);
   const ox = PAD - bounds.left * scale;
   const oy = PAD - bounds.top * scale;
