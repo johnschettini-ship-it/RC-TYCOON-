@@ -6,7 +6,7 @@
 /** Files every item's pictures depend on. */
 export const SHARED = [
   'vendor/three-0.160.0.module.min.js', 'kit.js', 'textures.js', 'people.js', 'rides.js', 'post.js', 'bakeView.js', 'camera.ts', 'bakePage.ts',
-  'items/common.js', '../../src/render/real/indexFormat.ts', '../../src/render/artStyle.ts', '../../src/render/iso.ts',
+  'items/common.js', 'items/rideKeys.js', '../../src/render/real/indexFormat.ts', '../../src/render/artStyle.ts', '../../src/render/iso.ts',
 ];
 
 const RIDE_DEPS = ['../../src/render/anim.ts'];
