@@ -56,10 +56,10 @@ export const ITEM_LIST = [
   {
     id: 'steel_coaster', file: 'items/steel_coaster.js', track: { type: 'steel_coaster', pieces: COASTER_PIECES } },
   { id: 'facade', file: 'items/facade.js' },
-  { id: 'teacup_twirl', file: 'items/teacup_twirl.js', catalog: ['ride', 'teacup_twirl'], deps: RIDE_DEPS },
-  { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: RIDE_DEPS },
-  { id: 'kiddie_cars', file: 'items/kiddie_cars.js', catalog: ['ride', 'kiddie_cars'], deps: RIDE_DEPS },
-  { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: RIDE_DEPS },
+  { id: 'teacup_twirl', file: 'items/teacup_twirl.js', catalog: ['ride', 'teacup_twirl'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  { id: 'kiddie_cars', file: 'items/kiddie_cars.js', catalog: ['ride', 'kiddie_cars'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
 ];
 
 // One small card picture per baked game item, in one set preview:cards:d2:rall (frames keyed by item id), for the

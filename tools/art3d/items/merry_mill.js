@@ -1,30 +1,31 @@
-// Merry Mill (round flat ride, 3 x 3 tiles, 11.5 m): a painted smock-mill tower on a round stone base, its four
+// Merry Mill (flat ride with a front, 3 x 3 tiles, 11.5 m): a painted smock-mill tower on a round stone base, its four
 // lattice sails turning in front of it, each carrying a two-seat gondola that hangs level from the sail tip, so the
-// sails work as a small wheel. As today's drawing does, the sails face the viewer (the windshaft points at the camera,
-// 45 degrees between +x and +z), so the mill reads the same at every view turn.
+// sails work as a small wheel. The mill has a front (the sails, the door), so it bakes one set per view turn
+// (rots [0, 1, 2, 3], flatRides.js NON_ROUND): a view turn shows it from another side, as a real windmill.
 // Motion, as a function of the game's ride angle a (0-1 per revolution; REVOLUTIONS default 2): the sails turn -a turns
-// about the windshaft. The gondolas alternate two colours (riders copied the same way), so the sails repeat every half
-// turn: period 16 angle slots, 8 pictures per occupancy. Round deck, path, fence and base: one set for every view turn.
-// (A mill that turned on its base as well was tried: its state repeats only after a whole turn, 32 pictures, and its
-// decoded size per turn at density 4 came to 40 MB, over the 32 MB rule.)
+// about the windshaft (spinnerMotion.js millAngles). The four sails and gondolas are alike (one gondola colour, the
+// same two rider looks in each), so the sails repeat every quarter turn: period 8 angle slots, 4 pictures per
+// occupancy and view turn. (Earlier versions: a mill turning on its base needed 32 pictures, 40 MB per turn at
+// density 4; a mill always facing the viewer read wrong after a view turn.)
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { cycleKeys } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { person, randomLook } from '../people.js';
+import { MILL, millAngles } from './spinnerMotion.js';
 
-/** Angle slots per repeat (half a turn of the sails). */
-export const PERIOD = 16;
+/** Angle slots per repeat (a quarter turn of the four alike sails). */
+export const PERIOD = MILL.period;
 const TAU = Math.PI * 2;
 const BASE_Y = 0.85; // top of the stone base, where the mill stands
 const TOWER_H = 5.55; // tower body from BASE_Y
 const R_BOT = 1.42;
 const R_TOP = 0.95;
-const HUB_Y = 6.8;
+const HUB_Y = MILL.hubY;
 const SHAFT_Z = 1.6; // the sail plane, in front of the tower axis
 const GZ = 0.9; // gondolas hang this far in front of the sail plane (clear of the sails at the top)
-const SAIL = 4.8;
-/** The mill faces the viewer: the windshaft (+z of the mill) turned to point between +x and +z. */
-const FACING = Math.PI / 4;
+const SAIL = MILL.sail;
+/** Turn of the mill on its footprint at sprite rotation 0: the windshaft (+z of the mill) points to the game's south. */
+const FACING = 0;
 
 const paint = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.2 });
 
@@ -108,7 +109,7 @@ function build() {
   root.add(M(new THREE.CylinderGeometry(1.5, 1.6, BASE_Y - 0.39, 48), stone).translateY(0.39 + (BASE_Y - 0.39) / 2));
   root.add(M(new THREE.CylinderGeometry(1.52, 1.52, 0.06, 48), mat.darkSteel).translateY(BASE_Y - 0.02));
 
-  // the mill, facing the viewer
+  // the mill, its sails to the front (+z, game south) at sprite rotation 0
   const mill = new THREE.Group();
   mill.rotation.y = FACING;
   root.add(mill);
@@ -164,20 +165,19 @@ function build() {
     s.rotation.z = (i / 4) * TAU;
     wheel.add(s);
   }
-  const colors = ['#8d7ae8', '#56b4e9'];
+  // all four gondolas alike (the quarter-turn repeat): one colour, the same two rider looks
+  const looks = [randomLook(1401, { child: true, balloon: null, backpack: null, bag: null }), randomLook(1403, { child: false, balloon: null, backpack: null, bag: null })];
   const gondolas = [];
   const riders = [];
-  for (let i = 0; i < 4; i++) {
-    const c = i % 2; // gondolas i and i + 2 alike (the half-turn repeat)
-    const looks = [randomLook(1401 + c * 4, { child: c === 0, balloon: null, backpack: null, bag: null }), randomLook(1403 + c * 4, { child: false, balloon: null, backpack: null, bag: null })];
-    const gd = gondola(K, colors[i % 2], looks);
+  for (let i = 0; i < MILL.sails; i++) {
+    const gd = gondola(K, '#8d7ae8', looks);
     mill.add(gd.g);
     gondolas.push(gd.g);
     riders.push(...gd.riders);
   }
 
   const pose = (a, full) => {
-    const sig = -TAU * a + Math.PI / 4;
+    const sig = millAngles(a).sails;
     wheel.rotation.z = sig;
     gondolas.forEach((g, i) => {
       const t = sig + (i / 4) * TAU + Math.PI / 2; // sail i points along local +y turned by its rotation.z
@@ -195,6 +195,6 @@ export default {
     const groups = cycleKeys('merry_mill', { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`);
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`merry_mill: ${pictures.length} pictures`);
-    bakeObject(B, { kind: 'ride', item: 'merry_mill', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(B, { kind: 'ride', item: 'merry_mill', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
   },
 };

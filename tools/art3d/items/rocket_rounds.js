@@ -10,16 +10,12 @@ import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { cycleKeys } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
+import { ROCKET, rocketAngles } from './spinnerMotion.js';
 
 /** Angle slots per repeat (half a turn). */
-export const PERIOD = 16;
+export const PERIOD = ROCKET.period;
 const TAU = Math.PI * 2;
-const N = 6;
-const PIVOT_R = 1.2;
-const PIVOT_Y = 1.55;
-const ARM = 3.25;
-const A_MIN = (-12 * Math.PI) / 180;
-const A_MAX = (32 * Math.PI) / 180;
+const { n: N, pivotR: PIVOT_R, pivotY: PIVOT_Y, arm: ARM } = ROCKET;
 const LINK = 0.32; // height of the parallelogram
 
 const paint = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.3, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1 });
@@ -147,13 +143,11 @@ function build() {
   }
   // arm parts are rebuilt per pose (rods between moving points); keep them in a group per arm
   const pose = (a, full) => {
-    spin.rotation.y = TAU * a;
-    const s = Math.sin(TAU * a) ** 2;
+    spin.rotation.y = rocketAngles(a, 0).spin;
     for (const arm of arms) {
       for (const p of arm.parts) arm.holder.remove(p);
       arm.parts.length = 0;
-      const lift = s * (0.78 + 0.22 * Math.cos(TAU * (2 * a + arm.i / 3)));
-      const al = A_MIN + (A_MAX - A_MIN) * lift;
+      const al = rocketAngles(a, arm.i).arm;
       const c = Math.cos(al), sn = Math.sin(al);
       const p0 = V(PIVOT_R, PIVOT_Y, 0);
       const p1 = V(PIVOT_R + ARM * c, PIVOT_Y + ARM * sn, 0);

@@ -9,14 +9,15 @@ import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { cycleKeys } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { person, randomLook } from '../people.js';
+import { KIDDIE, kiddieAngles } from './spinnerMotion.js';
 
 /** Angle slots per repeat (half a turn). */
-export const PERIOD = 16;
+export const PERIOD = KIDDIE.period;
 const TAU = Math.PI * 2;
-const N = 6;
+const N = KIDDIE.n;
 const ROAD_IN = 2.85;
 const ROAD_OUT = 4.95;
-const LANE = 3.9; // vehicle centres
+const LANE = KIDDIE.lane; // vehicle centres
 const ROAD_Y = 0.4;
 
 const paint = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.3, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1 });
@@ -211,7 +212,7 @@ function build() {
   root.add(M(new THREE.SphereGeometry(0.17, 20, 14), mat.gold).translateY(CANOPY_Y + 1.15 + 0.9 - 0.02));
 
   const pose = (a, full) => {
-    spin.rotation.y = TAU * a;
+    spin.rotation.y = kiddieAngles(a).spin;
     for (const r of riders) r.visible = full;
   };
   return { root, pose };

@@ -194,6 +194,7 @@ describe('RealLook', () => {
     expect(look.incomplete()).toBe(0);
   });
 
+  // No ride stand-in remains since teacup_twirl got its own bake (Task 2): the stand-in path is shown with a stall.
   it('falls back for unbaked items', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);

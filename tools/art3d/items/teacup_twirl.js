@@ -10,14 +10,15 @@ import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { cycleKeys } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
+import { TEACUP, teacupAngles } from './spinnerMotion.js';
 
 /** Angle slots per repeat (half a turn of the floor). */
-export const PERIOD = 16;
+export const PERIOD = TEACUP.period;
 const TAU = Math.PI * 2;
 const FLOOR_R = 5.1;
-const SUB_RING = 2.95; // turntable centres from the ride centre
+const SUB_RING = TEACUP.subRing; // turntable centres from the ride centre
 const SUB_R = 1.85;
-const CUP_RING = 0.9; // cup centres from their turntable's centre
+const CUP_RING = TEACUP.cupRing; // cup centres from their turntable's centre
 const CUP_S = 1.05; // cup scale (outer rim radius 0.82 x 1.05)
 const DECK_Y = 0.42; // top of the main floor
 
@@ -114,7 +115,7 @@ function build() {
   const subs = [];
   const riders = [];
   for (let j = 0; j < 4; j++) {
-    const th = (j / 4) * TAU + TAU / 8;
+    const th = TEACUP.subAngles[j];
     const sub = new THREE.Group();
     sub.position.set(Math.cos(th) * SUB_RING, DECK_Y, Math.sin(th) * SUB_RING);
     spin.add(sub);
@@ -123,7 +124,7 @@ function build() {
     sub.add(M(new THREE.CylinderGeometry(0.28, 0.34, 0.12, 24), mat.stainless).translateY(0.2));
     const cups = [];
     for (let k = 0; k < 2; k++) {
-      const psi = k * Math.PI;
+      const psi = TEACUP.cupAngles[k];
       const c = teacup(K, pairs[j % 2][k], looks[(j % 2) * 2 + k]);
       c.g.position.set(Math.cos(psi) * CUP_RING, 0.14, Math.sin(psi) * CUP_RING);
       sub.add(c.g);
@@ -155,10 +156,11 @@ function build() {
   root.add(M(new THREE.SphereGeometry(0.3, 24, 16), glaze('#f2c230')).translateY(6.2));
 
   const pose = (a, full) => {
-    spin.rotation.y = TAU * a;
+    const A = teacupAngles(a);
+    spin.rotation.y = A.floor;
     for (const s of subs) {
-      s.sub.rotation.y = s.base - TAU * 2 * a;
-      for (const c of s.cups) c.g.rotation.y = c.base + TAU * 2 * a;
+      s.sub.rotation.y = s.base + A.sub;
+      for (const c of s.cups) c.g.rotation.y = c.base + A.cup;
     }
     for (const r of riders) r.visible = full;
   };
