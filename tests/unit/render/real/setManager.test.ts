@@ -370,6 +370,22 @@ describe('SetManager: memory held outside it (final review C1, I3, T5)', () => {
     expect(m.snapshot().refused).toBe(0);
   });
 
+  it('tryAdmit: holds what fits like admit; what does not fit changes nothing and is no pressure (fix round 1, I2)', async () => {
+    const [A, A2] = [entry('a', 4, 2), entry('a', 2)];
+    const { io, m } = setup([A, A2], 300);
+    m.beginFrame(1); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.want([A.key], 'now');
+    expect(m.tryAdmit(CLASSIC_HOLD, 100)).toBe(true);
+    expect(m.snapshot().held.classic).toBe(100);
+    expect(m.tryAdmit(CLASSIC_HOLD, 150)).toBe(false);
+    expect(m.snapshot().held.classic).toBe(100);
+    expect(m.snapshot().refused).toBe(0);
+    m.endFrame();
+    expect(m.densityCap()).toBe(4);
+    expect(m.capEvents()).toEqual([]);
+  });
+
   it('the ladder reclaims held memory before it lowers any density', async () => {
     const A = entry('a', 4, 2);
     const { io, m } = setup([A], 300);

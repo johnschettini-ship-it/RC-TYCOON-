@@ -254,16 +254,25 @@ export class SetManager {
    * this frame (so the ladder makes room) and false is returned: draw the object as not ready yet.
    */
   admit(id: string, bytes: number, upBytes = bytes): boolean {
-    const now = this.held.get(id) ?? 0;
-    if (bytes <= now || this.committed() - now + bytes <= this.limit) {
-      this.hold(id, bytes, upBytes);
-      return true;
-    }
-    const grow = bytes - now;
+    if (this.tryAdmit(id, bytes, upBytes)) return true;
+    const grow = bytes - (this.held.get(id) ?? 0);
     const before = this.refusedById.get(id) ?? 0;
     if (grow > before) {
       this.refused += grow - before;
       this.refusedById.set(id, grow);
+    }
+    return false;
+  }
+
+  /**
+   * `admit` without the refusal: when it does not fit nothing changes and nothing counts as pressure. For memory the
+   * caller can do without (today's static layer) or will try to make room for itself first (today's sprites).
+   */
+  tryAdmit(id: string, bytes: number, upBytes = bytes): boolean {
+    const now = this.held.get(id) ?? 0;
+    if (bytes <= now || this.committed() - now + bytes <= this.limit) {
+      this.hold(id, bytes, upBytes);
+      return true;
     }
     return false;
   }

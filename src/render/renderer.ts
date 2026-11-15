@@ -276,8 +276,10 @@ function drawCounter(ctx: CanvasRenderingContext2D): () => void {
  * sprites) are held in the set manager every frame as `classic` (`sets.hold`), before its `endFrame`, so the ladder
  * sees all picture memory; their shared budget is `REAL_CLASSIC_SPRITE_MB` on top of the static layer. With
  * `sets.admit` (owner decision 2026-11-15) nothing of it grows unasked: the static layer counts at the canvas size from
- * the first frame (admitted before it is made; no room, no static layer), and today's sprites and chunks are admitted
- * before they are made (`canvas.ts` classicGate; refused, they are not made and the frame is incomplete). `counts`
+ * the first frame it has room (admitted before it is made; no room, no static layer), and today's sprites and chunks
+ * are admitted before they are made (`canvas.ts` classicGate; with no room, today's undrawn images are freed first;
+ * still refused, they are not made and the frame is incomplete). With `sets.addReclaimer` the ladder frees today's
+ * undrawn images, then the static layer, before it lowers any density. `counts`
  * gathers placeholders over the run (the headless checks read it): today's terrain chunks, and the realistic ground's
  * tiles.
  */
@@ -288,6 +290,8 @@ export interface RealOptions {
     endFrame(): void;
     hold?(id: string, bytes: number, upBytes?: number): void;
     admit?(id: string, bytes: number, upBytes?: number): boolean;
+    tryAdmit?(id: string, bytes: number, upBytes?: number): boolean;
+    addReclaimer?(fn: (needBytes: number) => number): void;
   };
   ground?: GroundLayer;
   counts?: { placeholders: number; groundPlaceholders: number };
@@ -1040,43 +1044,100 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   let staticReuses = 0;
   /**
    * Realistic build with `sets.admit`: the static layer's bytes the `classic` hold counts, the canvas size once admitted
-   * (from the first frame, and again after a resize; made or not), 0 while it has no room: then no static layer is made.
+   * (made or not), 0 while it has no room: then no static layer is made. It is asked for without a refusal (`tryAdmit`:
+   * the layer is only a speed-up, its absence is no pressure), and after the `classic` reclaimer gave it up, not again
+   * for `STATIC_RETRY_FRAMES` frames.
    */
   let staticRoom = 0;
-  /** Realistic build with `sets.admit`: what the set manager holds as `classic` this frame, grown only through admit. */
-  let classicHeld = 0;
+  let staticRetryAt = 0;
+  const STATIC_RETRY_FRAMES = 60;
   /** Today's memory as the `classic` hold counts it: every cache, the static layer at its admitted size. */
   const classicBytes = (): number => spriteMemory.bytes - statics.bytes + staticRoom;
-  /**
-   * Start of a frame (realistic build with `sets.admit`): the static layer admitted at the canvas size if it is not yet,
-   * `classic` held at what today's caches hold, and today's builds admitted one by one for the rest of the frame.
-   */
-  type ClassicSets = { hold(id: string, bytes: number): void; admit(id: string, bytes: number): boolean };
+  type ClassicSets = {
+    hold(id: string, bytes: number): void;
+    admit(id: string, bytes: number): boolean;
+    tryAdmit?(id: string, bytes: number): boolean;
+    addReclaimer?(fn: (needBytes: number) => number): void;
+  };
   let classicSets: ClassicSets | null = null;
-  /** `classicGate.admit` while a frame draws: one build's bytes on top of what `classic` holds. */
-  const admitClassic = (bytes: number): boolean => {
-    if (classicSets?.admit(CLASSIC_HOLD, classicHeld + bytes)) {
-      classicHeld += bytes;
-      return true;
+  /** No static layer: the image goes, and the next still frame draws its chunks. */
+  function dropStatic(): void {
+    statics.delete(STATIC_KEY);
+    staticImage = null;
+    staticValid = false;
+    lastKey.w = 0;
+  }
+  /**
+   * Frees today's images not drawn this frame (sprites, chunks; least recently used first, across caches) until about
+   * `need` bytes of the `classic` count are free; returns the bytes freed. The static layer is counted at its admitted
+   * size whether its image is kept or not, so evicting it frees nothing here.
+   */
+  function evictUndrawn(need: number): number {
+    const start = classicBytes();
+    const budget = spriteMemory.budgetBytes;
+    for (let i = 0; i < 4; i++) {
+      const freed = start - classicBytes();
+      if (freed >= need) break;
+      const before = spriteMemory.bytes;
+      spriteMemory.budgetBytes = Math.max(0, before - (need - freed));
+      spriteMemory.trim();
+      if (spriteMemory.bytes === before) break;
     }
+    spriteMemory.budgetBytes = budget;
+    return start - classicBytes();
+  }
+  /**
+   * `classicGate.admit` while a frame draws (spec §5.4 item 4: never stop drawing an object): one build's bytes on top
+   * of what today's caches count now (evictions this frame included); with no room, today's images not drawn this frame
+   * are freed and it asks once more. Only that second refusal counts as pressure.
+   */
+  const admitClassic = (bytes: number): boolean => {
+    const sets = classicSets;
+    if (!sets) return true;
+    if ((sets.tryAdmit ?? sets.admit).call(sets, CLASSIC_HOLD, classicBytes() + bytes)) return true;
+    evictUndrawn(bytes);
+    if (sets.admit(CLASSIC_HOLD, classicBytes() + bytes)) return true;
     classicGate.refused++;
     return false;
   };
-  function beginClassic(sets: ClassicSets): void {
-    classicSets = sets;
-    const size = canvas.width * canvas.height * 4;
-    if (staticRoom !== size) {
-      staticRoom = sets.admit(CLASSIC_HOLD, spriteMemory.bytes - statics.bytes + size) ? size : 0;
-      if (!staticRoom) {
-        // No room: no static layer (the one of another size goes), and the next still frame draws its chunks.
-        statics.delete(STATIC_KEY);
-        staticImage = null;
-        staticValid = false;
-        lastKey.w = 0;
-      }
+  /**
+   * The ladder's reclaimer for today's memory (step 2, before any density is lowered): today's images not drawn this
+   * frame first, then the static layer (not asked for again for `STATIC_RETRY_FRAMES` frames).
+   */
+  const reclaimClassic = (need: number): number => {
+    const sets = classicSets;
+    if (!sets) return 0;
+    let freed = evictUndrawn(need);
+    if (freed < need && staticRoom) {
+      freed += staticRoom;
+      staticRoom = 0;
+      staticRetryAt = frameNo + STATIC_RETRY_FRAMES;
+      dropStatic();
     }
-    classicHeld = classicBytes();
-    sets.hold(CLASSIC_HOLD, classicHeld);
+    if (freed > 0) sets.hold(CLASSIC_HOLD, classicBytes());
+    return freed;
+  };
+  /**
+   * Start of a frame (realistic build with `sets.admit`): the static layer asked for at the canvas size if it is not
+   * held yet, `classic` held at what today's caches count, and today's builds admitted one by one for the frame.
+   */
+  function beginClassic(sets: ClassicSets): void {
+    if (classicSets !== sets) {
+      classicSets = sets;
+      sets.addReclaimer?.(reclaimClassic);
+    }
+    const size = canvas.width * canvas.height * 4;
+    if (staticRoom && staticRoom !== size) {
+      // A resize: the layer of the old size goes.
+      staticRoom = 0;
+      dropStatic();
+    }
+    if (!staticRoom && frameNo >= staticRetryAt) {
+      const want = spriteMemory.bytes - statics.bytes + size;
+      if ((sets.tryAdmit ?? sets.admit).call(sets, CLASSIC_HOLD, want)) staticRoom = size;
+    }
+    if (!staticRoom) lastKey.w = 0;
+    sets.hold(CLASSIC_HOLD, classicBytes());
     classicGate.refused = 0;
     classicGate.admit = admitClassic;
   }

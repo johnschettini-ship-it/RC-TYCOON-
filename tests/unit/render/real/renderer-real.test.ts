@@ -508,64 +508,124 @@ describe('today\'s memory inside the decode budget (Task 3)', () => {
     expect(statics[3]).toBe(W * H * 4); // a still view does
   });
 
-  it('no room for the static layer: it is not made, the view draws its chunks, and the refusal is pressure', async () => {
+  /** What today's art of `park()` takes: the `classic` count after one frame with room, its sprites, chunks. */
+  async function probeToday() {
     const m = await fresh();
-    const world = park();
     const probe = new m.SetManager(emptyIndex as never, noIO, 128 * MB, () => undefined);
     const c0 = make(W, H);
     const r0 = m.createCanvasRenderer(c0 as unknown as HTMLCanvasElement, { look: fakeLook({}), sets: probe });
     r0.resize(W, H, 1);
+    const world = park();
     r0.draw(world, camAt(world), defaultToolState(), 0);
-    const today = (probe.snapshot().held.classic ?? 0) - W * H * 4;
-    expect(today).toBeLessThan(W * H * 4);
-    const m2 = await fresh();
-    const budget = Math.floor((today + W * H * 4) / 2); // room for today's sprites and chunks, or for the layer: not both
-    const sets = new m2.SetManager(emptyIndex as never, noIO, budget, () => undefined);
+    const b = m.spriteMemory.breakdown();
+    return { need: probe.snapshot().held.classic ?? 0, sprites: b.sprites ?? 0, today: (b.chunks ?? 0) + (b.sprites ?? 0) + (b.other ?? 0) };
+  }
+  /** A renderer with a real SetManager of `budget` bytes, its own sprite memory, and the incomplete-frame counter on. */
+  async function tight(budget: number, look = fakeLook({})) {
+    const m = await fresh();
+    const sets = new m.SetManager(emptyIndex as never, noIO, budget, () => undefined);
     const canvas = make(W, H);
-    const r = m2.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look, sets });
     r.resize(W, H, 1);
-    for (let k = 0; k < 4; k++) {
-      canvas.reset();
-      r.draw(world, camAt(world), defaultToolState(), 0);
-      expect(m2.spriteMemory.breakdown().static ?? 0, `frame ${k}`).toBe(0);
+    const perf = await import('../../../../src/perf/stats');
+    perf.perfProbe.enabled = true;
+    perf.perfProbe.reset();
+    const world = park();
+    const draw = (n = 1) => { for (let k = 0; k < n; k++) { canvas.reset(); r.draw(world, camAt(world), defaultToolState(), 0); } };
+    return { m, sets, canvas, draw, incomplete: () => perf.perfProbe.snapshot().incompleteFrames };
+  }
+
+  it('no room for the static layer: it is not made, the view draws its chunks, and asking for it is no pressure (fix round 1, I2)', async () => {
+    const { today } = await probeToday();
+    expect(today).toBeLessThan(W * H * 4);
+    const budget = today + W * H * 2; // room for today's sprites and chunks, not for the layer beside them
+    const { m, sets, canvas, draw } = await tight(budget);
+    // A first frame with nothing made yet admits the layer; today's builds then make the ladder give it up.
+    draw(4);
+    for (let k = 0; k < 20; k++) {
+      draw();
+      expect(m.spriteMemory.breakdown().static ?? 0, `frame ${k}`).toBe(0);
       expect(sets.peakBytes(), `frame ${k}`).toBeLessThanOrEqual(budget);
-      expect(sets.snapshot().refused, `frame ${k}: the layer asked again`).toBeGreaterThanOrEqual(W * H * 4);
+      expect(sets.snapshot().refused, `frame ${k}: asking for the layer is no pressure`).toBe(0);
+      expect(sets.densityCap(), `frame ${k}`).toBe(4);
       // chunks drawn straight to the canvas every frame, not one copy of a static layer
       expect(canvas.draws.filter((d) => d.w === W && d.h === H && d.x === 0 && d.y === 0).length, `frame ${k}`).toBe(0);
     }
   });
 
-  it('today\'s sprites are admitted before they are made: with no room they are not made or kept, the frame is incomplete, and resident memory stays within the budget', async () => {
-    const m = await fresh();
-    const world = park();
-    const look = fakeLook({});
-    // A probe run with room: what today's art of this park takes (static layer included).
-    const probe = new m.SetManager(emptyIndex as never, noIO, 128 * MB, () => undefined);
-    const c0 = make(W, H);
-    const r0 = m.createCanvasRenderer(c0 as unknown as HTMLCanvasElement, { look, sets: probe });
-    r0.resize(W, H, 1);
-    r0.draw(world, camAt(world), defaultToolState(), 0);
-    const need = probe.snapshot().held.classic ?? 0;
-    const sprites = m.spriteMemory.breakdown().sprites ?? 0;
-    expect(sprites).toBeGreaterThan(0);
-    // Room for everything but half of today's sprites.
-    const m2 = await fresh();
+  it('the static layer gives way to today\'s sprites (the classic reclaimer) and is asked for again only after a while', async () => {
+    const { need, sprites } = await probeToday();
+    // Room for everything but half of today's sprites: the static layer (counted first) must go for them to fit.
     const budget = need - Math.floor(sprites / 2);
-    const sets = new m2.SetManager(emptyIndex as never, noIO, budget, () => undefined);
-    const canvas = make(W, H);
-    const r = m2.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
-    r.resize(W, H, 1);
-    const perf = await import('../../../../src/perf/stats');
-    perf.perfProbe.enabled = true;
-    perf.perfProbe.reset();
-    for (let k = 0; k < 5; k++) r.draw(world, camAt(world), defaultToolState(), 0);
-    const b = m2.spriteMemory.breakdown();
+    const { m, sets, draw, incomplete } = await tight(budget);
+    draw();
+    expect(incomplete()).toBe(1); // the first frame: refused sprites, not drawn
+    expect(sets.snapshot().held.classic).toBeLessThanOrEqual(budget - W * H * 4 + 1); // the reclaimer gave up the layer
+    draw(4);
+    expect(m.spriteMemory.breakdown().sprites).toBe(sprites); // every sprite made once the layer was given up
+    expect(m.spriteMemory.breakdown().static ?? 0).toBe(0);
+    expect(incomplete()).toBe(1);
+    expect(sets.peakBytes()).toBeLessThanOrEqual(budget);
+  });
+
+  it('with no room even then, today\'s sprites are not made or kept, the frame is incomplete, and memory stays within the budget', async () => {
+    const { need, sprites } = await probeToday();
+    const budget = need - W * H * 4 - Math.floor(sprites / 2);
+    const { m, sets, draw, incomplete } = await tight(budget);
+    draw(5);
+    const b = m.spriteMemory.breakdown();
     expect(b.sprites ?? 0).toBeGreaterThan(0);
-    expect(b.sprites ?? 0).toBeLessThan(sprites); // the refused ones were not made (or not kept)
+    expect(b.sprites ?? 0).toBeLessThan(sprites);
     expect(sets.peakBytes()).toBeLessThanOrEqual(budget);
     expect(sets.snapshot().held.classic).toBeLessThanOrEqual(budget);
-    expect(perf.perfProbe.snapshot().incompleteFrames).toBeGreaterThan(0);
-    perf.perfProbe.enabled = false;
+    expect(incomplete()).toBe(5);
+  });
+
+  it('a degraded object draws today\'s art with a full budget: today\'s images not drawn this frame make room (fix round 1, I1)', async () => {
+    const { need } = await probeToday();
+    // The budget holds this park's art and 6 MiB more; today's sprites from earlier play hold 8 MiB.
+    const budget = need + 6 * MB;
+    const { m, sets, draw, incomplete } = await tight(budget);
+    const old = new m.SpriteCache(Number.MAX_SAFE_INTEGER, m.spriteMemory, 'other');
+    for (let k = 0; k < 8; k++) old.set(k, { image: new FakeCanvas(1024, 256) as unknown as CanvasImageSource, w: 1024, h: 256, ox: 0, oy: 0, scale: 1 });
+    // With the old sprites held, the frame's own art does not fit unless they go.
+    draw();
+    expect(incomplete()).toBe(0);
+    expect(sets.snapshot().refused).toBe(0);
+    expect(old.size).toBeLessThan(8);
+    expect(m.spriteMemory.breakdown().sprites ?? 0).toBeGreaterThan(0);
+    expect(sets.peakBytes()).toBeLessThanOrEqual(budget);
+  });
+
+  it('a track slice, a gate booth and a car refused room are not kept: drawn plain, made once there is room (fix round 1, C1)', async () => {
+    const m = await fresh();
+    const world = buildPerfScene('coaster');
+    let allow = false;
+    const sets = { beginFrame() {}, endFrame() {}, hold() {}, admit: () => allow };
+    const canvas = make(W, H);
+    const r = m.createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: fakeLook({}), sets });
+    r.resize(W, H, 1);
+    const cam = { ...camAt(world), zoom: 0.5 };
+    r.draw(world, cam, defaultToolState(), 0);
+    const strokes0 = canvas.draws.length;
+    expect(strokes0).toBeGreaterThan(0);
+    // Refused: nothing made, so nothing kept; the next frame asks again (no 1-pixel stand-in cached for ever).
+    const canvasMod = await import('../../../../src/render/canvas');
+    const made0 = canvasMod.canvasStats.made;
+    canvas.reset();
+    r.draw(world, cam, defaultToolState(), 0);
+    expect(canvasMod.canvasStats.made).toBe(made0); // still refused: still nothing made
+    allow = true;
+    for (let k = 0; k < 40; k++) r.draw(world, cam, defaultToolState(), 0); // builds are spread over frames
+    const made1 = canvasMod.canvasStats.made;
+    expect(made1).toBeGreaterThan(made0);
+    canvas.reset();
+    r.draw(world, cam, defaultToolState(), 0);
+    expect(canvasMod.canvasStats.made, 'kept once made').toBe(made1);
+    // Nothing draws the refused build's one-pixel answer: it was never kept.
+    const one = canvasMod.notMadeSprite().image;
+    expect(canvas.draws.some((d) => (d.image as unknown) === one)).toBe(false);
+    expect(canvas.draws.length).toBeGreaterThan(0);
   });
 
   it('frees every bucket of a covered chunk', async () => {
