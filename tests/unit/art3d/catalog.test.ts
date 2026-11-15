@@ -29,6 +29,9 @@ describe('itemSpec', () => {
     carousel: { m: 8, why: 'baked in stage 1 and seen by the owner; the rule gives 12.5' },
     swing_tower: { m: 18, why: 'baked in stage 1 and seen by the owner; 146 / 8 = 18.25 is a tie, the rule rounds up to 18.5' },
     big_wheel: { m: 15, why: 'baked in stage 1 and seen by the owner (equals the rule)' },
+    pendulum_ship: { m: 13, why: 'real proportions in the 12 x 20 m footprint: 10 m axle, 7.4 m arms, 68 deg swing; the bow finial peaks at 13 m (today\'s 142 px sprite is drawn taller than its swing)' },
+    magic_carpet: { m: 11.5, why: 'real proportions: 5.4 m hubs and 4.4 m arms keep the orbit inside the 12 m width and the carpet just above its boarding deck; riders\' heads peak at 11.5 m' },
+    flip_arm: { m: 13, why: 'real proportions: 7 m hub and a 5 m arm keep the gondola inside the 12 m footprint and just above its deck; its footrest peaks at 13 m' },
   };
 
   it('every height exception has a reason', () => {

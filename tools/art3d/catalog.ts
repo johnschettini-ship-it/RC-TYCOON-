@@ -32,11 +32,11 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   observation_tower: 25,
   mirror_maze: 10.5,
   haunted_manor: 14.5,
-  pendulum_ship: 18,
+  pendulum_ship: 13, // Task 3: the bow finial at full swing (10 m axle, 7.4 m arms); see HEIGHT_EXCEPTIONS
   thunder_disc: 13.5,
   drop_tower: 26,
-  flip_arm: 17,
-  magic_carpet: 16.5,
+  flip_arm: 13, // Task 3: the gondola's footrest at the top of the turn (7 m hub, 5 m arm)
+  magic_carpet: 11.5, // Task 3: riders' heads at the top of the orbit (5.4 m hubs, 4.4 m arms)
   kiddie_cars: 10,
   merry_mill: 14.5,
   gyro_globe: 18.5,

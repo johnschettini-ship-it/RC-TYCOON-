@@ -18,5 +18,8 @@ import ground from './ground.js';
 import steel_coaster from './steel_coaster.js';
 import facade from './facade.js';
 import cards from './cards.js';
+import pendulum_ship from './pendulum_ship.js';
+import magic_carpet from './magic_carpet.js';
+import flip_arm from './flip_arm.js';
 
-export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards };
+export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, pendulum_ship, magic_carpet, flip_arm };

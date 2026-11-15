@@ -6,7 +6,7 @@ import { itemSpec } from '../../../tools/art3d/catalog';
 
 // Plain JS build tools without types: import by a computed path so they load as `any`.
 /** The baked items the stage 1 reader (Task 7 fallbacks.ts) maps game ids to. */
-const REAL_FALLBACK_IDS = ['carousel', 'swing_tower', 'big_wheel', 'snack_shack', 'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole', 'bench', 'bin', 'steel_coaster'];
+const REAL_FALLBACK_IDS = ['carousel', 'swing_tower', 'big_wheel', 'snack_shack', 'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole', 'bench', 'bin', 'steel_coaster', 'pendulum_ship', 'magic_carpet', 'flip_arm'];
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -35,7 +35,7 @@ describe('stage 1 bake list', () => {
 });
 
 describe('batch 1 flat rides', () => {
-  const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel'];
+  const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel', 'pendulum_ship', 'magic_carpet', 'flip_arm'];
   it('the three baked rides are in the registry and their own baked item (not a stand-in)', async () => {
     const { ITEM_LIST } = await load('items/registry.js');
     const ids = new Set(ITEM_LIST.map((x: { id: string }) => x.id));
@@ -43,6 +43,10 @@ describe('batch 1 flat rides', () => {
       expect(ids.has(id), id).toBe(true);
       expect(REAL_FALLBACK[id], id).toBe(id);
     }
+  });
+  it('every baked ride has its own card picture', async () => {
+    const { CARD_ITEMS } = await load('items/registry.js');
+    for (const id of BAKED_RIDES) expect(CARD_ITEMS.some((c: { id: string; kind: string }) => c.id === id && c.kind === 'ride'), id).toBe(true);
   });
   // Each ride task turns its todo into: in ITEM_LIST, REAL_FALLBACK[id] === id (so not in STAND_INS), has a card frame.
   for (const d of FLAT_RIDES.filter((r) => !BAKED_RIDES.includes(r.id))) it.todo(`${d.id} is baked: ITEM_LIST, BAKED, not a stand-in, card frame`);
