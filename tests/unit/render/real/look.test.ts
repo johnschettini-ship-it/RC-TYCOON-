@@ -763,6 +763,16 @@ describe('RealLook: view-scoped loading (round 3 item 1, spec §5.4.2(d))', () =
     expect(sets.wanted('ahead')).not.toContain(k2('ride', 'big_wheel', 0));
   });
 
+  it('margin objects are wanted at density 2 only, even when the view draws at density 4', () => {
+    const { sets, look } = setup();
+    const world = farWorld();
+    world.state.rides.push({ id: 8, kind: 'flat', defId: 'big_wheel', rotation: 0, x: 36, y: 36 } as Ride);
+    look.prepare(world, 0, viewAt(4, 4), 2, 2); // zoom 2 x dpr 2: density 4
+    expect(sets.wanted('now')).toContain(setKey('stall', 'snack_shack', 4, 0));
+    expect(sets.wanted('ahead')).toContain(setKey('ride', 'big_wheel', 2, 0));
+    expect([...sets.wanted('now'), ...sets.wanted('ahead')].some((k) => k.startsWith('ride:big_wheel:d4'))).toBe(false);
+  });
+
   it('a set shared by an object on screen and one in the margin is wanted now', () => {
     const { sets, look } = setup();
     const world = farWorld();

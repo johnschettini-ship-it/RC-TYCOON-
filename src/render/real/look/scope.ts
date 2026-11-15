@@ -16,7 +16,7 @@ import type { Combo, ItemRec, RealSets, ScopeObject } from './types';
 
 /**
  * View scope (spec §5.4.2(d)): objects inside the view plus this many screens on each side are wanted. Objects on
- * screen are wanted 'now'; the ones only in the margin 'ahead' (owner decision 2026-11-15): they queue behind every
+ * screen are wanted 'now'; the ones only in the margin 'ahead', at density 2 (owner decision 2026-11-15): they queue behind every
  * set on screen and are the first the ladder drops, so a turn or a full park decodes what is seen first.
  */
 const SCOPE_MARGIN = 1;
@@ -282,13 +282,16 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
           }
         }
       };
-      /** Objects only in the scope's margin: their turn and the ahead turn at density 2, both ahead (not drawn yet). */
+      /**
+       * Objects only in the scope's margin (not drawn yet): their turn and the ahead turn, ahead and at density 2 only,
+       * like the ahead turn (a quarter of the size: a pan shows them at once and sharpens as their density-4 sets land,
+       * and big density-4 margin decodes do not hold the two decode slots when a turn starts).
+       */
       const wantMargin = (ids: readonly number[]): void => {
         for (const id of ids) {
           const { rec, everyTurn, turn } = combos[id] as Combo;
           for (const t of everyTurn ? [0, 1, 2, 3] : [turn + rot, turn + ahead]) {
-            const r = (t % 4) as ViewRotation;
-            const k = resolveAt(rec, r, everyTurn || t === turn + rot ? density : 2);
+            const k = resolveAt(rec, (t % 4) as ViewRotation, 2);
             if (k !== undefined) later.add(k);
           }
         }
