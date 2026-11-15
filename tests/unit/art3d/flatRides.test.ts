@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { FLAT_RIDES } from '../../../src/data/catalog';
+import { FLAT_RIDES, getFlatRideDef } from '../../../src/data/catalog';
+import { coarseRideFrame, decodeRideFrame, rideFrameFor } from '../../../src/render/anim';
+import type { Ride } from '../../../src/sim/rides/types';
 import { keyAt, periodOk, pictureOf, type Keys } from './frameHelpers';
 
 // Plain JS build tool without types: import by a computed path so it loads as `any`.
@@ -59,4 +62,38 @@ describe('timeKeys', () => {
     expect(m.size).toBe(16);
     expect(pictureOf(m, keyAt('x', 6, true))).toBe(pictureOf(m, keyAt('x', 6, false)));
   });
+});
+
+// Task 2 (Spinners): each module folds its frames by PERIOD angle slots with cycleKeys and the pick `${slot}:${occ}`.
+describe('spinner periods', () => {
+  const SPINNERS: Record<string, number> = { teacup_twirl: 16, rocket_rounds: 16, kiddie_cars: 16, merry_mill: 16 };
+  const pick = (a: number, full: boolean) => `${a}:${full ? 1 : 0}`;
+  for (const [id, period] of Object.entries(SPINNERS)) {
+    it(`${id} folds by ${period} slots: slot 32 shows slot 0, pictures advance in order`, async () => {
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      expect(src).toMatch(new RegExp(`export const PERIOD = ${period};`));
+      expect(src).toMatch(new RegExp(`cycleKeys\\('${id}', \\{ period: PERIOD \\}, \\(a, full\\) => \`\\$\\{a\\}:\\$\\{full \\? 1 : 0\\}\`\\)`));
+      expect(src, 'round: one set for every view turn').toMatch(/rots: 'all'/);
+      const { cycleKeys } = await load('items/flatRides.js');
+      const m: Keys = cycleKeys(id, { period }, pick);
+      expect(m.size).toBe(period);
+      periodOk(m, id, period);
+      periodOk(m, id, period, true);
+    });
+    it(`${id}: a whole run in the game steps its pictures forward one at a time and ends where it started`, async () => {
+      const { cycleKeys } = await load('items/flatRides.js');
+      const m: Keys = cycleKeys(id, { period }, pick);
+      const def = getFlatRideDef(id)!;
+      const n = period / 2;
+      let last = -1;
+      for (let t = 0; t <= def.cycleTicks; t++) {
+        const f = coarseRideFrame(rideFrameFor({ defId: id, cycle: { phase: 'running', ticks: t } as Ride['cycle'], riders: [] }, def));
+        const id0 = pictureOf(m, keyAt(id, decodeRideFrame(f).angle, false)) as string;
+        const k = Number(id0.split(':')[0]) / 2;
+        if (last >= 0) expect([0, 1], `tick ${t}`).toContain((k - last + n) % n);
+        last = k;
+      }
+      expect(last).toBe(0);
+    });
+  }
 });

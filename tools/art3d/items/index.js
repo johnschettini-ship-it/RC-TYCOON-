@@ -18,5 +18,9 @@ import ground from './ground.js';
 import steel_coaster from './steel_coaster.js';
 import facade from './facade.js';
 import cards from './cards.js';
+import teacup_twirl from './teacup_twirl.js';
+import rocket_rounds from './rocket_rounds.js';
+import kiddie_cars from './kiddie_cars.js';
+import merry_mill from './merry_mill.js';
 
-export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards };
+export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill };

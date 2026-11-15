@@ -152,7 +152,7 @@ const AT = { x: 6, y: 6 };
 describe('fallbacks', () => {
   it('maps baked, mapped and classic ids', () => {
     expect(realItem('carousel')).toBe('carousel');
-    expect(realItem('teacup_twirl')).toBe('carousel');
+    expect(realItem('teacup_twirl')).toBe('teacup_twirl');
     expect(realItem('fizz_stand')).toBe('snack_shack');
     expect(realItem('restrooms')).toBe('snack_shack');
     expect(realItem('balloon_stand')).toBe('snack_shack');
@@ -199,11 +199,11 @@ describe('RealLook', () => {
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     expect(look.ride('drop_tower', 0, 0, 0)).toBeUndefined();
     expect(look.fallbacksUsed()).toContain('drop_tower');
-    sets.setState(setKey('ride', 'carousel', 2, 'all'), 'ready');
-    const sp = look.ride('teacup_twirl', 2, 3, 5);
+    sets.setState(setKey('stall', 'snack_shack', 2, 0), 'ready');
+    const sp = look.stall('fizz_stand', 0);
     expect(sp).toBeTruthy();
     expect(sp!.scale).toBe(2);
-    expect(sets.used).toContain(setKey('ride', 'carousel', 2, 'all'));
+    expect(sets.used).toContain(setKey('stall', 'snack_shack', 2, 0));
     expect(look.incomplete()).toBe(0);
   });
 
@@ -219,7 +219,7 @@ describe('RealLook', () => {
   it('prepare wants only built kinds, the current turn and the ahead turn', () => {
     const { sets, look } = setup();
     const world = emptyWorld();
-    world.state.rides.push({ id: 1, kind: 'flat', defId: 'teacup_twirl', ...AT } as Ride);
+    world.state.rides.push({ id: 1, kind: 'flat', defId: 'carousel', ...AT } as Ride);
     world.state.rides.push({ id: 2, kind: 'flat', defId: 'drop_tower', ...AT } as Ride);
     world.state.rides.push({ id: 3, kind: 'track', defId: 'mini_railway', ...AT } as Ride);
     world.state.track.rides['3'] = { pieces: [{ defId: 'station', x: 6, y: 6, z: 8, dir: 1 }] } as unknown as World['state']['track']['rides'][string];

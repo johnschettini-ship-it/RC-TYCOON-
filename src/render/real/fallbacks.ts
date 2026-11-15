@@ -15,11 +15,11 @@ const BAKED = [
   'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole',
   'bench', 'bin',
   'steel_coaster',
+  'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill',
 ] as const;
 
 /** Unbaked items drawn with a baked stand-in. */
 const STAND_INS: Record<string, string> = {
-  teacup_twirl: 'carousel',
   fizz_stand: 'snack_shack',
   restrooms: 'snack_shack',
   balloon_stand: 'snack_shack',

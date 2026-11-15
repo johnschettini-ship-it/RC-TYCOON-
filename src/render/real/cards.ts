@@ -2,7 +2,7 @@
  * Card pictures (stage 1 round 2): one small baked picture per baked game item, in one always-loaded set
  * `preview:cards:d2:rall` with frames keyed by the item id (tools/art3d/items/cards.js). The card and picker previews
  * draw it (through `src/render/cardArt.ts`) when the item has one and the set is ready, else today's preview.
- * An item drawn in the game with another item's art (a stand-in, e.g. teacup_twirl → carousel) keeps today's
+ * An item drawn in the game with another item's art (a stand-in, e.g. fizz_stand → snack_shack) keeps today's
  * preview: its card shows what it is, not its stand-in.
  */
 import type { CardArt } from '../cardArt';
