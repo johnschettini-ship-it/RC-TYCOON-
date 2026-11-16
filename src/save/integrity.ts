@@ -2,7 +2,7 @@
  * Id order and reference integrity of a structurally valid GameState (master §6.5, §7; Phase 2 §5; Phase 3 §5;
  * Phase 4 §5; Phase 6 §5). Runs after `checkStructure`, so every field has its declared type here. Owner: integrator.
  */
-import { getFlatRideDef, RIDE_COLOUR_CHOICES, getSceneryDef, getShowSiteDef, getStallDef, TRACK_RIDES } from '../data/catalog';
+import { getFlatRideDef, getSceneryDef, getShowSiteDef, getStallDef, TRACK_RIDES } from '../data/catalog';
 import type { GameState } from '../sim/types';
 import type { Ride } from '../sim/rides/types';
 import type { Guest } from '../sim/guests/types';
@@ -82,7 +82,6 @@ export function checkIntegrity(s: GameState): string | null {
   // Rides.
   for (const r of s.rides) {
     if (r.kind === 'flat' && !getFlatRideDef(r.defId)) return `ride ${r.id} has an unknown type`;
-    if (r.colour != null && (r.kind !== 'flat' || !RIDE_COLOUR_CHOICES.includes(r.colour))) return `ride ${r.id} has an unknown colour`;
     for (const g of r.queue) if (!guests.has(g)) return `ride ${r.id} queue lists a missing guest`;
     for (const g of r.riders) if (!guests.has(g)) return `ride ${r.id} lists a missing rider`;
     if (r.assignedMechanicId !== null && owner.get(r.assignedMechanicId) !== 'staff') return `ride ${r.id} has a missing mechanic`;

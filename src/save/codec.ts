@@ -1,9 +1,10 @@
 /** Save encoding and decoding (master §7). Pure: no storage, no DOM. */
 import type { GameState, World } from '../sim/types';
 import { checkIntegrity } from './integrity';
-import { damaged, ERR_NEWER, ERR_NOT_A_SAVE, ERR_TOO_OLD, ERR_UNREADABLE, ERR_UPGRADE } from './messages';
+import { damaged, NOTICE_COLOURS_RESET, ERR_NEWER, ERR_NOT_A_SAVE, ERR_TOO_OLD, ERR_UNREADABLE, ERR_UPGRADE } from './messages';
 import { MigrationError, type Migrations } from './migrations';
 import { retireMascots } from './migrations/retired';
+import { resetBadRideColours } from './migrations/rideColours';
 import { checkStructure, isRecord } from './schema';
 import { decodeTypedArrays, encodeTypedArray } from './typedArrays';
 import { STATE_SCHEMA_VERSION } from '../sim/types';
@@ -12,7 +13,7 @@ export const SAVE_FORMAT = 'thrills-and-chills-save';
 /** Schema version this build writes (Build 3 = 3, master §7; Build 4 keeps 3, Task 24). */
 export const SCHEMA_VERSION: number = STATE_SCHEMA_VERSION;
 
-export type LoadResult = { ok: true; world: World } | { ok: false; error: string };
+export type LoadResult = { ok: true; world: World; notices?: string[] } | { ok: false; error: string };
 
 export interface SaveEnvelope {
   format: typeof SAVE_FORMAT;
@@ -96,6 +97,9 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
     // Task 24: the retired Frost and Spark content becomes its replacements (`migrations/retired.ts`); the version
     // stays, and the checks below run on the result.
     state = retireMascots(state);
+    // A ride colour the game does not offer loads as Original, with a notice (never a failed load).
+    const notices: string[] = [];
+    if (resetBadRideColours(state) > 0) notices.push(NOTICE_COLOURS_RESET);
 
     if (migrated) {
       // Phase 4 §5.1 steps 5–6: a structure failure after the upgrade is an upgrade failure; a reference failure
@@ -107,7 +111,8 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
       const problem = validateState(state);
       if (problem) return fail(damaged(problem));
     }
-    return { ok: true, world: { state: state as GameState, events: [] } };
+    const world: World = { state: state as GameState, events: [] };
+    return notices.length > 0 ? { ok: true, world, notices } : { ok: true, world };
   } catch {
     return fail(ERR_UNREADABLE);
   }

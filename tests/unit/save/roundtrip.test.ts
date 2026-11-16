@@ -139,10 +139,54 @@ describe('ride colour', () => {
     expect(back.state.rides.find((r) => r.id === ride.id)?.colour ?? null).toBeNull();
   });
 
-  it('a save with an unknown ride colour is refused', () => {
+  it('a NaN colour is written as null by JSON and loads as Original without a notice', () => {
     const world = makeTestWorld();
-    const ride = placeRideDirect(world, 'carousel', 10, 10);
-    ride.colour = 5;
-    expect(deserialize(serialize(world, '0.1.0', SAVED_AT)).ok).toBe(false);
+    placeRideDirect(world, 'carousel', 10, 10).colour = Number.NaN;
+    const r = deserialize(serialize(world, '0.1.0', SAVED_AT));
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.notices).toBeUndefined();
+      expect(r.world.state.rides[0]?.colour).toBeNull();
+    }
+  });
+
+  it('a colour on a real track ride loads as Original and reports a notice', () => {
+    const { world, track } = makeRichWorld();
+    track.colour = 1;
+    const r = deserialize(serialize(world, '0.1.0', SAVED_AT));
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.notices).toHaveLength(1);
+    expect(r.world.state.rides.find((x) => x.id === track.id)?.colour).toBeNull();
+    expect(validateState(r.world.state)).toBeNull();
+  });
+
+  it('a clean load has no notices', () => {
+    const world = makeTestWorld();
+    placeRideDirect(world, 'carousel', 10, 10).colour = 4;
+    const r = deserialize(serialize(world, '0.1.0', SAVED_AT));
+    expect(r.ok && r.notices).toBeFalsy();
+  });
+
+  it('a bad ride colour loads as Original and reports a notice', () => {
+    const bad: Array<[string, number, 'flat']> = [
+      ['out of range', 5, 'flat'],
+      ['not an integer', 1.5, 'flat'],
+    ];
+    for (const [label, colour, kind] of bad) {
+      const world = makeTestWorld();
+      const ride = placeRideDirect(world, 'carousel', 10, 10);
+      ride.colour = colour;
+      const json = serialize(world, '0.1.0', SAVED_AT);
+      const raw = JSON.parse(json) as { state: { rides: Array<{ kind: string }> } };
+      raw.state.rides[0]!.kind = kind;
+      const r = deserialize(JSON.stringify(raw));
+      expect(r.ok, label).toBe(true);
+      if (!r.ok) continue;
+      expect(r.notices, label).toHaveLength(1);
+      expect(r.world.state.rides[0]?.colour, label).toBeNull();
+      expect(validateState(r.world.state), label).toBeNull();
+      expect(deserialize(serialize(r.world, '0.1.0', SAVED_AT)).ok, label).toBe(true);
+    }
   });
 });

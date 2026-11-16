@@ -86,6 +86,7 @@ const COPIED_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>>
     noStorage: 'Saved games are not available in this browser. Use Import instead',
     emptySlot: 'This save slot is empty',
     upgrade: 'This save could not be upgraded',
+    coloursReset: 'Some ride colours could not be restored and were reset to Original',
     invalid: 'Could not save. The park data has a problem: {reason}',
     damaged: 'This save is damaged: {reason}',
   },

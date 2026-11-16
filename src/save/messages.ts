@@ -9,6 +9,9 @@ export const ERR_EMPTY_SLOT = 'This save slot is empty';
 /** Phase 4 §5.1 step 6: an older save failed to upgrade. */
 export const ERR_UPGRADE = 'This save could not be upgraded';
 
+/** A loaded save had ride colours the game does not offer; they were reset (shown as a warning). */
+export const NOTICE_COLOURS_RESET = 'Some ride colours could not be restored and were reset to Original';
+
 /** The live state would not load back, so the slot keeps its old save. */
 export function saveInvalid(reason: string): string {
   return `Could not save. The park data has a problem: ${reason}`;
