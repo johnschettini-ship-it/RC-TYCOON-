@@ -1025,8 +1025,101 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
     const key = setKey('ride', 'carousel', 2, 0, 2);
     // The atlas spent 1 ms: 2 ms left. A band takes 3 ms (the test clock), so after the first band is measured
     // no further band fits.
-    const { m, step } = setupColours([A], 1e9, undefined, { tintSpentMs: () => 1 });
-    for (let f = 0; f < 12; f++) await step([key]);
-    expect(m.state(key)).toBe('loading');
+    // (Round 3: the estimate decays on frames with no band, so bands come back every other frame or so.)
+    const made: Pix[] = [];
+    const { m, step } = setupColours([A], 1e9, (w, h) => { const c = new Pix(w, h); made.push(c); return c; }, { tintSpentMs: () => 1 });
+    const rows = (): number => { const c = made[0]; let n = 0; if (c) for (let y = 0; y < c.height; y++) if (c.data[y * c.width * 4 + 3]) n++; return n; };
+    const per: number[] = [];
+    let last = 0;
+    for (let f = 0; f < 30 && m.state(key) !== 'ready'; f++) { await step([key]); const n = rows(); per.push(n - last); last = n; }
+    // Never more than one band a frame, and never in the frame right after a band (3 ms measured > 2 ms left).
+    expect(Math.max(...per)).toBeLessThanOrEqual(BAND);
+    for (let i = 1; i < per.length; i++) if (per[i - 1]! > 0) expect(per[i]).toBe(0);
+  });
+
+  describe('round 3: no tint starvation', () => {
+    /** Rows of the tinted canvas written so far (alpha set). */
+    const rowsDone = (c: Pix | undefined): number => {
+      if (!c) return 0;
+      let n = 0;
+      for (let y = 0; y < c.height; y++) if (c.data[(y * c.width) * 4 + 3]) n++;
+      return n;
+    };
+    const recorder = () => {
+      const made: Pix[] = [];
+      return { made, make: (w: number, h: number) => { const c = new Pix(w, h); made.push(c); return c; } };
+    };
+
+    it('an atlas spending the whole budget every frame still lets a band run every 8 frames', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const rec = recorder();
+      const { m, step } = setupColours([A], 1e9, rec.make, { tintSpentMs: () => 3 });
+      const bandFrames: number[] = [];
+      let last = 0;
+      for (let f = 1; f <= 60 && m.state(key) !== 'ready'; f++) {
+        await step([key]);
+        const n = rowsDone(rec.made[0]);
+        if (n > last) { bandFrames.push(f); last = n; }
+      }
+      expect(m.state(key)).toBe('ready');
+      expect(bandFrames.length).toBeGreaterThanOrEqual(3);
+      const gaps = bandFrames.slice(1).map((f, i) => f - bandFrames[i]!);
+      for (const g of gaps) expect(g).toBe(8);
+    });
+
+    it('one slow band (a GC pause) is not remembered for ever: the estimate decays and the set finishes', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      let t = 0;
+      let inc = 7.5; // two clock reads a band: the first band measures 15 ms
+      let slow = true;
+      const rec = recorder();
+      const { m, step } = setupColours([A], 1e9, rec.make, { now: () => (t += inc), tintSpentMs: () => (slow ? 0 : 0.5) });
+      let frames = 0;
+      for (; frames < 40 && m.state(key) !== 'ready'; frames++) {
+        await step([key]);
+        // After the slow band: bands take 0.5 ms, and the atlas spends 0.5 ms every frame.
+        if (slow && rowsDone(rec.made[0]) > 0) { slow = false; inc = 0.25; }
+      }
+      expect(slow).toBe(false);
+      expect(m.state(key)).toBe('ready');
+      // Faster than the 8-frame rule alone (3 more bands at 8 frames each): the estimate decayed.
+      expect(frames).toBeLessThan(20);
+    });
+
+    it('a coarse clock (bands measure 0 ms) runs at most budget / 0.25 bands a frame', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const rec = recorder();
+      const { m, step } = setupColours([A], 1e9, rec.make, { now: () => 1000, tintBandPx: 1 });
+      const perFrame: number[] = [];
+      let last = 0;
+      for (let f = 0; f < 30 && m.state(key) !== 'ready'; f++) {
+        await step([key]);
+        const n = rowsDone(rec.made[0]);
+        perFrame.push(n - last);
+        last = n;
+      }
+      expect(Math.max(...perFrame)).toBeLessThanOrEqual(3 / 0.25);
+      expect(Math.max(...perFrame)).toBeGreaterThan(1);
+    });
+
+    it('with no budget left (atlas spent 3 ms) a coarse clock runs no band between the 8-frame bands', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const rec = recorder();
+      const { step } = setupColours([A], 1e9, rec.make, { now: () => 1000, tintBandPx: 1, tintSpentMs: () => 3 });
+      const perFrame: number[] = [];
+      let last = 0;
+      for (let f = 0; f < 20; f++) {
+        await step([key]);
+        const n = rowsDone(rec.made[0]);
+        perFrame.push(n - last);
+        last = n;
+      }
+      expect(Math.max(...perFrame)).toBe(1);
+      expect(perFrame.filter((n) => n > 0).length).toBeLessThanOrEqual(3);
+    });
   });
 });

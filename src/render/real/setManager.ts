@@ -38,6 +38,12 @@ export type ReadySet = RealSetEntry & { images: CanvasImageSource[]; tintFailed?
 
 /** Rows of a sheet a coloured set's tint does per step (a 1604 px wide sheet: about 0.2 MiB a band). */
 export const TINT_BAND_PX = 32;
+/** A coloured set's tint runs one band regardless after this many frames without one (no starvation). */
+export const TINT_FORCE_FRAMES = 8;
+/** The least a band is estimated (and counted) to take, ms: a coarse clock measures bands as 0. */
+const BAND_MS_FLOOR = 0.25;
+/** The band time estimate shrinks by this on each frame no band runs (a slow band is not remembered for ever). */
+const BAND_MS_DECAY = 0.75;
 
 export interface SetManagerOptions {
   /** Canvas factory for coloured sets' tinted sheets and band scratch. Default: `OffscreenCanvas`, else a DOM canvas. */
@@ -207,6 +213,8 @@ export class SetManager {
   private tintSpent: () => number;
   /** How long the last tint band took, ms: the estimate for whether the next one fits the frame's budget. */
   private bandMs = 0;
+  /** Frames (`endFrame`s with a tint in progress) since a band last ran. */
+  private framesSinceBand = 0;
   private readonly makeBitmap: ((img: CanvasImageSource) => Promise<ImageBitmap>) | null;
 
   /**
@@ -609,26 +617,32 @@ export class SetManager {
     if (!run) return;
     const owner = this.tinting;
     let finished = !owner || owner.cancelled;
-    // One tint budget a frame, shared with the tint atlas: the bands get what it left; one band at least only when
-    // the atlas tinted nothing this frame (so a frame never spends much more than TINT_FRAME_MS on tints).
-    // A band runs only when it is expected to fit what is left (the last band's measured time as the estimate);
-    // the first band of a frame runs regardless only when the atlas spent nothing.
+    // One tint budget a frame, shared with the tint atlas: the bands get what it left (`budget`), each run only when
+    // its estimate (the last band's measured time, at least BAND_MS_FLOOR so a coarse clock measuring 0 still
+    // counts) fits. The first band of a frame runs regardless when the atlas spent nothing, or when no band has run
+    // for TINT_FORCE_FRAMES frames: an atlas busy every frame (LRU churn) or a remembered slow band can then delay a
+    // tint but never stop it, at a cost of one band over budget every TINT_FORCE_FRAMES frames. A frame with no band
+    // lowers the estimate (×BAND_MS_DECAY), so one slow band (a GC pause) is soon forgotten.
     const other = Math.max(0, this.tintSpent());
     const budget = TINT_FRAME_MS - other;
+    this.framesSinceBand++;
+    const force = !finished && (other === 0 || this.framesSinceBand >= TINT_FORCE_FRAMES);
     let used = 0;
-    let first = true;
+    let bands = 0;
     try {
-      while (!finished && ((first && other === 0) || used + this.bandMs <= budget)) {
+      while (!finished && ((bands === 0 && force) || (budget > 0 && used + Math.max(this.bandMs, BAND_MS_FLOOR) <= budget))) {
         const t0 = this.now();
         finished = run.job.step();
-        const dt = this.now() - t0;
+        const dt = Math.max(0, this.now() - t0);
         this.bandMs = dt;
-        used += dt;
-        first = false;
+        used += Math.max(dt, BAND_MS_FLOOR);
+        bands++;
       }
     } catch {
       finished = true; // the load sees the job not done and keeps its Original pictures
     }
+    if (bands > 0) this.framesSinceBand = 0;
+    else this.bandMs *= BAND_MS_DECAY;
     if (finished) {
       this.tintRun = null;
       run.done();
