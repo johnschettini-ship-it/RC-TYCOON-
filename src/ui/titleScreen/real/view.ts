@@ -219,7 +219,8 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     if (raf || !live || reduced || !session.current()) return;
     const tick = (now: number): void => {
       raf = 0;
-      if (!live || !session.current()) return;
+      // Reduced motion may have been switched on by refresh() since the last tick: stop drawing.
+      if (!live || reduced || !session.current()) return;
       if (displayPrefs().reducedMotion !== reduced) {
         relayout();
         draw(now);

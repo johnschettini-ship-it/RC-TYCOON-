@@ -314,12 +314,26 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
     await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
     await page.waitForFunction(() => (window as unknown as { __tc?: unknown }).__tc !== undefined);
+    await page.evaluate(() => {
+      const c = document.querySelector('canvas.title-real-scene') as HTMLCanvasElement;
+      const x = c.getContext('2d') as CanvasRenderingContext2D & { __n?: number };
+      const draw = x.drawImage.bind(x) as (...a: unknown[]) => void;
+      x.__n = 0;
+      (x as unknown as { drawImage: unknown }).drawImage = (...a: unknown[]) => {
+        x.__n = (x.__n ?? 0) + 1;
+        draw(...a);
+      };
+    });
+    const draws = (): Promise<number> => page.evaluate(() => ((document.querySelector('canvas.title-real-scene') as HTMLCanvasElement).getContext('2d') as { __n?: number }).__n ?? 0);
     await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('reducedMotion', 'on'));
     await page.waitForTimeout(200);
     const a = await page.locator('canvas.title-real-scene').screenshot();
+    const n = await draws();
     await page.waitForTimeout(700);
     const b = await page.locator('canvas.title-real-scene').screenshot();
     expect(Buffer.compare(a, b)).toBe(0);
+    // No frame loop with reduced motion: no draws at all while still.
+    expect(await draws()).toBe(n);
     // And back on: it moves again.
     await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('reducedMotion', 'off'));
     await page.waitForTimeout(200);
