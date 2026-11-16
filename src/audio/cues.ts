@@ -65,6 +65,7 @@ export const COMMAND_SFX: Readonly<Record<Command['type'], SfxId | null>> = Obje
   removeLastTrackPiece: 'demolish',
   // Settings, prices, staff, finance, and flow commands: the UI click is the feedback.
   setRidePrice: null,
+  setRideColour: null,
   setStallPrice: null,
   setEntranceFee: null,
   setRideOpen: null,

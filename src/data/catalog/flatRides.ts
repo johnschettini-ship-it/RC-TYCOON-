@@ -38,6 +38,12 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   ride('gyro_globe', 'Gyro Globe', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 7.0, 8.5, 7.0, 8, 25, 6000, 160, 5),
 ]);
 
+/**
+ * Colours a flat ride can be painted: indices into `TRACK_PALETTE` (cherry, sunset, lemon, leaf, sky, grape).
+ * `null` (or absent) on `Ride.colour` is Original.
+ */
+export const RIDE_COLOUR_CHOICES: readonly number[] = Object.freeze([0, 1, 2, 3, 4, 7]);
+
 /** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */
 const FLAT_RIDES_BY_ID: ReadonlyMap<string, FlatRideDef> = (() => {
   const byId = new Map<string, FlatRideDef>();

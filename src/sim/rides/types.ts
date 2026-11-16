@@ -63,4 +63,6 @@ export interface Ride {
   assignedMechanicId: EntityId | null;
   /** Total build cost so far (cents), for asset value (master R14). */
   totalBuildCost: Cents;
+  /** Flat rides: palette index (RIDE_COLOUR_CHOICES) or null/absent for Original. */
+  colour?: number | null;
 }

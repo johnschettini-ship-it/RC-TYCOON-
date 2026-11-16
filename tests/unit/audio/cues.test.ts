@@ -82,6 +82,7 @@ const SAMPLE: { [K in Command['type']]: Extract<Command, { type: K }> } = {
   placeStall: { type: 'placeStall', defId: 'snack_shack', x: 1, y: 1, rotation: 0 },
   demolish: { type: 'demolish', x: 1, y: 1 },
   setRidePrice: { type: 'setRidePrice', rideId: 1, price: 100 },
+  setRideColour: { type: 'setRideColour', rideId: 1, colour: 4 },
   setStallPrice: { type: 'setStallPrice', stallId: 1, price: 100 },
   setEntranceFee: { type: 'setEntranceFee', fee: 100 },
   setRideOpen: { type: 'setRideOpen', rideId: 1, open: true },

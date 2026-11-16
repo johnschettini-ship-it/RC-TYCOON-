@@ -83,6 +83,7 @@ export class SaveActions {
     }
     this.game.setWorld(result.world);
     this.notify(text('ui.load.done'), 'info');
+    for (const n of result.notices ?? []) this.notify(localizeReason(n), 'warning');
     return true;
   }
 

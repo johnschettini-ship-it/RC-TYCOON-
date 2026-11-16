@@ -9,6 +9,7 @@ import {
   PRICE_MIN,
   PRICE_STEP,
 } from '../../../data/tuning/economy';
+import { RIDE_COLOUR_CHOICES } from '../../../data/catalog/flatRides';
 import { forgetDestination } from '../../guests/api';
 import { emptyQueue } from '../../rides/flat/api';
 import { canOpenTrackRide } from '../../rides/track/api';
@@ -25,6 +26,8 @@ export const PRICE_ERRORS = Object.freeze({
   feeRange: 'Entrance fee must be between $0 and $50',
   feeStep: 'Entrance fee must be in whole dollars',
   parkName: 'Park name must be 1 to 32 characters',
+  colourRange: 'Unknown ride colour',
+  colourTrack: 'Only flat rides can be repainted here',
 });
 
 /** Null when `cents` is a valid price for this range and step, else the reason. */
@@ -93,6 +96,14 @@ export const priceHandlers: HandlerMap<PriceCommand> = {
     const reason = checkPrice(cmd.price);
     if (reason) return fail(reason);
     ride.price = cmd.price;
+    return ok();
+  },
+  setRideColour: (world, cmd) => {
+    const ride = findRide(world, cmd.rideId);
+    if (!ride) return fail(PRICE_ERRORS.rideNotFound);
+    if (ride.kind !== 'flat') return fail(PRICE_ERRORS.colourTrack);
+    if (cmd.colour !== null && !RIDE_COLOUR_CHOICES.includes(cmd.colour)) return fail(PRICE_ERRORS.colourRange);
+    ride.colour = cmd.colour;
     return ok();
   },
   setStallPrice: (world, cmd) => {
