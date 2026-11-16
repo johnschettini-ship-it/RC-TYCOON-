@@ -172,6 +172,8 @@ interface Rec {
   state: SetState;
   /** Queued or decoding; only meaningful while state is 'loading'. */
   inFlight: boolean;
+  /** Holds one of the `MAX_IN_FLIGHT` decode slots (a coloured load gives it up while a sheet tints). */
+  slot: boolean;
   /** In flight but no longer wanted: its images are closed as soon as they land. */
   cancelled: boolean;
   decoded: Decoded[];
@@ -190,7 +192,11 @@ export class SetManager {
   private readonly queue: Rec[] = [];
   private readonly unknownReported = new Set<SetKey>();
   private frame = 0;
-  private inFlight = 0;
+  /** Decode slots taken (at most `MAX_IN_FLIGHT`): a load holds one while it decodes, not while it tints. */
+  private slots = 0;
+  /** Loads waiting to take a slot back (a coloured load's next mask, an untint re-decode): served before the queue. */
+  private readonly slotWaiters: Rec[] = [];
+  private readonly slotWake = new Map<Rec, () => void>();
   private peak = 0;
   private capped = false;
   /** Density-4 sets freed for budget (ladder step 2); wants for them are ignored until there is room. */
@@ -281,7 +287,7 @@ export class SetManager {
     }
     return {
       entry, masks, colour, up: null, estimate, load, interim: null, extra: { mask: null, job: null, jobBytes: 0 },
-      state: 'none', inFlight: false, cancelled: false, decoded: [], bytes: 0, ready: null,
+      state: 'none', inFlight: false, slot: false, cancelled: false, decoded: [], bytes: 0, ready: null,
       wantFrame: NEVER, wantPri: 'ahead', lastUsed: NEVER, readyFrame: NEVER,
     };
   }
@@ -772,16 +778,48 @@ export class SetManager {
   }
 
   private pump(): void {
-    while (this.inFlight < MAX_IN_FLIGHT && this.queue.length) {
+    // A load already admitted and waiting for its slot back goes first: its memory is held already.
+    while (this.slots < MAX_IN_FLIGHT && this.slotWaiters.length) {
+      const w = this.slotWaiters.shift() as Rec;
+      this.slots++;
+      w.slot = true;
+      const wake = this.slotWake.get(w);
+      this.slotWake.delete(w);
+      wake?.();
+    }
+    while (this.slots < MAX_IN_FLIGHT && this.queue.length) {
       const next = this.nextToLoad(this.limit - this.committed());
       if (!next) return;
       this.dequeue(next);
+      this.slots++;
+      next.slot = true;
       void this.load(next);
     }
   }
 
+  /** Takes a decode slot for `r` (one of `MAX_IN_FLIGHT`), waiting behind other loads when none is free. */
+  private takeSlot(r: Rec): Promise<void> {
+    if (r.slot) return Promise.resolve();
+    if (this.slots < MAX_IN_FLIGHT && !this.slotWaiters.length) {
+      this.slots++;
+      r.slot = true;
+      return Promise.resolve();
+    }
+    return new Promise<void>((wake) => {
+      this.slotWaiters.push(r);
+      this.slotWake.set(r, wake);
+    });
+  }
+
+  /** Gives `r`'s decode slot back (a coloured load about to tint, or a load that ended); the next waiter or queued set takes it. */
+  private giveSlot(r: Rec): void {
+    if (!r.slot) return;
+    r.slot = false;
+    this.slots--;
+    this.pump();
+  }
+
   private async load(r: Rec): Promise<void> {
-    this.inFlight++;
     r.inFlight = true;
     r.cancelled = false;
     if (r.colour !== null) this.tinting = r;
@@ -810,8 +848,8 @@ export class SetManager {
       if (this.tinting === r) this.tinting = null;
       r.inFlight = false;
       r.cancelled = false;
-      this.inFlight--;
-      this.pump();
+      if (r.slot) this.giveSlot(r);
+      else this.pump();
     }
   }
 
@@ -822,9 +860,11 @@ export class SetManager {
    * tinted are decoded again from their Original files (kept blobs), so the whole set draws Original, and the failure
    * is reported. Everything here stays inside the peak admitted for the load (`load`).
    *
-   * The load keeps its decode slot (`MAX_IN_FLIGHT`) for the whole tint, which spans frames: while a coloured set
-   * tints only one other decode runs. Kept as is (review fix round 1, item 7): freeing the slot during the tint wait
-   * would let a fourth decode start when the tint resumes.
+   * Decode slots (Task 6 fix round 2): the load holds its slot (`MAX_IN_FLIGHT`) for its decodes only. It decodes the
+   * pictures and each sheet's mask holding it, gives it up while that sheet tints (bands over frames, no decode), and
+   * takes it back before the next mask decode or an Original re-decode, waiting behind other decodes when both slots
+   * are taken. So a tint never keeps uncoloured sets from decoding two at a time, and never more than two decodes run.
+   * Memory is untouched: the load's whole peak (`load`) stays admitted throughout, as before.
    */
   private async tint(r: Rec): Promise<boolean> {
     const target = hexRgb(TRACK_PALETTE[r.colour as number] as string);
@@ -838,6 +878,8 @@ export class SetManager {
       if (r.cancelled) return false;
       const base = r.decoded[i] as Decoded;
       try {
+        await this.takeSlot(r);
+        if (r.cancelled) return false;
         const mask = await this.io.decode(await this.read(maskFile));
         r.extra.mask = mask;
         r.bytes += mask.bytes;
@@ -847,6 +889,8 @@ export class SetManager {
         r.extra.jobBytes = job.bytes;
         r.bytes += job.bytes;
         this.peak = Math.max(this.peak, this.residentBytes());
+        // No decode while the sheet tints: the slot goes to the next waiter or queued set.
+        this.giveSlot(r);
         await new Promise<void>((done) => { this.tintRun = { job, done }; });
         if (r.cancelled) return false;
         if (!job.done) throw new Error(`tint of ${r.entry.key} sheet ${i} failed`);
@@ -910,6 +954,7 @@ export class SetManager {
       const file = (r.entry.sheets[j] as { file: string }).file;
       let d: Decoded;
       try {
+        await this.takeSlot(r);
         d = await this.io.decode(await this.read(file));
       } catch (err) {
         this.onError(r.entry.key, err);

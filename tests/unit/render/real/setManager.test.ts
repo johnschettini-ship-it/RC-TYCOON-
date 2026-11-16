@@ -803,6 +803,65 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
   }
   const pixel = (img: CanvasImageSource): number[] => Array.from((img as unknown as Pix).data.subarray(0, 3));
 
+  it('a coloured set frees its decode slot while it tints: two uncoloured now sets decode in parallel and are ready before the tint ends', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const plain = (item: string): RealSetEntry => ({ ...rideEntry(item, 2), sheets: [{ file: `${item}.webp`, w: W, h: H }], baseColour: undefined });
+    const B = plain('teacup_twirl');
+    const C = plain('rocket_rounds');
+    // One row a band, one band a frame: the tint spans about 100 frames.
+    const { io, m, step } = setupColours([A, B, C], 1e9, undefined, { tintBandPx: 1 });
+    await step([key]);
+    await step([key]);
+    expect(m.state(key)).toBe('loading');
+    expect(m.interim(key)).not.toBeNull(); // tinting (base and mask decoded)
+    // B and C wanted now at the same time; their decodes are held until both have started (or 10 frames pass).
+    let open!: () => void;
+    const gate = new Promise<void>((r) => { open = r; });
+    io.wait.set('teacup_twirl.webp#1', gate);
+    io.wait.set('rocket_rounds.webp#1', gate);
+    let both = false;
+    for (let f = 0; f < 10 && !both; f++) {
+      await step([key, B.key, C.key]);
+      both = io.decodes.includes('teacup_twirl.webp') && io.decodes.includes('rocket_rounds.webp');
+    }
+    expect(both).toBe(true); // in parallel: neither waited for the other
+    expect(m.state(key)).toBe('loading');
+    open();
+    let f = 0;
+    while ((m.state(B.key) !== 'ready' || m.state(C.key) !== 'ready') && f++ < 20) await step([key, B.key, C.key]);
+    expect(m.state(B.key)).toBe('ready');
+    expect(m.state(C.key)).toBe('ready');
+    expect(m.state(key)).toBe('loading'); // the tint has not ended
+    for (f = 0; f < 200 && m.state(key) !== 'ready'; f++) await step([key, B.key, C.key]);
+    expect(m.state(key)).toBe('ready');
+  });
+
+  it('never more than two decodes at once, with a coloured set tinting and three uncoloured sets wanted', async () => {
+    const A = rideEntry('carousel', 2, 2); // two sheets: its second mask decodes after the first sheet's tint
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const plain = (item: string): RealSetEntry => ({ ...rideEntry(item, 2), sheets: [{ file: `${item}.webp`, w: W, h: H }], baseColour: undefined });
+    const sets = [plain('teacup_twirl'), plain('rocket_rounds'), plain('kiddie_cars')];
+    const { io, m, step } = setupColours([A, ...sets], 1e9, undefined, { tintBandPx: 25 });
+    // Every decode is held for 3 frames; count the decodes running at once.
+    let running = 0;
+    let most = 0;
+    const decode = io.decode.bind(io);
+    io.decode = async (blob: Blob) => {
+      running++;
+      most = Math.max(most, running);
+      try {
+        for (let k = 0; k < 6; k++) await flush();
+        return await decode(blob);
+      } finally { running--; }
+    };
+    const keys = [key, ...sets.map((x) => x.key)];
+    for (let f = 0; f < 200 && keys.some((k) => m.state(k) !== 'ready'); f++) await step(keys);
+    for (const k of keys) expect(m.state(k), k).toBe('ready');
+    expect(most).toBeLessThanOrEqual(2);
+    expect(most).toBe(2);
+  });
+
   it('an Original ride set never decodes its masks: resident and estimate exclude them', async () => {
     const A = rideEntry('carousel', 2);
     // Room for the sheet alone: the masks are not part of an Original set's cost.
