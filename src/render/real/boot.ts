@@ -11,8 +11,10 @@
  *    the look, and the ground, with the ground's chunks and the look's tint-atlas pages admitted to and reclaimed by
  *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
  * 4. Decode the card picture set (when the bake has it) and give the card previews its drawer (`setCardArt`).
- * 5. When the page runs the bench (`benchMode`: `?bench=1`, `quick` or `scale`), the index gets the scale park's alias sets (`./aliases.ts`, round 3 item 7).
+ * 5. The realistic card frames (`src/styles/realCards.css`) come with this module, so only the realistic look has them.
+ * 6. When the page runs the bench (`benchMode`: `?bench=1`, `quick` or `scale`), the index gets the scale park's alias sets (`./aliases.ts`, round 3 item 7).
  */
+import '../../styles/realCards.css';
 import { t } from '../../data/strings';
 import { perfProbe } from '../../perf/stats';
 import { REAL_STEP_PX } from '../artStyle';
