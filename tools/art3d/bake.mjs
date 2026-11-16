@@ -47,6 +47,9 @@ async function bundle(buildDir) {
   await node.write({ file: join(buildDir, 'bakeNode.mjs'), format: 'esm', codeSplitting: false });
   await node.close();
   cpSync(join(HERE, 'bake.html'), join(buildDir, 'bake.html'));
+  // the game's font, for the title sign (items/title.js loads it as fonts/fredoka.woff2)
+  mkdirSync(join(buildDir, 'fonts'), { recursive: true });
+  cpSync(join(ROOT, 'src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'), join(buildDir, 'fonts/fredoka.woff2'));
   return import(pathToFileURL(join(buildDir, 'bakeNode.mjs')).href + `?t=${Date.now()}`);
 }
 
@@ -109,7 +112,7 @@ const mb = (n) => (n / 1e6).toFixed(2);
       if (m.type() === 'error') { console.log('[page error]', t); pageErrors++; } else if (t.startsWith('[bake]')) console.log(t);
     });
     page.on('pageerror', (e) => { console.log('[pageerror]', e.message); pageErrors++; });
-    const TYPES = { '.html': 'text/html', '.js': 'text/javascript' };
+    const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.woff2': 'font/woff2' };
     await page.route('http://bake.local/**', (route) => {
       const rel = decodeURIComponent(new URL(route.request().url()).pathname).replace(/^\//, '');
       const file = join(buildDir, rel);
@@ -136,10 +139,10 @@ const mb = (n) => (n / 1e6).toFixed(2);
         const url = await page.evaluate((n) => window.takeFile(n), name);
         writeFileSync(join(job.dir, name), Buffer.from(url.slice(url.indexOf(',') + 1), 'base64'));
       }
-      writeFileSync(meta, JSON.stringify({ id: job.it.id, hash: job.hash, renders: res.renders, renderSeconds: res.renderSeconds, bakeSeconds: (Date.now() - ti) / 1000, sets: res.sets }));
+      writeFileSync(meta, JSON.stringify({ id: job.it.id, hash: job.hash, renders: res.renders, renderSeconds: res.renderSeconds, bakeSeconds: (Date.now() - ti) / 1000, sets: res.sets, files: res.files, meta: res.meta ?? null }));
     }
     const m = JSON.parse(readFileSync(meta, 'utf8'));
-    report.push({ id: job.it.id, cached, seconds: (Date.now() - ti) / 1000, bakeSeconds: m.bakeSeconds, renders: m.renders, sets: m.sets, dir: job.dir });
+    report.push({ id: job.it.id, out: job.it.out ?? null, cached, seconds: (Date.now() - ti) / 1000, bakeSeconds: m.bakeSeconds, renders: m.renders, sets: m.sets, files: m.files ?? [], meta: m.meta ?? null, dir: job.dir });
     console.log(`${job.it.id}: ${cached ? 'cache' : 'baked'} in ${((Date.now() - ti) / 1000).toFixed(1)} s (${m.renders} renders, ${m.sets.length} sets)`);
   }
   if (browser) await browser.close();
@@ -169,7 +172,29 @@ const mb = (n) => (n / 1e6).toFixed(2);
   }
   const json = JSON.stringify(index);
   writeFileSync(join(outDir, 'index.json'), json);
-  const problems = N.checkIndex(index, new Set(readdirSync(outDir)));
+
+  // the title pictures (items/title.js): their own folder and index (tools/art3d/titleIndex.ts), outside the sets
+  let title;
+  const tr = report.find((r) => r.out === 'title');
+  if (tr) {
+    if (!tr.meta) throw new Error('title: the bake gave no title index');
+    const tdir = join(outDir, 'title');
+    mkdirSync(tdir, { recursive: true });
+    const tfiles = new Map();
+    for (const name of tr.files) {
+      const buf = readFileSync(join(tr.dir, name));
+      writeFileSync(join(tdir, name), buf);
+      const [w, h] = webpSize(buf);
+      tfiles.set(name, { w, h, bytes: buf.length });
+    }
+    const tindex = { ...tr.meta };
+    tindex.bytes = { compressed: [...tfiles.values()].reduce((a, f) => a + f.bytes, 0), decoded: N.titleDecoded(tindex) };
+    writeFileSync(join(tdir, 'index.json'), JSON.stringify(tindex, null, 1));
+    title = { index: tindex, files: tfiles };
+    console.log(`title: ${tfiles.size} files, ${mb(tindex.bytes.compressed)} MB compressed; decoded ${mb(tindex.bytes.decoded.wide)} MB wide, ${mb(tindex.bytes.decoded.tall)} MB tall`);
+    for (const [n, f] of tfiles) console.log(`  ${n.padEnd(22)} ${String(f.w).padStart(5)} x ${String(f.h).padEnd(5)} ${(f.bytes / 1e3).toFixed(0).padStart(6)} KB`);
+  }
+  const problems = N.checkIndex(index, new Set(readdirSync(outDir)), title);
   for (const p of problems) console.log(`[index] ${p}`);
 
   console.log('\nkind      sets  pictures  frame keys  sheets  compressed MB  decoded MB d2  decoded MB d4');

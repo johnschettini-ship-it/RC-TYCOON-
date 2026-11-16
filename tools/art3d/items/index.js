@@ -33,6 +33,7 @@ import bumper_cars from './bumper_cars.js';
 import mirror_maze from './mirror_maze.js';
 import haunted_manor from './haunted_manor.js';
 import thunder_disc from './thunder_disc.js';
+import title from './title.js';
 
 export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
-  observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc };
+  observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc, title };

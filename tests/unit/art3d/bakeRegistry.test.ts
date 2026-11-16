@@ -154,7 +154,7 @@ describe('cache key covers the code an item is built from', () => {
       expect(seen.size, it.id).toBeGreaterThan(1);
     }
     expect([...missing], 'not in SHARED or the item\'s deps').toEqual([]);
-  }, 20_000); // parses the bake modules once per item: 4-5 s on a loaded 4-core machine, at the 5 s default
+  }, 30_000); // parses every module reached from each of the ~37 items: over vitest's 5 s default under a parallel run
 
   it('a file not followed (LEAF_USE) is only used for the names its reason gives', () => {
     const users = ITEM_FILES_IMPORTING_LEAVES();

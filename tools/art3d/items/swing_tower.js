@@ -13,7 +13,7 @@ const CHAIN = 5.2;
 const CANOPY_Y = 6.2;
 const MAX_SWING = Math.PI / 4;
 
-function build() {
+export function build() {
   const K = kit();
   const { mat } = K;
   const root = new THREE.Group();

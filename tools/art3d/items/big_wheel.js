@@ -9,7 +9,7 @@ import { ferrisWheel } from '../rides.js';
 const N = 16;
 const PERIOD_STEPS = BIG_WHEEL_PERIOD; // 90 degrees in game angle steps (32 per turn)
 
-function build() {
+export function build() {
   const K = kit();
   const { group, hubY, R } = ferrisWheel(K, { x: 0, z: 0, D: 10.2, n: N, seed: 700 });
   const kids = group.children;

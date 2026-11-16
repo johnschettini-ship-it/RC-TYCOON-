@@ -81,6 +81,13 @@ export const ITEM_LIST = [
   { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
 ];
 
+// The title pictures (items/title.js): a whole park scene from a free camera and the name signs, written to their
+// own folder (out: 'title', dist-art/real/title/ with its index.json, tools/art3d/titleIndex.ts), not as sets.
+ITEM_LIST.push({
+  id: 'title', file: 'items/title.js', out: 'title',
+  deps: ['items/titleMirror.js', 'items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js', 'items/flatRides.js', '../../src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'],
+});
+
 // One small card picture per baked game item, in one set preview:cards:d2:rall (frames keyed by item id), for the
 // card and picker previews. Built from the items' own modules, so it re-bakes when any of them changes.
 ITEM_LIST.push({ id: 'cards', file: 'items/cards.js', cards: CARD_ITEMS, deps: cardDeps() });
