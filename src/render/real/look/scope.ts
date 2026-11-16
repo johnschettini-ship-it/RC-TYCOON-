@@ -257,6 +257,7 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
       scope(world, rot, view);
       const { on, margin } = splitScope(view);
       const ahead = ((rot + 1) % 4) as ViewRotation;
+      const back = ((rot + 3) % 4) as ViewRotation;
       const now = new Set<SetKey>();
       const later = new Set<SetKey>();
       // While a density-4 set is not ready, its density-2 twin is wanted too, first (a quarter of the size, so it
@@ -286,6 +287,15 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
           if (a !== undefined && !now.has(a)) {
             const low = density === 4 ? resolveAt(rec, ar, 2) : a;
             if (low !== undefined) later.add(low);
+          }
+          // A coloured ride with a set per turn also wants the turn back (counter-clockwise) at density 2, ahead: its
+          // set needs a decode and a tint (one at a time, in the shared tint budget), so a turn back would otherwise
+          // wait for both (Task 6 bench: +~270 ms on the rides park's last turn). Ahead sets are still dropped first
+          // under pressure. A set for every turn (rot 'all') resolves to the one already wanted.
+          if (rec.base) {
+            const br = ((turn + back) % 4) as ViewRotation;
+            const b = resolveAt(rec, br, 2);
+            if (b !== undefined && !now.has(b)) later.add(b);
           }
         }
       };

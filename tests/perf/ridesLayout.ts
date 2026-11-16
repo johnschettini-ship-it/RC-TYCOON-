@@ -17,3 +17,18 @@ export const RIDES_CELLS: ReadonlyArray<readonly [number, number]> = [
   [-1, -2], [-3, -1], [0, 0], [3, 3], [0, -1], [2, 2], [-2, 0], [0, 1], [1, 0],
   [-1, -1], [-2, -1], [3, 1], [2, 0], [1, 1], [-5, -3], [-1, 0], [-2, -2], [2, 1],
 ];
+
+/**
+ * Flat-ride colours (2026-11-16): six rides are painted, each in a different one of the six `RIDE_COLOUR_CHOICES`
+ * (indices into `TRACK_PALETTE`), so the bench decodes and tints six coloured sets. Carousel, the largest ride set, is
+ * placed twice (`RIDES_EXTRA`) in two colours: one ride type as two coloured sets. Every other ride stays Original.
+ */
+export const RIDES_COLOURS: Readonly<Record<string, number>> = {
+  carousel: 2, // lemon
+  big_wheel: 1, // sunset
+  haunted_manor: 3, // leaf
+  swing_tower: 7, // grape
+  teacup_twirl: 0, // cherry
+};
+/** The second carousel, in sky, in a free cell of the band that is inside the zoom 0.5 view at rotations 0 and 2. */
+export const RIDES_EXTRA = { defId: 'carousel', cell: [1, 2] as const, colour: 4 } as const;

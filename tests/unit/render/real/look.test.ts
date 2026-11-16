@@ -1237,6 +1237,41 @@ describe('RealLook: ride colours (Task 5)', () => {
     expect(sets.wanted('now')).not.toContain(k('big_wheel', 2, 0, C));
   });
 
+  it('a coloured per-turn ride on screen also wants the turn back (counter-clockwise) at density 2, ahead: its tint is done before a turn back', () => {
+    const { sets, look } = setup();
+    const world = emptyWorld();
+    world.state.rides.push({ id: 1, kind: 'flat', defId: 'big_wheel', rotation: 0, x: AT.x, y: AT.y, colour: C } as Ride);
+    world.state.stalls.push({ id: 4, defId: 'snack_shack', ...AT } as Stall);
+    // View turn 1 at density 4: on screen r1 (now), the clockwise turn r2 and the turn back r0 at density 2 (ahead).
+    look.prepare(world, 1, VIEW, 2, 2.625);
+    const now = sets.wanted('now');
+    const ahead = sets.wanted('ahead');
+    expect(now).toContain(k('big_wheel', 4, 1, C));
+    expect(ahead).toContain(k('big_wheel', 2, 2, C));
+    expect(ahead).toContain(k('big_wheel', 2, 0, C));
+    expect(ahead).not.toContain(k('big_wheel', 4, 0, C));
+    expect(now).not.toContain(k('big_wheel', 2, 0, C));
+    // Only coloured rides: an Original ride and a stall keep the clockwise ahead turn alone.
+    expect(ahead).not.toContain(setKey('stall', 'snack_shack', 2, 0));
+    sets.wants = [];
+    world.state.rides[0]!.colour = null;
+    look.prepare(world, 1, VIEW, 2, 2.625);
+    expect(sets.wanted('ahead')).toContain(k('big_wheel', 2, 2));
+    expect(sets.wanted('ahead')).not.toContain(k('big_wheel', 2, 0));
+  });
+
+  it('a coloured every-turn ride (rot all) wants no extra set for the turn back', () => {
+    const index = makeIndex();
+    for (const e of index.sets) if (e.kind === 'ride' && e.item === 'carousel') e.baseColour = '#b02a2a';
+    const sets = new FakeSets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    const world = emptyWorld();
+    world.state.rides.push({ id: 1, kind: 'flat', defId: 'carousel', rotation: 0, x: AT.x, y: AT.y, colour: C } as Ride);
+    look.prepare(world, 1, VIEW, 2, 2.625);
+    expect(sets.wanted('now')).toContain(setKey('ride', 'carousel', 4, 'all', C));
+    expect(sets.wanted('ahead').filter((x) => x.startsWith('ride:carousel'))).toEqual([]);
+  });
+
   it('while its coloured set tints, a ride draws the Original pictures it is tinting (incomplete), then the tinted set', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
