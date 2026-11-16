@@ -95,19 +95,38 @@ test.describe('ride colour swatches', () => {
     await expect(page.getByTestId('ride-colour-row')).toHaveCount(0);
   });
 
-  for (const [name, vp] of [['390 x 844', { width: 390, height: 844 }], ['812 x 375', { width: 812, height: 375 }]] as const) {
-    test(`fits ${name} at large text (175%, pseudo-locale)`, async ({ page }, info) => {
-      const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-      await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
-      await page.setViewportSize(vp);
-      await newPark(page);
-      await placeAndSelect(page, 'flat');
-      await page.waitForTimeout(200);
-      expect(await rowFits(page)).toEqual([]);
-      const dir = process.env.RC_SHOTS;
-      if (dir) await page.screenshot({ path: `${dir}/ride-panel-${vp.width}x${vp.height}-${info.project.name}.png` });
-    });
+  for (const [name, vp] of [['360 x 640', { width: 360, height: 640 }], ['390 x 844', { width: 390, height: 844 }], ['812 x 375', { width: 812, height: 375 }]] as const) {
+    for (const large of [false, true]) {
+      test(`fits ${name} at ${large ? 'large' : 'normal'} text`, async ({ page }, info) => {
+        if (large) {
+          const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
+          await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+        }
+        await page.setViewportSize(vp);
+        await newPark(page);
+        await placeAndSelect(page, 'flat');
+        await page.waitForTimeout(200);
+        expect(await rowFits(page)).toEqual([]);
+        const dir = process.env.RC_SHOTS;
+        if (dir) await page.screenshot({ path: `${dir}/ride-panel-${vp.width}x${vp.height}-${large ? 'large' : 'normal'}-${info.project.name}.png` });
+      });
+    }
   }
+
+  test('a rejected setRideColour leaves the pressed swatch unchanged', async ({ page }) => {
+    await newPark(page);
+    const id = await placeAndSelect(page, 'flat');
+    const row = page.getByTestId('ride-colour-row');
+    await row.getByRole('button', { name: 'Ride colour: Grape' }).click();
+    await expect(row.getByRole('button', { name: 'Ride colour: Grape' })).toHaveAttribute('aria-pressed', 'true');
+    // 5 is a palette index outside the six choices.
+    const bad = await page.evaluate((i) => (window as unknown as { __tc: Tc }).__tc.dispatch({ type: 'setRideColour', rideId: i, colour: 5 }), id);
+    expect(bad.ok).toBe(false);
+    await page.waitForTimeout(300);
+    expect(await colourOf(page, id)).toBe(7);
+    await expect(row.getByRole('button', { name: 'Ride colour: Grape' })).toHaveAttribute('aria-pressed', 'true');
+    await expect(row.locator('[aria-pressed="true"]')).toHaveCount(1);
+  });
 
   test('screenshot at normal text', async ({ page }, info) => {
     await page.setViewportSize({ width: 390, height: 844 });

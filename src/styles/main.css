@@ -1257,7 +1257,7 @@ button { font: inherit; color: inherit; }
 .swatch-row { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 6px; }
 .swatches { display: grid; grid-template-columns: repeat(6, minmax(28px, 1fr)); gap: 4px; }
 .swatch-row.ride-colour-row { grid-template-columns: 1fr; gap: 4px; }
-.swatches.ride-colours { grid-template-columns: repeat(7, minmax(44px, 1fr)); }
+.swatches.ride-colours { grid-template-columns: repeat(auto-fit, minmax(44px, 1fr)); }
 .ride-colours .swatch { min-height: 44px; }
 .swatch-original { background: repeating-linear-gradient(135deg, var(--surface) 0 5px, var(--muted-ink) 5px 7px); }
 .swatch { pointer-events: auto; cursor: pointer; min-height: 30px; border-radius: 8px; border: 2px solid var(--ink); }
