@@ -4,15 +4,26 @@
  *   npx tsx tools/art3d/checkIndex.ts <dir>
  */
 import type { RealIndex, RealKind } from '../../src/render/real/indexFormat';
+import { checkTitleIndex, type TitleFiles } from './titleIndex';
 
 const MAX_SHEET = 2048;
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
 
 const okNum = (n: number): boolean => Number.isFinite(n) && n >= 0;
 
-/** Returns a list of problems; empty means the index and the files agree. */
-export function checkIndex(index: RealIndex, files: Set<string>): string[] {
+/** The title folder (`title/` beside index.json): its index.json and its files (titleIndex.ts). */
+export interface TitleFolder { index: unknown; files: TitleFiles }
+
+/**
+ * Returns a list of problems; empty means the index and the files agree. `files` lists the folder's entries; a
+ * `title` entry is the title pictures' folder, checked by checkTitleIndex when `title` is given (a problem when not).
+ */
+export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFolder): string[] {
   const problems: string[] = [];
+  if (files.has('title')) {
+    if (!title) problems.push('title: the title folder was not checked (no title index given)');
+    else for (const p of checkTitleIndex(title.index, title.files)) problems.push(`title: ${p}`);
+  }
   const referenced = new Set<string>();
   for (const set of index.sets) {
     const sheets = new Map<string, { w: number; h: number }>();
@@ -39,7 +50,7 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
       if (!Number.isFinite(f.ox) || !Number.isFinite(f.oy)) problems.push(`${set.key}: frame ${k} has non-finite ox/oy`);
     }
   }
-  for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
+  for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && f !== 'title' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
 
   // every item at every density the index lists, and no other density
   const listed = new Set<number>(index.densities as readonly number[]);

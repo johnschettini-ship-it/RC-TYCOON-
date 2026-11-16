@@ -426,8 +426,8 @@ interface SetB { kind: RealKind; item: string; rot: 0 | 1 | 2 | 3 | 'all'; pics:
 let sets: SetB[] = [];
 const files = new Map<string, string>(); // name -> data URL
 
-function encode(canvas: HTMLCanvasElement, name: string): void {
-  const url = canvas.toDataURL('image/webp', 0.85);
+function encode(canvas: HTMLCanvasElement, name: string, quality = 0.85): void {
+  const url = canvas.toDataURL('image/webp', quality);
   if (!url.startsWith('data:image/webp')) throw new Error('this browser cannot encode WebP');
   files.set(name, url);
 }
@@ -517,6 +517,62 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
   return out;
 }
 
+// ------------------------------------------------------------------ free-camera pictures (the title, items/title.js)
+// A whole picture from any camera (the title's perspective view), not a trimmed sprite from the game projection:
+// rendered at VIEW_SS x the output size, then box-filtered down (straight alpha, top-down rows). No AO pass (its
+// shader assumes the orthographic bake camera); the item's own lights and shadows carry the depth. The grade is the
+// round 6 compose (ACES, saturation, contrast, lift, gain) with the item's numbers.
+const VIEW_SS = 2;
+export interface Grade { exposure: number; saturation: number; contrast: number; lift: [number, number, number]; gain: [number, number, number] }
+const NO_AO = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+NO_AO.needsUpdate = true;
+
+/** Renders `scene` from `camera` into a half-float target VIEW_SS x (w, h); the target stays ours until the next call with that size. */
+const keptTargets = new Map<string, any>();
+function viewHDR(scene: any, camera: any, w: number, h: number, keep = false): { target: any; W: number; H: number } {
+  const W = w * VIEW_SS, H = h * VIEW_SS;
+  if (Math.max(W, H) > maxRenderPx()) throw new Error(`a ${W}x${H} px render is over the GPU's ${maxRenderPx()} px limit`);
+  let target = targets(W, H).scene;
+  if (keep) {
+    // a texture a later render samples: its own target (renderView renders into the shared one)
+    target = keptTargets.get(`${W}x${H}`);
+    if (!target) {
+      target = new THREE.WebGLRenderTarget(W, H, { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+      target.depthTexture = new THREE.DepthTexture(W, H, THREE.FloatType);
+      keptTargets.set(`${W}x${H}`, target);
+    }
+  }
+  renderer.shadowMap.needsUpdate = true;
+  renderer.setRenderTarget(target);
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  return { target, W, H };
+}
+
+function renderView(scene: any, camera: any, w: number, h: number, grade: Grade): HTMLCanvasElement {
+  const t0 = performance.now();
+  const { target, W, H } = viewHDR(scene, camera, w, h);
+  const t = targets(W, H);
+  const u = comp.m.uniforms;
+  u.tColor.value = target.texture; u.tAO.value = NO_AO; u.aoStrength.value = 0;
+  u.exposure.value = grade.exposure; u.saturation.value = grade.saturation; u.contrast.value = grade.contrast;
+  u.lift.value.set(...grade.lift); u.gain.value.set(...grade.gain);
+  renderer.setRenderTarget(t.out); renderer.render(comp.s, post.cam);
+  const px = new Uint8Array(W * H * 4);
+  renderer.readRenderTargetPixels(t.out, 0, 0, W, H, px);
+  renderer.setRenderTarget(null);
+  // back to the round 6 numbers for the sprite bakes
+  const P = VT.post;
+  u.aoStrength.value = P.aoStrength; u.exposure.value = P.exposure; u.saturation.value = P.saturation; u.contrast.value = P.contrast;
+  u.lift.value.set(...P.lift); u.gain.value.set(...P.gain);
+  const img = down({ px, W, H }, VIEW_SS);
+  renderCount++;
+  renderMs += performance.now() - t0;
+  return toCanvas(img, { x: 0, y: 0, w: img.w, h: img.h });
+}
+
+let itemMeta: unknown = null;
+
 // ------------------------------------------------------------------ the API items use
 export interface BakeApi {
   THREE: any;
@@ -533,11 +589,28 @@ export interface BakeApi {
   /** Clip every render to vertical planes [nx, nz, k] (three.js x/z; kept where nx·x + nz·z + k >= 0); null clears. */
   clip(planes: [number, number, number][] | null): void;
   log(...a: unknown[]): void;
+  // ---- free-camera pictures (items/title.js)
+  /** Supersampling of view renders: a render of an output w x h is VIEW_SS w x VIEW_SS h px. */
+  viewSS: number;
+  /** A whole w x h picture of `scene` from `camera` (any three.js camera), graded; straight alpha. */
+  renderView(scene: any, camera: any, w: number, h: number, grade: Grade): HTMLCanvasElement;
+  /** The same render, ungraded, left in a half-float texture (VIEW_SS x the size) for a later render to sample. */
+  renderTexture(scene: any, camera: any, w: number, h: number): any;
+  /** Prefiltered environment map of a scene (PMREM), for scene.environment. */
+  pmrem(scene: any): any;
+  /** Global clipping planes (THREE.Plane[]) for later renders; null clears. */
+  clipPlanes(planes: any[] | null): void;
+  /** Write a picture file of this item (WebP at `quality`, or PNG); `name` is its file name. */
+  emit(name: string, canvas: HTMLCanvasElement, quality?: number): void;
+  /** Item-level result for the driver (the title's index.json). */
+  meta(m: unknown): void;
+  /** Load a font file served beside the bake page under a family name (document.fonts). */
+  font(family: string, url: string, weight?: string): Promise<void>;
 }
 
 declare global {
   interface Window {
-    bakeItem: (id: string, opts: { densities: BakeDensity[]; hash: string; input: unknown }) => Promise<{ sets: OutSet[]; files: string[]; renders: number; renderSeconds: number }>;
+    bakeItem: (id: string, opts: { densities: BakeDensity[]; hash: string; input: unknown }) => Promise<{ sets: OutSet[]; files: string[]; renders: number; renderSeconds: number; meta: unknown }>;
     takeFile: (name: string) => string | undefined;
     pngOf: (dataUrl: string) => Promise<string>;
     bakeReady: boolean;
@@ -553,6 +626,7 @@ window.bakeItem = async (id, opts) => {
   sets = [];
   files.clear();
   renderCount = 0; renderMs = 0;
+  itemMeta = null;
   const api: BakeApi = {
     THREE, densities, input: opts.input, newScene, setEnv, boxOf, log,
     shoot: (bs, o) => shoot(bs, o, false),
@@ -565,14 +639,35 @@ window.bakeItem = async (id, opts) => {
       sets.push(s);
       return { add: (keys, shot) => { s.pics.push({ keys, shot }); } };
     },
+    viewSS: VIEW_SS,
+    renderView,
+    renderTexture: (scene, camera, w, h) => viewHDR(scene, camera, w, h, true).target.texture,
+    pmrem(scene) {
+      const pm = new THREE.PMREMGenerator(renderer);
+      const tex = pm.fromScene(scene, 0.02).texture;
+      pm.dispose();
+      return tex;
+    },
+    clipPlanes(planes) { renderer.clippingPlanes = planes ?? []; },
+    emit(name, canvas, quality = 0.85) {
+      if (/\.png$/.test(name)) files.set(name, canvas.toDataURL('image/png'));
+      else encode(canvas, name, quality);
+    },
+    meta(m) { itemMeta = m; },
+    async font(family, url, weight = '300 700') {
+      const f = new FontFace(family, `url(${url})`, { weight });
+      await f.load();
+      document.fonts.add(f);
+    },
   };
   await mod.bake(api);
+  renderer.clippingPlanes = [];
   const out: OutSet[] = [];
   for (const s of sets) for (const d of densities) {
     const o = packSet(s, d, `${s.kind}-${s.item}-${opts.hash}-d${d}-r${s.rot}`);
     if (o.sheets.length) out.push(o);
   }
-  return { sets: out, files: [...files.keys()], renders: renderCount, renderSeconds: +(renderMs / 1000).toFixed(1) };
+  return { sets: out, files: [...files.keys()], renders: renderCount, renderSeconds: +(renderMs / 1000).toFixed(1), meta: itemMeta };
 };
 window.takeFile = (name) => { const f = files.get(name); files.delete(name); return f; };
 /** Convert a WebP data URL to a PNG data URL (for looking at sheets with tools that read PNG). */

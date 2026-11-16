@@ -1,18 +1,37 @@
 /** Command line for checkIndex: `npx tsx tools/art3d/checkIndexCli.ts <dir>` (or checkIndex.ts, which forwards here). */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RealIndex } from '../../src/render/real/indexFormat';
-import { checkIndex } from './checkIndex';
+import { checkIndex, type TitleFolder } from './checkIndex';
+import { webpSize, type TitleFiles } from './titleIndex';
 import { S5_LIMIT_BYTES, formatSizeReport, sizeReport } from './sizeReport';
 
 const mb = (n: number): string => (n / 1e6).toFixed(2);
+
+/** The title folder's index and files (sizes read from the WebP headers), or undefined when there is none. */
+export function titleFolder(tdir: string): TitleFolder | undefined {
+  if (!existsSync(join(tdir, 'index.json'))) return existsSync(tdir) ? { index: null, files: new Map() } : undefined;
+  const files: TitleFiles = new Map();
+  for (const n of readdirSync(tdir)) {
+    if (n === 'index.json') continue;
+    const buf = readFileSync(join(tdir, n));
+    let wh: [number, number] = [0, 0];
+    try { wh = webpSize(buf); } catch { /* not a WebP: the size check reports it */ }
+    files.set(n, { w: wh[0], h: wh[1], bytes: buf.length });
+  }
+  const index: unknown = JSON.parse(readFileSync(join(tdir, 'index.json'), 'utf8'));
+  let compressed = 0;
+  for (const f of files.values()) compressed += f.bytes;
+  console.log(`title: ${files.size} files, ${mb(compressed)} MB compressed`);
+  return { index, files };
+}
 
 /** Runs the checks on a baked folder and returns the exit code (0 pass, 1 problems, S5 or missing files, 2 usage). */
 export function run(dir: string | undefined): number {
   if (!dir) { console.error('usage: tsx tools/art3d/checkIndex.ts <dir>'); return 2; }
   const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8')) as RealIndex;
-  const problems = checkIndex(index, new Set(readdirSync(dir)));
+  const problems = checkIndex(index, new Set(readdirSync(dir)), titleFolder(join(dir, 'title')));
   for (const p of problems) console.error(p);
   console.log(problems.length === 0 ? 'index OK' : `${problems.length} problem(s)`);
 
