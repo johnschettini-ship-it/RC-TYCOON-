@@ -2,7 +2,6 @@
 // with the gondolas. The wheel turns by the game's ride angle (32 steps per turn); 16 gondolas in 4 colours, and
 // the riders of gondola i copied from gondola i mod 4, so the wheel repeats every 90 degrees: the phone's 16 even
 // angles need 4 pictures per occupancy. Not round, so one set per sprite rotation (boarding steps at the front).
-// build() is also used by the title picture (items/title.js).
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { BIG_WHEEL_PERIOD, bigWheelKeys, d2Api } from './flatRides.js';
 import { ferrisWheel } from '../rides.js';

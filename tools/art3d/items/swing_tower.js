@@ -2,7 +2,6 @@
 // 16 chair swings on 5.2 m chains, two rider looks alternating (so the ride repeats every 45 degrees: the phone's
 // 16 even angles need 2 pictures per swing level and occupancy), and a round base, so one set serves every view
 // turn (rot 'all'). Swing levels 0-4 (anim.ts rideFrameFor) throw the chairs out 0 to 45 degrees.
-// build() is also used by the title picture (items/title.js).
 import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
 import { d2Api, swingTowerKeys } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';

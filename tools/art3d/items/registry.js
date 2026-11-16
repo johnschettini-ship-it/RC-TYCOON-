@@ -85,7 +85,7 @@ export const ITEM_LIST = [
 // own folder (out: 'title', dist-art/real/title/ with its index.json, tools/art3d/titleIndex.ts), not as sets.
 ITEM_LIST.push({
   id: 'title', file: 'items/title.js', out: 'title',
-  deps: ['items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js', 'items/flatRides.js', '../../src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'],
+  deps: ['items/titleMirror.js', 'items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js', 'items/flatRides.js', '../../src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'],
 });
 
 // One small card picture per baked game item, in one set preview:cards:d2:rall (frames keyed by item id), for the

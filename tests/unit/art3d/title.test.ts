@@ -50,6 +50,48 @@ describe('title bake item', () => {
   });
 });
 
+describe('the lake reflection (items/titleMirror.js)', () => {
+  // A park as title.js builds it: the wheel ride's static frame tagged `park`, its turning part (rim, gondolas) `wheel`.
+  async function park() {
+    const THREE = await load('vendor/three-0.160.0.module.min.js');
+    const { mirrorWorld, shown } = await load('items/titleMirror.js');
+    const mesh = (name: string) => Object.assign(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial()), { name, castShadow: true });
+    const parkG = new THREE.Group(); parkG.userData.layer = 'park';
+    const ferris = new THREE.Group(); parkG.add(ferris);
+    const legs = mesh('legs'); legs.userData.layer = 'park'; ferris.add(legs);
+    for (const n of ['rim', 'gondola']) { const g = new THREE.Group(); g.userData.layer = 'wheel'; g.add(mesh(n)); ferris.add(g); }
+    parkG.add(mesh('tree'));
+    const sky = new THREE.Group(); sky.userData.layer = 'sky'; sky.add(mesh('hill'));
+    return { THREE, mirror: mirrorWorld(THREE, [sky, parkG], -0.35), shown, parkG };
+  }
+  it('the mirror shows no part of the turning wheel (its reflection is baked still under a turning wheel)', async () => {
+    const { mirror, shown } = await park();
+    const byName = (n: string) => { const out: unknown[] = []; mirror.traverse((o: { name: string }) => { if (o.name === n) out.push(o); }); return out; };
+    for (const n of ['rim', 'gondola']) {
+      expect(byName(n).length, n).toBe(1);
+      expect(shown(byName(n)[0], mirror), `${n} shown in the mirror`).toBe(false);
+    }
+    for (const n of ['legs', 'tree', 'hill']) expect(shown(byName(n)[0], mirror), `${n} shown in the mirror`).toBe(true);
+  });
+  it('the copies take the mirror layer, cast no shadows, and leave the originals as they were', async () => {
+    const { mirror, parkG } = await park();
+    expect(mirror.scale.y).toBe(-1);
+    expect(mirror.position.y).toBeCloseTo(-0.7);
+    mirror.traverse((o: { userData: { layer?: string }; castShadow: boolean }) => {
+      if (o !== mirror) expect(o.userData.layer).toBeUndefined();
+      expect(o.castShadow).toBe(false);
+    });
+    let turning = 0;
+    parkG.traverse((o: { userData: { layer?: string }; visible: boolean }) => { if (o.userData.layer === 'wheel') { turning++; expect(o.visible).toBe(true); } });
+    expect(turning).toBe(2);
+  });
+  it('title.js mirrors through mirrorWorld and tags the wheel\'s turning groups `wheel`', () => {
+    const src = readFileSync(new URL('items/title.js', dir), 'utf8');
+    expect(src).toMatch(/mirrorWorld\(THREE, \[sky, P\.park\], WATER_Y\)/);
+    expect(src).toMatch(/c\.userData\.layer = c\.isGroup \? 'wheel' : 'park'/);
+  });
+});
+
 describe('checkTitleIndex', () => {
   it('a valid index is clean', () => {
     const { index, files } = fixtureTitle();

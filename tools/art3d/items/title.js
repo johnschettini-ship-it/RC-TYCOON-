@@ -27,6 +27,7 @@ import { sitCar, stall } from '../rides.js';
 import { railModel, supportPiece, SEG_H } from './steel_coaster.js';
 import { build as buildWheel } from './big_wheel.js';
 import { build as buildSwing } from './swing_tower.js';
+import { mirrorWorld } from './titleMirror.js';
 
 const WATER_Y = -0.35;
 /** Towards the sun: low (13 degrees) in the west, behind the park on the left. */
@@ -241,14 +242,18 @@ function coaster(K) {
   const supMat = new THREE.MeshPhysicalMaterial({ color: '#d9d4c8', roughness: 0.5, metalness: 0.3, clearcoat: 0.3 });
   const Z = -60;
   const ctrl = [
-    [-104, 1.4, Z + 5], [-88, 1.4, Z + 2], [-74, 1.6, Z], [-63, 4, Z], [-49, 13.5, Z], [-38, 19.4, Z], [-33.5, 20.3, Z],
+    [-128, 1.4, Z + 5], [-108, 1.4, Z + 4], [-88, 1.4, Z + 2], [-74, 1.6, Z], [-63, 4, Z], [-49, 13.5, Z], [-38, 19.4, Z], [-33.5, 20.3, Z],
     [-29, 19.2, Z], [-24.5, 12, Z], [-20, 4.5, Z], [-15, 2.6, Z - 0.5], [-10, 3.4, Z - 1.5], [-5, 9.6, Z - 3], [-1.5, 11, Z - 4.5],
     [2, 9.4, Z - 6.5], [6, 4.6, Z - 10], [9, 3.2, Z - 16], [7, 3.8, Z - 23], [0, 4.6, Z - 27], [-9, 4.2, Z - 28], [-24, 4, Z - 26],
   ];
   const s = coasterSamples(ctrl);
   g.add(railModel(K, s, null, { rail: railMat }));
-  // supports every 3 m where the rail is over 1.2 m up: footing, 1 m segments, the saddle turned with the track
+  // supports every 6 m where the rail is over 1.6 m up: footing, 1 m segments, the saddle turned with the track.
+  // No supports at the far end of the turn back (past x = 3 after the second hill): that track runs low behind the
+  // trees and does not show, so its short supports read as stray posts. The return run that shows keeps them.
+  const hill2 = s.x.findIndex((x, i) => x > -5 && s.z[i] > 10);
   for (let i = 8; i < s.n - 4; i += 24) {
+    if (i > hill2 && s.x[i] > 3) continue;
     const x = s.x[i], z = s.y[i], top = s.z[i];
     const gy = ground(x, z);
     if (top - gy < 1.6) continue;
@@ -261,11 +266,12 @@ function coaster(K) {
     }
     at(supportPiece(K, 'top', 0, supMat), sTop).rotation.y = -s.yaw[i];
   }
-  // the station at the start, and a three-car train on the lift near the crest
+  // the station at the start (left of both framings: a cut-off box at the picture's edge read as floating), and a
+  // three-car train on the lift near the crest
   const st = M(new THREE.BoxGeometry(14, 3.2, 5.5), std({ color: '#f1ede4', map: tx.siding.map, roughness: 0.7 }));
-  st.position.set(-94, ground(-94, Z + 1) + 1.6, Z + 5); g.add(st);
+  st.position.set(-118, ground(-118, Z + 5) + 1.6, Z + 5); g.add(st);
   const roof = M(new THREE.BoxGeometry(15, 0.4, 6.6), std({ color: '#b5332c', roughness: 0.6 }));
-  roof.position.set(-94, ground(-94, Z + 1) + 3.4, Z + 5); g.add(roof);
+  roof.position.set(-118, ground(-118, Z + 5) + 3.4, Z + 5); g.add(roof);
   const lift = s.x.findIndex((x) => x > -47);
   for (let c = 0; c < 3; c++) {
     const k = lift - c * 10;
@@ -723,14 +729,8 @@ export default {
     const P = parkScene(B);
     scene.add(P.park);
     // the mirror world for the lake's reflection: the sky and the park turned over the water plane
-    const mirror = new THREE.Group();
-    mirror.userData.layer = 'mirror';
-    mirror.scale.y = -1;
-    mirror.position.y = 2 * WATER_Y;
-    P.wheel.pose(0, true);
-    mirror.add(sky.clone(), P.park.clone());
-    // the copies take the mirror's layer (clone() copies each group's own layer tag) and cast no shadows
-    mirror.traverse((o) => { o.castShadow = false; if (o !== mirror) delete o.userData.layer; });
+    // (without the wheel's turning part: titleMirror.js)
+    const mirror = mirrorWorld(THREE, [sky, P.park], WATER_Y);
     scene.add(mirror);
     const F = frontScene();
     scene.add(F.front);
