@@ -78,6 +78,19 @@ async function placed(page: Page): Promise<Placed> {
   });
 }
 
+/** The realistic look's memory by owner, and the card set's decoded bytes when it is resident (else 0). */
+async function released(page: Page): Promise<{ sets: number; tints: number; ground: number; cards: number } | null> {
+  return page.evaluate(async () => {
+    const r = (window as unknown as { __tcReal?: { sets: { split(): { sets: number; tints: number; ground: number }; state(k: string): string } } }).__tcReal;
+    if (!r) return null;
+    const key = 'preview:cards:d2:rall';
+    const ix = (await (await fetch('art/real/index.json')).json()) as { sets: Array<{ key: string; sheets: Array<{ w: number; h: number }> }> };
+    const entry = ix.sets.find((e) => e.key === key);
+    const cards = entry && r.sets.state(key) === 'ready' ? entry.sheets.reduce((n, sh) => n + sh.w * sh.h * 4, 0) : 0;
+    return { ...r.sets.split(), cards };
+  });
+}
+
 test.describe('realistic title screen (VITE_ART=real build)', () => {
   test.skip(!REAL, 'needs a VITE_ART=real build (set VITE_ART=real)');
   // Each test makes its own phone or desktop context: once is enough.
@@ -246,16 +259,74 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
       if (await yes.isVisible().catch(() => false)) await yes.click();
       await expect(page.locator('.title-screen')).toBeVisible();
       await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
-      // Back at the title: the park's sets released (nothing resident but the card pictures), the title's own 6.
-      const resident = await page.evaluate(() => {
-        const r = (window as unknown as { __tcReal?: { sets: { residentBytes(): number; split(): { ground: number } } } }).__tcReal;
-        return r ? { bytes: r.sets.residentBytes(), ground: r.sets.split().ground } : null;
-      });
-      if (resident) expect(resident.ground).toBe(0);
+      // Back at the title: the park released (nothing resident but the card pictures: no ground chunk, no tint page),
+      // the title's own 6 pictures.
+      const parkAtTitle = await released(page);
+      expect(parkAtTitle).not.toBeNull();
+      expect(parkAtTitle).toMatchObject({ tints: 0, ground: 0 });
+      expect(parkAtTitle?.sets).toBe(parkAtTitle?.cards);
       expect(await live()).toBeLessThanOrEqual(atTitle);
     }
     await shot(page, 'after-3-round-trips-1366x768');
     expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
+  test('the bench hiding the title element closes the title art and stops its frames; shown again, it decodes again', async ({ browser }) => {
+    const { ctx, page, errors } = await open(browser, SIZES[3]);
+    await page.goto('/');
+    test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
+    const live = (): Promise<number> => page.evaluate(() => (window as unknown as { __liveBitmaps(): number }).__liveBitmaps());
+    await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+    expect(await live()).toBe(6);
+    // Count the title's frames: the canvas's drawImage calls.
+    await page.evaluate(() => {
+      const c = document.querySelector('canvas.title-real-scene') as HTMLCanvasElement;
+      const x = c.getContext('2d') as CanvasRenderingContext2D & { __n?: number };
+      const draw = x.drawImage.bind(x) as (...a: unknown[]) => void;
+      x.__n = 0;
+      (x as unknown as { drawImage: unknown }).drawImage = (...a: unknown[]) => {
+        x.__n = (x.__n ?? 0) + 1;
+        draw(...a);
+      };
+    });
+    const draws = (): Promise<number> => page.evaluate(() => ((document.querySelector('canvas.title-real-scene') as HTMLCanvasElement).getContext('2d') as { __n?: number }).__n ?? 0);
+    // As realBenchCard.ts does: the title steps aside visually, it stays open.
+    await page.evaluate(() => ((document.querySelector('.title-screen') as HTMLElement).hidden = true));
+    await expect.poll(live).toBe(0);
+    expect(await page.locator('canvas.title-real-scene').evaluate((c) => (c as HTMLCanvasElement).width)).toBe(0);
+    await page.waitForTimeout(150);
+    const before = await draws();
+    await page.waitForTimeout(500);
+    expect(await draws()).toBe(before);
+    await page.evaluate(() => ((document.querySelector('.title-screen') as HTMLElement).hidden = false));
+    await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+    expect(await live()).toBe(6);
+    const park = await released(page);
+    if (park) expect(park).toMatchObject({ tints: 0, ground: 0 });
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
+  test('reduced motion switched on while the title shows takes effect at once', async ({ browser }) => {
+    const { ctx, page } = await open(browser, SIZES[3]);
+    await page.goto('/');
+    test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
+    await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+    await page.waitForFunction(() => (window as unknown as { __tc?: unknown }).__tc !== undefined);
+    await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('reducedMotion', 'on'));
+    await page.waitForTimeout(200);
+    const a = await page.locator('canvas.title-real-scene').screenshot();
+    await page.waitForTimeout(700);
+    const b = await page.locator('canvas.title-real-scene').screenshot();
+    expect(Buffer.compare(a, b)).toBe(0);
+    // And back on: it moves again.
+    await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('reducedMotion', 'off'));
+    await page.waitForTimeout(200);
+    const c = await page.locator('canvas.title-real-scene').screenshot();
+    await page.waitForTimeout(700);
+    const d = await page.locator('canvas.title-real-scene').screenshot();
+    expect(Buffer.compare(c, d)).not.toBe(0);
     await ctx.close();
   });
 

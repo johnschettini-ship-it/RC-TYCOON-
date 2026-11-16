@@ -9,8 +9,13 @@
  *   leaves the gradient and the menu, with no error shown.
  * - `show` releases the park's art first (`releasePark`), then decodes the title art; `hide` (a park opens) closes every
  *   title bitmap and empties the canvas. While the title covers the window the renderer draws no park (`titleHolds`).
- * - A rotation keeps the old framing on screen until the new one is decoded (no blank frame).
- * - Reduced motion: no drift, the wheel stands still.
+ * - A rotation keeps the old framing on screen until the new one is decoded (no blank frame): for that moment both
+ *   framings are decoded (about 32 MB, over the 24 MB of one framing; accepted by the review), then the old is closed.
+ * - Reduced motion: no drift, the wheel stands still. A change while the title shows (the setting, or the system's
+ *   `prefers-reduced-motion`, both applied as the `tc-rm` class on the document by `src/a11y`) takes effect at once.
+ * - The title element hidden by someone else (the stage 1 bench hides `.title-screen` while it measures a park) counts
+ *   as closed: the title bitmaps are closed and the frame loop stops; shown again, the park is released first and the
+ *   title art decoded again.
  */
 import { displayPrefs } from '../../../a11y/prefs';
 import { releasePark, setTitleHold } from '../../../render/real/titleHold';
@@ -90,7 +95,9 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
   el.prepend(canvas);
   const ctx = canvas.getContext('2d');
 
+  /** The title is open (`show` … `hide`); its art lives while it is open and its element is not hidden. */
   let isOpen = false;
+  let live = false;
   let input: TitleLayoutInput | null = null;
   let lay: RealTitleLayout | null = null;
   let reduced = displayPrefs().reducedMotion;
@@ -101,13 +108,40 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
   const session = createTitleSession({
     load: () => loadTitleArt(TITLE_ART_BASE),
     releasePark,
-    changed: () => {
-      relayout();
-      draw(performance.now());
-      loop();
-    },
+    changed: () => refresh(),
   });
   setTitleHold(() => isOpen && !el.hidden);
+
+  const stopLoop = (): void => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  };
+  /** Opens the title art when the title is open and shown, closes it otherwise. */
+  const sync = (): void => {
+    const want = isOpen && !el.hidden;
+    if (want === live) return;
+    live = want;
+    if (want) session.open();
+    else {
+      stopLoop();
+      session.close();
+      clear();
+    }
+  };
+  /** Layout, a frame and the loop again (window, art or reduced motion changed). */
+  const refresh = (): void => {
+    relayout();
+    draw(performance.now());
+    loop();
+  };
+  if (typeof MutationObserver === 'function') {
+    // Someone else hiding or showing the title (the bench).
+    new MutationObserver(sync).observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    // Reduced motion switched while the title shows.
+    new MutationObserver(() => {
+      if (live && displayPrefs().reducedMotion !== reduced) refresh();
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  }
 
   const relayout = (): void => {
     const art = session.current();
@@ -175,22 +209,22 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     const box = (b: { x: number; y: number; w: number; h: number }): string => [b.x, b.y, b.w, b.h].map(r).join(',');
     canvas.dataset.framing = art.framing;
     canvas.dataset.sign = `${lay.sign}:${box(lay.signBox)}`;
-    canvas.dataset.nameRow = r(P.y + F.nameRow * lay.s);
+    canvas.dataset.nameRow = r(P.y + Math.min(F.nameRow, F.wheel.y) * lay.s);
     canvas.dataset.anchor = r(P.x + F.menuAnchorX * lay.s - lay.drift.park);
     canvas.setAttribute('data-ready', '');
   };
 
   /** Drift and wheel: a frame every FRAME_MS while the title shows its art (none with reduced motion). */
   const loop = (): void => {
-    if (raf || !isOpen || reduced || !session.current()) return;
+    if (raf || !live || reduced || !session.current()) return;
     const tick = (now: number): void => {
       raf = 0;
-      if (!isOpen || !session.current()) return;
+      if (!live || !session.current()) return;
       if (displayPrefs().reducedMotion !== reduced) {
         relayout();
         draw(now);
         if (reduced) return;
-      } else if (!el.hidden && now - lastDraw >= FRAME_MS) draw(now);
+      } else if (now - lastDraw >= FRAME_MS) draw(now);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -198,23 +232,16 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
 
   return {
     show() {
-      if (isOpen) return;
       isOpen = true;
-      session.open();
+      sync();
     },
     hide() {
-      if (!isOpen) return;
       isOpen = false;
-      if (raf) cancelAnimationFrame(raf);
-      raf = 0;
-      session.close();
-      clear();
+      sync();
     },
     place(next) {
       input = next;
-      relayout();
-      draw(performance.now());
-      loop();
+      refresh();
     },
   };
 }

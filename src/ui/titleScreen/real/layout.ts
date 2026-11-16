@@ -9,8 +9,10 @@
  * - Framing: tall when the window is taller than wide, else wide.
  * - The picture covers the window's width (plus the drift on each side) and reaches down to the window bottom on the
  *   desktop, or to just under the menu's top edge on phones and low windows, where a gradient fill takes over below
- *   it. On the desktop the wheel (`menuAnchorX`, its left edge) stays right of the menu block, drift included.
- * - The name sign sits in the sky above `nameRow` (the top of the tallest ride) and inside the safe area: if it does
+ *   it. On the desktop only, the wheel (`menuAnchorX`, its left edge) stays right of the menu block, drift included:
+ *   phones and low windows have the menu across the bottom, under the picture's bottom edge (it covers at most the
+ *   24 px the picture runs under it), so there is no side to keep clear.
+ * - The name sign sits in the sky above the ride tops (the higher of `nameRow` and the wheel's top) and inside the safe area: if it does
  *   not fit, the picture moves down (a little), then the sign gets smaller (to half), then the picture moves on down.
  * - Reduced motion: no drift.
  */
@@ -36,7 +38,7 @@ export interface FramingIndex {
   wheel: TitleWheel;
   /** The top of the tallest ride, layer px: the name sits above it. */
   nameRow: number;
-  /** The x the desktop menu must not cover (the wheel's left edge), layer px. */
+  /** The x the desktop menu must not cover (the wheel's left edge), layer px. Desktop only (see the file comment). */
   menuAnchorX: number;
 }
 export interface SignPicture {
@@ -51,6 +53,8 @@ export interface TitleIndex {
   sign: { line: SignPicture; stack: SignPicture };
 }
 
+/** The wheel turns in this many baked pictures (spec §Title). */
+export const WHEEL_FRAMES = 8;
 /** Largest layers the title may ship (spec §Sizes). */
 export const TITLE_LAYER_MAX: Readonly<Record<Framing, { w: number; h: number }>> = { wide: { w: 1920, h: 800 }, tall: { w: 900, h: 1300 } };
 
@@ -133,7 +137,8 @@ export function realTitleLayout(input: RealTitleInput, idx: TitleIndex): RealTit
   const S = idx.sign[sign];
   let signS = Math.max(0, fit(sign));
   const nameTop = NAME_TOP + safe.top;
-  const rideTop = (): number => y + F.nameRow * s;
+  // The ride tops: `nameRow`, or the wheel's top when it stands higher (the sign never covers the wheel).
+  const rideTop = (): number => y + Math.min(F.nameRow, F.wheel.y) * s;
   const missing = (): number => nameTop + S.h * signS + NAME_GAP - rideTop();
   if (missing() > 0) y += Math.min(missing(), MOVE_SHARE * F.h * s);
   if (missing() > 0) signS = Math.max(signS * SIGN_MIN_SHARE, (rideTop() - NAME_GAP - nameTop) / S.h);
@@ -173,7 +178,7 @@ export function checkTitleIndex(raw: unknown): TitleIndex | Error {
     const L = F.layers;
     if (!L || !isFile(L.sky) || !isFile(L.park) || !isFile(L.front)) return new Error(`title index: ${f} layers`);
     const W = F.wheel;
-    if (!W || !isFile(W.file) || !isNum(W.frames) || W.frames < 1 || !isNum(W.fw) || !isNum(W.fh) || !isNum(W.x) || !isNum(W.y) || W.fw <= 0 || W.fh <= 0) return new Error(`title index: ${f} wheel`);
+    if (!W || !isFile(W.file) || W.frames !== WHEEL_FRAMES || !isNum(W.fw) || !isNum(W.fh) || !isNum(W.x) || !isNum(W.y) || W.fw <= 0 || W.fh <= 0) return new Error(`title index: ${f} wheel`);
     if (!isNum(F.nameRow) || F.nameRow < 0 || F.nameRow > F.h) return new Error(`title index: ${f} nameRow`);
     if (!isNum(F.menuAnchorX) || F.menuAnchorX < 0 || F.menuAnchorX > F.w) return new Error(`title index: ${f} menuAnchorX`);
   }

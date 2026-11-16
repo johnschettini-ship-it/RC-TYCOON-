@@ -223,7 +223,10 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const plate = h('div', { class: 'title-plate', hidden: true }, h('div', { class: 'title-grab', 'aria-hidden': 'true' }), newView, loadView, creditsView, flowSlot);
   const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, safeProbe, veil, logo, main, plate);
   // The realistic build with the realistic look draws its baked panorama and name sign instead of design E's pixel
-  // pictures (`titleScreen/real/view.ts`); the menu, plate and sheet stay design E's. Folded away in the website build.
+  // pictures (`titleScreen/real/view.ts`); the menu, plate and sheet stay design E's. Folded away in the website build:
+  // `titleScreen/real/{view,load,layout}.ts` and `render/real/titleHold.ts` must stay free of side effects at module
+  // level (no top-level calls, no CSS imports), or the bundler keeps them and the website build is no longer
+  // byte-identical.
   const realTitle = import.meta.env.VITE_ART === 'real' && artStyle() === 'real' ? createRealTitle(el, logo, sceneLabel, text('ui.title.name')) : null;
 
   // Layout (G1): the numbers of `titleLayout` as custom properties and data attributes; again on every size change.
@@ -455,11 +458,11 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
       open = true;
       pushModal();
       holdUi();
-      // Realistic title: the park's art is released first, then the title's own decodes.
-      if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.show();
     }
     game.setSpeed(0);
     el.hidden = false;
+    // Realistic title: the park's art is released first, then the title's own decodes.
+    if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.show();
     showView('main');
   }
 

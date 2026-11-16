@@ -11,8 +11,8 @@
  *    the look, and the ground, with the ground's chunks and the look's tint-atlas pages admitted to and reclaimed by
  *    the same budget; switch the height step to `REAL_STEP_PX`; report decoded memory to the perf probe.
  * 4. Decode the card picture set (when the bake has it) and give the card previews its drawer (`setCardArt`).
- * 5. The title screen's park release (`./titleHold.ts`, realistic title Task 2): every set but the card pictures and
- *    every ground chunk, freed before the title decodes its own pictures.
+ * 5. The title screen's park release (`./titleHold.ts`, realistic title Task 2): every set but the card pictures, every
+ *    ground chunk and every tint-atlas page, freed before the title decodes its own pictures.
  * 6. When the page runs the bench (`benchMode`: `?bench=1`, `quick` or `scale`), the index gets the scale park's alias sets (`./aliases.ts`, round 3 item 7).
  */
 import { t } from '../../data/strings';
@@ -114,6 +114,8 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
   }
   setParkRelease(() => {
     ground.dispose();
+    // Tint-atlas pages drawn in the park's last frame too (`reclaim` keeps those); the look stays usable.
+    look.dispose();
     sets.releaseAll([CARD_SET]);
   });
   setStepPx(REAL_STEP_PX);

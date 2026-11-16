@@ -55,7 +55,7 @@ describe('realTitleLayout', () => {
       for (const safe of [undefined, { top: 47, right: 0, bottom: 34, left: 0 }, { top: 0, right: 44, bottom: 21, left: 44 }]) {
         const l = realTitleLayout({ ...z, safe }, IDX);
         const F = IDX[l.framing];
-        const rideTop = l.picture.y + F.nameRow * l.s;
+        const rideTop = l.picture.y + Math.min(F.nameRow, F.wheel.y) * l.s;
         const sf = safe ?? { top: 0, right: 0, bottom: 0, left: 0 };
         const tag = `${z.w}x${z.h} ${JSON.stringify(safe)}`;
         expect(l.signBox.y + l.signBox.h, tag).toBeLessThanOrEqual(rideTop - 8 + 1e-6);
@@ -64,6 +64,16 @@ describe('realTitleLayout', () => {
         expect(l.signBox.x + l.signBox.w, tag).toBeLessThanOrEqual(z.w - sf.right - 16 + 1e-6);
         expect(l.signBox.w, tag).toBeGreaterThan(0);
       }
+    }
+  });
+
+  it('keeps the sign above the wheel when the wheel stands higher than nameRow', () => {
+    const idx: TitleIndex = { ...IDX, wide: { ...IDX.wide, wheel: { ...IDX.wide.wheel, y: 200 } }, tall: { ...IDX.tall, wheel: { ...IDX.tall.wheel, y: 400 } } };
+    for (const z of SIZES) {
+      const l = realTitleLayout(z, idx);
+      const F = idx[l.framing];
+      expect(F.wheel.y).toBeLessThan(F.nameRow);
+      expect(l.signBox.y + l.signBox.h, `${z.w}x${z.h}`).toBeLessThanOrEqual(l.wheel.y - 8 + 1e-6);
     }
   });
 
@@ -131,6 +141,9 @@ describe('checkTitleIndex', () => {
     expect(checkTitleIndex({ ...IDX, sign: { line: IDX.sign.line } })).toBeInstanceOf(Error);
     expect(checkTitleIndex({ ...IDX, wide: { ...IDX.wide, layers: { ...IDX.wide.layers, sky: '../x.webp' } } })).toBeInstanceOf(Error);
     expect(checkTitleIndex(null)).toBeInstanceOf(Error);
+    // The wheel turns in exactly 8 pictures.
+    expect(checkTitleIndex({ ...IDX, wide: { ...IDX.wide, wheel: { ...IDX.wide.wheel, frames: 7 } } })).toBeInstanceOf(Error);
+    expect(checkTitleIndex({ ...IDX, tall: { ...IDX.tall, wheel: { ...IDX.tall.wheel, frames: 16 } } })).toBeInstanceOf(Error);
   });
 });
 
