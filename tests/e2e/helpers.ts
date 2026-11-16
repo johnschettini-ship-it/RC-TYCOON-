@@ -26,9 +26,19 @@ export function watchErrors(page: Page): { errors: string[]; expectNoErrors(): v
  */
 export const SETTINGS_KEY = process.env.VITE_ART === 'real' ? 'tcreal:tc.settings' : 'tc.settings';
 
+/** The raw key of save slot `slot` (`tc.save.<slot>`) in the build under test, for init scripts (see SETTINGS_KEY). */
+export function saveKey(slot: number | 'auto'): string {
+  return `${process.env.VITE_ART === 'real' ? 'tcreal:' : ''}tc.save.${slot}`;
+}
+
 /** Stores a settings document before every page load, under the build's settings key. */
 export async function presetSettings(page: Page, doc: string): Promise<void> {
   await page.addInitScript(([k, d]) => window.localStorage.setItem(k as string, d as string), [SETTINGS_KEY, doc]);
+}
+
+/** Stores a save file in slot `slot` (default 1) before every page load, under the build's save key. */
+export async function presetSave(page: Page, file: string, slot: number | 'auto' = 1): Promise<void> {
+  await page.addInitScript(([k, f]) => window.localStorage.setItem(k as string, f as string), [saveKey(slot), file]);
 }
 
 /** Start a new park from the title screen. The game starts at 1×. */

@@ -5,7 +5,7 @@
  * is a one-line strip under the top region: three colour dots with the band names (the ranges in its accessible name).
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, scan, showTile, watchErrors } from './helpers';
+import { isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Box {
@@ -223,7 +223,7 @@ test.describe('slim track station row and colour key strip (Task 20)', () => {
 
   test('390 × 844 at 175% text with en-XA: nothing in the station row or the strip clips its text; every control can be reached', async ({ page }) => {
     const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');

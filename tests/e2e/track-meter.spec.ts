@@ -6,7 +6,7 @@
  * builds nothing. Also checks the Task 3 ride panel "Show on map" button and the danger outline in the browser.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, scan, showTile, tilePoint, watchErrors } from './helpers';
+import { isPhone, newPark, pickCard, presetSettings, scan, showTile, tilePoint, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Box {
@@ -44,7 +44,7 @@ async function press(page: Page, touch: boolean, id: string): Promise<void> {
 
 /** A new park at the size, a Steel Coaster station placed at (30, 30) through the UI: the builder in its pieces step. */
 async function steelBuilder(page: Page, touch: boolean, width: number, height: number, settings?: string): Promise<void> {
-  if (settings) await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), settings);
+  if (settings) await presetSettings(page, settings);
   await page.setViewportSize({ width, height });
   await newPark(page);
   await tc(page, (g) => g.setSpeed(0));
@@ -223,7 +223,7 @@ test('390 × 844: the Mini Railway panel with the meter stays at most 240 px hig
 test('390 × 844 at 175% text in en-XA: no meter text is clipped', async ({ page }, info) => {
   test.skip(!isPhone(info), 'phone');
   const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-  await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+  await presetSettings(page, doc);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');

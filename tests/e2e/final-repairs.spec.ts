@@ -12,7 +12,7 @@ import { TICKS_PER_MONTH } from '../../src/data/tuning/core';
 import { pseudoLocalize } from '../../src/data/strings/en-XA';
 import { SAVE_FORMAT } from '../../src/save/codec';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
-import { isPhone, newPark, openTool, pickCard, presetSettings, setSpeed, showTile, toolControl, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, pickCard, presetSave, presetSettings, setSpeed, showTile, toolControl, watchErrors } from './helpers';
 
 const tc = <T>(page: Page, f: string): Promise<T> => page.evaluate(`(() => { const g = window.__tc; return ${f}; })()`) as Promise<T>;
 const toolNow = (page: Page): Promise<string> => tc<string>(page, 'g.tool.tool');
@@ -172,7 +172,7 @@ test.describe('the title screen holds the keyboard and the clock (F5)', () => {
     test(`${w} x ${h}: text scale 175% set in Settings from the title: no menu button clips its text, the whole-px widths are fresh (13c)`, async ({ page }, info) => {
       test.skip(isPhone(info), 'window sizes are set on the desktop project');
       await page.setViewportSize({ width: w, height: h });
-      await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Scale Park'));
+      await presetSave(page, damagedSave('Scale Park'));
       await page.goto('/');
       await expect(page.getByTestId('title-continue')).toBeVisible();
       await frames(page, 3);
@@ -200,7 +200,7 @@ test.describe('the title screen holds the keyboard and the clock (F5)', () => {
   }
 
   test('a failed Continue shows its toast over the title', async ({ page }) => {
-    await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Broken'));
+    await presetSave(page, damagedSave('Broken'));
     await page.goto('/');
     const cont = page.getByTestId('title-continue');
     await expect(cont).toBeVisible();
@@ -219,10 +219,8 @@ test.describe('the title screen holds the keyboard and the clock (F5)', () => {
   test('the Continue line names the month in the language of the game (en-XA)', async ({ page }, info) => {
     test.skip(isPhone(info), 'one project is enough');
     const settings = serializeSettings({ ...defaultSettings(), locale: 'en-XA' });
-    await page.addInitScript(([s, save]) => {
-      localStorage.setItem('tc.settings', s as string);
-      localStorage.setItem('tc.save.1', save as string);
-    }, [settings, damagedSave('Pseudo Park', 0)]);
+    await presetSettings(page, settings);
+    await presetSave(page, damagedSave('Pseudo Park', 0));
     await page.goto('/');
     const line = page.locator('[data-testid="title-continue"] .title-park-line');
     await expect(line).toBeVisible();
@@ -605,7 +603,7 @@ test.describe('the title on whole px (M8)', () => {
     await page.setViewportSize({ width: 845, height: 390 });
     const doc = serializeSettings({ ...defaultSettings(), textScale: 175 });
     await presetSettings(page, doc);
-    await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Whole Park'));
+    await presetSave(page, damagedSave('Whole Park'));
     await page.goto('/');
     await expect(page.getByTestId('title-continue')).toBeVisible();
     await frames(page, 3);

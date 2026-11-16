@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { SCENARIOS } from '../../src/data/scenarios';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
-import { isPhone, watchErrors } from './helpers';
+import { isPhone, presetSettings, watchErrors } from './helpers';
 
 /**
  * Phase 5 §10 "All 8 scenarios, the tutorial, and sandbox start from the title screen on desktop and phone" (Build 2
@@ -19,7 +19,7 @@ async function press(page: Page, testId: string): Promise<void> {
 test.describe('every scenario starts from the title screen', () => {
   test.beforeEach(async ({ page }) => {
     const doc = serializeSettings({ ...defaultSettings(), unlockAllScenarios: true });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
   });
 
   for (const def of SCENARIOS) {
