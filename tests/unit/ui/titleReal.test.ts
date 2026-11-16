@@ -133,6 +133,69 @@ describe('realTitleLayout', () => {
   });
 });
 
+/** The baked index (full bake, 2026-11-16): the numbers the owner's screenshots came from. */
+const REAL_IDX: TitleIndex = {
+  wide: { ...IDX.wide, wheel: { file: 'wide-wheel.webp', frames: 8, fw: 232, fh: 291, x: 1272, y: 284 }, nameRow: 232, menuAnchorX: 1276 },
+  tall: { ...IDX.tall, wheel: { file: 'tall-wheel.webp', frames: 8, fw: 192, fh: 227, x: 607, y: 572 }, nameRow: 518, menuAnchorX: 611 },
+  sign: { line: { file: 'sign-line.webp', w: 1100, h: 307 }, stack: { file: 'sign-stack.webp', w: 600, h: 553 } },
+};
+/** The owner's sizes, with the menu heights the browser measures at normal and large (175 %) text, about. */
+const OWNER_SIZES = [
+  { w: 1366, h: 768, menuH: [178, 290] },
+  { w: 1920, h: 1080, menuH: [200, 330] },
+  { w: 1280, h: 800, menuH: [200, 320] },
+  { w: 1024, h: 768, menuH: [178, 290] },
+  { w: 812, h: 375, menuH: [56, 96] },
+  { w: 390, h: 844, menuH: [187, 300] },
+  { w: 360, h: 640, menuH: [124, 210] },
+];
+
+describe('realTitleLayout on the baked index (owner review: phone seam, desktop crop)', () => {
+  for (const z of OWNER_SIZES) {
+    for (const menuH of z.menuH) {
+      for (const reducedMotion of [false, true]) {
+        it(`${z.w}x${z.h}, menu ${menuH}px${reducedMotion ? ', reduced motion' : ''}: whole wheel in the window, name above the rides, menu clear`, () => {
+          const l = realTitleLayout({ w: z.w, h: z.h, menuH, reducedMotion }, REAL_IDX);
+          const F = REAL_IDX[l.framing];
+          const dp = l.drift.park;
+          // The whole wheel, at both ends of its drift.
+          expect(l.wheel.x - dp).toBeGreaterThanOrEqual(-1e-6);
+          expect(l.wheel.x + l.wheel.w + dp).toBeLessThanOrEqual(z.w + 1e-6);
+          expect(l.wheel.y).toBeGreaterThanOrEqual(-1e-6);
+          expect(l.wheel.y + l.wheel.h).toBeLessThanOrEqual(z.h + 1e-6);
+          // The name above the ride tops (nameRow) and the wheel, inside the window.
+          const rideTop = l.picture.y + Math.min(F.nameRow, F.wheel.y) * l.s;
+          expect(l.signBox.y + l.signBox.h).toBeLessThanOrEqual(rideTop - 8 + 1e-6);
+          expect(l.signBox.y).toBeGreaterThanOrEqual(12 - 1e-6);
+          expect(l.signBox.x).toBeGreaterThanOrEqual(16 - 1e-6);
+          expect(l.signBox.x + l.signBox.w).toBeLessThanOrEqual(z.w - 16 + 1e-6);
+          // The picture covers the width, drift included.
+          const d = Math.max(l.drift.sky, l.drift.park, l.drift.front);
+          expect(l.picture.x).toBeLessThanOrEqual(-d + 1e-6);
+          expect(l.picture.x + l.picture.w).toBeGreaterThanOrEqual(z.w + d - 1e-6);
+          // The fills meet the picture: sky above, lawn below, to the window's edges.
+          expect(l.fillAbove.h).toBeCloseTo(Math.max(0, l.picture.y), 6);
+          expect(l.fill.y).toBeCloseTo(l.picture.y + l.picture.h, 6);
+          if (l.base.kind === 'desktop') {
+            // The menu does not cover the wheel; the whole picture shows (the lake at its bottom too).
+            const box = l.base.menuBox;
+            if (!box) throw new Error('no menu box');
+            expect(l.picture.x + F.menuAnchorX * l.s - dp).toBeGreaterThanOrEqual(box.left + box.width);
+            expect(l.wheel.x - dp).toBeGreaterThanOrEqual(box.left + box.width);
+            expect(l.picture.y).toBeGreaterThanOrEqual(-1e-6);
+            expect(l.picture.y + l.picture.h).toBeLessThanOrEqual(z.h + 1e-6);
+            // Fitted to the width, not to the height: not cropped at the sides beyond the drift.
+            expect(l.picture.w).toBeCloseTo(z.w + 2 * d, 6);
+          } else {
+            // Phones and low windows: the wheel stands above the menu.
+            expect(l.wheel.y + l.wheel.h).toBeLessThanOrEqual(z.h - l.base.mb - menuH + 1e-6);
+          }
+        });
+      }
+    }
+  }
+});
+
 describe('checkTitleIndex', () => {
   it('accepts the plan’s schema and refuses layers over the caps or a broken entry', () => {
     expect(checkTitleIndex(IDX)).toBe(IDX);

@@ -3,7 +3,7 @@
  * `2026-11-16-realistic-title-and-cards-design.md`). `title.ts` keeps design E's menu, plate, sheet and focus rules and
  * hands this module the scene and the name: one canvas over the whole title, under the veil and the menu, that draws
  * the three baked layers (sky, park with the big wheel's 8-frame sprite, foreground) with a slow parallax drift, the
- * gradient fill under the picture and the name sign. The heading keeps the name as visually hidden text.
+ * fills above and below it (the sky's top row and the lawn's bottom row stretched to the window's edges) and the name sign. The heading keeps the name as visually hidden text.
  *
  * - The title shows at once over a sky gradient (CSS); the panorama fades in when decoded. A slow or failed download
  *   leaves the gradient and the menu, with no error shown.
@@ -22,7 +22,7 @@ import { displayPrefs } from '../../../a11y/prefs';
 import { releasePark, setTitleHold } from '../../../render/real/titleHold';
 import type { TitleLayoutInput } from '../layout';
 import { realTitleLayout, type RealTitleLayout } from './layout';
-import { createTitleSession, loadTitleArt, type FramingArt } from './load';
+import { createTitleSession, loadTitleArt } from './load';
 
 /** Where the baked title pictures live, relative to the page. */
 export const TITLE_ART_BASE = 'art/real/title/';
@@ -65,20 +65,33 @@ function injectStyle(): void {
   document.head.appendChild(s);
 }
 
-/** The average colour of the picture's bottom row (park under foreground): where the gradient fill starts. */
-function bottomColour(art: FramingArt): [number, number, number] {
+/** Colours across a softened edge row (the fills above and below the picture). */
+const ROW_SAMPLES = 48;
+const edgeCache = new WeakMap<object, { top: HTMLCanvasElement; bottom: HTMLCanvasElement } | null>();
+/** The sky's top row and the picture's bottom row (sky, park, foreground), each softened to ROW_SAMPLES px; null when no 2D canvas. */
+function edgeRows(art: { sky: ImageBitmap; park: ImageBitmap; front: ImageBitmap }): { top: HTMLCanvasElement; bottom: HTMLCanvasElement } | null {
+  if (edgeCache.has(art)) return edgeCache.get(art) ?? null;
+  let out: { top: HTMLCanvasElement; bottom: HTMLCanvasElement } | null = null;
   try {
-    const c = document.createElement('canvas');
-    c.width = 1;
-    c.height = 1;
-    const x = c.getContext('2d', { willReadFrequently: true });
-    if (!x) return [79, 106, 60];
-    for (const b of [art.park, art.front]) x.drawImage(b, 0, b.height - 1, b.width, 1, 0, 0, 1, 1);
-    const d = x.getImageData(0, 0, 1, 1).data;
-    return [d[0] ?? 79, d[1] ?? 106, d[2] ?? 60];
+    const make = (layers: ImageBitmap[], top: boolean): HTMLCanvasElement | null => {
+      const c = document.createElement('canvas');
+      c.width = ROW_SAMPLES;
+      c.height = 1;
+      const x = c.getContext('2d');
+      if (!x) return null;
+      x.imageSmoothingEnabled = true;
+      x.imageSmoothingQuality = 'high';
+      for (const b of layers) x.drawImage(b, 0, top ? 0 : b.height - 1, b.width, 1, 0, 0, ROW_SAMPLES, 1);
+      return c;
+    };
+    const top = make([art.sky], true);
+    const bottom = make([art.sky, art.park, art.front], false);
+    out = top && bottom ? { top, bottom } : null;
   } catch {
-    return [79, 106, 60];
+    out = null;
   }
+  edgeCache.set(art, out);
+  return out;
 }
 
 export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: string, name: string): RealTitle {
@@ -104,7 +117,6 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
   let reduced = displayPrefs().reducedMotion;
   let raf = 0;
   let lastDraw = -Infinity;
-  const fills = new WeakMap<FramingArt, string[]>();
 
   const session = createTitleSession({
     load: () => loadTitleArt(TITLE_ART_BASE),
@@ -193,26 +205,20 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     const across = art.wheel.width >= W.fw * W.frames;
     ctx.drawImage(art.wheel, across ? f * W.fw : 0, across ? 0 : f * W.fh, W.fw, W.fh, lay.wheel.x + dPark, lay.wheel.y, lay.wheel.w, lay.wheel.h);
     ctx.drawImage(art.front, P.x + lay.drift.front * phase, P.y, P.w, P.h);
-    if (lay.fill.h > 0) {
-      let stops = fills.get(art);
-      if (!stops) {
-        const [r, g, b] = bottomColour(art);
-        stops = [`rgb(${r} ${g} ${b})`, `rgb(${Math.round(r * 0.62)} ${Math.round(g * 0.62)} ${Math.round(b * 0.62)})`];
-        fills.set(art, stops);
-      }
-      const grad = ctx.createLinearGradient(0, lay.fill.y, 0, h);
-      grad.addColorStop(0, stops[0] as string);
-      grad.addColorStop(1, stops[1] as string);
-      ctx.fillStyle = grad;
-      // Half a px up: no seam between the picture and the fill.
-      ctx.fillRect(0, lay.fill.y - 0.5, w, lay.fill.h + 0.5);
-    }
+    // The fills: the sky's top row stretched up to the window top, the picture's bottom row (all layers) stretched down
+    // to the window bottom (the lawn continues). Each row is first softened to ROW_SAMPLES colours across, so a stretched
+    // row shows smooth colour, not streaks of single pixels. Half a px into the picture: no seam.
+    const rows = edgeRows(art);
+    if (rows && lay.fillAbove.h > 0) ctx.drawImage(rows.top, 0, 0, ROW_SAMPLES, 1, P.x + lay.drift.sky * phase, 0, P.w, lay.fillAbove.h + 0.5);
+    if (rows && lay.fill.h > 0) ctx.drawImage(rows.bottom, 0, 0, ROW_SAMPLES, 1, P.x + dPark, lay.fill.y - 0.5, P.w, h - lay.fill.y + 0.5);
     ctx.drawImage(lay.sign === 'line' ? art.line : art.stack, lay.signBox.x, lay.signBox.y, lay.signBox.w, lay.signBox.h);
     // The places of what the canvas shows, CSS px, for the layout checks (e2e).
     const F = idx[art.framing];
     const r = (v: number): string => v.toFixed(1);
     const box = (b: { x: number; y: number; w: number; h: number }): string => [b.x, b.y, b.w, b.h].map(r).join(',');
     canvas.dataset.framing = art.framing;
+    canvas.dataset.picture = box(P);
+    canvas.dataset.wheel = box({ x: lay.wheel.x - lay.drift.park, y: lay.wheel.y, w: lay.wheel.w + 2 * lay.drift.park, h: lay.wheel.h });
     canvas.dataset.sign = `${lay.sign}:${box(lay.signBox)}`;
     canvas.dataset.nameRow = r(P.y + Math.min(F.nameRow, F.wheel.y) * lay.s);
     canvas.dataset.anchor = r(P.x + F.menuAnchorX * lay.s - lay.drift.park);
