@@ -955,6 +955,7 @@ export class SetManager {
       let d: Decoded;
       try {
         await this.takeSlot(r);
+        if (r.cancelled) return; // cancelled while waiting for the slot: no wasted decode
         d = await this.io.decode(await this.read(file));
       } catch (err) {
         this.onError(r.entry.key, err);
