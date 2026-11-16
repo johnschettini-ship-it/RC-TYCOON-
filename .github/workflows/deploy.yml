@@ -99,7 +99,7 @@ jobs:
       - name: Shoot the batch review page
         working-directory: real-game-src
         run: |
-          node tools/art3d/reviewShots.mjs --root ../dist/real-game --out ../dist/real-game/review
+          node tools/art3d/reviewShots.mjs --root ../dist/real-game --out ../dist/real-game/review --colours
           test -f ../dist/real-game/review/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
