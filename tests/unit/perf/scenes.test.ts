@@ -9,7 +9,7 @@ import { deserialize, GAME_VERSION, serialize, validateState } from '../../../sr
 import { canOpenTrackRide } from '../../../src/sim/rides/track/api';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { stepTick } from '../../../src/sim/tick';
-import { FLAT_RIDES } from '../../../src/data/catalog/flatRides';
+import { FLAT_RIDES, RIDE_COLOUR_CHOICES } from '../../../src/data/catalog/flatRides';
 import { mapPointToWorld, tileCentreWorld } from '../../../src/input/camera';
 import { Content } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
@@ -111,15 +111,18 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     return { inside, touching };
   }
 
-  it('rides (phase 8c batch 1): each of the 18 flat rides once, open, connected, about 300 guests', { timeout: 60_000 }, () => {
+  it('rides (phase 8c batch 1): each of the 18 flat rides (carousel twice), open, connected, about 300 guests', { timeout: 60_000 }, () => {
     const info = PERF_SCENES.find((x) => x.id === 'rides');
     expect(info).toBeDefined();
     const r = deserialize(readFileSync(join(DIR, info!.file), 'utf8'));
     if (!r.ok) throw new Error(r.error);
     const s = r.world.state;
     const flat = s.rides.filter((x) => x.kind === 'flat');
-    expect(flat.map((x) => x.defId).sort()).toEqual(FLAT_RIDES.map((d) => d.id).sort());
-    expect(info!.flatRides).toBe(18);
+    // Every flat ride type, plus a second carousel (flat-ride colours: one type twice in two colours).
+    expect(new Set(flat.map((x) => x.defId))).toEqual(new Set(FLAT_RIDES.map((d) => d.id)));
+    expect(flat.map((x) => x.defId).sort()).toEqual([...FLAT_RIDES.map((d) => d.id), 'carousel'].sort());
+    expect(info!.flatRides).toBe(19);
+    expect(flat).toHaveLength(19);
     expect(info!.trackRides).toBe(0);
     // Paths: from the park entrance over footpath and queue tiles, every ride's entrance and exit tile is reached.
     const reach = new Set<number>([s.map.entranceTile]);
@@ -147,11 +150,32 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     expect(s.guests.length).toBeLessThanOrEqual(300);
   });
 
+  it('rides (flat-ride colours): 6 coloured rides in varied colours, one ride type twice in two colours', { timeout: 60_000 }, () => {
+    const r = deserialize(readFileSync(join(DIR, PERF_SCENES.find((x) => x.id === 'rides')!.file), 'utf8'));
+    if (!r.ok) throw new Error(r.error);
+    const flat = r.world.state.rides.filter((x) => x.kind === 'flat');
+    const coloured = flat.filter((x) => x.colour !== undefined && x.colour !== null);
+    expect(coloured).toHaveLength(6);
+    for (const x of coloured) expect(RIDE_COLOUR_CHOICES, x.defId).toContain(x.colour);
+    // Varied: the six use six different colours (every choice once).
+    expect(new Set(coloured.map((x) => x.colour)).size).toBe(6);
+    // The largest set (carousel) and two the reviews named are coloured.
+    for (const id of ['carousel', 'big_wheel', 'haunted_manor']) expect(coloured.some((x) => x.defId === id), id).toBe(true);
+    // One type placed twice, in two different colours (two coloured sets of one ride).
+    const twice = FLAT_RIDES.map((d) => flat.filter((x) => x.defId === d.id)).filter((g) => g.length > 1);
+    expect(twice).toHaveLength(1);
+    const pair = twice[0]!;
+    expect(pair).toHaveLength(2);
+    expect(pair.every((x) => x.colour !== undefined && x.colour !== null)).toBe(true);
+    expect(pair[0]!.colour).not.toBe(pair[1]!.colour);
+    expect(validateState(r.world.state)).toBeNull();
+  });
+
   it('rides: the bench camera sees the park (zoom 0.5 from the focus, 390 x 844)', { timeout: 60_000 }, () => {
     const r = deserialize(readFileSync(join(DIR, PERF_SCENES.find((x) => x.id === 'rides')!.file), 'utf8'));
     if (!r.ok) throw new Error(r.error);
-    // The bench holds zoom 0.5 at rotation 0 (rotation 2 is the same band, turned over): all 18 footprints inside.
-    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 18, touching: 18 });
+    // The bench holds zoom 0.5 at rotation 0 (rotation 2 is the same band, turned over): all 19 footprints inside.
+    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 19, touching: 19 });
     // Rotations 1 and 3 turn the band across the narrow view: the view cannot hold 18 (it fits 12 tiles of
     // |u-v| there); the measured counts (7 inside, 10 touching) are the floor.
     for (const rot of [1, 3] as const) {

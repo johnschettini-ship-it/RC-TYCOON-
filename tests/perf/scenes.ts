@@ -7,7 +7,7 @@
  *   queues, 24 stalls, raised plateaus, a pond, painted ground, 60 scenery items, 2 show sites, 12 staff, and
  *   3,000 guests.
  * - `phone`: the master §10 phone scene: the `build1` park with 800 guests.
- * - `rides`: the phase 8c batch 1 park on the 64 × 64 map: all 18 flat ride types once in a compact band the bench camera
+ * - `rides`: the phase 8c batch 1 park on the 64 × 64 map: all 18 flat ride types (carousel twice; six rides coloured) in a compact band the bench camera
  *   sees at zoom 0.5, each with its own queue, open, and 300 guests. It tests memory with many different rides on screen.
  *
  * Every guest is a real guest (needs, temperament, decisions), so a perf run measures real ticks. The track rides
@@ -27,7 +27,7 @@ import { canOpenTrackRide } from '../../src/sim/rides/track/api';
 import { addGuestDirect } from '../helpers/world';
 import { SCALE_SCENE, type PerfSceneId } from './sceneInfo';
 import { FLAT_RIDES, gateIndex } from '../../src/data/catalog/flatRides';
-import { CELL_H, CELL_W, RIDES_CELLS, RIDES_FOCUS } from './ridesLayout';
+import { CELL_H, CELL_W, RIDES_CELLS, RIDES_COLOURS, RIDES_EXTRA, RIDES_FOCUS } from './ridesLayout';
 
 export { PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT, type PerfSceneId, type PerfSceneInfo } from './sceneInfo';
 
@@ -323,8 +323,9 @@ function buildScale(): World {
 }
 
 /**
- * The rides park (phase 8c batch 1): every flat ride type once, in the compact band of `ridesLayout.ts` (cells of
- * 5 × 7 tiles) that the bench camera sees: all 18 in view at zoom 0.5. Footpath lines run along every cell edge of
+ * The rides park (phase 8c batch 1): every flat ride type once and a second carousel, in the compact band of
+ * `ridesLayout.ts` (cells of 5 × 7 tiles) that the bench camera sees: all 19 in view at zoom 0.5. Six rides are coloured
+ * (`RIDES_COLOURS`, `RIDES_EXTRA`): the two carousels in two colours. Footpath lines run along every cell edge of
  * the band, each ride's exit tile is on the line north of it, and a queue runs from its entrance (front edge, tile
  * `gateIndex(w)`) to the line south of it. A footprint refusal throws (the layout is fixed so none is dropped).
  */
@@ -339,16 +340,20 @@ function buildRides(): World {
   const y1 = RIDES_FOCUS.y + CELL_H * (Math.max(...js) + 1);
   for (let y = y0; y <= y1; y += CELL_H) run(world, { type: 'buildPathLine', x0, y0: y, x1, y1: y, kind: 'footpath' });
   for (let x = x0; x <= x1; x += CELL_W) run(world, { type: 'buildPathLine', x0: x, y0, x1: x, y1, kind: 'footpath' });
-  FLAT_RIDES.forEach((def, k) => {
-    const [ci, cj] = RIDES_CELLS[k] as readonly [number, number];
+  const place = (def: (typeof FLAT_RIDES)[number], [ci, cj]: readonly [number, number], colour: number | undefined): void => {
     const l = RIDES_FOCUS.x + CELL_W * ci;
     const m = RIDES_FOCUS.y + CELL_H * cj;
     const x = l + 1;
     const y = m + 1;
     const id = run(world, { type: 'placeRide', defId: def.id, x, y, rotation: 0 });
     run(world, { type: 'buildPathLine', x0: x + gateIndex(def.w), y0: y + def.d, x1: x + gateIndex(def.w), y1: m + CELL_H - 1, kind: 'queue' });
+    if (colour !== undefined) run(world, { type: 'setRideColour', rideId: id, colour });
     run(world, { type: 'setRideOpen', rideId: id, open: true });
-  });
+  };
+  FLAT_RIDES.forEach((def, k) => place(def, RIDES_CELLS[k] as readonly [number, number], RIDES_COLOURS[def.id]));
+  const extra = FLAT_RIDES.find((d) => d.id === RIDES_EXTRA.defId);
+  if (!extra) throw new Error(`rides: no flat ride ${RIDES_EXTRA.defId}`);
+  place(extra, RIDES_EXTRA.cell, RIDES_EXTRA.colour);
   hire(world, { groundskeeper: 2, mechanic: 2 });
   addGuests(world, 300, 3003);
   for (let k = 0; k < SETTLE_TICKS; k++) stepTick(world);
