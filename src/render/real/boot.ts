@@ -98,6 +98,8 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
   // Ladder step before any density drops: ground chunks off screen first, then tint-atlas pages least recently used.
   sets.addReclaimer((n) => ground.reclaim(n));
   sets.addReclaimer((n) => look.reclaim(n));
+  // One tint budget a frame: coloured ride sets tint in what the tint atlas left of TINT_FRAME_MS.
+  sets.shareTintBudget(() => look.tintSpentMs?.() ?? 0);
   perfProbe.realMemory = () => [sets.residentBytes(), sets.peakBytes()];
   // Card pictures: their set decodes now (small), so the cards the UI draws first show them; a card drawn before it
   // is ready, or without it, shows today's preview.

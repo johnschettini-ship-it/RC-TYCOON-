@@ -54,6 +54,11 @@ export interface RealLook {
    * until about `needBytes` are freed. Returns the bytes freed.
    */
   reclaim(needBytes: number): number;
+  /**
+   * Ms the tint atlas has spent tinting frames since the last `prepare`: the set manager's coloured-set tints take
+   * what is left of the frame's `TINT_FRAME_MS` (`SetManager.shareTintBudget`).
+   */
+  tintSpentMs?(): number;
   /** The density the last `prepare` chose (after the set manager's cap). */
   currentDensity(): 2 | 4;
   /**

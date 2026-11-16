@@ -140,6 +140,11 @@ export class TintAtlas {
   }
 
   /** Start of a frame: the LRU clock moves on and the frame's tint time resets. */
+  /** Ms spent tinting since the last `beginFrame` (the set manager's sheet tints share the frame's budget). */
+  spentMs(): number {
+    return this.spent;
+  }
+
   beginFrame(): void {
     this.tick++;
     this.spent = 0;

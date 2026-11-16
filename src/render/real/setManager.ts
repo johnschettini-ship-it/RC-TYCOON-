@@ -46,6 +46,17 @@ export interface SetManagerOptions {
   now?: () => number;
   /** Rows per tint step (default `TINT_BAND_PX`). */
   tintBandPx?: number;
+  /**
+   * Ms the tint atlas has spent tinting this frame (`RealLook.tintSpentMs`): one `TINT_FRAME_MS` budget a frame is
+   * shared, and a coloured set's band runs in what is left (one band at least only when nothing else ran). Can also be
+   * set later with `shareTintBudget`.
+   */
+  tintSpentMs?: () => number;
+  /**
+   * Copies a finished tinted canvas to an ImageBitmap (default `createImageBitmap` where it exists; null keeps the
+   * canvas).
+   */
+  toBitmap?: ((img: CanvasImageSource) => Promise<ImageBitmap>) | null;
 }
 
 function defaultCanvas(w: number, h: number): CanvasLike {
@@ -193,6 +204,8 @@ export class SetManager {
   private readonly makeCanvas: (w: number, h: number) => CanvasLike;
   private readonly now: () => number;
   private readonly bandPx: number;
+  private tintSpent: () => number;
+  private readonly makeBitmap: ((img: CanvasImageSource) => Promise<ImageBitmap>) | null;
 
   /**
    * What decodes, admits and the ladder work against: the budget less the reserve for memory held without asking
@@ -217,6 +230,9 @@ export class SetManager {
     this.makeCanvas = opts.makeCanvas ?? defaultCanvas;
     this.now = opts.now ?? (() => performance.now());
     this.bandPx = opts.tintBandPx ?? TINT_BAND_PX;
+    this.tintSpent = opts.tintSpentMs ?? (() => 0);
+    this.makeBitmap = opts.toBitmap !== undefined ? opts.toBitmap
+      : typeof createImageBitmap === 'function' ? (img) => createImageBitmap(img as ImageBitmapSource) : null;
     for (const src of index.sets) {
       this.indexEntries.set(src.key, src);
       const sheets = pictureSheets(src);
@@ -269,6 +285,11 @@ export class SetManager {
       if (down) down.up = made;
     }
     return made;
+  }
+
+  /** Shares the per-frame tint budget with the tint atlas: `spentMs` is what it spent this frame (see the option). */
+  shareTintBudget(spentMs: () => number): void {
+    this.tintSpent = spentMs;
   }
 
   beginFrame(frame: number): void {
@@ -586,10 +607,14 @@ export class SetManager {
     if (!run) return;
     const owner = this.tinting;
     let finished = !owner || owner.cancelled;
-    if (!finished) {
+    // One tint budget a frame, shared with the tint atlas: the bands get what it left; one band at least only when
+    // the atlas tinted nothing this frame (so a frame never spends much more than TINT_FRAME_MS on tints).
+    const other = Math.max(0, this.tintSpent());
+    const budget = TINT_FRAME_MS - other;
+    if (!finished && (other === 0 || budget > 0)) {
       const t0 = this.now();
       try {
-        do finished = run.job.step(); while (!finished && this.now() - t0 < TINT_FRAME_MS);
+        do finished = run.job.step(); while (!finished && this.now() - t0 < budget);
       } catch {
         finished = true; // the load sees the job not done and keeps its Original pictures
       }
@@ -621,6 +646,12 @@ export class SetManager {
   private pressure(atDensity4 = false): number {
     let n = (atDensity4 ? this.heldUpTotal : this.heldTotal) + this.refused;
     let room: number | undefined;
+    // Coloured sets tint one at a time (review fix round 1, item 1): a queued one counts at its settled size, and the
+    // tint's extra (a mask, a tinted copy, the band scratch) once, for the set tinting or, when none is, the largest
+    // queued. Each counting its whole `load` made a few queued coloured sets look like more than the budget and capped
+    // (cancelling the tint) a park that fits. Admission still asks for the whole `load` before a tint starts.
+    let tintCounted = false;
+    let tintExtra = 0;
     for (const r of this.recs.values()) {
       if (!this.wanted(r)) continue;
       // A density-2 twin wanted beside its density-4 set while that one decodes (a turn, a zoom in) is on its way
@@ -631,12 +662,17 @@ export class SetManager {
       if (r.entry.density === 2 && this.isTwin(r, (room ??= this.roomBesideOutgoing()))) continue;
       let need = 0;
       if (r.state === 'ready') need = r.bytes;
-      else if (r.state === 'loading' && r.inFlight && !r.cancelled) need = Math.max(r.load, r.bytes);
-      else if (r.state === 'loading' && !r.inFlight && r.wantPri === 'now') need = r.load;
+      else if (r.state === 'loading' && r.inFlight && !r.cancelled) {
+        need = Math.max(r.load, r.bytes);
+        if (r.colour !== null) tintCounted = true;
+      } else if (r.state === 'loading' && !r.inFlight && r.wantPri === 'now') {
+        need = r.estimate;
+        if (r.colour !== null) tintExtra = Math.max(tintExtra, r.load - r.estimate);
+      }
       if (need > 0 && atDensity4 && r.up && (this.capped || this.demoted.has(r.up.entry.key))) need = r.up.estimate;
       n += need;
     }
-    return n;
+    return tintCounted ? n : n + tintExtra;
   }
 
   /**
@@ -717,13 +753,20 @@ export class SetManager {
 
   /**
    * Tints coloured set `r`'s decoded sheets one at a time: decode its mask, run the band job from `endFrame`, then keep
-   * the tinted copy and close the base and the mask. Returns true when a tint failed (a canvas without a 2D context,
-   * a mask that will not decode): the sheets not tinted keep their Original pictures and the failure is reported.
+   * the tinted copy (as an ImageBitmap where the browser has `createImageBitmap`) and close the base and the mask.
+   * Returns true when a tint failed (a canvas without a 2D context, a mask that will not decode): the sheets already
+   * tinted are decoded again from their Original files (kept blobs), so the whole set draws Original, and the failure
+   * is reported. Everything here stays inside the peak admitted for the load (`load`).
+   *
+   * The load keeps its decode slot (`MAX_IN_FLIGHT`) for the whole tint, which spans frames: while a coloured set
+   * tints only one other decode runs. Kept as is (review fix round 1, item 7): freeing the slot during the tint wait
+   * would let a fourth decode start when the tint resumes.
    */
   private async tint(r: Rec): Promise<boolean> {
     const target = hexRgb(TRACK_PALETTE[r.colour as number] as string);
     const baseRgb = hexRgb(r.entry.baseColour as string);
     const show = (): void => { r.interim = { ...r.entry, images: r.decoded.map((d) => d.image) }; };
+    const tinted: boolean[] = [];
     show();
     for (let i = 0; i < r.decoded.length; i++) {
       const maskFile = r.masks[i];
@@ -743,21 +786,68 @@ export class SetManager {
         await new Promise<void>((done) => { this.tintRun = { job, done }; });
         if (r.cancelled) return false;
         if (!job.done) throw new Error(`tint of ${r.entry.key} sheet ${i} failed`);
-        const tinted = job.result();
+        const out = job.result();
         r.bytes -= r.extra.jobBytes;
         r.extra = { mask: r.extra.mask, job: null, jobBytes: 0 };
         this.closeExtra(r);
         base.close();
-        r.bytes += tinted.bytes - base.bytes;
-        r.decoded[i] = tinted;
+        r.bytes += out.bytes - base.bytes;
+        r.decoded[i] = out;
+        tinted[i] = true;
+        await this.toBitmap(r, i);
         show();
       } catch (err) {
         this.closeExtra(r);
+        await this.untint(r, tinted);
         this.onError(r.entry.key, err);
         return true;
       }
     }
     return false;
+  }
+
+  /**
+   * Sheet `i` of `r` (a tinted canvas) copied to an ImageBitmap, the canvas then freed: the same bytes, held as a bitmap
+   * the browser draws without a canvas behind it. Both are held (and counted) for the moment of the copy, inside the
+   * peak admitted. Without `createImageBitmap`, or when it fails, the canvas stays.
+   */
+  private async toBitmap(r: Rec, i: number): Promise<void> {
+    const make = this.makeBitmap;
+    const d = r.decoded[i] as Decoded;
+    if (!make) return;
+    r.bytes += d.bytes;
+    this.peak = Math.max(this.peak, this.residentBytes());
+    let bmp: ImageBitmap;
+    try {
+      bmp = await make(d.image);
+    } catch {
+      if (r.decoded[i] === d) r.bytes -= d.bytes; // (a set freed meanwhile has its bytes at 0 already)
+      return;
+    }
+    if (r.decoded[i] !== d) { bmp.close?.(); return; } // freed meanwhile: `free` closed the canvas and zeroed the bytes
+    d.close();
+    r.bytes -= d.bytes;
+    r.decoded[i] = { image: bmp, bytes: d.bytes, close: () => bmp.close?.() };
+  }
+
+  /**
+   * After a failed tint: sheets already tinted get their Original pictures back, decoded again from the kept blobs one
+   * at a time (each new decode before its tinted copy closes: one sheet more, inside the admitted peak, as the mask
+   * and the tint job are closed by then).
+   */
+  private async untint(r: Rec, tinted: boolean[]): Promise<void> {
+    for (let j = 0; j < tinted.length; j++) {
+      if (!tinted[j] || r.cancelled) continue;
+      const file = (r.entry.sheets[j] as { file: string }).file;
+      const d = await this.io.decode(await this.read(file));
+      if (r.cancelled) { d.close(); return; }
+      r.bytes += d.bytes;
+      this.peak = Math.max(this.peak, this.residentBytes());
+      const old = r.decoded[j] as Decoded;
+      r.decoded[j] = d;
+      old.close();
+      r.bytes -= old.bytes;
+    }
   }
 
   private read(file: string): Promise<Blob> {

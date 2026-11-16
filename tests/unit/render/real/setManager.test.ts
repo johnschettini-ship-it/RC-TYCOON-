@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO } from '../../../../src/render/real/setManager';
+import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO, type SetManagerOptions } from '../../../../src/render/real/setManager';
 
 const TINT_SCRATCH = 'tint:scratch';
 
@@ -714,29 +714,32 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
   const LEMON = [0xf2, 0xc2, 0x30];
   const SKY = [0x3d, 0x9b, 0xe0];
 
-  function rideEntry(item: string, density: 2 | 4): RealSetEntry {
-    const f = `${item}-d${density}-0`;
-    return {
-      key: setKey('ride', item, density, 0), kind: 'ride', item, density, rot: 0,
-      sheets: [{ file: `${f}.webp`, w: W, h: H, mask: `${f}-mask.png` }, { file: `${f}-mask.png`, w: W, h: H }],
-      frames: {}, baseColour: '#8a1c1c',
-    };
+  function rideEntry(item: string, density: 2 | 4, n = 1): RealSetEntry {
+    const sheets: RealSetEntry['sheets'] = [];
+    for (let i = 0; i < n; i++) {
+      const f = `${item}-d${density}-${i}`;
+      sheets.push({ file: `${f}.webp`, w: W, h: H, mask: `${f}-mask.png` }, { file: `${f}-mask.png`, w: W, h: H });
+    }
+    return { key: setKey('ride', item, density, 0), kind: 'ride', item, density, rot: 0, sheets, frames: {}, baseColour: '#8a1c1c' };
   }
 
   /** Decodes land at once: sheets are the base red, masks full weight. */
   class PixIO implements SetIO {
     decodes: string[] = [];
     closed: string[] = [];
+    /** Files whose decode fails. */
+    fail = new Set<string>();
     read(file: string): Promise<Blob> { return Promise.resolve(new Blob([file])); }
     async decode(blob: Blob): Promise<Decoded> {
       const file = await blob.text();
       this.decodes.push(file);
+      if (this.fail.has(file)) throw new Error(`cannot decode ${file}`);
       const img = new Pix(W, H, file.endsWith('-mask.png') ? [255, 255, 255, 255] : RED);
       return { image: img as unknown as CanvasImageSource, bytes: SHEET, close: () => { this.closed.push(file); } };
     }
   }
 
-  function setupColours(sets: RealSetEntry[], budget: number, makeCanvas?: (w: number, h: number) => unknown) {
+  function setupColours(sets: RealSetEntry[], budget: number, makeCanvas?: (w: number, h: number) => unknown, more: SetManagerOptions = {}) {
     const io = new PixIO();
     const errors: [SetKey, unknown][] = [];
     let t = 0;
@@ -745,6 +748,8 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
       makeCanvas: (makeCanvas ?? ((w: number, h: number) => new Pix(w, h))) as never,
       now: () => (t += 3),
       tintBandPx: BAND,
+      toBitmap: null,
+      ...more,
     });
     let frame = 0;
     const step = async (keys: SetKey[]): Promise<void> => {
@@ -873,5 +878,73 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
     // A set without a base colour (a stall), or a colour outside the palette, is an unknown set.
     await step([setKey('ride', 'carousel', 2, 0, 99)]);
     expect(errors.map(([k]) => k)).toEqual([setKey('ride', 'carousel', 2, 0, 99)]);
+  });
+
+  it('fix 1: queued coloured sets count at their settled size; the tint peak once: no false cap, no cancelled tint', async () => {
+    // Density 4: a cap would drop them. a: 3 sheets (settled 3 sheets, load +2 sheets + scratch); b: 1 sheet.
+    const A = rideEntry('a', 4, 3);
+    const B = rideEntry('b', 4, 1);
+    const keys = [setKey('ride', 'a', 4, 0, 2), setKey('ride', 'a', 4, 0, 4), setKey('ride', 'b', 4, 0, 2)];
+    const settled = 3 * SHEET + 3 * SHEET + SHEET;
+    const tintPeak = 2 * SHEET + SCRATCH;
+    // Room for everything settled and one tint on top; the three loads summed (20736 B) would not fit.
+    const budget = settled + tintPeak + 100;
+    expect(3 * SHEET + tintPeak + 3 * SHEET + tintPeak + SHEET + tintPeak).toBeGreaterThan(budget);
+    const { io, m, step } = setupColours([A, B], budget);
+    for (let f = 0; f < 60; f++) {
+      await step(keys);
+      expect(m.densityCap()).toBe(4);
+    }
+    for (const k of keys) expect(m.state(k)).toBe('ready');
+    expect(m.capEvents()).toEqual([]);
+    expect(m.peakBytes()).toBeLessThanOrEqual(budget);
+    // Every base was decoded once: no tint was cancelled and restarted.
+    expect(io.decodes.filter((f) => f === 'a-d4-0.webp')).toHaveLength(2);
+  });
+
+  it('fix 3: a tint failing on a later sheet puts the sheets already tinted back to their Original pictures', async () => {
+    const A = rideEntry('carousel', 2, 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, errors, step } = setupColours([A], 1e9);
+    io.fail.add('carousel-d2-1-mask.png');
+    for (let f = 0; f < 12; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(rs.images.map(pixel)).toEqual([RED.slice(0, 3), RED.slice(0, 3)]);
+    expect(errors.map(([k]) => k)).toEqual([key]);
+    expect(m.residentBytes()).toBe(2 * SHEET);
+    expect(m.peakBytes()).toBeLessThanOrEqual(2 * SHEET + 2 * SHEET + SCRATCH);
+  });
+
+  it('fix 4: one tint budget a frame: the tint atlas\'s time this frame comes off the set manager\'s; a band only when nothing else ran', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    let spent = 3;
+    const { m, step } = setupColours([A], 1e9, undefined, { tintSpentMs: () => spent });
+    for (let f = 0; f < 10; f++) await step([key]);
+    // The atlas used the whole budget every frame: no band ran.
+    expect(m.state(key)).toBe('loading');
+    spent = 0;
+    for (let f = 0; f < 10; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+  });
+
+  it('fix 6: a finished sheet becomes an ImageBitmap and its canvas is freed, at the same bytes', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const made: Pix[] = [];
+    const bitmaps: { from: Pix; closed: boolean }[] = [];
+    const { m, step } = setupColours([A], 1e9, (w, h) => { const c = new Pix(w, h); made.push(c); return c; }, {
+      toBitmap: async (img) => { const b = { from: img as unknown as Pix, closed: false, close() { this.closed = true; } }; bitmaps.push(b); return b as unknown as ImageBitmap; },
+    });
+    for (let f = 0; f < 10; f++) await step([key]);
+    const rs = m.use(key)!;
+    expect(bitmaps).toHaveLength(1);
+    expect(rs.images[0]).toBe(bitmaps[0]);
+    expect(made[0]!.width).toBe(0); // the tinted canvas, freed once copied
+    expect(m.residentBytes()).toBe(SHEET);
+    for (let f = 0; f < 4; f++) await step([]);
+    expect(bitmaps[0]!.closed).toBe(true);
   });
 });

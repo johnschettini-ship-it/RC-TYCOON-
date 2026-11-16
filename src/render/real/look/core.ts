@@ -102,6 +102,7 @@ export interface LookCore {
   setItemMap(map: Readonly<Record<string, string>> | null): void;
   dispose(): void;
   reclaim(needBytes: number): number;
+  tintSpentMs(): number;
   incomplete(): number;
   soft(): number;
   degraded(): number;
@@ -176,24 +177,31 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     return c;
   }
   /**
-   * While `rec`'s set is not ready (a ride whose colour just changed, or a coloured set still loading): a ready set of
-   * the same ride in another colour or Original, at the density drawn or 2, Original first; the set it came from.
+   * While `rec`'s set is not ready (a ride whose colour just changed, or a coloured set still loading): pictures of the
+   * same ride in another colour or Original, Original first, at the density drawn or 2: a ready set, else the pictures
+   * a set of it is tinting (`interim`); the set it came from. Null when the ride has no colour records (no colour in
+   * play) or nothing of it is decoded.
    */
   function otherColour(rec: ItemRec, rot: ViewRotation): { rs: ReadySet; key: SetKey } | null {
     const base = rec.base ?? rec;
     const others = colourRecs.get(base);
     if (!others && !rec.base) return null;
-    for (const v of [base, ...(others?.values() ?? [])]) {
-      if (v === rec) continue;
-      for (const d of density === 4 ? [4, 2] as const : [2] as const) {
-        const k = (d === 4 ? v.k4 : v.k2)[rot];
-        if (k === undefined || sets.state(k) !== 'ready') continue;
-        const rs = sets.use(k);
-        if (rs) return { rs, key: k };
+    const variants = [base, ...(others?.values() ?? [])].filter((v) => v !== rec);
+    const dens = density === 4 ? [4, 2] as const : [2] as const;
+    for (const pass of [0, 1]) {
+      for (const v of variants) {
+        for (const d of dens) {
+          const k = (d === 4 ? v.k4 : v.k2)[rot];
+          if (k === undefined) continue;
+          const rs = pass === 0 ? (sets.state(k) === 'ready' ? sets.use(k) : null) : sets.interim?.(k) ?? null;
+          if (rs) return { rs, key: k };
+        }
       }
     }
     return null;
   }
+  /** A ride with a colour in play (a coloured record, or an Original one with coloured siblings): never drawn as nothing. */
+  const colourInPlay = (rec: ItemRec): boolean => rec.base !== undefined || colourRecs.has(rec);
   const metas = new WeakMap<ReadySet, SetMeta>();
   function metaOf(rs: ReadySet): SetMeta {
     let m = metas.get(rs);
@@ -281,11 +289,16 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       // incomplete. Not for ground pieces: a chunk is built once, so it waits for its own density.
       const twin = twinOf(rec, rot, key);
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
-      // Ride colours (Task 5): a coloured set still tinting draws the pictures it is tinting (Original colours); a
-      // ride whose set is not decoded draws its other colour's or Original set while one is ready (a colour change
-      // keeps the old picture). Both counted incomplete: the object is not drawn as asked yet.
+      // Ride colours (Task 5; never nothing, review fix round 1 item 2), after the coloured density-2 twin: the pictures
+      // its set is tinting (Original colours); then another colour's or Original set of the same ride, ready, then
+      // tinting (a colour change keeps the old picture); else today's art. All counted incomplete: the object is not
+      // drawn as asked yet.
       const stand = low ? null : rec.kind === 'ride' ? sets.interim?.(key) ?? (twin !== undefined ? sets.interim?.(twin) : null) ?? null : null;
       const other = low || stand || rec.kind !== 'ride' ? null : otherColour(rec, rot);
+      if (!low && !stand && !other && rec.kind === 'ride' && colourInPlay(rec)) {
+        skipped++;
+        return undefined;
+      }
       if (stand || other) {
         rs = (stand ?? other?.rs) as ReadySet;
         drawKey = stand ? key : (other as { key: SetKey }).key;
@@ -411,6 +424,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     },
 
     reclaim: (needBytes) => tinter.reclaim(needBytes),
+    tintSpentMs: () => tinter.spentMs(),
 
     incomplete() {
       return skipped;

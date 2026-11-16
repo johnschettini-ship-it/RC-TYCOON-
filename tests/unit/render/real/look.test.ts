@@ -1268,10 +1268,38 @@ describe('RealLook: ride colours (Task 5)', () => {
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
     expect(look.ride('big_wheel', 0, 0, 0, 4)!.image).toBe(sets.images(k('big_wheel', 2, 0, C))[0]);
     expect(look.incomplete()).toBe(1);
-    // Nothing of the ride decoded: skipped (null), as any loading set.
+    // Nothing of the ride decoded: today's art (undefined), never nothing, counted incomplete (review fix round 1).
     sets.setState(k('big_wheel', 2, 0, C), 'none');
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
-    expect(look.ride('big_wheel', 0, 0, 0, 4)).toBeNull();
+    expect(look.ride('big_wheel', 0, 0, 0, 4)).toBeUndefined();
+    expect(look.incomplete()).toBe(1);
+    expect(look.fallbacksUsed()).toEqual([]);
+  });
+
+  it('fix 2: a colour change while the old colour still tints draws the old colour\'s tinting pictures', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const lemon = k('big_wheel', 2, 0, C);
+    const e = makeIndex().sets.find((x) => x.key === k('big_wheel', 2, 0))!;
+    const tinting = new PixCanvas(8, 8) as unknown as CanvasImageSource;
+    sets.setState(lemon, 'loading');
+    sets.interims.set(lemon, { ...e, key: lemon, images: [tinting] });
+    expect(look.ride('big_wheel', 0, 0, 0, C)!.image).toBe(tinting); // drawn lemon (tinting) before the change
+    sets.setState(k('big_wheel', 2, 0, 4), 'loading'); // queued behind it: no pictures yet
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const sp = look.ride('big_wheel', 0, 0, 0, 4);
+    expect(sp).toBeTruthy();
+    expect(sp!.image).toBe(tinting);
+    expect(look.incomplete()).toBe(1);
+  });
+
+  it('fix 2: a coloured ride queued behind other tints, with nothing of it decoded, draws today\'s art (never null), incomplete', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2);
+    for (const d of [2, 4] as const) sets.setState(k('big_wheel', d, 0, 7), 'loading');
+    expect(look.ride('big_wheel', 0, 0, 0, 7)).toBeUndefined();
+    expect(look.incomplete()).toBe(1);
+    expect(look.degraded!()).toBe(0);
   });
 
   it('a failed tint draws the Original pictures and lists the coloured set in fallbacksUsed', () => {
@@ -1346,5 +1374,55 @@ describe('RealLook: ride colours (Task 5)', () => {
     // The Original carousel set was never decoded, and its masks only for the tint.
     expect(sets.state(k('carousel', 2, 'all'))).toBe('none');
     expect(decodes.filter((f) => f.includes('carousel'))).toEqual([`${k('carousel', 2, 'all')}-s0`, `${k('carousel', 2, 'all')}-m0`]);
+  });
+});
+
+describe('RealLook: ride colours, review fix round 1', () => {
+  it('six coloured rides queued behind each other with the real set manager: no ride is ever drawn as nothing', async () => {
+    const index = makeIndex();
+    for (const e of index.sets) {
+      if (e.kind !== 'ride' || e.item !== 'carousel') continue;
+      e.sheets = [{ file: `${e.key}-s0`, w: 8, h: 8, mask: `${e.key}-m0` }, { file: `${e.key}-m0`, w: 8, h: 8 }];
+      e.frames = Object.fromEntries(Object.entries(e.frames).map(([fk, f]) => [fk, { ...f, sheet: `${e.key}-s0` }]));
+      e.baseColour = '#8a1c1c';
+    }
+    const io = {
+      read: async (f: string) => new Blob([f]),
+      decode: async (b: Blob): Promise<Decoded> => {
+        const f = await b.text();
+        return { image: new PixCanvas(8, 8, f.endsWith('-m0') ? [255, 255, 255, 255] : [0x8a, 0x1c, 0x1c, 255]) as unknown as CanvasImageSource, bytes: 256, close() {} };
+      },
+    };
+    let t = 0;
+    const sets = new SetManager(index, io, 1e9, () => undefined, 0, { makeCanvas: make, now: () => (t += 3), tintBandPx: 2, toBitmap: null });
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    const world = emptyWorld();
+    const colours = [0, 1, 2, 3, 4, 7];
+    colours.forEach((c, i) => world.state.rides.push({ id: i + 1, kind: 'flat', defId: 'carousel', rotation: 0, x: 2 + (i % 3) * 4, y: 2 + Math.floor(i / 3) * 6, colour: c } as Ride));
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    let nulls = 0;
+    for (let n = 1; n < 60; n++) {
+      sets.beginFrame(n);
+      look.prepare(world, 0, VIEW, 1, 1);
+      for (const c of colours) if (look.ride('carousel', 0, 0, 0, c) === null) nulls++;
+      sets.endFrame();
+      await flush();
+    }
+    expect(nulls).toBe(0);
+    for (const c of colours) expect(sets.state(setKey('ride', 'carousel', 2, 'all', c))).toBe('ready');
+  });
+
+  it('tintSpentMs: what the tint atlas spent since the last prepare (shared with the set manager)', () => {
+    let t = 0;
+    const index = makeIndex();
+    const sets = new FakeSets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make, now: () => (t += 1) });
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.tintSpentMs!()).toBe(0);
+    for (let b = 0; b < 2; b++) for (let o = 0; o < 4; o++) sets.setState(setKey('guest', `b${b}o${o}`, 2, 'all'), 'ready');
+    expect(look.guest(1, 2, 1, 2, false)).toBeTruthy();
+    expect(look.tintSpentMs!()).toBeGreaterThan(0);
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.tintSpentMs!()).toBe(0);
   });
 });

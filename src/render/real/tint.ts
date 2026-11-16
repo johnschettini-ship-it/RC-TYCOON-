@@ -148,6 +148,10 @@ const sizeOf = (img: CanvasImageSource): { w: number; h: number } => {
  * canvas the size of `base`, `bandPx` rows a `step`. Bands are read through a scratch canvas `bandPx` rows tall
  * (asked for `willReadFrequently`, so its reads stay in CPU memory); the tinted canvas is only written. Both canvases
  * and their 2D contexts are made here, so a canvas without one throws at once and the caller keeps the base.
+ *
+ * Mask-0 pixels: `tintShadedPixels` leaves them exactly as they were, but that holds for the pixel arrays only. Through
+ * canvases (`drawImage` → `getImageData` → `putImageData`) a semi-transparent pixel's colour round-trips through
+ * premultiplied alpha and may move by a step or so even where the mask is 0; opaque pixels come back unchanged.
  */
 export function tintSheetShaded(base: Decoded, mask: Decoded, baseRgb: Rgb, targetRgb: Rgb, make: (w: number, h: number) => CanvasLike, bandPx: number): TintJob {
   const { w, h } = sizeOf(base.image);

@@ -31,6 +31,8 @@ export interface LookTinter {
   /** Start of a prepare: the atlas's frame moves on; frames of sets no longer ready, or unused long, are freed. */
   beginFrame(): void;
   reclaim(needBytes: number): number;
+  /** Ms the atlas spent tinting since the last `beginFrame`. */
+  spentMs(): number;
   dispose(): void;
 }
 
@@ -140,6 +142,8 @@ export function createTinter(sets: RealSets, metaOf: (rs: ReadySet) => SetMeta, 
     },
 
     reclaim: (needBytes) => atlas.reclaim(needBytes),
+
+    spentMs: () => atlas.spentMs(),
 
     dispose() {
       atlas.dispose();
