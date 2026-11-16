@@ -205,6 +205,8 @@ export class SetManager {
   private readonly now: () => number;
   private readonly bandPx: number;
   private tintSpent: () => number;
+  /** How long the last tint band took, ms: the estimate for whether the next one fits the frame's budget. */
+  private bandMs = 0;
   private readonly makeBitmap: ((img: CanvasImageSource) => Promise<ImageBitmap>) | null;
 
   /**
@@ -609,15 +611,23 @@ export class SetManager {
     let finished = !owner || owner.cancelled;
     // One tint budget a frame, shared with the tint atlas: the bands get what it left; one band at least only when
     // the atlas tinted nothing this frame (so a frame never spends much more than TINT_FRAME_MS on tints).
+    // A band runs only when it is expected to fit what is left (the last band's measured time as the estimate);
+    // the first band of a frame runs regardless only when the atlas spent nothing.
     const other = Math.max(0, this.tintSpent());
     const budget = TINT_FRAME_MS - other;
-    if (!finished && (other === 0 || budget > 0)) {
-      const t0 = this.now();
-      try {
-        do finished = run.job.step(); while (!finished && this.now() - t0 < budget);
-      } catch {
-        finished = true; // the load sees the job not done and keeps its Original pictures
+    let used = 0;
+    let first = true;
+    try {
+      while (!finished && ((first && other === 0) || used + this.bandMs <= budget)) {
+        const t0 = this.now();
+        finished = run.job.step();
+        const dt = this.now() - t0;
+        this.bandMs = dt;
+        used += dt;
+        first = false;
       }
+    } catch {
+      finished = true; // the load sees the job not done and keeps its Original pictures
     }
     if (finished) {
       this.tintRun = null;
@@ -790,16 +800,18 @@ export class SetManager {
         r.bytes -= r.extra.jobBytes;
         r.extra = { mask: r.extra.mask, job: null, jobBytes: 0 };
         this.closeExtra(r);
+        // Swap, close and show in one step: `interim` must never hand out a closed picture (a detached bitmap
+        // throws in drawImage), and frames run while the bitmap copy below is awaited.
+        r.decoded[i] = out;
         base.close();
         r.bytes += out.bytes - base.bytes;
-        r.decoded[i] = out;
-        tinted[i] = true;
-        await this.toBitmap(r, i);
         show();
+        tinted[i] = true;
+        await this.toBitmap(r, i, show);
       } catch (err) {
         this.closeExtra(r);
-        await this.untint(r, tinted);
         this.onError(r.entry.key, err);
+        await this.untint(r, tinted, show);
         return true;
       }
     }
@@ -811,7 +823,7 @@ export class SetManager {
    * the browser draws without a canvas behind it. Both are held (and counted) for the moment of the copy, inside the
    * peak admitted. Without `createImageBitmap`, or when it fails, the canvas stays.
    */
-  private async toBitmap(r: Rec, i: number): Promise<void> {
+  private async toBitmap(r: Rec, i: number, show: () => void): Promise<void> {
     const make = this.makeBitmap;
     const d = r.decoded[i] as Decoded;
     if (!make) return;
@@ -825,26 +837,36 @@ export class SetManager {
       return;
     }
     if (r.decoded[i] !== d) { bmp.close?.(); return; } // freed meanwhile: `free` closed the canvas and zeroed the bytes
+    r.decoded[i] = { image: bmp, bytes: d.bytes, close: () => bmp.close?.() };
+    show();
     d.close();
     r.bytes -= d.bytes;
-    r.decoded[i] = { image: bmp, bytes: d.bytes, close: () => bmp.close?.() };
   }
 
   /**
    * After a failed tint: sheets already tinted get their Original pictures back, decoded again from the kept blobs one
    * at a time (each new decode before its tinted copy closes: one sheet more, inside the admitted peak, as the mask
-   * and the tint job are closed by then).
+   * and the tint job are closed by then). Each swap is shown at once (`interim` never holds a closed picture). A sheet
+   * whose Original file will not decode again keeps its tinted picture, reported: the set stays usable (flagged
+   * `tintFailed` by the caller), never 'failed' for it.
    */
-  private async untint(r: Rec, tinted: boolean[]): Promise<void> {
+  private async untint(r: Rec, tinted: boolean[], show: () => void): Promise<void> {
     for (let j = 0; j < tinted.length; j++) {
       if (!tinted[j] || r.cancelled) continue;
       const file = (r.entry.sheets[j] as { file: string }).file;
-      const d = await this.io.decode(await this.read(file));
+      let d: Decoded;
+      try {
+        d = await this.io.decode(await this.read(file));
+      } catch (err) {
+        this.onError(r.entry.key, err);
+        continue;
+      }
       if (r.cancelled) { d.close(); return; }
       r.bytes += d.bytes;
       this.peak = Math.max(this.peak, this.residentBytes());
       const old = r.decoded[j] as Decoded;
       r.decoded[j] = d;
+      show();
       old.close();
       r.bytes -= old.bytes;
     }

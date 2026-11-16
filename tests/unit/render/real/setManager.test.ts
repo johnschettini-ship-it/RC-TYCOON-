@@ -683,6 +683,8 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
   /** A canvas holding pixels (enough for the band tint in node). */
   class Pix {
     data: Uint8ClampedArray;
+    /** Closed (an ImageBitmap's `close`): drawing it throws, as a detached bitmap does. */
+    detached = false;
     constructor(public width: number, public height: number, fill?: number[]) {
       this.data = new Uint8ClampedArray(width * height * 4);
       if (fill) for (let i = 0; i < this.data.length; i += 4) this.data.set(fill, i);
@@ -691,6 +693,7 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
       const self = this;
       return {
         drawImage(src: Pix, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number) {
+          if (src.detached || src.width === 0) throw new Error('InvalidStateError: drawing a closed picture');
           for (let y = 0; y < sh; y++) self.data.set(src.data.subarray(((sy + y) * src.width + sx) * 4, ((sy + y) * src.width + sx + sw) * 4), ((dy + y) * self.width + dx) * 4);
         },
         getImageData(x: number, y: number, w: number, h: number) {
@@ -727,15 +730,19 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
   class PixIO implements SetIO {
     decodes: string[] = [];
     closed: string[] = [];
-    /** Files whose decode fails. */
+    /** Files whose decode fails; `file#n`: only its n-th decode (1-based). */
     fail = new Set<string>();
+    /** `file#n`: its n-th decode waits for this promise. */
+    wait = new Map<string, Promise<void>>();
     read(file: string): Promise<Blob> { return Promise.resolve(new Blob([file])); }
     async decode(blob: Blob): Promise<Decoded> {
       const file = await blob.text();
       this.decodes.push(file);
-      if (this.fail.has(file)) throw new Error(`cannot decode ${file}`);
+      const nth = `${file}#${this.decodes.filter((f) => f === file).length}`;
+      await this.wait.get(nth);
+      if (this.fail.has(file) || this.fail.has(nth)) throw new Error(`cannot decode ${file}`);
       const img = new Pix(W, H, file.endsWith('-mask.png') ? [255, 255, 255, 255] : RED);
-      return { image: img as unknown as CanvasImageSource, bytes: SHEET, close: () => { this.closed.push(file); } };
+      return { image: img as unknown as CanvasImageSource, bytes: SHEET, close: () => { img.detached = true; this.closed.push(file); } };
     }
   }
 
@@ -946,5 +953,80 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
     expect(m.residentBytes()).toBe(SHEET);
     for (let f = 0; f < 4; f++) await step([]);
     expect(bitmaps[0]!.closed).toBe(true);
+  });
+
+  /** Every picture `interim` hands out can be drawn (none closed). */
+  const drawable = (m: SetManager, key: SetKey): boolean => {
+    const rs = m.interim(key);
+    if (!rs) return true;
+    const probe = new Pix(1, 1).getContext() as { drawImage(src: unknown, ...a: number[]): void };
+    try { for (const img of rs.images) probe.drawImage(img, 0, 0, 1, 1, 0, 0); return true; } catch { return false; }
+  };
+
+  it('round 2 P1: while a finished sheet is copied to an ImageBitmap, interim never hands out the closed base', async () => {
+    const A = rideEntry('carousel', 2, 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    let release: (() => void) | null = null;
+    const { m, step } = setupColours([A], 1e9, undefined, {
+      toBitmap: (img) => new Promise<ImageBitmap>((res) => {
+        const b = new Pix(W, H);
+        b.data.set((img as unknown as Pix).data);
+        release = () => res(b as unknown as ImageBitmap);
+      }),
+    });
+    let bad = 0;
+    for (let f = 0; f < 40; f++) {
+      await step([key]);
+      if (!drawable(m, key)) bad++;
+      if (release && f % 3 === 2) { const r = release as () => void; release = null; r(); }
+    }
+    expect(bad).toBe(0);
+    expect(m.state(key)).toBe('ready');
+  });
+
+  it('round 2 P1: while a failed tint decodes Original sheets again, interim never hands out a closed tinted copy', async () => {
+    const A = rideEntry('carousel', 2, 3);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, step } = setupColours([A], 1e9);
+    io.fail.add('carousel-d2-2-mask.png');
+    let open!: () => void;
+    io.wait.set('carousel-d2-1.webp#2', new Promise<void>((res) => { open = res; }));
+    let bad = 0;
+    for (let f = 0; f < 30; f++) {
+      await step([key]);
+      if (!drawable(m, key)) bad++;
+      if (f === 20) open();
+    }
+    expect(bad).toBe(0);
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(rs.images.map(pixel)).toEqual([RED.slice(0, 3), RED.slice(0, 3), RED.slice(0, 3)]);
+  });
+
+  it('round 2 P2: a re-decode failing after a failed tint keeps that sheet tinted; the set is ready, flagged and reported, not failed', async () => {
+    const A = rideEntry('carousel', 2, 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, errors, step } = setupColours([A], 1e9);
+    io.fail.add('carousel-d2-1-mask.png');
+    io.fail.add('carousel-d2-0.webp#2');
+    for (let f = 0; f < 12; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(pixel(rs.images[0]!).map((c, i) => Math.abs(c - LEMON[i]!) <= 1)).toEqual([true, true, true]);
+    expect(pixel(rs.images[1]!)).toEqual(RED.slice(0, 3));
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.every(([k]) => k === key)).toBe(true);
+    expect(m.residentBytes()).toBe(2 * SHEET);
+  });
+
+  it('round 2 P2: with tint time left but less than a band (by the last band\'s time), no band runs', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    // The atlas spent 1 ms: 2 ms left. A band takes 3 ms (the test clock), so after the first band is measured
+    // no further band fits.
+    const { m, step } = setupColours([A], 1e9, undefined, { tintSpentMs: () => 1 });
+    for (let f = 0; f < 12; f++) await step([key]);
+    expect(m.state(key)).toBe('loading');
   });
 });
