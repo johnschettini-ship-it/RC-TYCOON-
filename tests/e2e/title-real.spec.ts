@@ -158,6 +158,35 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     await ctx.close();
   });
 
+  for (const s of SIZES) {
+    test(`${s.name}: the scenario list stays in the window under the sign and scrolls (its first card reachable)`, async ({ browser }) => {
+      const { ctx, page, errors } = await open(browser, s);
+      await page.goto('/');
+      test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
+      await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+      const press = (id: string) => (s.mobile ? page.getByTestId(id).tap() : page.getByTestId(id).click());
+      await press('title-new');
+      await press('title-scenarios');
+      const first = page.locator('[data-testid^="scenario-card-"]').first();
+      await expect(first).toBeVisible();
+      await page.waitForTimeout(300);
+      const p = await placed(page);
+      const plate = await page.locator('.title-plate').boundingBox();
+      if (!plate) throw new Error('no plate');
+      // The plate (or sheet) starts under the sign (low windows: 8 px from the top, as design E) and ends in the
+      // window; a long list scrolls inside it.
+      const kind = await page.locator('.title-screen').getAttribute('data-kind');
+      expect(plate.y).toBeGreaterThanOrEqual(kind === 'low' ? 0 : p.box.y + p.box.h - 0.5);
+      expect(plate.y + plate.height).toBeLessThanOrEqual(s.h + 0.5);
+      await first.scrollIntoViewIfNeeded();
+      const r = await first.boundingBox();
+      expect(r && r.y >= plate.y - 0.5 && r.y + r.height <= s.h + 0.5, `first card ${JSON.stringify(r)}`).toBe(true);
+      await press((await first.getAttribute('data-testid')) ?? '');
+      expect(errors).toEqual([]);
+      await ctx.close();
+    });
+  }
+
   test('a failed title download: the menu works, the gradient stays, no error is shown', async ({ browser }) => {
     const { ctx, page, errors } = await open(browser, SIZES[0]);
     await page.route('**/art/real/title/**', (r) => r.abort());

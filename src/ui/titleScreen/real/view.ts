@@ -149,6 +149,10 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     const idx = session.index();
     reduced = displayPrefs().reducedMotion;
     lay = art && idx && input ? realTitleLayout({ ...input, reducedMotion: reduced, framing: art.framing }, idx) : null;
+    // The plate and sheet stop under the name (design E's `--tl-name-bottom`, set by title.ts's `place` in the classic
+    // look): the sign's bottom edge, or the safe top while no sign shows. Without it their max-height is invalid and a
+    // tall view (the scenario list) grows past the window top, out of reach.
+    if (input) el.style.setProperty('--tl-name-bottom', `${lay ? lay.signBox.y + lay.signBox.h : (input.safe?.top ?? 0)}px`);
     if (input) session.want(input.h > input.w ? 'tall' : 'wide');
   };
 
