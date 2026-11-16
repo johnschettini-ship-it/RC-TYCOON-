@@ -66,6 +66,8 @@ const COPIED_REASONS: Readonly<Record<string, Readonly<Record<string, string>>>>
     feeRange: 'Entrance fee must be between $0 and $50',
     feeStep: 'Entrance fee must be in whole dollars',
     parkName: 'Park name must be 1 to 32 characters',
+    colourRange: 'Unknown ride colour',
+    colourTrack: 'Only flat rides can be repainted here',
   },
   land: {
     outsidePark: 'Outside the park',

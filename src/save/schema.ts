@@ -157,6 +157,7 @@ const rideShape = obj<Ride>({
   lastBreakdownTick: int,
   assignedMechanicId: nullable(int),
   totalBuildCost: int,
+  colour: optional(nullable(int)),
 });
 
 const stallShape = obj<Stall>({

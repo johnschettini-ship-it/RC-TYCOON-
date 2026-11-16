@@ -38,6 +38,8 @@ export type PriceCommand =
   | { type: 'setEntranceFee'; fee: Cents }
   | { type: 'setRideOpen'; rideId: EntityId; open: boolean }
   | { type: 'setParkOpen'; open: boolean }
+  /** Flat rides only: a palette index from RIDE_COLOUR_CHOICES, or null for Original. */
+  | { type: 'setRideColour'; rideId: EntityId; colour: number | null }
   | { type: 'renamePark'; name: string };
 
 /** Phase 2 — track rides (owner W1-G). phase-2-coasters.md §6. */

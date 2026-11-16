@@ -121,3 +121,28 @@ describe('round trip', () => {
     expect(stateHash(b)).toBe(stateHash(a));
   });
 });
+
+describe('ride colour', () => {
+  it('a ride colour survives save and load', () => {
+    const world = makeTestWorld();
+    const ride = placeRideDirect(world, 'carousel', 10, 10);
+    ride.colour = 4;
+    const back = load(serialize(world, '0.1.0', SAVED_AT));
+    expect(back.state.rides.find((r) => r.id === ride.id)?.colour).toBe(4);
+  });
+
+  it('a save without ride colours loads as Original', () => {
+    const world = makeTestWorld();
+    const ride = placeRideDirect(world, 'carousel', 10, 10);
+    expect('colour' in ride).toBe(false);
+    const back = load(serialize(world, '0.1.0', SAVED_AT));
+    expect(back.state.rides.find((r) => r.id === ride.id)?.colour ?? null).toBeNull();
+  });
+
+  it('a save with an unknown ride colour is refused', () => {
+    const world = makeTestWorld();
+    const ride = placeRideDirect(world, 'carousel', 10, 10);
+    ride.colour = 5;
+    expect(deserialize(serialize(world, '0.1.0', SAVED_AT)).ok).toBe(false);
+  });
+});
