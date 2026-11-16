@@ -43,6 +43,7 @@ import { CLASSIC_HOLD } from './real/setManager';
 import { createWorldLayers } from './worldLayers';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
+import { titleHolds } from './real/titleHold';
 import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion, restartAutoWarmup } from '../perf/quality';
 import { BUDGET_DESKTOP_FRAME_P95_MS, BUDGET_PHONE_FRAME_P95_MS, GUEST_LOD_ZOOM, REAL_CLASSIC_SPRITE_MB } from '../data/tuning/perf';
 import {
@@ -1254,6 +1255,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
     },
 
     draw(world: World, cam: Camera, tool: ToolState, alpha: number) {
+      // Realistic title screen (Task 2): no park while it covers the window (its sets were released for the title).
+      if (import.meta.env.VITE_ART === 'real' && L && titleHolds()) return;
       perfProbe.renderStart();
       syncDrawCounter();
       spriteMemory.beginFrame();

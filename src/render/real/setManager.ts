@@ -313,6 +313,31 @@ export class SetManager {
     this.roomFrames = 0;
   }
 
+  /**
+   * Frees every set except `keep` (the park closes for the title screen: realistic title Task 2), drawn this frame or
+   * not; queued sets leave the queue, decodes in flight are freed as they land; then every reclaimer runs for all it
+   * holds. Compressed blobs stay (nothing downloads again). The next frames' wants decode the park again.
+   */
+  releaseAll(keep: SetKey[] = []): void {
+    for (const r of this.recs.values()) {
+      if (keep.includes(r.entry.key)) continue;
+      r.wantFrame = NEVER;
+      r.lastUsed = NEVER;
+      if (r.state === 'ready') this.free(r);
+      else if (r.state === 'loading') {
+        if (r.inFlight) r.cancelled = true;
+        else { this.dequeue(r); r.state = 'none'; }
+      }
+    }
+    for (const reclaim of this.reclaimers) {
+      try {
+        reclaim(Number.POSITIVE_INFINITY);
+      } catch (err) {
+        this.onError('reclaim', err);
+      }
+    }
+  }
+
   /** Resident bytes by owner: decoded sets, tint-atlas pages, ground chunks, today's picture caches. */
   split(): MemorySplit {
     let sets = 0;

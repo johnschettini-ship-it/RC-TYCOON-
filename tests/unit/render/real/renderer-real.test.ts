@@ -16,6 +16,7 @@ import { PathItem, tileIndex } from '../../../../src/sim/map';
 import type { World } from '../../../../src/sim/types';
 import { addGuestDirect, placeFootpath, placeRideDirect, placeStallDirect } from '../../../helpers/world';
 import { buildPerfScene } from '../../../perf/scenes';
+import { setTitleHold } from '../../../../src/render/real/titleHold';
 
 beforeAll(() => {
   install();
@@ -279,6 +280,34 @@ describe('renderer with the realistic look (Task 8)', () => {
     const look = fakeLook({ stall: () => { log.push('draw'); return undefined; } }, log);
     render(park(), { look, sets: fakeSets(log) });
     expect(log).toEqual(['begin', 'prepare', 'draw', 'end', 'begin', 'prepare', 'draw', 'end']);
+  });
+
+  it('draws no park while the realistic title covers the window (realistic title Task 2)', () => {
+    const log: string[] = [];
+    const look = fakeLook({ stall: () => { log.push('draw'); return undefined; } }, log);
+    let holds = true;
+    setTitleHold(() => holds);
+    try {
+      const canvas = make(W, H);
+      const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look, sets: fakeSets(log) });
+      r.resize(W, H, 1);
+      const world = park();
+      r.draw(world, camAt(world), defaultToolState(), 0);
+      expect(log).toEqual([]);
+      expect(canvas.draws).toHaveLength(0);
+      holds = false;
+      r.draw(world, camAt(world), defaultToolState(), 0);
+      expect(log).toEqual(['begin', 'prepare', 'draw', 'end']);
+      // Today's look (no realistic look) never holds.
+      holds = true;
+      const plain = make(W, H);
+      const r2 = createCanvasRenderer(plain as unknown as HTMLCanvasElement, {});
+      r2.resize(W, H, 1);
+      r2.draw(world, camAt(world), defaultToolState(), 0);
+      expect(plain.draws.length).toBeGreaterThan(0);
+    } finally {
+      setTitleHold(null);
+    }
   });
 
   it('guests, staff, path items and scenery ask the look', () => {

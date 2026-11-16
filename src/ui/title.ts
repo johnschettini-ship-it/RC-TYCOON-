@@ -34,6 +34,8 @@ import sceneWide from './titleScreen/art/scene-wide.json';
 import sceneTall from './titleScreen/art/scene-tall.json';
 import logoLine from './titleScreen/art/logo-line.json';
 import logoStack from './titleScreen/art/logo-stack.json';
+import { artStyle } from '../render/artStyle';
+import { createRealTitle } from './titleScreen/real/view';
 
 /** Free-play map size the form starts on (see the file comment). */
 export const NEW_PARK_DEFAULT_SIZE = 96;
@@ -220,6 +222,12 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
   const flowSlot = h('div', { class: 'tc-flow' });
   const plate = h('div', { class: 'title-plate', hidden: true }, h('div', { class: 'title-grab', 'aria-hidden': 'true' }), newView, loadView, creditsView, flowSlot);
   const el = h('div', { class: 'title-screen', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId, hidden: true }, safeProbe, veil, logo, main, plate);
+  // The realistic build with the realistic look draws its baked panorama and name sign instead of design E's pixel
+  // pictures (`titleScreen/real/view.ts`); the menu, plate and sheet stay design E's. Folded away in the website build:
+  // `titleScreen/real/{view,load,layout}.ts` and `render/real/titleHold.ts` must stay free of side effects at module
+  // level (no top-level calls, no CSS imports), or the bundler keeps them and the website build is no longer
+  // byte-identical.
+  const realTitle = import.meta.env.VITE_ART === 'real' && artStyle() === 'real' ? createRealTitle(el, logo, sceneLabel, text('ui.title.name')) : null;
 
   // Layout (G1): the numbers of `titleLayout` as custom properties and data attributes; again on every size change.
   let menuH = 0;
@@ -345,7 +353,8 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     menuH = Math.round(main.getBoundingClientRect().height);
     const l = titleLayout({ w, h: height, menuH, safe });
     apply(l);
-    place(l, height);
+    if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.place({ w, h: height, menuH, safe });
+    else place(l, height);
     if (l.menuPlace) snapButtons();
   };
   const resize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => layout());
@@ -452,6 +461,8 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     }
     game.setSpeed(0);
     el.hidden = false;
+    // Realistic title: the park's art is released first, then the title's own decodes.
+    if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.show();
     showView('main');
   }
 
@@ -461,6 +472,8 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     popModal();
     releaseUi();
     el.hidden = true;
+    // Realistic title: its bitmaps are closed before the park draws.
+    if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.hide();
   }
 
   const openAt = (view: TitleView): void => {
