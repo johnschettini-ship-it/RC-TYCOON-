@@ -32,6 +32,8 @@ import { offlineStrings } from './offline';
 import { contentStrings } from './content';
 // Stage 1 realistic test: only the VITE_ART=real build has the benchmark, so only it carries its strings.
 import { realBenchStrings } from './realBench';
+// Realistic card frames: only the VITE_ART=real build marks the cards the park cannot pay for.
+import { realCardsStrings } from './realCards';
 import { fillParams, lookupString } from './resolve';
 
 export const en: Record<string, string> = {
@@ -58,6 +60,7 @@ export const en: Record<string, string> = {
   ...offlineStrings,
   ...contentStrings,
   ...(import.meta.env.VITE_ART === 'real' ? realBenchStrings : {}),
+  ...(import.meta.env.VITE_ART === 'real' ? realCardsStrings : {}),
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {

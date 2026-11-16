@@ -6,7 +6,7 @@
  * Desktop: Enter confirms, Escape cancels.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, scan, showTile, watchErrors } from './helpers';
+import { isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Box {
@@ -192,7 +192,7 @@ test('desktop: Enter confirms a found path, Escape cancels it and stays in the b
 test('390 × 844 at 175% text in en-XA: the found path and its buttons are not clipped', async ({ page }, info) => {
   test.skip(!isPhone(info), 'phone');
   const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-  await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+  await presetSettings(page, doc);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');

@@ -167,3 +167,8 @@
 /* High contrast: today's ink edge and an opaque band. */
 .tc-hc .hand .card:is(.content-card, .tool-card) { border: 3px solid var(--ink); }
 .tc-hc .hand { --rc-band: rgb(14, 16, 30); }
+
+/* Large text: a slimmer band (less padding), so more of the picture shows above it. */
+#ui:not([data-text-scale='100']) .hand .content-card .card-name { padding: 2px 5px 0; }
+#ui:not([data-text-scale='100']) .hand .content-card .card-price-row { padding: 0 5px 3px; }
+#ui:not([data-text-scale='100']) .hand .tool-card .tool-card-label { padding: 2px 4px 3px; }

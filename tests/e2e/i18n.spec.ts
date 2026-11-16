@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
-import { cardOf, openTool, toolControl } from './helpers';
+import { cardOf, openTool, presetSettings, toolControl } from './helpers';
 
 /**
  * Localization (Phase 6 §4.8, §9; master R28). The pseudo-locale `en-XA` accents every letter of every string, so
@@ -14,7 +14,7 @@ interface TcHook {
 /** Store settings with the pseudo-locale before the page loads (the language is picked before any UI is built). */
 async function bootInPseudoLocale(page: Page): Promise<void> {
   const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA' });
-  await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+  await presetSettings(page, doc);
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
 }

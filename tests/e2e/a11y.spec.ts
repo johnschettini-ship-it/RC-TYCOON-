@@ -6,7 +6,7 @@
  * The layout test boots in W4-G's pseudo-locale `en-XA` (Phase 6 §4.8) at 175% text scale.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, isPhone, newPark, openTool, pickCard, scan, watchErrors } from './helpers';
+import { cardOf, isPhone, newPark, openTool, pickCard, presetSettings, scan, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Tc = {
@@ -255,7 +255,7 @@ test.describe('touch targets (Phase 6 §4.7: ≥ 44 × 44 CSS px)', () => {
  */
 async function bootLargePseudo(page: Page): Promise<void> {
   const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-  await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+  await presetSettings(page, doc);
   await page.goto('/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');
 }

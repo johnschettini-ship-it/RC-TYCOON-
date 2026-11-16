@@ -12,7 +12,7 @@ import { TICKS_PER_MONTH } from '../../src/data/tuning/core';
 import { pseudoLocalize } from '../../src/data/strings/en-XA';
 import { SAVE_FORMAT } from '../../src/save/codec';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
-import { isPhone, newPark, openTool, pickCard, setSpeed, showTile, toolControl, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, pickCard, presetSettings, setSpeed, showTile, toolControl, watchErrors } from './helpers';
 
 const tc = <T>(page: Page, f: string): Promise<T> => page.evaluate(`(() => { const g = window.__tc; return ${f}; })()`) as Promise<T>;
 const toolNow = (page: Page): Promise<string> => tc<string>(page, 'g.tool.tool');
@@ -521,7 +521,7 @@ test.describe('the track builder', () => {
 test.describe('phone at text scale 175% (D4)', () => {
   test.beforeEach(async ({ page }) => {
     const doc = serializeSettings({ ...defaultSettings(), textScale: 175 });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
     await newPark(page, 'Large Park');
   });
 
@@ -575,7 +575,7 @@ test.describe('the title on whole px (M8)', () => {
       const watch = watchErrors(page);
       if (scale !== 100) {
         const doc = serializeSettings({ ...defaultSettings(), textScale: scale });
-        await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+        await presetSettings(page, doc);
       }
       await page.setViewportSize({ width: w, height: h });
       for (const save of [false, true]) {
@@ -604,7 +604,7 @@ test.describe('the title on whole px (M8)', () => {
     test.skip(isPhone(info), 'window sizes are set on the desktop project');
     await page.setViewportSize({ width: 845, height: 390 });
     const doc = serializeSettings({ ...defaultSettings(), textScale: 175 });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
     await page.addInitScript((s) => localStorage.setItem('tc.save.1', s), damagedSave('Whole Park'));
     await page.goto('/');
     await expect(page.getByTestId('title-continue')).toBeVisible();

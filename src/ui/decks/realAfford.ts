@@ -1,9 +1,11 @@
 /**
  * Unaffordable ride and stall cards in the realistic build (realistic title and cards, Task 3). A card whose cost is
  * more than the park's cash gets `data-afford="no"`: `src/styles/realCards.css` dims its picture and shows its price in
- * the warning colour. Callers check `import.meta.env.VITE_ART === 'real'` first, so the website build folds the calls
+ * the warning colour, and screen readers hear "Not enough cash" after its name (`aria-description`; the card stays
+ * pressable, not `disabled`). Callers check `import.meta.env.VITE_ART === 'real'` first, so the website build folds the calls
  * and this module away.
  */
+import { text } from '../../data/strings/en';
 import { canAfford } from '../../sim/economy/ledger';
 import type { World } from '../../sim/types';
 import { setAttr } from '../dom';
@@ -21,6 +23,8 @@ export function markAfford(root: ParentNode, world: World): void {
   for (const card of root.querySelectorAll<HTMLElement>('.content-card')) {
     const cost = costOf.get(card);
     if (cost === undefined) continue;
-    setAttr(card, 'data-afford', canAfford(world, cost, { setup: false }) ? null : 'no');
+    const ok = canAfford(world, cost, { setup: false });
+    setAttr(card, 'data-afford', ok ? null : 'no');
+    setAttr(card, 'aria-description', ok ? null : text('ui.card.cantAfford'));
   }
 }

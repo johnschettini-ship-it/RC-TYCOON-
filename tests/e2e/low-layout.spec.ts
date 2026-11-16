@@ -9,7 +9,7 @@
  * - 667 × 375: new park 0.09, hand closed 0.55, Rides deck 0.09, held Carousel 0.23, Finance 0.14, track builder 0.00.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { freeMapShare, isPhone, newPark, openTool, pickCard, scan, showTile, watchErrors } from './helpers';
+import { freeMapShare, isPhone, newPark, openTool, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
@@ -288,7 +288,7 @@ test.describe('low layout (Task 19)', () => {
 
   test('844 × 390 at 175% text with en-XA: no control of the top region, the chips or the hand clips its text; each one can be reached', async ({ page }) => {
     const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
     await page.setViewportSize({ width: 844, height: 390 });
     await page.goto('/');
     await expect(page.locator('html')).toHaveAttribute('lang', 'en-XA');

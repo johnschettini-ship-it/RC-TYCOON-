@@ -223,6 +223,11 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     // Unaffordable.
     await setCash(page, 0);
     await expect(page.locator(sel)).toHaveAttribute('data-afford', 'no');
+    // Screen readers hear it too: a description after the card's name (the name itself is today's); still pressable.
+    await expect(page.locator(sel)).toHaveAttribute('aria-description', 'Not enough cash');
+    await expect(page.locator(sel)).toHaveAccessibleDescription('Not enough cash');
+    await expect(page.locator(sel)).toHaveAccessibleName('Family, Carousel, $1,200');
+    await expect(page.locator(sel)).toBeEnabled();
     await expect.poll(pictureFilter).toMatch(/^grayscale\(0\.7\) brightness\(0\.8\)$/);
     const shortPrice = await price.evaluate((e) => getComputedStyle(e).color);
     expect(shortPrice).not.toBe(normalPrice);
@@ -231,6 +236,7 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     if (!isPhone(test.info())) await page.locator(sel).screenshot({ path: test.info().outputPath('unaffordable.png') });
     await setCash(page, 100_000_00);
     await expect(page.locator(sel)).not.toHaveAttribute('data-afford', 'no');
+    await expect(page.locator(sel)).not.toHaveAttribute('aria-description', /.*/);
     await expect.poll(pictureFilter).toBe('none');
     // Selected (held).
     await pickCard(page, 'flat', 'carousel');
