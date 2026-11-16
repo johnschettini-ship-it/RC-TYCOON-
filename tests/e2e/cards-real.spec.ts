@@ -310,6 +310,37 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     }
   });
 
+  for (const [w, h] of [
+    [390, 844],
+    [360, 640],
+  ] as const) {
+    test(`${w} × ${h}: no tool card name breaks inside a word ("Marketin/g"), normal and large text, high contrast too`, async ({ page }) => {
+      await page.setViewportSize({ width: w, height: h });
+      await newPark(page, 'Word Park');
+      await expectRealLook(page);
+      await toolControl(page, 'marketing');
+      for (const hc of [false, true]) {
+        await page.evaluate((v) => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('highContrast', v), hc);
+        for (const scale of [100, 175] as const) {
+          await textScale(page, scale);
+          await page.evaluate(() => document.fonts.ready.then(() => undefined));
+          // Lines of each label against its words: a word broken across lines gives more lines than words.
+          const broken = await page.evaluate(() =>
+            [...document.querySelectorAll<HTMLElement>('.hand .tool-card-label')]
+              .map((l) => {
+                const r = document.createRange();
+                r.selectNodeContents(l);
+                const lines = new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size;
+                return { name: l.textContent ?? '', lines, words: (l.textContent ?? '').trim().split(/\s+/).length };
+              })
+              .filter((x) => x.lines > x.words),
+          );
+          expect(broken, `${scale}%${hc ? ', high contrast' : ''}`).toEqual([]);
+        }
+      }
+    });
+  }
+
   test('an extension card without a picture shows its icon centred in the frame, no broken image', async ({ page }) => {
     await newPark(page, 'Icon Park');
     await expectRealLook(page);
