@@ -595,3 +595,47 @@ describe('density 2: fewer pictures, the same frames', () => {
     expect(spin).toContain("cycleD2('teacup_twirl', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, TEACUP.d2Step);");
   });
 });
+
+// Ride colour choice (Task 4): each ride bakes a tint mask of its colour part and records the part's designed base
+// colour, so the game can recolour that part at load and keep its shading.
+describe('ride colour part', () => {
+  it('colourPart marks materials; partMask gives the mask of a mesh (whole part, a mask map, or not the part) per material', async () => {
+    const { colourPart, partMask } = await load('items/colourPart.js');
+    const a = { name: 'a' }, b = { name: 'b' }, c = { name: 'c' };
+    const map = { isTexture: true };
+    expect(colourPart(a)).toBe(a);
+    colourPart(b, map);
+    expect(partMask({ material: a })).toBe(true);
+    expect(partMask({ material: b })).toEqual({ map });
+    expect(partMask({ material: c })).toBe(false);
+    expect(partMask({ material: [c, a, b] })).toEqual([false, true, { map }]);
+    // a clone is its own material: marking is never inherited (a part's material cloned for another part stays out)
+    const d = { ...a };
+    expect(partMask({ material: d })).toBe(false);
+  });
+  it('checkRideColour: a ride bakes with a mask and a #rrggbb base colour; other kinds need neither', async () => {
+    const { checkRideColour, partMask } = await load('items/colourPart.js');
+    expect(() => checkRideColour('ride', 'x', { masked: partMask, baseColour: '#a8232b' })).not.toThrow();
+    expect(() => checkRideColour('ride', 'x', { baseColour: '#a8232b' })).toThrow(/x: a ride bakes a tint mask of its colour part/);
+    expect(() => checkRideColour('ride', 'x', { masked: partMask })).toThrow(/x: base colour/);
+    expect(() => checkRideColour('ride', 'x', { masked: partMask, baseColour: 'red' })).toThrow(/x: base colour/);
+    expect(() => checkRideColour('stall', 'x', {})).not.toThrow();
+  });
+  for (const { id } of FLAT_RIDES) {
+    it(`${id}: names its colour part in its header and bakes its mask and base colour (a colour it is designed with)`, () => {
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      const header = src.slice(0, src.indexOf('\nimport '));
+      expect(header, id).toMatch(/^\/\/ Colour part: \S.*; base #[0-9a-f]{6}\.?$/m);
+      const call = src.slice(src.indexOf('bakeObject(d2Api(B, pictures), {') >= 0 ? src.indexOf('bakeObject(d2Api(B, pictures), {') : src.indexOf('bakeObject(B, {'));
+      expect(call, id).toMatch(/^bakeObject\([^\n]*masked: partMask, baseColour: BASE_COLOUR[ ,}]/);
+      const base = /^const BASE_COLOUR = '(#[0-9a-f]{6})';/m.exec(src)?.[1];
+      expect(base, `${id}: const BASE_COLOUR`).toBeDefined();
+      expect(header).toContain(`base ${base}`);
+      // the base colour is a colour the ride is built with: in the module itself or the shared kit it builds from
+      const shared = ['kit.js', 'rides.js'].map((f) => readFileSync(new URL(f, dir), 'utf8')).join('\n');
+      const uses = src.split(base!).length - 1;
+      expect(uses >= 3 || shared.includes(`'${base}'`), `${id}: ${base} is not one of its designed colours`).toBe(true);
+      expect(src, id).toMatch(/colourPart\(/);
+    });
+  }
+});

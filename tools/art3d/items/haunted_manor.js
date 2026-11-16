@@ -6,11 +6,14 @@
 // friendly sheet ghost bobbing by the tower. Spooky but family-friendly: no gore, nothing that hurts. No riders.
 // Light change in 4 steps (arenaKeys.manorKeys, repeating every 8 angle slots): windows flicker, the lanterns
 // glow brighter and dimmer, and the ghost bobs and sways. Front at +z: rots [0, 1, 2, 3].
-import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
+// Colour part: the front door (controller ruling: today's look has no shutters, so both looks colour the door alone); base #3b2a24.
+import { THREE, placeOnFootprint, bakeObject, kit, colourPart, partMask } from './common.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { painted, glow, slab, canvasTex, hash01 } from './arenaKit.js';
 import { manorKeys, LIGHT_STEPS, GATE_X } from './arenaKeys.js';
 
+/** The front door's dark brown: a chosen colour lights it to that colour, keeping its shading. */
+const BASE_COLOUR = '#3b2a24';
 const HX = 5.4; // house half-width
 const Z0 = -4.6, Z1 = 2.4; // house depth
 const FLOOR = 3.2; // storey height
@@ -194,7 +197,7 @@ function build() {
   const dg = M(new THREE.ShapeGeometry(arch, 16), doorGlow);
   dg.position.set(GX, 0.6, Z1 + 0.02);
   house.add(dg);
-  const door = M(new THREE.ExtrudeGeometry(arch, { depth: 0.06, bevelEnabled: false }), std({ color: '#3b2a24', roughness: 0.7 }));
+  const door = M(new THREE.ExtrudeGeometry(arch, { depth: 0.06, bevelEnabled: false }), colourPart(std({ color: '#3b2a24', roughness: 0.7 })));
   door.scale.set(0.5, 1, 1); door.position.set(GX - 0.33, 0.6, Z1 + 0.05); door.rotation.y = -0.6; // ajar
   house.add(door);
   // round tower at the back right with a witch's-hat roof and a weather vane
@@ -266,6 +269,6 @@ export default {
     const m = build();
     const pictures = [...manorKeys().entries()].map(([id, g]) => ({ keys: g.keys, pose: () => m.pose(Number(id.slice(1))) }));
     B.log(`haunted_manor: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'haunted_manor', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(B, { kind: 'ride', item: 'haunted_manor', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

@@ -4,7 +4,8 @@
 // stand above the roof (today's look). No riders. Light change in 4 steps (arenaKeys.mirrorKeys, repeating every 8
 // angle slots): the crystal turns 22.5 degrees a step (it repeats every 90), the marquee bulbs chase, and a bright
 // sheen walks across the mirror panels. Front at +z: rots [0, 1, 2, 3].
-import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
+// Colour part: the roof, its dark membrane inside the parapet (the skylight strips, cream parapet and violet frieze keep theirs); base #3d4048.
+import { THREE, placeOnFootprint, bakeObject, kit, colourPart, partMask } from './common.js';
 import { M, V, rod, std } from '../kit.js';
 import { signMat } from '../rides.js';
 import { painted, glow, slab, bulbs, canvasTex, hash01 } from './arenaKit.js';
@@ -12,6 +13,8 @@ import { mirrorKeys, LIGHT_STEPS, GATE_X } from './arenaKeys.js';
 
 const GX = GATE_X.mirror_maze; // the entrance gate column (x = 0 for a 3-wide footprint)
 
+/** The roof membrane's dark grey: a chosen colour lights it to that colour, keeping its shading. */
+const BASE_COLOUR = '#3d4048';
 const HX = 4.9; // building half-width
 const Z0 = -4.9, Z1 = 3.6; // building depth (forecourt in front)
 const WALL = 4.4;
@@ -88,7 +91,7 @@ function build() {
     root.add(slab(t, 0.4, D, cream, W / 2 - t / 2, y, cz)); root.add(slab(t, 0.4, D, cream, -W / 2 + t / 2, y, cz)); }
   // roof: dark membrane inside the parapet, skylight strips tracing a maze
   const roofY = y0 + WALL + 0.16;
-  root.add(slab(HX * 2 - 0.3, 0.05, Z1 - Z0 - 0.3, std({ color: '#3d4048', roughness: 0.9 }), 0, roofY, (Z0 + Z1) / 2));
+  root.add(slab(HX * 2 - 0.3, 0.05, Z1 - Z0 - 0.3, colourPart(std({ color: '#3d4048', roughness: 0.9 })), 0, roofY, (Z0 + Z1) / 2));
   const sky = new THREE.MeshPhysicalMaterial({ color: '#7fb4d6', metalness: 0.2, roughness: 0.08, emissive: '#5e8fd0', emissiveIntensity: 0.25, clearcoat: 1 });
   const n = 6, cw = (HX * 2 - 1.2) / n, cd = (Z1 - Z0 - 1.2) / n;
   const gx = (i) => -HX + 0.6 + i * cw, gz = (j) => Z0 + 0.6 + j * cd;
@@ -155,6 +158,6 @@ export default {
     const m = build();
     const pictures = [...mirrorKeys().entries()].map(([id, g]) => ({ keys: g.keys, pose: () => m.pose(Number(id.slice(1))) }));
     B.log(`mirror_maze: ${pictures.length} pictures per rotation`);
-    bakeObject(B, { kind: 'ride', item: 'mirror_maze', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(B, { kind: 'ride', item: 'mirror_maze', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

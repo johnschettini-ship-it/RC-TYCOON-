@@ -5,7 +5,8 @@
 // Lightning-bolt signs on masts at both ends. Steps climb to the platform at the gate column (arenaKeys.GATE_X):
 // entrance at the front (+z), exit at the back. Frames: arenaKeys.thunderKeys (16 time steps per cycle, 2 per
 // picture; the empty ride is one rest picture at the bottom). The track runs along x: rots [0, 1, 2, 3].
-import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
+// Colour part: the disc, its orange plate and its twelve red and yellow seats (darker and lighter shades of the chosen colour; the crown keeps its colours); base #ee7a22.
+import { THREE, placeOnFootprint, bakeObject, kit, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -14,6 +15,12 @@ import { thunderKeys, THUNDER_PICS, stepOf, GATE_X } from './arenaKeys.js';
 
 const GX = GATE_X.thunder_disc; // entrance and exit column centre
 
+/**
+ * The disc's orange plate (the ride's other orange is another copy and keeps its own). The seats on it are most of what
+ * shows of the disc (a first mask of the plate alone covered 1% of the picture), so they are part of it: red #d7322b
+ * (luma 85) and yellow #f2c230 (194) about the plate's 140, a darker and a lighter shade of the chosen colour.
+ */
+const BASE_COLOUR = '#ee7a22';
 const END = 6.6; // track half-length (today: 1.65 tiles)
 const RISE = 6.9; // track rise from the middle to the ends
 const BASE_Y = 1.15; // track surface at the middle
@@ -118,7 +125,7 @@ function build() {
   const spin = new THREE.Group();
   spin.position.y = 0.85;
   disc.add(spin);
-  spin.add(M(new THREE.CylinderGeometry(DISC_R, DISC_R - 0.1, 0.22, 48), orange));
+  spin.add(M(new THREE.CylinderGeometry(DISC_R, DISC_R - 0.1, 0.22, 48), colourPart(orange.clone()))); // '#ee7a22'
   spin.add(M(new THREE.CylinderGeometry(DISC_R - 0.15, DISC_R - 0.15, 0.03, 48), std({ color: '#3a3d42', roughness: 0.8 })).translateY(0.12));
   spin.add(M(new THREE.TorusGeometry(DISC_R, 0.06, 8, 64), yellow).rotateX(Math.PI / 2).translateZ(-0.05));
   // centre crown: a drum with bulbs and a lightning finial
@@ -130,7 +137,7 @@ function build() {
   const fin = M(boltGeo, boltMat);
   fin.scale.setScalar(0.45); fin.position.set(0, 1.85, -0.03);
   spin.add(fin);
-  const seatMats = [gloss('#d7322b'), gloss('#f2c230')];
+  const seatMats = [colourPart(gloss('#d7322b')), colourPart(gloss('#f2c230'))];
   const looks = Array.from({ length: SEATS }, (_, i) => randomLook(930 + i * 5, { balloon: null, backpack: null, bag: null, child: false }));
   const riders = [];
   for (let i = 0; i < SEATS; i++) {
@@ -176,6 +183,6 @@ export default {
       return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(s.t, s.full) };
     });
     B.log(`thunder_disc: ${pictures.length} pictures per rotation`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'thunder_disc', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'thunder_disc', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };
