@@ -4,6 +4,7 @@ import { setStepPx, STEP_PX } from '../../../../src/render/heightStep';
 import { REAL_STEP_PX } from '../../../../src/render/artStyle';
 import { perfProbe } from '../../../../src/perf/stats';
 import { text } from '../../../../src/data/strings';
+import { releasePark, setParkRelease } from '../../../../src/render/real/titleHold';
 
 afterEach(() => {
   setStepPx(8);
@@ -56,6 +57,31 @@ describe('realistic boot', () => {
     expect(STEP_PX).toBe(REAL_STEP_PX);
     expect(perfProbe.realMemory?.()).toEqual([0, 0]);
     expect(REAL_DECODE_BUDGET_BYTES).toBe(128 * 1024 * 1024);
+  });
+
+  it('gives the title the park\'s release: every set and the ground\'s chunks (realistic title Task 2)', async () => {
+    setParkRelease(null);
+    const decode = async (): Promise<{ image: CanvasImageSource; bytes: number; close: () => void }> => ({ image: {} as CanvasImageSource, bytes: 64, close });
+    const close = vi.fn();
+    const r = await bootReal({
+      fetch: async (u) => (u.endsWith('index.json') ? new Response(JSON.stringify(index), { status: 200 }) : new Response(new Blob(['x']), { status: 200 })),
+      decode,
+      show: () => { throw new Error('no error expected'); },
+      storage: null,
+    });
+    const sets = r?.sets as unknown as { beginFrame(f: number): void; want(k: string[], p: string): void; endFrame(): void; state(k: string): string; residentBytes(): number };
+    sets.beginFrame(1);
+    sets.want(['ground:grass:d2:rall'], 'now');
+    sets.endFrame();
+    for (let i = 0; i < 50 && sets.state('ground:grass:d2:rall') !== 'ready'; i++) await new Promise((res) => setTimeout(res, 0));
+    expect(sets.state('ground:grass:d2:rall')).toBe('ready');
+    const dispose = vi.spyOn(r?.ground as unknown as { dispose(): void }, 'dispose');
+    releasePark();
+    expect(sets.state('ground:grass:d2:rall')).toBe('none');
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(sets.residentBytes()).toBe(0);
+    setParkRelease(null);
   });
 });
 

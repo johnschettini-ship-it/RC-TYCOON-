@@ -678,3 +678,33 @@ describe('room beside the outgoing sets (final review minor 1)', () => {
     expect(await run(true)).toBe(600);
   });
 });
+
+describe('SetManager.releaseAll (returning to the title, realistic title Task 2)', () => {
+  it('frees every set but the kept ones, even ones drawn this frame, cancels decodes and runs the reclaimers in full', async () => {
+    const [A, B, C, K] = [entry('a', 2), entry('b', 2), entry('c', 2), entry('k', 2)];
+    const { io, m } = setup([A, B, C, K], 128 * 2 ** 20);
+    m.beginFrame(1); m.want([A.key, B.key, K.key], 'now'); m.endFrame();
+    await io.settleAll();
+    m.beginFrame(2); m.use(A.key); m.want([A.key, B.key, K.key, C.key], 'now'); m.endFrame();
+    await flush();
+    expect(io.inFlight()).toEqual([file(C)]);
+    m.hold('tint:0', 50);
+    const asked: number[] = [];
+    m.addReclaimer((n) => { asked.push(n); m.hold('tint:0', 0); return 50; });
+    m.releaseAll([K.key]);
+    expect(m.state(A.key)).toBe('none');
+    expect(m.state(B.key)).toBe('none');
+    expect(m.state(K.key)).toBe('ready');
+    expect(asked).toEqual([Number.POSITIVE_INFINITY]);
+    expect(io.closed.sort()).toEqual([file(A), file(B)].sort());
+    // The decode in flight lands after the release: freed at once, never ready.
+    await io.settle(file(C));
+    expect(m.state(C.key)).toBe('none');
+    expect(io.closed).toContain(file(C));
+    expect(m.residentBytes()).toBe(SHEET_BYTES);
+    // The park comes back: its sets decode again.
+    m.beginFrame(3); m.want([A.key], 'now'); m.endFrame();
+    await io.settleAll();
+    expect(m.state(A.key)).toBe('ready');
+  });
+});
