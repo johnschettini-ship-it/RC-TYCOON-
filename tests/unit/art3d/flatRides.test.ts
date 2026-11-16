@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES, getFlatRideDef } from '../../../src/data/catalog';
 import { gateIndex } from '../../../src/data/catalog/flatRides';
-import { coarseRideFrame, decodeRideFrame, rideAnimation, rideFrameFor } from '../../../src/render/anim';
+import { coarseRideFrame, decodeRideFrame, encodeRideFrame, rideAnimation, rideFrameFor } from '../../../src/render/anim';
+import { frameKey } from '../../../src/render/real/indexFormat';
 import type { Ride } from '../../../src/sim/rides/types';
 import { d2FloorOk, keyAt, keysAt, periodOk, pictureOf, type Keys } from './frameHelpers';
 
@@ -468,7 +469,7 @@ describe('density 2: fewer pictures, the same frames', () => {
   }
   /** Density-2 step in angle slots per ride (carousel: see its own test) and the pictures each density holds. */
   const PLAN: Record<string, { step: number; d4: number; d2: number; walkThrough?: boolean }> = {
-    swing_tower: { step: 2, d4: 20, d2: 11 }, big_wheel: { step: 2, d4: 8, d2: 5 },
+    swing_tower: { step: 2, d4: 11, d2: 11 }, big_wheel: { step: 2, d4: 8, d2: 5 },
     observation_tower: { step: 4, d4: 10, d2: 6 }, drop_tower: { step: 4, d4: 12, d2: 8 },
     gyro_globe: { step: 2, d4: 17, d2: 17 }, spiral_slide: { step: 4, d4: 9, d2: 5 },
     pendulum_ship: { step: 2, d4: 14, d2: 8 }, magic_carpet: { step: 4, d4: 16, d2: 9 }, flip_arm: { step: 4, d4: 16, d2: 9 },
@@ -565,6 +566,17 @@ describe('density 2: fewer pictures, the same frames', () => {
     }
   });
 
+  it('swing_tower (fix round 1): an empty frame shows the rest picture at density 4 too, as the towers do, so a turn fits 32 MiB', async () => {
+    const { swingTowerKeys } = await load('items/flatRides.js');
+    const m: Keys = swingTowerKeys(4);
+    for (const s of [0, 1, 2, 3, 4]) for (let a = 0; a < 32; a++) {
+      const key = frameKey(['swing_tower', `f${encodeRideFrame(a, s, 0)}`, 'occ0']);
+      for (const d of [2, 4] as const) expect(pictureOf(m, key, d), `swing ${s} slot ${a} d${d}`).toBe('0:0:0');
+      const full = frameKey(['swing_tower', `f${encodeRideFrame(a, s, 0)}`, 'occ1']);
+      expect(pictureOf(m, full, 4), `full swing ${s} slot ${a}`).toBe(`${(a & ~1) % 4}:${s}:1`);
+    }
+  });
+
   it('an empty flat ride never runs in the game, so its density-2 rest picture is all an empty frame needs', async () => {
     const { makeTestWorld, placeRideDirect } = await import('../../helpers/world');
     const { updateFlatRides } = await import('../../../src/sim/rides/flat/update');
@@ -594,4 +606,61 @@ describe('density 2: fewer pictures, the same frames', () => {
     const spin = readFileSync(new URL('items/teacup_twirl.js', dir), 'utf8');
     expect(spin).toContain("cycleD2('teacup_twirl', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, TEACUP.d2Step);");
   });
+});
+
+// Ride colour choice (Task 4): each ride bakes a tint mask of its colour part and records the part's designed base
+// colour, so the game can recolour that part at load and keep its shading.
+describe('ride colour part', () => {
+  it('colourPart marks materials; partMask gives the mask of a mesh (whole part, a mask map, or not the part) per material', async () => {
+    const { colourPart, partMask } = await load('items/colourPart.js');
+    const a = { name: 'a' }, b = { name: 'b' }, c = { name: 'c' };
+    const map = { isTexture: true };
+    expect(colourPart(a)).toBe(a);
+    colourPart(b, map);
+    expect(partMask({ material: a })).toBe(true);
+    expect(partMask({ material: b })).toEqual({ map });
+    expect(partMask({ material: c })).toBe(false);
+    expect(partMask({ material: [c, a, b] })).toEqual([false, true, { map }]);
+    // a clone is its own material: marking is never inherited (a part's material cloned for another part stays out)
+    const d = { ...a };
+    expect(partMask({ material: d })).toBe(false);
+  });
+  it('colourMesh marks one mesh whatever its material (a shared material stays shared, no clone)', async () => {
+    const { colourMesh, partMask } = await load('items/colourPart.js');
+    const shared = { name: 'red' };
+    const part = colourMesh({ material: shared });
+    expect(partMask(part)).toBe(true);
+    expect(partMask({ material: shared })).toBe(false);
+  });
+  it('ride modules mark shared paint by mesh, not by a cloned material (a clone reorders the draw; fix round 1)', () => {
+    for (const { id } of FLAT_RIDES) {
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      expect(src, id).not.toMatch(/colourPart\([^)]*\.clone\(\)/);
+    }
+  });
+  it('checkRideColour: a ride bakes with a mask and a #rrggbb base colour; other kinds need neither', async () => {
+    const { checkRideColour, partMask } = await load('items/colourPart.js');
+    expect(() => checkRideColour('ride', 'x', { masked: partMask, baseColour: '#a8232b' })).not.toThrow();
+    expect(() => checkRideColour('ride', 'x', { baseColour: '#a8232b' })).toThrow(/x: a ride bakes a tint mask of its colour part/);
+    expect(() => checkRideColour('ride', 'x', { masked: partMask })).toThrow(/x: base colour/);
+    expect(() => checkRideColour('ride', 'x', { masked: partMask, baseColour: 'red' })).toThrow(/x: base colour/);
+    expect(() => checkRideColour('stall', 'x', {})).not.toThrow();
+  });
+  for (const { id } of FLAT_RIDES) {
+    it(`${id}: names its colour part in its header and bakes its mask and base colour (a colour it is designed with)`, () => {
+      const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
+      const header = src.slice(0, src.indexOf('\nimport '));
+      expect(header, id).toMatch(/^\/\/ Colour part: \S.*; base #[0-9a-f]{6}\.?$/m);
+      const call = src.slice(src.indexOf('bakeObject(d2Api(B, pictures), {') >= 0 ? src.indexOf('bakeObject(d2Api(B, pictures), {') : src.indexOf('bakeObject(B, {'));
+      expect(call, id).toMatch(/^bakeObject\([^\n]*masked: partMask, baseColour: BASE_COLOUR[ ,}]/);
+      const base = /^const BASE_COLOUR = '(#[0-9a-f]{6})';/m.exec(src)?.[1];
+      expect(base, `${id}: const BASE_COLOUR`).toBeDefined();
+      expect(header).toContain(`base ${base}`);
+      // the base colour is a colour the ride is built with: in the module itself or the shared kit it builds from
+      const shared = ['kit.js', 'rides.js'].map((f) => readFileSync(new URL(f, dir), 'utf8')).join('\n');
+      const uses = src.split(base!).length - 1;
+      expect(uses >= 3 || shared.includes(`'${base}'`), `${id}: ${base} is not one of its designed colours`).toBe(true);
+      expect(src, id).toMatch(/colour(Part|Mesh)\(/);
+    });
+  }
 });

@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ASSUMED_MEAN_BYTES, S5_LIMIT_BYTES, catalogueEntries, sizeReport, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
+import { ASSUMED_MEAN_BYTES, BIG_RIDES, S5_LIMIT_BYTES, catalogueEntries, rideSizeRows, sizeReport, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
 import type { RealIndex, RealKind, RealSetEntry } from '../../../src/render/real/indexFormat';
 
 function set(kind: RealKind, item: string, density: 2 | 4, rot: RealSetEntry['rot'], file: string, w = 10, h = 10): RealSetEntry {
@@ -75,6 +75,49 @@ describe('sizeReport', () => {
     expect(sizeReport(idx2, new Map([['a.webp', 100], ['a.mask.webp', 40]]), cat('ride', 'a')).totalCompressed).toBe(140);
   });
 
+  it('decoded per turn: resident counts the sheets only (a mask is decoded only during a tint), transient adds the masks', () => {
+    const sh = { file: 'a.webp', w: 10, h: 10, mask: 'a.mask.webp' };
+    const idx = index([{ ...set('ride', 'a', 4, 0, 'a.webp'), sheets: [sh, { file: 'a.mask.webp', w: 10, h: 10 }] }]);
+    const r = sizeReport(idx, new Map([['a.webp', 100], ['a.mask.webp', 40]]), cat('ride', 'a'));
+    const a = r.perItem.find((p) => p.id === 'a')!;
+    expect(a.kind).toBe('ride');
+    expect(a.residentPerTurn).toEqual({ d2: 0, d4: 400 });
+    expect(a.decodedPerTurn).toEqual({ d2: 0, d4: 800 });
+  });
+
+  describe('flat ride size rules (with tint masks)', () => {
+    const MiB = 1024 * 1024;
+    /** One ride at d4, turn 0: a sheet of `px` pixels and its mask, `bytes` compressed in all. */
+    const ride = (id: string, bytes: number, px: number): { sets: RealSetEntry[]; files: [string, number][] } => {
+      const sh = { file: `${id}.webp`, w: px, h: 1, mask: `${id}-mask.webp` };
+      return { sets: [{ ...set('ride', id, 4, 0, `${id}.webp`), sheets: [sh, { file: `${id}-mask.webp`, w: px, h: 1 }] }, set('shadow', id, 4, 0, `${id}-s.webp`)], files: [[`${id}.webp`, bytes - 1000], [`${id}-mask.webp`, 1000], [`${id}-s.webp`, 5_000_000]] };
+    };
+    const rows = (...rs: ReturnType<typeof ride>[]) => {
+      const idx = index(rs.flatMap((r) => r.sets));
+      const ids = rs.map((r) => r.sets[0]!.item);
+      return rideSizeRows(sizeReport(idx, new Map(rs.flatMap((r) => r.files)), cat('ride', ...ids)), ids);
+    };
+    it('compressed (sheets and masks, not the shadow) at most 2.5 MB; 4 MB for bumper_cars, pendulum_ship, magic_carpet, thunder_disc', () => {
+      expect(BIG_RIDES).toEqual(['bumper_cars', 'pendulum_ship', 'magic_carpet', 'thunder_disc']);
+      const r = rows(ride('carousel', 2_500_000, 10), ride('big_wheel', 2_500_001, 10), ride('bumper_cars', 4_000_000, 10), ride('thunder_disc', 4_000_001, 10));
+      expect(r.map((x) => [x.id, x.compressed, x.limit, x.problems.length])).toEqual([
+        ['carousel', 2_500_000, 2_500_000, 0], ['big_wheel', 2_500_001, 2_500_000, 1], ['bumper_cars', 4_000_000, 4_000_000, 0], ['thunder_disc', 4_000_001, 4_000_000, 1],
+      ]);
+      expect(r[1]!.problems[0]).toBe('big_wheel: 2.50 MB compressed, over 2.50 MB');
+    });
+    it('decoded per turn at density 4 at most 32 MiB for the resident sheets; the transient (with masks) is reported', () => {
+      const px = (32 * MiB) / 4;
+      const r = rows(ride('carousel', 1000 + 1, px), ride('big_wheel', 1000 + 1, px + 1));
+      expect(r[0]).toMatchObject({ residentD4: 32 * MiB, transientD4: 64 * MiB, problems: [] });
+      expect(r[1]!.problems).toEqual(['big_wheel: 32.00 MiB decoded per turn at density 4, over 32.00 MiB']);
+    });
+    it('a ride with no baked sets is a problem; no ride is exempt (swing_tower holds the rule since fix round 1)', () => {
+      expect(rideSizeRows(sizeReport(index([]), new Map(), cat('ride', 'x')), ['x'])[0]!.problems).toEqual(['x: not baked']);
+      const big = rows(ride('swing_tower', 10_000_000, (40 * MiB) / 4))[0]!;
+      expect(big.problems).toEqual(['swing_tower: 10.00 MB compressed, over 2.50 MB', 'swing_tower: 40.00 MiB decoded per turn at density 4, over 32.00 MiB']);
+    });
+  });
+
   it('throws when an id is in two kinds', () => {
     expect(() => sizeReport(index([]), new Map(), [...cat('ride', 'x'), ...cat('stall', 'x')])).toThrow(/two kinds/);
   });
@@ -90,7 +133,10 @@ describe('sizeReport', () => {
       writeFileSync(join(dir, 'a.webp'), Buffer.alloc(bytes));
       writeFileSync(join(dir, 's.webp'), Buffer.alloc(100));
       // with its shadow sets: the index check wants every ride's shadow
-      writeFileSync(join(dir, 'index.json'), JSON.stringify(index([set('ride', 'carousel', 2, 'all', 'a.webp'), set('ride', 'carousel', 4, 'all', 'a.webp'), set('shadow', 'carousel', 2, 'all', 's.webp'), set('shadow', 'carousel', 4, 'all', 's.webp')])));
+      writeFileSync(join(dir, 'm.webp'), Buffer.alloc(100));
+      // a ride set carries its tint mask and base colour (ride colour choice)
+      const masked = (d: 2 | 4): RealSetEntry => ({ ...set('ride', 'carousel', d, 'all', 'a.webp'), baseColour: '#a8232b', sheets: [{ file: 'a.webp', w: 10, h: 10, mask: 'm.webp' }, { file: 'm.webp', w: 10, h: 10 }] });
+      writeFileSync(join(dir, 'index.json'), JSON.stringify(index([masked(2), masked(4), set('shadow', 'carousel', 2, 'all', 's.webp'), set('shadow', 'carousel', 4, 'all', 's.webp')])));
       return spawnSync('npx', ['tsx', 'tools/art3d/checkIndexCli.ts', dir], { encoding: 'utf8' }).status ?? -1;
     };
     expect(run(10_000_000)).toBe(1); // 10 MB x 18 rides is over 150 MB

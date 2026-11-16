@@ -14,8 +14,9 @@ import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
 import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
 import { previewPieces } from '../../src/render/track/preview';
 import { paletteColour } from '../../src/render/track/colours';
+import { repackPng } from './pngRepack';
 
-export { itemSpec, contentHash, checkIndex, titleDecoded, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES };
+export { itemSpec, contentHash, checkIndex, titleDecoded, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES, repackPng };
 export type { ItemKind };
 
 /** Per piece and heading (0-3): rail samples and the piece's tiles, for a piece entering tile (0, 0) at height 0. */

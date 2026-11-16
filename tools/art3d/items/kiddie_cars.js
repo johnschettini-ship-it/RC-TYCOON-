@@ -5,7 +5,8 @@
 // riders copied the same way), so the state at a + 1/2 is the state at a turned 180 degrees: period 16 angle slots,
 // 8 pictures per occupancy. Round, static parts 90-degree symmetric (16 canopy stripes in a 4-colour cycle, 16
 // pennants, 64 pickets, 8 lane dashes): one set serves every view turn.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the six cars' painted bodies and wings (white bus roofs and trim keep theirs), all three designed colours; the others become lighter or darker shades of the chosen colour; base #3d9be0.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -19,6 +20,11 @@ const ROAD_IN = 2.85;
 const ROAD_OUT = 4.95;
 const LANE = KIDDIE.lane; // vehicle centres
 const ROAD_Y = 0.4;
+/**
+ * The cars' colours: red #e8503a, blue, yellow #f5d03b. The base is the blue, of middle lightness (luma 140 of 111,
+ * 205), so a chosen colour keeps the cars as shades of it (0.8x to 1.5x).
+ */
+const BASE_COLOUR = '#3d9be0';
 
 const paint = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.3, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1 });
 const box = (w, h, d, mat, x, y, z) => M(new THREE.BoxGeometry(w, h, d), mat).translateX(x).translateY(y).translateZ(z);
@@ -34,7 +40,7 @@ function ringMesh(r0, r1, y, mat, seg = 96, start = 0, len = TAU) {
 function vehicle(K, kind, color, looks) {
   const { mat } = K;
   const g = new THREE.Group();
-  const body = paint(color);
+  const body = colourPart(paint(color));
   const white = paint('#f4f2ec');
   const chrome = mat.stainless;
   const tyre = std({ color: '#1e1f22', roughness: 0.85 });
@@ -226,6 +232,6 @@ export default {
     cycleD2('kiddie_cars', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, KIDDIE.d2Step);
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`kiddie_cars: ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'kiddie_cars', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'kiddie_cars', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

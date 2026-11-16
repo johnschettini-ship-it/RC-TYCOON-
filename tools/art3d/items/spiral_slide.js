@@ -7,7 +7,8 @@
 // the picture repeats every half turn (period 16 angle slots, 8 pictures; towerMotion.js), and the game's 2 turns
 // per run (REVOLUTIONS default) end where they started. Empty, the ride is at rest (the game runs a ride only with riders): one picture. Front (door, run-out):
 // one set per view turn.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the chute, its violet outer shell (the blue-and-white lining matches the tower bands and keeps its colours); base #6d47b8.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import * as T from '../textures.js';
@@ -23,6 +24,8 @@ const RR = 2.75; // slide centreline radius
 const TURNS = 2.25;
 const Y_START = 9.75;
 const Y_END = 0.95;
+/** The chute shell's violet (the hut is a separate copy of it and keeps its colour). */
+const BASE_COLOUR = '#6d47b8';
 
 function build() {
   const K = kit();
@@ -92,7 +95,7 @@ function build() {
   const lining = std({ map: rep(bandsTex, 1, 1), roughness: 0.3, side: THREE.DoubleSide });
   const inner = [[[-0.6, 0.4], [-0.58, 0.06], [-0.44, -0.04], [0.44, -0.04], [0.58, 0.06], [0.6, 0.4]]];
   root.add(sweep(F, inner, lining, { uvLen: 16 }));
-  root.add(sweep(F, [[[0.6, 0.4], [0.68, 0.36], [0.69, -0.14], [-0.69, -0.14], [-0.68, 0.36], [-0.6, 0.4]]], violet));
+  root.add(sweep(F, [[[0.6, 0.4], [0.68, 0.36], [0.69, -0.14], [-0.69, -0.14], [-0.68, 0.36], [-0.6, 0.4]]], colourPart(violet)));
   // brackets from under the chute to the tower, and legs under the run-out
   for (let i = 10; i < F.NS - 20; i += 9) {
     const p = F.P[i];
@@ -139,6 +142,6 @@ export default {
     const groups = towerKeys('spiral_slide');
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle, g.full) }));
     B.log(`spiral_slide: ${pictures.length} pictures per rotation`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'spiral_slide', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'spiral_slide', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

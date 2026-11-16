@@ -5,7 +5,7 @@ export type RealKind =
   /** Card pictures: one set `preview:cards:d2:rall`, frames keyed by item id (src/render/real/cards.ts). */
   | 'preview';
 
-/** `${kind}:${item}:d${density}:r${rot|'all'}` */
+/** `${kind}:${item}:d${density}:r${rot|'all'}`, plus `:c<colour>` for a ride set in a chosen colour (`setKey`). */
 export type SetKey = string;
 
 /**
@@ -20,8 +20,17 @@ export interface RealSetEntry {
   item: string;
   density: 2 | 4;
   rot: 0 | 1 | 2 | 3 | 'all';
+  /**
+   * `mask`: the sheet's tint mask (same size; red channel = how much of the colour each pixel takes). Every ride sheet
+   * has one: its colour part (ride colour choice), white on the part, black elsewhere, soft only at edges.
+   */
   sheets: { file: string; w: number; h: number; mask?: string }[];
   frames: Record<string, RealFrame>;
+  /**
+   * Rides: the designed colour (`#rrggbb`) of the ride's colour part, the part its masks cover. A chosen colour maps
+   * this colour to the target and keeps each pixel's shading relative to it. Same for every set of the ride.
+   */
+  baseColour?: string;
 }
 
 export interface RealIndex {
@@ -34,8 +43,25 @@ export interface RealIndex {
   bytes: { compressed: number; decodedByDensity: Record<'2' | '4', number> };
 }
 
-export function setKey(kind: RealKind, item: string, density: 2 | 4, rot: 0 | 1 | 2 | 3 | 'all'): SetKey {
-  return `${kind}:${item}:d${density}:r${rot}`;
+/**
+ * A set's key. `colour` (a ride colour, a `TRACK_PALETTE` index; ride colours Task 5) names the coloured copy of the
+ * ride's set: its own set, made at load from the Original entry's sheets and masks (`SetManager`); the index lists
+ * only Original keys.
+ */
+export function setKey(kind: RealKind, item: string, density: 2 | 4, rot: 0 | 1 | 2 | 3 | 'all', colour?: number | null): SetKey {
+  const k = `${kind}:${item}:d${density}:r${rot}`;
+  return colour === undefined || colour === null ? k : `${k}:c${colour}`;
+}
+
+/** The coloured copy of set `key` (`setKey` with a colour). */
+export function withColour(key: SetKey, colour: number): SetKey {
+  return `${key}:c${colour}`;
+}
+
+/** A coloured set key's Original key and colour, or null for a key without a colour. */
+export function colourOfKey(key: SetKey): { base: SetKey; colour: number } | null {
+  const m = /^(.*):c(\d+)$/.exec(key);
+  return m ? { base: m[1] as string, colour: Number(m[2]) } : null;
 }
 
 export function frameKey(parts: (string | number)[]): string {

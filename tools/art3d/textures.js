@@ -319,7 +319,8 @@ export function leaves(seed = 111, bg = null) {
 }
 
 // ---------------------------------------------------------------- striped canvas (awning / carousel valance, scalloped edge)
-export function stripes(colA, colB, n = 16, scallop = true) {
+// `shade: false` leaves out the weave and fold shading (flat colours); `srgb: false` keeps the values linear.
+export function stripes(colA, colB, n = 16, scallop = true, { shade = true, srgb = true } = {}) {
   const W = 1024, H = 128;
   const c = canvas(W, H), ctx = c.getContext('2d');
   const sw = W / n;
@@ -332,16 +333,23 @@ export function stripes(colA, colB, n = 16, scallop = true) {
     ctx.fill();
   }
   // fabric weave + soft fold shading
-  const img = ctx.getImageData(0, 0, W, H), d = img.data;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = (y * W + x) * 4;
-    const k = 0.94 + 0.06 * ((x + y) % 3 === 0 ? 1 : 0) - 0.08 * Math.pow(Math.sin((x / sw) * Math.PI), 8);
-    d[i] *= k; d[i + 1] *= k; d[i + 2] *= k;
+  if (shade) {
+    const img = ctx.getImageData(0, 0, W, H), d = img.data;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const k = 0.94 + 0.06 * ((x + y) % 3 === 0 ? 1 : 0) - 0.08 * Math.pow(Math.sin((x / sw) * Math.PI), 8);
+      d[i] *= k; d[i + 1] *= k; d[i + 2] *= k;
+    }
+    ctx.putImageData(img, 0, 0);
   }
-  ctx.putImageData(img, 0, 0);
-  const t = tex(c, { aniso: 8 });
+  const t = tex(c, { aniso: 8, srgb });
   t.wrapT = THREE.ClampToEdgeWrapping;
   return { map: t };
+}
+
+/** Tint mask map of `stripes(colA, colB, n, scallop)`: white on the colA stripes, black on the colB ones, same layout and edge. */
+export function stripesMask(n = 16, scallop = true) {
+  return stripes('#ffffff', '#000000', n, scallop, { shade: false, srgb: false }).map;
 }
 
 // ---------------------------------------------------------------- sign / menu boards (system sans-serif only)

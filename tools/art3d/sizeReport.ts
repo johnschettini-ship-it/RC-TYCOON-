@@ -40,7 +40,11 @@ export interface CatalogueEntry {
 }
 
 export interface SizeReport {
-  perItem: { id: string; compressedBytes: number; decodedPerTurn: { d2: number; d4: number } }[];
+  /**
+   * decodedPerTurn: sheets and their tint masks, what one turn holds while it is tinted (transient);
+   * residentPerTurn: the sheets only, what it holds once loaded (a mask is decoded only during a tint).
+   */
+  perItem: { id: string; kind: ProjectionKind | null; compressedBytes: number; decodedPerTurn: { d2: number; d4: number }; residentPerTurn: { d2: number; d4: number } }[];
   totalCompressed: number;
   projectedFull: number;
   /** Per kind: baked and catalogue counts, baked bytes and the per-item mean used for the unbaked ones. */
@@ -89,7 +93,7 @@ export function sizeReport(index: RealIndex, files: Map<string, number>, catalog
     if (prev && prev !== c.kind) throw new Error(`catalogue id '${c.id}' is in two kinds (${prev}, ${c.kind})`);
     owner.set(c.id, c.kind);
   }
-  interface Acc { id: string; kind: ProjectionKind | null; seen: Set<string>; bytes: number; byClass: { rail: number; support: number; car: number }; decoded: { 2: Map<string, number>; 4: Map<string, number> } }
+  interface Acc { id: string; kind: ProjectionKind | null; seen: Set<string>; bytes: number; byClass: { rail: number; support: number; car: number }; decoded: { 2: Map<string, number>; 4: Map<string, number> }; resident: { 2: Map<string, number>; 4: Map<string, number> } }
   const items = new Map<string, Acc>();
   const counted = new Set<string>();
   const missing = new Set<string>();
@@ -98,15 +102,18 @@ export function sizeReport(index: RealIndex, files: Map<string, number>, catalog
   for (const s of index.sets) {
     const k = kindOf(s, catalogue);
     const key = `${k ?? s.kind}:${s.item}`;
-    const a = items.get(key) ?? { id: s.item, kind: k, seen: new Set<string>(), bytes: 0, byClass: { rail: 0, support: 0, car: 0 }, decoded: { 2: new Map(), 4: new Map() } };
+    const a = items.get(key) ?? { id: s.item, kind: k, seen: new Set<string>(), bytes: 0, byClass: { rail: 0, support: 0, car: 0 }, decoded: { 2: new Map(), 4: new Map() }, resident: { 2: new Map(), 4: new Map() } };
     items.set(key, a);
     if (s.kind === 'rail') for (const fk of Object.keys(s.frames)) railPieces.add(fk.split(':')[0] ?? fk);
     // every file of the set once: sheets and their masks (a mask has its sheet's size)
     const set = new Map<string, { w: number; h: number }>();
     for (const sh of s.sheets) { set.set(sh.file, sh); if (sh.mask !== undefined && !set.has(sh.mask)) set.set(sh.mask, sh); }
+    const maskFiles = new Set(s.sheets.flatMap((sh) => (sh.mask === undefined ? [] : [sh.mask])));
     let dec = 0;
+    let res = 0;
     for (const [file, d] of set) {
       dec += d.w * d.h * 4;
+      if (!maskFiles.has(file)) res += d.w * d.h * 4;
       if (a.seen.has(file)) continue;
       a.seen.add(file);
       const n = files.get(file);
@@ -119,10 +126,15 @@ export function sizeReport(index: RealIndex, files: Map<string, number>, catalog
     const m = a.decoded[s.density];
     const rotKey = String(s.rot);
     m.set(rotKey, (m.get(rotKey) ?? 0) + dec);
+    const mr = a.resident[s.density];
+    mr.set(rotKey, (mr.get(rotKey) ?? 0) + res);
   }
   // decodedPerTurn: what one turn of the item holds decoded at a density, i.e. its heaviest single rotation ('all' is whole)
   const peak = (m: Map<string, number>): number => Math.max(0, ...m.values());
-  const perItem = [...items.values()].map((a) => ({ id: a.id, compressedBytes: a.bytes, decodedPerTurn: { d2: peak(a.decoded[2]), d4: peak(a.decoded[4]) } }));
+  const perItem = [...items.values()].map((a) => ({
+    id: a.id, kind: a.kind, compressedBytes: a.bytes,
+    decodedPerTurn: { d2: peak(a.decoded[2]), d4: peak(a.decoded[4]) }, residentPerTurn: { d2: peak(a.resident[2]), d4: peak(a.resident[4]) },
+  }));
 
   const byKind: Record<string, KindRow> = {};
   const row = (k: string): KindRow => (byKind[k] ??= { baked: 0, catalogue: 0, bakedBytes: 0, mean: 0, basis: 'measured', projected: 0 });
@@ -172,6 +184,48 @@ export function sizeReport(index: RealIndex, files: Map<string, number>, catalog
 }
 
 const mb = (n: number): string => (n / 1e6).toFixed(2);
+const mib = (n: number): string => (n / 1024 / 1024).toFixed(2);
+
+// ------------------------------------------------------------------ per-ride size rules (batch 1, ride colour choice)
+
+/** Compressed bytes a flat ride may take (sheets and tint masks; its shadow is not counted). */
+export const RIDE_COMPRESSED_MAX = 2_500_000;
+/** The four rides whose motion needs larger pictures (batch 1 rulings) may take 4 MB. */
+export const BIG_RIDES: readonly string[] = ['bumper_cars', 'pendulum_ship', 'magic_carpet', 'thunder_disc'];
+export const RIDE_COMPRESSED_MAX_BIG = 4_000_000;
+/** What one turn of a ride may hold decoded at density 4 once loaded (its sheets; a mask is decoded only during a tint). */
+export const RIDE_DECODED_TURN_MAX = 32 * 1024 * 1024;
+
+export interface RideSizeRow {
+  id: string;
+  /** Sheets and masks, bytes. */
+  compressed: number;
+  limit: number;
+  /** One turn at density 4: the sheets (resident) and the sheets with their masks (during a tint). */
+  residentD4: number;
+  transientD4: number;
+  problems: string[];
+}
+
+/** The per-ride size rules for `rides` (ride ids), from the ride kind's rows of a size report. */
+export function rideSizeRows(r: SizeReport, rides: readonly string[]): RideSizeRow[] {
+  return rides.map((id) => {
+    const it = r.perItem.find((p) => p.id === id && p.kind === 'ride');
+    const limit = BIG_RIDES.includes(id) ? RIDE_COMPRESSED_MAX_BIG : RIDE_COMPRESSED_MAX;
+    if (!it) return { id, compressed: 0, limit, residentD4: 0, transientD4: 0, problems: [`${id}: not baked`] };
+    const out: RideSizeRow = { id, compressed: it.compressedBytes, limit, residentD4: it.residentPerTurn.d4, transientD4: it.decodedPerTurn.d4, problems: [] };
+    if (it.compressedBytes > limit) out.problems.push(`${id}: ${mb(it.compressedBytes)} MB compressed, over ${mb(limit)} MB`);
+    if (it.residentPerTurn.d4 > RIDE_DECODED_TURN_MAX) out.problems.push(`${id}: ${mib(it.residentPerTurn.d4)} MiB decoded per turn at density 4, over ${mib(RIDE_DECODED_TURN_MAX)} MiB`);
+    return out;
+  });
+}
+
+/** Lines of the per-ride table. */
+export function formatRideSizeRows(rows: readonly RideSizeRow[]): string[] {
+  const out = ['ride                compressed MB (limit)  d4 per turn MiB resident  with masks (tint)'];
+  for (const r of rows) out.push(`${r.id.padEnd(19)} ${mb(r.compressed).padStart(7)} (${mb(r.limit)})  ${mib(r.residentD4).padStart(24)}  ${mib(r.transientD4).padStart(17)}${r.problems.length ? '  OVER' : ''}`);
+  return out;
+}
 
 /** Lines of the per-kind table and the track inputs, for the bake and the command line. */
 export function formatSizeReport(r: SizeReport): string[] {

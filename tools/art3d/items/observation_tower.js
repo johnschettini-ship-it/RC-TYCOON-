@@ -6,7 +6,8 @@
 // the game turns 2 turns per run (REVOLUTIONS default), so the cabin rises twice per run and ends at the deck.
 // Steps at the same height share a picture (9 heights); empty, the ride is at rest (the game runs a ride only with
 // riders): one picture. Front (entrance, exit, booth): one set per view turn.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the cabin roof, its white cap and the sky-blue band round it (a darker shade); the navy deck keeps its colour; base #e9e6df.
+import { THREE, kit, placeOnFootprint, bakeObject, colourMesh, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
@@ -20,6 +21,12 @@ const CAB_R = 2.3;
 const CAB_REST = 0.52; // cabin floor top at rest (boarding level, one step above the deck)
 const CAB_TRAVEL = 25.4; // floor top at the top: 25.9 m, the roof stays under the head housing
 const SEATS = 8;
+/**
+ * The cabin roof's white cap (kit.js steelWhite; the mast's white is another copy and keeps its own): the cap is most of
+ * what shows of the roof, so a first mask of the sky-blue band alone covered 2.5% of the picture. The band (#3f9fd2,
+ * luma 139 of the cap's 230) takes the chosen colour as a darker shade.
+ */
+const BASE_COLOUR = '#e9e6df';
 
 function build() {
   const K = kit();
@@ -93,8 +100,8 @@ function build() {
   }
   cab.add(M(new THREE.TorusGeometry(CAB_R - 0.12, 0.025, 6, 64), mat.stainless).rotateX(Math.PI / 2).translateZ(-1.05));
   const roofY = 0.1 + GH;
-  cab.add(M(new THREE.CylinderGeometry(CAB_R + 0.12, CAB_R + 0.12, 0.34, 64), sky).translateY(roofY + 0.17));
-  cab.add(M(new THREE.CylinderGeometry(1.2, CAB_R + 0.05, 0.28, 64), mat.steelWhite).translateY(roofY + 0.48));
+  cab.add(colourMesh(M(new THREE.CylinderGeometry(CAB_R + 0.12, CAB_R + 0.12, 0.34, 64), sky)).translateY(roofY + 0.17));
+  cab.add(colourMesh(M(new THREE.CylinderGeometry(1.2, CAB_R + 0.05, 0.28, 64), mat.steelWhite)).translateY(roofY + 0.48));
   const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.045, 8, 6), K.ringBulb, 48);
   const m4 = new THREE.Matrix4();
   for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; m4.makeTranslation(Math.cos(a) * (CAB_R + 0.14), roofY + 0.05, Math.sin(a) * (CAB_R + 0.14)); bulbs.setMatrixAt(i, m4); }
@@ -129,6 +136,6 @@ export default {
     const groups = towerKeys('observation_tower');
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(heightStep('observation_tower', g.angle >> 1) / HEIGHT_Q, g.full) }));
     B.log(`observation_tower: ${pictures.length} pictures per rotation`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'observation_tower', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'observation_tower', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

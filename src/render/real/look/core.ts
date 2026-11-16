@@ -8,7 +8,7 @@ import type { Sprite } from '../../spriteCache';
 import type { ViewRotation } from '../../view';
 import { realItem } from '../fallbacks';
 import { CAR_TILT_STEPS } from '../pose';
-import { frameKey, type RealIndex, type RealKind, type SetKey } from '../indexFormat';
+import { frameKey, withColour, type RealIndex, type RealKind, type SetKey } from '../indexFormat';
 import type { ReadySet } from '../setManager';
 import type { CanvasLike } from '../tint';
 import { createTinter, TINT_NO_ROOM, TINT_WAIT } from './tint';
@@ -81,6 +81,13 @@ export interface LookCore {
   readonly frameNo: number;
   recOf(kind: RealKind, item: string): ItemRec | undefined;
   gameRec(kind: RealKind, defId: string): ItemRec | null;
+  /**
+   * Ride record `rec` in `colour` (ride colours Task 5): its keys are `rec`'s with `:c<colour>`, served by the set
+   * manager from the Original entries. `rec` itself when the bake gives the ride no base colour (nothing to tint).
+   */
+  colourRec(rec: ItemRec, colour: number): ItemRec;
+  /** Lists `id` in `fallbacksUsed`. */
+  noteFallback(id: string): void;
   /** Guests by body x 4 + outfit. */
   readonly guestRecs: readonly ItemRec[];
   groundRec(terrain: string): ItemRec;
@@ -95,6 +102,7 @@ export interface LookCore {
   setItemMap(map: Readonly<Record<string, string>> | null): void;
   dispose(): void;
   reclaim(needBytes: number): number;
+  tintSpentMs(): number;
   incomplete(): number;
   soft(): number;
   degraded(): number;
@@ -153,6 +161,47 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     }
     return r;
   }
+  /** Rides the bake gives a base colour (their sets can be tinted). */
+  const colourable = new Set(index.sets.filter((e) => e.kind === 'ride' && e.baseColour).map((e) => e.item));
+  /** Coloured records by Original record, then colour. */
+  const colourRecs = new Map<ItemRec, Map<number, ItemRec>>();
+  function colourRec(rec: ItemRec, colour: number): ItemRec {
+    if (rec.kind !== 'ride' || !colourable.has(rec.item)) return rec;
+    let m = colourRecs.get(rec);
+    if (!m) colourRecs.set(rec, (m = new Map()));
+    let c = m.get(colour);
+    if (!c) {
+      const tint = (k: SetKey | undefined): SetKey | undefined => (k === undefined ? undefined : withColour(k, colour));
+      m.set(colour, (c = { kind: rec.kind, item: rec.item, k2: rec.k2.map(tint), k4: rec.k4.map(tint), missId: rec.missId, base: rec }));
+    }
+    return c;
+  }
+  /**
+   * While `rec`'s set is not ready (a ride whose colour just changed, or a coloured set still loading): pictures of the
+   * same ride in another colour or Original, Original first, at the density drawn or 2: a ready set, else the pictures
+   * a set of it is tinting (`interim`); the set it came from. Null when the ride has no colour records (no colour in
+   * play) or nothing of it is decoded.
+   */
+  function otherColour(rec: ItemRec, rot: ViewRotation): { rs: ReadySet; key: SetKey } | null {
+    const base = rec.base ?? rec;
+    const others = colourRecs.get(base);
+    if (!others && !rec.base) return null;
+    const variants = [base, ...(others?.values() ?? [])].filter((v) => v !== rec);
+    const dens = density === 4 ? [4, 2] as const : [2] as const;
+    for (const pass of [0, 1]) {
+      for (const v of variants) {
+        for (const d of dens) {
+          const k = (d === 4 ? v.k4 : v.k2)[rot];
+          if (k === undefined) continue;
+          const rs = pass === 0 ? (sets.state(k) === 'ready' ? sets.use(k) : null) : sets.interim?.(k) ?? null;
+          if (rs) return { rs, key: k };
+        }
+      }
+    }
+    return null;
+  }
+  /** A ride with a colour in play (a coloured record, or an Original one with coloured siblings): never drawn as nothing. */
+  const colourInPlay = (rec: ItemRec): boolean => rec.base !== undefined || colourRecs.has(rec);
   const metas = new WeakMap<ReadySet, SetMeta>();
   function metaOf(rs: ReadySet): SetMeta {
     let m = metas.get(rs);
@@ -240,6 +289,25 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       // incomplete. Not for ground pieces: a chunk is built once, so it waits for its own density.
       const twin = twinOf(rec, rot, key);
       const low = twin !== undefined && sets.state(twin) === 'ready' ? sets.use(twin) : null;
+      // Ride colours (Task 5; never nothing, review fix round 1 item 2), after the coloured density-2 twin: the pictures
+      // its set is tinting (Original colours); then another colour's or Original set of the same ride, ready, then
+      // tinting (a colour change keeps the old picture); else today's art. All counted incomplete: the object is not
+      // drawn as asked yet.
+      const stand = low ? null : rec.kind === 'ride' ? sets.interim?.(key) ?? (twin !== undefined ? sets.interim?.(twin) : null) ?? null : null;
+      const other = low || stand || rec.kind !== 'ride' ? null : otherColour(rec, rot);
+      if (!low && !stand && !other && rec.kind === 'ride' && colourInPlay(rec)) {
+        skipped++;
+        return undefined;
+      }
+      if (stand || other) {
+        rs = (stand ?? other?.rs) as ReadySet;
+        drawKey = stand ? key : (other as { key: SetKey }).key;
+        if (starvedSince.size) { starvedSince.delete(drawKey); starvedSince.delete(key); }
+        skipped++;
+        const r = rideFrame(rs, drawKey, kind, rec.item, code);
+        if (typeof r === 'string') { fallbacks.add(r); return undefined; }
+        return r.sprite;
+      }
       if (!low) {
         // The last step: the density-2 set this object would step down to has had no room for DEGRADE_FRAMES
         // prepares (the ladder ran and still cannot fit it): today's art, never nothing. Ground pieces wait (null, never
@@ -258,6 +326,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       softDraws++;
     }
     if (starvedSince.size) { starvedSince.delete(drawKey); starvedSince.delete(key); }
+    if (rs.tintFailed) fallbacks.add(key);
     const meta = metaOf(rs);
     let r: Resolved | string | undefined;
     if (piece === null) {
@@ -293,6 +362,14 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     return t;
   }
 
+  /** Frame `code` of ready set `rs` (key `key`), looked up once per set as `sprite` does. */
+  function rideFrame(rs: ReadySet, key: SetKey, kind: RealKind, item: string, code: number): Resolved | string {
+    const meta = metaOf(rs);
+    let r = meta.codes.get(code);
+    if (r === undefined) meta.codes.set(code, (r = lookup(rs, key, frameName(kind, item, code))));
+    return r;
+  }
+
   function sweep(): void {
     tinter.beginFrame();
     // Waits of sets that are no longer queued are over.
@@ -315,6 +392,8 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     get frameNo() { return frameNo; },
     recOf,
     gameRec,
+    colourRec,
+    noteFallback: (id) => { fallbacks.add(id); },
     guestRecs,
     groundRec,
     staffRec,
@@ -345,6 +424,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     },
 
     reclaim: (needBytes) => tinter.reclaim(needBytes),
+    tintSpentMs: () => tinter.spentMs(),
 
     incomplete() {
       return skipped;

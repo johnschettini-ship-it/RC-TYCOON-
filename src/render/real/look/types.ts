@@ -14,7 +14,13 @@ import type { CanvasLike } from '../tint';
 export interface RealLook {
   density(zoom: number, dpr: number): 2 | 4;
   prepare(world: World, rot: ViewRotation, view: ViewRect, zoom: number, dpr: number): void;
-  ride(defId: string, rot: ViewRotation, frame: number, occupancy: number): Sprite | null | undefined;
+  /**
+   * A flat ride; `colour` (a `TRACK_PALETTE` index, null or absent: Original) draws its coloured set (ride colours
+   * Task 5). While that set is not ready the ride draws whatever pictures of it are decoded (the Original pictures it
+   * is tinting, or its Original or another colour's set: a colour change keeps the old picture), counted incomplete;
+   * a failed tint draws the Original pictures and lists the coloured set in `fallbacksUsed`.
+   */
+  ride(defId: string, rot: ViewRotation, frame: number, occupancy: number, colour?: number | null): Sprite | null | undefined;
   stall(defId: string, rot: ViewRotation): Sprite | null | undefined;
   scenery(defId: string, rot: ViewRotation, frame: number): Sprite | null | undefined;
   guest(guestId: number, shirt: number, walk: number, facing: number, sitting: boolean): Sprite | null | undefined;
@@ -48,6 +54,11 @@ export interface RealLook {
    * until about `needBytes` are freed. Returns the bytes freed.
    */
   reclaim(needBytes: number): number;
+  /**
+   * Ms the tint atlas has spent tinting frames since the last `prepare`: the set manager's coloured-set tints take
+   * what is left of the frame's `TINT_FRAME_MS` (`SetManager.shareTintBudget`).
+   */
+  tintSpentMs?(): number;
   /** The density the last `prepare` chose (after the set manager's cap). */
   currentDensity(): 2 | 4;
   /**
@@ -86,7 +97,7 @@ export interface RealLook {
 export type SupportPart = 'foot' | 'seg' | 'top';
 
 /** The part of `SetManager` RealLook uses (a structural type, so tests can pass a fake). */
-export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'> & Partial<Pick<SetManager, 'starved' | 'peek'>>;
+export type RealSets = Pick<SetManager, 'want' | 'use' | 'state' | 'densityCap' | 'isDemoted' | 'hold' | 'admit'> & Partial<Pick<SetManager, 'starved' | 'peek' | 'interim'>>;
 
 export interface RealLookOptions {
   /** Canvas factory for the tint atlas's pages and scratch canvas. Default: `OffscreenCanvas`, else a DOM canvas. */
@@ -134,6 +145,8 @@ export interface ItemRec {
   k4: (SetKey | undefined)[];
   /** What `fallbacksUsed` lists when a turn has no set: `<kind>:<item>`. */
   missId: string;
+  /** A ride's coloured record (ride colours Task 5): its Original record; its keys are the Original keys `:c<colour>`. */
+  base?: ItemRec;
 }
 
 /** A frame found in a ready set: its sheet index and the untinted sprite (one object, reused every draw). */

@@ -174,6 +174,20 @@ describe('renderer with the realistic look (Task 8)', () => {
     expect(hits.reduce((n, d) => n + d.src!.w, 0)).toBeCloseTo(256, 5);
   });
 
+  it('a ride\'s chosen colour reaches the realistic look (ride colours Task 5); Original passes none', () => {
+    const world = park();
+    const ride = world.state.rides.find((r) => r.kind === 'flat')!;
+    const got: (number | null | undefined)[] = [];
+    const sp = sheetSprite(256, 200, 128, 150, 300, 40);
+    render(world, { look: fakeLook({ ride: (...a: unknown[]) => { got.push(a[4] as number | null | undefined); return sp; } }) });
+    expect(got.length).toBeGreaterThan(0);
+    expect(got.every((c) => c == null)).toBe(true);
+    ride.colour = 2;
+    got.length = 0;
+    render(world, { look: fakeLook({ ride: (...a: unknown[]) => { got.push(a[4] as number | null | undefined); return sp; } }) });
+    expect(got).toContain(2);
+  });
+
   it('a trimmed ride frame narrower than its columns is not stretched (Task 9b)', () => {
     // The bake trims frames to their pixels: a ride picture can start inside the footprint's first column.
     const world = park();

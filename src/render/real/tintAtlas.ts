@@ -139,6 +139,11 @@ export class TintAtlas {
     this.now = opts.now ?? ((): number => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   }
 
+  /** Ms spent tinting since the last `beginFrame` (the set manager's sheet tints share the frame's budget). */
+  spentMs(): number {
+    return this.spent;
+  }
+
   /** Start of a frame: the LRU clock moves on and the frame's tint time resets. */
   beginFrame(): void {
     this.tick++;

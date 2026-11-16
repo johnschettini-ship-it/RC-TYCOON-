@@ -93,6 +93,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
 
     dispose: core.dispose,
     reclaim: core.reclaim,
+    tintSpentMs: core.tintSpentMs,
 
     currentDensity() {
       return core.density;

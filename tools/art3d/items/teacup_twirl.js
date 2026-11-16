@@ -6,7 +6,8 @@
 // blue, yellow and violet), so the ride repeats every half turn: the even turn counts of turntables and cups make the
 // state at a + 1/2 the state at a turned 180 degrees (turntable j lands where j + 2 was, in the same pose). Period 16
 // angle slots: 8 pictures per occupancy. Round, static parts 90-degree symmetric: one set serves every view turn.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the eight cups' glazed shells and handles, all four designed colours; the others become lighter or darker shades of the chosen colour; base #2f86cf.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -21,6 +22,11 @@ const SUB_R = 1.85;
 const CUP_RING = TEACUP.cupRing; // cup centres from their turntable's centre
 const CUP_S = 1.05; // cup scale (outer rim radius 0.82 x 1.05)
 const DECK_Y = 0.42; // top of the main floor
+/**
+ * The cups' colours: red #d8402e, blue, yellow #f1c232, violet #8a55cc. The base is the blue, of middle lightness
+ * (luma 121 of 95, 194, 105), so a chosen colour keeps the cups as shades of it (0.8x to 1.6x).
+ */
+const BASE_COLOUR = '#2f86cf';
 
 const glaze = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.28, metalness: 0.05, clearcoat: 1, clearcoatRoughness: 0.08 });
 
@@ -32,7 +38,7 @@ function lathe(pts, seg, mat) {
 function teacup(K, color, looks) {
   const { mat } = K;
   const g = new THREE.Group();
-  const body = glaze(color);
+  const body = colourPart(glaze(color));
   const inner = glaze('#fbf3e4');
   inner.side = THREE.DoubleSide;
   const trim = std({ color: '#d9ad4f', metalness: 1, roughness: 0.3 });
@@ -175,6 +181,6 @@ export default {
     cycleD2('teacup_twirl', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, TEACUP.d2Step);
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`teacup_twirl: ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'teacup_twirl', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'teacup_twirl', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

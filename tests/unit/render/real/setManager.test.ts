@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO } from '../../../../src/render/real/setManager';
+import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO, type SetManagerOptions } from '../../../../src/render/real/setManager';
 
 const TINT_SCRATCH = 'tint:scratch';
 
@@ -706,5 +706,450 @@ describe('SetManager.releaseAll (returning to the title, realistic title Task 2)
     m.beginFrame(3); m.want([A.key], 'now'); m.endFrame();
     await io.settleAll();
     expect(m.state(A.key)).toBe('ready');
+  });
+});
+
+describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
+  /** A canvas holding pixels (enough for the band tint in node). */
+  class Pix {
+    data: Uint8ClampedArray;
+    /** Closed (an ImageBitmap's `close`): drawing it throws, as a detached bitmap does. */
+    detached = false;
+    constructor(public width: number, public height: number, fill?: number[]) {
+      this.data = new Uint8ClampedArray(width * height * 4);
+      if (fill) for (let i = 0; i < this.data.length; i += 4) this.data.set(fill, i);
+    }
+    getContext(): unknown {
+      const self = this;
+      return {
+        drawImage(src: Pix, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number) {
+          if (src.detached || src.width === 0) throw new Error('InvalidStateError: drawing a closed picture');
+          for (let y = 0; y < sh; y++) self.data.set(src.data.subarray(((sy + y) * src.width + sx) * 4, ((sy + y) * src.width + sx + sw) * 4), ((dy + y) * self.width + dx) * 4);
+        },
+        getImageData(x: number, y: number, w: number, h: number) {
+          const data = new Uint8ClampedArray(w * h * 4);
+          for (let r = 0; r < h; r++) data.set(self.data.subarray(((y + r) * self.width + x) * 4, ((y + r) * self.width + x + w) * 4), r * w * 4);
+          return { width: w, height: h, data };
+        },
+        putImageData(img: { width: number; height: number; data: Uint8ClampedArray }, x: number, y: number) {
+          for (let r = 0; r < img.height; r++) self.data.set(img.data.subarray(r * img.width * 4, (r + 1) * img.width * 4), ((y + r) * self.width + x) * 4);
+        },
+      };
+    }
+  }
+  const W = 4;
+  const H = 100;
+  const BAND = 32;
+  /** Decoded bytes of one sheet (and of one mask, and of one tinted copy). */
+  const SHEET = W * H * 4;
+  const SCRATCH = W * BAND * 4;
+  const RED = [0x8a, 0x1c, 0x1c, 255];
+  const LEMON = [0xf2, 0xc2, 0x30];
+  const SKY = [0x3d, 0x9b, 0xe0];
+
+  function rideEntry(item: string, density: 2 | 4, n = 1): RealSetEntry {
+    const sheets: RealSetEntry['sheets'] = [];
+    for (let i = 0; i < n; i++) {
+      const f = `${item}-d${density}-${i}`;
+      sheets.push({ file: `${f}.webp`, w: W, h: H, mask: `${f}-mask.png` }, { file: `${f}-mask.png`, w: W, h: H });
+    }
+    return { key: setKey('ride', item, density, 0), kind: 'ride', item, density, rot: 0, sheets, frames: {}, baseColour: '#8a1c1c' };
+  }
+
+  /** Decodes land at once: sheets are the base red, masks full weight. */
+  class PixIO implements SetIO {
+    decodes: string[] = [];
+    closed: string[] = [];
+    /** Files whose decode fails; `file#n`: only its n-th decode (1-based). */
+    fail = new Set<string>();
+    /** `file#n`: its n-th decode waits for this promise. */
+    wait = new Map<string, Promise<void>>();
+    read(file: string): Promise<Blob> { return Promise.resolve(new Blob([file])); }
+    async decode(blob: Blob): Promise<Decoded> {
+      const file = await blob.text();
+      this.decodes.push(file);
+      const nth = `${file}#${this.decodes.filter((f) => f === file).length}`;
+      await this.wait.get(nth);
+      if (this.fail.has(file) || this.fail.has(nth)) throw new Error(`cannot decode ${file}`);
+      const img = new Pix(W, H, file.endsWith('-mask.png') ? [255, 255, 255, 255] : RED);
+      return { image: img as unknown as CanvasImageSource, bytes: SHEET, close: () => { img.detached = true; this.closed.push(file); } };
+    }
+  }
+
+  function setupColours(sets: RealSetEntry[], budget: number, makeCanvas?: (w: number, h: number) => unknown, more: SetManagerOptions = {}) {
+    const io = new PixIO();
+    const errors: [SetKey, unknown][] = [];
+    let t = 0;
+    // Each clock read moves 3 ms: a frame's TINT_FRAME_MS (3 ms) is spent after one band.
+    const m = new SetManager(index(sets), io, budget, (k, e) => errors.push([k, e]), 0, {
+      makeCanvas: (makeCanvas ?? ((w: number, h: number) => new Pix(w, h))) as never,
+      now: () => (t += 3),
+      tintBandPx: BAND,
+      toBitmap: null,
+      ...more,
+    });
+    let frame = 0;
+    const step = async (keys: SetKey[]): Promise<void> => {
+      m.beginFrame(++frame);
+      m.want(keys, 'now');
+      for (const k of keys) m.use(k) ?? m.interim(k);
+      m.endFrame();
+      await flush();
+      await flush();
+    };
+    return { io, m, errors, step };
+  }
+  const pixel = (img: CanvasImageSource): number[] => Array.from((img as unknown as Pix).data.subarray(0, 3));
+
+  it('an Original ride set never decodes its masks: resident and estimate exclude them', async () => {
+    const A = rideEntry('carousel', 2);
+    // Room for the sheet alone: the masks are not part of an Original set's cost.
+    const { io, m, step } = setupColours([A], SHEET);
+    await step([A.key]);
+    expect(m.state(A.key)).toBe('ready');
+    expect(io.decodes).toEqual([`carousel-d2-0.webp`]);
+    expect(m.residentBytes()).toBe(SHEET);
+    const rs = m.use(A.key)!;
+    expect(rs.images).toHaveLength(1);
+    expect(rs.sheets).toEqual([{ file: 'carousel-d2-0.webp', w: W, h: H }]);
+  });
+
+  it('a coloured set draws the Original pictures while tinting, then the tinted ones; afterwards it costs what Original costs', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, step } = setupColours([A], 1e9);
+    await step([key]);
+    expect(m.state(key)).toBe('loading');
+    expect(m.use(key)).toBeNull();
+    const during = m.interim(key);
+    expect(during).not.toBeNull();
+    expect(pixel(during!.images[0]!)).toEqual(RED.slice(0, 3));
+    let frames = 1;
+    while (m.state(key) !== 'ready' && frames < 50) { await step([key]); frames++; if (m.state(key) !== 'ready') expect(m.interim(key)).not.toBeNull(); }
+    // 100 rows in bands of 32, one band a frame: four frames of tinting, never one long frame.
+    expect(frames).toBeGreaterThanOrEqual(4);
+    const rs = m.use(key)!;
+    expect(rs.key).toBe(key);
+    expect(rs.images).toHaveLength(1);
+    expect(pixel(rs.images[0]!).map((c, i) => Math.abs(c - LEMON[i]!) <= 1)).toEqual([true, true, true]);
+    expect(m.interim(key)).toBeNull();
+    // Base and mask closed: resident is exactly the Original set's size.
+    expect(io.closed.sort()).toEqual(['carousel-d2-0-mask.png', 'carousel-d2-0.webp']);
+    expect(m.residentBytes()).toBe(SHEET);
+    // The peak was the base, the mask, the tinted copy and the band scratch, together.
+    expect(m.peakBytes()).toBe(3 * SHEET + SCRATCH);
+  });
+
+  it('the tint peak is admitted before it starts and never passes the budget', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const peak = 3 * SHEET + SCRATCH;
+    const tight = setupColours([A], peak - 1);
+    for (let f = 0; f < 5; f++) await tight.step([key]);
+    expect(tight.m.state(key)).not.toBe('ready');
+    expect(tight.io.decodes).toEqual([]);
+    expect(tight.m.peakBytes()).toBe(0);
+    const fits = setupColours([A], peak);
+    for (let f = 0; f < 10; f++) await fits.step([key]);
+    expect(fits.m.state(key)).toBe('ready');
+    expect(fits.m.peakBytes()).toBeLessThanOrEqual(peak);
+  });
+
+  it('the same ride in two colours is two sets, tinted one after the other', async () => {
+    const A = rideEntry('carousel', 2);
+    const lemon = setKey('ride', 'carousel', 2, 0, 2);
+    const sky = setKey('ride', 'carousel', 2, 0, 4);
+    const { io, m, step } = setupColours([A], 1e9);
+    let both = 0;
+    for (let f = 0; f < 30; f++) {
+      await step([lemon, sky]);
+      if (m.interim(lemon) && m.interim(sky)) both++;
+    }
+    expect(both).toBe(0);
+    expect(m.state(lemon)).toBe('ready');
+    expect(m.state(sky)).toBe('ready');
+    expect(pixel(m.use(sky)!.images[0]!).map((c, i) => Math.abs(c - SKY[i]!) <= 1)).toEqual([true, true, true]);
+    expect(m.use(lemon)!.images[0]).not.toBe(m.use(sky)!.images[0]);
+    expect(m.residentBytes()).toBe(2 * SHEET);
+    // One tint at a time: the peak is one tint beside the other (finished) set.
+    expect(m.peakBytes()).toBeLessThanOrEqual(SHEET + 3 * SHEET + SCRATCH);
+    expect(io.decodes.filter((f) => f.endsWith('mask.png'))).toHaveLength(2);
+  });
+
+  it('a failed tint (canvas without a 2D context) keeps the Original pictures as the set, flagged and reported', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, errors, step } = setupColours([A], 1e9, (w, h) => ({ width: w, height: h, getContext: () => null }));
+    for (let f = 0; f < 5; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(pixel(rs.images[0]!)).toEqual(RED.slice(0, 3));
+    expect(errors.map(([k]) => k)).toEqual([key]);
+    expect(io.closed).toEqual(['carousel-d2-0-mask.png']);
+    expect(m.residentBytes()).toBe(SHEET);
+  });
+
+  it('a coloured set no longer wanted mid-tint frees its base, mask and tinted copy', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, step } = setupColours([A], 1e9);
+    await step([key]);
+    await step([key]);
+    expect(m.interim(key)).not.toBeNull();
+    for (let f = 0; f < 4; f++) await step([]);
+    expect(m.state(key)).toBe('none');
+    expect(m.residentBytes()).toBe(0);
+    expect(io.closed.sort()).toEqual(['carousel-d2-0-mask.png', 'carousel-d2-0.webp']);
+  });
+
+  it('a coloured density-2 set\'s density-4 counterpart is the coloured density-4 set; unknown colour keys are refused', async () => {
+    const A2 = rideEntry('carousel', 2);
+    const A4 = rideEntry('carousel', 4);
+    const { m, errors, step } = setupColours([A2, A4], 1e9);
+    const k2 = setKey('ride', 'carousel', 2, 0, 3);
+    const k4 = setKey('ride', 'carousel', 4, 0, 3);
+    for (let f = 0; f < 12; f++) await step([k2, k4]);
+    expect(m.state(k2)).toBe('ready');
+    expect(m.state(k4)).toBe('ready');
+    // A set without a base colour (a stall), or a colour outside the palette, is an unknown set.
+    await step([setKey('ride', 'carousel', 2, 0, 99)]);
+    expect(errors.map(([k]) => k)).toEqual([setKey('ride', 'carousel', 2, 0, 99)]);
+  });
+
+  it('fix 1: queued coloured sets count at their settled size; the tint peak once: no false cap, no cancelled tint', async () => {
+    // Density 4: a cap would drop them. a: 3 sheets (settled 3 sheets, load +2 sheets + scratch); b: 1 sheet.
+    const A = rideEntry('a', 4, 3);
+    const B = rideEntry('b', 4, 1);
+    const keys = [setKey('ride', 'a', 4, 0, 2), setKey('ride', 'a', 4, 0, 4), setKey('ride', 'b', 4, 0, 2)];
+    const settled = 3 * SHEET + 3 * SHEET + SHEET;
+    const tintPeak = 2 * SHEET + SCRATCH;
+    // Room for everything settled and one tint on top; the three loads summed (20736 B) would not fit.
+    const budget = settled + tintPeak + 100;
+    expect(3 * SHEET + tintPeak + 3 * SHEET + tintPeak + SHEET + tintPeak).toBeGreaterThan(budget);
+    const { io, m, step } = setupColours([A, B], budget);
+    for (let f = 0; f < 60; f++) {
+      await step(keys);
+      expect(m.densityCap()).toBe(4);
+    }
+    for (const k of keys) expect(m.state(k)).toBe('ready');
+    expect(m.capEvents()).toEqual([]);
+    expect(m.peakBytes()).toBeLessThanOrEqual(budget);
+    // Every base was decoded once: no tint was cancelled and restarted.
+    expect(io.decodes.filter((f) => f === 'a-d4-0.webp')).toHaveLength(2);
+  });
+
+  it('fix 3: a tint failing on a later sheet puts the sheets already tinted back to their Original pictures', async () => {
+    const A = rideEntry('carousel', 2, 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, errors, step } = setupColours([A], 1e9);
+    io.fail.add('carousel-d2-1-mask.png');
+    for (let f = 0; f < 12; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(rs.images.map(pixel)).toEqual([RED.slice(0, 3), RED.slice(0, 3)]);
+    expect(errors.map(([k]) => k)).toEqual([key]);
+    expect(m.residentBytes()).toBe(2 * SHEET);
+    expect(m.peakBytes()).toBeLessThanOrEqual(2 * SHEET + 2 * SHEET + SCRATCH);
+  });
+
+  it('fix 4: one tint budget a frame: the tint atlas\'s time this frame comes off the set manager\'s; a band only when nothing else ran', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    let spent = 3;
+    const { m, step } = setupColours([A], 1e9, undefined, { tintSpentMs: () => spent });
+    for (let f = 0; f < 10; f++) await step([key]);
+    // The atlas used the whole budget every frame: no band ran.
+    expect(m.state(key)).toBe('loading');
+    spent = 0;
+    for (let f = 0; f < 10; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+  });
+
+  it('fix 6: a finished sheet becomes an ImageBitmap and its canvas is freed, at the same bytes', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const made: Pix[] = [];
+    const bitmaps: { from: Pix; closed: boolean }[] = [];
+    const { m, step } = setupColours([A], 1e9, (w, h) => { const c = new Pix(w, h); made.push(c); return c; }, {
+      toBitmap: async (img) => { const b = { from: img as unknown as Pix, closed: false, close() { this.closed = true; } }; bitmaps.push(b); return b as unknown as ImageBitmap; },
+    });
+    for (let f = 0; f < 10; f++) await step([key]);
+    const rs = m.use(key)!;
+    expect(bitmaps).toHaveLength(1);
+    expect(rs.images[0]).toBe(bitmaps[0]);
+    expect(made[0]!.width).toBe(0); // the tinted canvas, freed once copied
+    expect(m.residentBytes()).toBe(SHEET);
+    for (let f = 0; f < 4; f++) await step([]);
+    expect(bitmaps[0]!.closed).toBe(true);
+  });
+
+  /** Every picture `interim` hands out can be drawn (none closed). */
+  const drawable = (m: SetManager, key: SetKey): boolean => {
+    const rs = m.interim(key);
+    if (!rs) return true;
+    const probe = new Pix(1, 1).getContext() as { drawImage(src: unknown, ...a: number[]): void };
+    try { for (const img of rs.images) probe.drawImage(img, 0, 0, 1, 1, 0, 0); return true; } catch { return false; }
+  };
+
+  it('round 2 P1: while a finished sheet is copied to an ImageBitmap, interim never hands out the closed base', async () => {
+    const A = rideEntry('carousel', 2, 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    let release: (() => void) | null = null;
+    const { m, step } = setupColours([A], 1e9, undefined, {
+      toBitmap: (img) => new Promise<ImageBitmap>((res) => {
+        const b = new Pix(W, H);
+        b.data.set((img as unknown as Pix).data);
+        release = () => res(b as unknown as ImageBitmap);
+      }),
+    });
+    let bad = 0;
+    for (let f = 0; f < 40; f++) {
+      await step([key]);
+      if (!drawable(m, key)) bad++;
+      if (release && f % 3 === 2) { const r = release as () => void; release = null; r(); }
+    }
+    expect(bad).toBe(0);
+    expect(m.state(key)).toBe('ready');
+  });
+
+  it('round 2 P1: while a failed tint decodes Original sheets again, interim never hands out a closed tinted copy', async () => {
+    const A = rideEntry('carousel', 2, 3);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, step } = setupColours([A], 1e9);
+    io.fail.add('carousel-d2-2-mask.png');
+    let open!: () => void;
+    io.wait.set('carousel-d2-1.webp#2', new Promise<void>((res) => { open = res; }));
+    let bad = 0;
+    for (let f = 0; f < 30; f++) {
+      await step([key]);
+      if (!drawable(m, key)) bad++;
+      if (f === 20) open();
+    }
+    expect(bad).toBe(0);
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(rs.images.map(pixel)).toEqual([RED.slice(0, 3), RED.slice(0, 3), RED.slice(0, 3)]);
+  });
+
+  it('round 2 P2: a re-decode failing after a failed tint keeps that sheet tinted; the set is ready, flagged and reported, not failed', async () => {
+    const A = rideEntry('carousel', 2, 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, errors, step } = setupColours([A], 1e9);
+    io.fail.add('carousel-d2-1-mask.png');
+    io.fail.add('carousel-d2-0.webp#2');
+    for (let f = 0; f < 12; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(pixel(rs.images[0]!).map((c, i) => Math.abs(c - LEMON[i]!) <= 1)).toEqual([true, true, true]);
+    expect(pixel(rs.images[1]!)).toEqual(RED.slice(0, 3));
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors.every(([k]) => k === key)).toBe(true);
+    expect(m.residentBytes()).toBe(2 * SHEET);
+  });
+
+  it('round 2 P2: with tint time left but less than a band (by the last band\'s time), no band runs', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    // The atlas spent 1 ms: 2 ms left. A band takes 3 ms (the test clock), so after the first band is measured
+    // no further band fits.
+    // (Round 3: the estimate decays on frames with no band, so bands come back every other frame or so.)
+    const made: Pix[] = [];
+    const { m, step } = setupColours([A], 1e9, (w, h) => { const c = new Pix(w, h); made.push(c); return c; }, { tintSpentMs: () => 1 });
+    const rows = (): number => { const c = made[0]; let n = 0; if (c) for (let y = 0; y < c.height; y++) if (c.data[y * c.width * 4 + 3]) n++; return n; };
+    const per: number[] = [];
+    let last = 0;
+    for (let f = 0; f < 30 && m.state(key) !== 'ready'; f++) { await step([key]); const n = rows(); per.push(n - last); last = n; }
+    // Never more than one band a frame, and never in the frame right after a band (3 ms measured > 2 ms left).
+    expect(Math.max(...per)).toBeLessThanOrEqual(BAND);
+    for (let i = 1; i < per.length; i++) if (per[i - 1]! > 0) expect(per[i]).toBe(0);
+  });
+
+  describe('round 3: no tint starvation', () => {
+    /** Rows of the tinted canvas written so far (alpha set). */
+    const rowsDone = (c: Pix | undefined): number => {
+      if (!c) return 0;
+      let n = 0;
+      for (let y = 0; y < c.height; y++) if (c.data[(y * c.width) * 4 + 3]) n++;
+      return n;
+    };
+    const recorder = () => {
+      const made: Pix[] = [];
+      return { made, make: (w: number, h: number) => { const c = new Pix(w, h); made.push(c); return c; } };
+    };
+
+    it('an atlas spending the whole budget every frame still lets a band run every 8 frames', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const rec = recorder();
+      const { m, step } = setupColours([A], 1e9, rec.make, { tintSpentMs: () => 3 });
+      const bandFrames: number[] = [];
+      let last = 0;
+      for (let f = 1; f <= 60 && m.state(key) !== 'ready'; f++) {
+        await step([key]);
+        const n = rowsDone(rec.made[0]);
+        if (n > last) { bandFrames.push(f); last = n; }
+      }
+      expect(m.state(key)).toBe('ready');
+      expect(bandFrames.length).toBeGreaterThanOrEqual(3);
+      const gaps = bandFrames.slice(1).map((f, i) => f - bandFrames[i]!);
+      for (const g of gaps) expect(g).toBe(8);
+    });
+
+    it('one slow band (a GC pause) is not remembered for ever: the estimate decays and the set finishes', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      let t = 0;
+      let inc = 7.5; // two clock reads a band: the first band measures 15 ms
+      let slow = true;
+      const rec = recorder();
+      const { m, step } = setupColours([A], 1e9, rec.make, { now: () => (t += inc), tintSpentMs: () => (slow ? 0 : 0.5) });
+      let frames = 0;
+      for (; frames < 40 && m.state(key) !== 'ready'; frames++) {
+        await step([key]);
+        // After the slow band: bands take 0.5 ms, and the atlas spends 0.5 ms every frame.
+        if (slow && rowsDone(rec.made[0]) > 0) { slow = false; inc = 0.25; }
+      }
+      expect(slow).toBe(false);
+      expect(m.state(key)).toBe('ready');
+      // Faster than the 8-frame rule alone (3 more bands at 8 frames each): the estimate decayed.
+      expect(frames).toBeLessThan(20);
+    });
+
+    it('a coarse clock (bands measure 0 ms) runs at most budget / 0.25 bands a frame', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const rec = recorder();
+      const { m, step } = setupColours([A], 1e9, rec.make, { now: () => 1000, tintBandPx: 1 });
+      const perFrame: number[] = [];
+      let last = 0;
+      for (let f = 0; f < 30 && m.state(key) !== 'ready'; f++) {
+        await step([key]);
+        const n = rowsDone(rec.made[0]);
+        perFrame.push(n - last);
+        last = n;
+      }
+      expect(Math.max(...perFrame)).toBeLessThanOrEqual(3 / 0.25);
+      expect(Math.max(...perFrame)).toBeGreaterThan(1);
+    });
+
+    it('with no budget left (atlas spent 3 ms) a coarse clock runs no band between the 8-frame bands', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const rec = recorder();
+      const { step } = setupColours([A], 1e9, rec.make, { now: () => 1000, tintBandPx: 1, tintSpentMs: () => 3 });
+      const perFrame: number[] = [];
+      let last = 0;
+      for (let f = 0; f < 20; f++) {
+        await step([key]);
+        const n = rowsDone(rec.made[0]);
+        perFrame.push(n - last);
+        last = n;
+      }
+      expect(Math.max(...perFrame)).toBe(1);
+      expect(perFrame.filter((n) => n > 0).length).toBeLessThanOrEqual(3);
+    });
   });
 });
