@@ -398,14 +398,6 @@ export function drawHauntedManor(ctx: Ctx, ex: number, ey: number, st: RideArtSt
     const b = v0 + ((k + 0.5) / cols) * (v1 - v0);
     const lit2 = (mix32(k * 29 + flick + 3) & 7) !== 0;
     windowGlow(ctx, [u1, b - 0.16, 22, u1, b + 0.16, 23, u1, b + 0.16, 36, u1, b - 0.16, 35], lit2);
-    if (st.colour) {
-      // Shutters (with the door, the colour part) beside each window; Original has none.
-      const side = shade(st.colour, 0.85);
-      for (const o of [-1, 1]) {
-        poly3(ctx, [a + o * 0.2, v1, 21, a + o * 0.3, v1, 21, a + o * 0.3, v1, 37, a + o * 0.2, v1, 37], st.colour);
-        poly3(ctx, [u1, b + o * 0.19, 21, u1, b + o * 0.29, 21, u1, b + o * 0.29, 37, u1, b + o * 0.19, 37], side);
-      }
-    }
   }
   // Arched door with a soft glow.
   const dx = east ? sx(u1, cv) : sx(cu, v1);

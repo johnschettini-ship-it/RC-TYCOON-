@@ -114,6 +114,20 @@ describe('flat ride colour in today’s look', () => {
     });
   }
 
+  it('a colour adds no geometry: every ride draws the same op names in the same order as Original', () => {
+    const name = (op: string): string => op.replace(/[=(].*$/, '');
+    for (const id of RIDE_IDS) {
+      for (const rotation of DIRS) {
+        for (const s of STATES) {
+          const original = record(id, { rotation, ...s }).ops;
+          const coloured = record(id, { rotation, ...s, colour: GRAPE }).ops;
+          expect(coloured.length, `${id} r${rotation}`).toBe(original.length);
+          expect(coloured.map(name), `${id} r${rotation}`).toEqual(original.map(name));
+        }
+      }
+    }
+  });
+
   it('a coloured carousel draws its golden ops', () => {
     const want: Record<string, string> = {};
     for (const [k, v] of Object.entries(golden)) if (k.startsWith('coloured:')) want[k] = v;
