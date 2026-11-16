@@ -7,9 +7,10 @@
 import * as THREE from 'three';
 import { makeKit, TILE } from '../kit.js';
 import { rideKeys } from './rideKeys.js';
+import { checkRideColour, colourPart, partMask } from './colourPart.js';
 import { frameKey } from '../../../src/render/real/indexFormat';
 
-export { THREE, TILE, frameKey };
+export { THREE, TILE, frameKey, colourPart, partMask };
 
 /** A fresh kit (daylight). Builders add their meshes to K.root. */
 export function kit() {
@@ -35,9 +36,13 @@ export function fitScale(r, tiles, margin = 0.1) {
  *   rots: 'all' | array of sprite rotations
  *   place(holder, k): put the holder for sprite rotation k (anchor stays at the origin)
  *   pictures: [{ keys: [...frame keys], pose?: () => void }]; the first picture's pose casts the shadow
- *   masked?: (mesh) => boolean   tint mask
+ *   masked?: (mesh) => mask      tint mask (bakePage.ts ShootOpts.masked); a ride's is `partMask` (colourPart.js)
+ *   baseColour?: '#rrggbb'       the masked part's designed colour, recorded on the ride's sets
+ *   maskLevels?: number          weight levels of its mask sheets (default 8, bakePage.ts MASK_LEVELS)
+ * A ride must give both (ride colour choice): every ride sheet gets a mask of its colour part.
  */
-export function bakeObject(B, { kind, item, model, rots, place, pictures, masked, shadow = true }) {
+export function bakeObject(B, { kind, item, model, rots, place, pictures, masked, baseColour, maskLevels, shadow = true }) {
+  checkRideColour(kind, item, { masked, baseColour });
   const bs = B.newScene();
   const holder = new THREE.Group();
   holder.add(model);
@@ -46,7 +51,7 @@ export function bakeObject(B, { kind, item, model, rots, place, pictures, masked
   const turns = rots === 'all' ? [['all', 0]] : rots.map((r) => [r, r]);
   for (const [rot, k] of turns) {
     place(holder, k);
-    const set = B.set(kind, item, rot, !!masked);
+    const set = B.set(kind, item, rot, !!masked, baseColour, maskLevels);
     for (const p of pictures) {
       if (p.pose) p.pose();
       set.add(p.keys, B.shoot(bs, { target: holder, masked }));

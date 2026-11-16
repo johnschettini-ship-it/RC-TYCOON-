@@ -154,7 +154,7 @@ describe('cache key covers the code an item is built from', () => {
       expect(seen.size, it.id).toBeGreaterThan(1);
     }
     expect([...missing], 'not in SHARED or the item\'s deps').toEqual([]);
-  });
+  }, 30_000); // walks every item's import graph with the TypeScript parser: about 5 s alone, past the 5 s default under load
 
   it('a file not followed (LEAF_USE) is only used for the names its reason gives', () => {
     const users = ITEM_FILES_IMPORTING_LEAVES();

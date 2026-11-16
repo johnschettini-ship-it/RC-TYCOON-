@@ -96,8 +96,8 @@ export function timeD2(item, groups, pick, step) {
  */
 export function d2Api(B, pictures) {
   const at2 = new Map(pictures.map((p) => [p.keys, p.keys2 ?? p.keys]));
-  const set = (kind, item, rot, masked) => {
-    const s = B.set(kind, item, rot, masked);
+  const set = (kind, item, rot, masked, baseColour, maskLevels) => {
+    const s = B.set(kind, item, rot, masked, baseColour, maskLevels);
     if (kind !== 'ride') return s;
     return {
       add(keys, shot) {

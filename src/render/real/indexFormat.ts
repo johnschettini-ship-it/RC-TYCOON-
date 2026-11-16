@@ -20,8 +20,17 @@ export interface RealSetEntry {
   item: string;
   density: 2 | 4;
   rot: 0 | 1 | 2 | 3 | 'all';
+  /**
+   * `mask`: the sheet's tint mask (same size; red channel = how much of the colour each pixel takes). Every ride sheet
+   * has one: its colour part (ride colour choice), white on the part, black elsewhere, soft only at edges.
+   */
   sheets: { file: string; w: number; h: number; mask?: string }[];
   frames: Record<string, RealFrame>;
+  /**
+   * Rides: the designed colour (`#rrggbb`) of the ride's colour part, the part its masks cover. A chosen colour maps
+   * this colour to the target and keeps each pixel's shading relative to it. Same for every set of the ride.
+   */
+  baseColour?: string;
 }
 
 export interface RealIndex {

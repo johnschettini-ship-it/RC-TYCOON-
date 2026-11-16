@@ -4,11 +4,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RealIndex } from '../../src/render/real/indexFormat';
 import { checkIndex } from './checkIndex';
-import { S5_LIMIT_BYTES, formatSizeReport, sizeReport } from './sizeReport';
+import { FLAT_RIDES } from '../../src/data/catalog';
+import { S5_LIMIT_BYTES, formatRideSizeRows, formatSizeReport, rideSizeRows, sizeReport } from './sizeReport';
 
 const mb = (n: number): string => (n / 1e6).toFixed(2);
 
-/** Runs the checks on a baked folder and returns the exit code (0 pass, 1 problems, S5 or missing files, 2 usage). */
+/** Runs the checks on a baked folder and returns the exit code (0 pass, 1 problems, S5, ride size rules or missing files, 2 usage). */
 export function run(dir: string | undefined): number {
   if (!dir) { console.error('usage: tsx tools/art3d/checkIndex.ts <dir>'); return 2; }
   const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8')) as RealIndex;
@@ -25,7 +26,14 @@ export function run(dir: string | undefined): number {
   const over = r.projectedFull > S5_LIMIT_BYTES;
   if (over) console.error(`S5 FAIL: projected full art ${mb(r.projectedFull)} MB passes ${mb(S5_LIMIT_BYTES)} MB`);
   if (r.missingFiles.length) console.error(`${r.missingFiles.length} indexed file(s) missing`);
-  return problems.length === 0 && !over && r.missingFiles.length === 0 ? 0 : 1;
+  // per-ride size rules for the flat rides this bake holds
+  const baked = new Set(index.sets.filter((s) => s.kind === 'ride').map((s) => s.item));
+  const rides = rideSizeRows(r, FLAT_RIDES.map((d) => d.id).filter((id) => baked.has(id)));
+  for (const l of formatRideSizeRows(rides)) console.log(l);
+  for (const x of rides.flatMap((y) => y.allowed)) console.log(`size rule allowed: ${x}`);
+  const rideProblems = rides.flatMap((y) => y.problems);
+  for (const x of rideProblems) console.error(`SIZE RULE FAIL: ${x}`);
+  return problems.length === 0 && !over && r.missingFiles.length === 0 && rideProblems.length === 0 ? 0 : 1;
 }
 
 export function main(dir: string | undefined): void {

@@ -50,6 +50,7 @@
      "h": 128
     }
    ],
+   "baseColour": "#a8232b",
    "frames": {
     "f0": {
      "sheet": "ride-carousel-d2-r0.webp",
@@ -90,6 +91,7 @@
      "h": 128
     }
    ],
+   "baseColour": "#a8232b",
    "frames": {
     "f0": {
      "sheet": "ride-carousel-d2-r1.webp",
@@ -130,6 +132,7 @@
      "h": 128
     }
    ],
+   "baseColour": "#a8232b",
    "frames": {
     "f0": {
      "sheet": "ride-carousel-d2-r2.webp",
@@ -170,6 +173,7 @@
      "h": 128
     }
    ],
+   "baseColour": "#a8232b",
    "frames": {
     "f0": {
      "sheet": "ride-carousel-d2-r3.webp",

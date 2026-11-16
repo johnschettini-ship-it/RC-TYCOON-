@@ -20,6 +20,7 @@ import { makeBakeCamera } from './bakeView.js';
 import { bakeCamera, type BakeDensity } from './camera';
 import { ITEMS } from './items/index.js';
 import type { RealKind, RealFrame } from '../../src/render/real/indexFormat';
+import { greyPng } from './png';
 
 // ------------------------------------------------------------------ look constants (round 6 "T Daylight real")
 const VT = {
@@ -329,8 +330,49 @@ export interface Pic { canvas: HTMLCanvasElement; mask: HTMLCanvasElement | null
 export type Shot = Partial<Record<BakeDensity, Pic | null>>;
 
 // material swaps for the mask pass and the shadow pass
-const WHITE = new THREE.MeshBasicMaterial({ color: 0xffffff });
-const BLACK = new THREE.MeshBasicMaterial({ color: 0x000000 });
+/**
+ * What a mesh (or each material of a material array) takes in the mask pass: true / 1 white (all of it takes the
+ * colour), false / 0 black, or `{ map }` a mask map laid out as the material's own map (white where the colour goes).
+ */
+export type MaskSpec = boolean | 0 | 1 | { map: any };
+// Mask materials keep what decides which pixels a material covers: its side (an open cone seen from inside) and its
+// alpha test with its map (a scalloped valance), so the mask covers exactly the pixels the picture shows. A see-through
+// material that is not the part (glass, opacity < 0.6) is left out of the mask pass, so the part behind it still masks.
+const maskMats = new Map<any, Map<unknown, any>>();
+const FLAT_OUT = (s: any): void => { s.fragmentShader = s.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor = vec4( diffuse, 1.0 );'); };
+const MAP_OUT = (s: any): void => { s.fragmentShader = s.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = 1.0;'); };
+function maskMat(orig: any, spec: MaskSpec): any {
+  const per = maskMats.get(orig) ?? new Map<unknown, any>();
+  maskMats.set(orig, per);
+  const key = typeof spec === 'object' ? spec.map : !!spec;
+  const hit = per.get(key);
+  if (hit) return hit;
+  const side = orig?.side ?? THREE.FrontSide;
+  const alphaTest = orig?.alphaTest ?? 0;
+  let m: any;
+  if (typeof spec === 'object') {
+    // the mask map in the place of the material's map, with its repeat and offset (its alpha carries the same edge)
+    const t = spec.map.clone();
+    const src = orig?.map;
+    if (src) { t.repeat.copy(src.repeat); t.offset.copy(src.offset); t.center.copy(src.center); t.rotation = src.rotation; t.wrapS = src.wrapS; t.wrapT = src.wrapT; }
+    t.colorSpace = THREE.NoColorSpace;
+    t.needsUpdate = true;
+    m = new THREE.MeshBasicMaterial({ map: t, side, alphaTest });
+    m.onBeforeCompile = MAP_OUT;
+  } else if (!spec && orig?.transparent && (orig.opacity ?? 1) < 0.6) {
+    m = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
+  } else {
+    m = new THREE.MeshBasicMaterial({ color: spec ? 0xffffff : 0x000000, side, alphaTest, map: alphaTest > 0 && orig?.map ? orig.map : null });
+    m.onBeforeCompile = FLAT_OUT;
+  }
+  per.set(key, m);
+  return m;
+}
+function maskOf(mesh: any, spec: MaskSpec | MaskSpec[]): any {
+  const mats = mesh.material;
+  if (Array.isArray(mats)) return mats.map((x: any, i: number) => maskMat(x, Array.isArray(spec) ? (spec[i] ?? false) : spec));
+  return maskMat(mats, Array.isArray(spec) ? (spec[0] ?? false) : spec);
+}
 function swap(target: any, pick: (mesh: any) => any): () => void {
   const saved: [any, any][] = [];
   target.traverse((o: any) => { if (o.isMesh) { saved.push([o, o.material]); o.material = pick(o); } });
@@ -349,8 +391,8 @@ const ghost = (mesh: any): any => (Array.isArray(mesh.material) ? mesh.material.
 export interface ShootOpts {
   /** Object whose box sets the picture rect (default: every visible item in the world). */
   target: any;
-  /** Mask pass: meshes for which this returns true are white in the mask. */
-  masked?: (mesh: any) => boolean;
+  /** Mask pass: per mesh, white (true), black (false), a mask map ({ map }), or one of those per material (array). */
+  masked?: (mesh: any) => MaskSpec | MaskSpec[];
   /** Extra margin in snap units. */
   margin?: number;
   /** Keep the object's own contact shadow in the picture (guests): the shadow catcher replaces the hold-out. */
@@ -393,7 +435,7 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
     if (restore) restore();
     let maskSrc: Raw | null = null;
     if (o.masked && !shadow) {
-      const restore = swap(o.target, (m) => (o.masked!(m) ? WHITE : BLACK));
+      const restore = swap(o.target, (m) => maskOf(m, o.masked!(m)));
       maskSrc = render(bs, rect, 'flat');
       restore();
     }
@@ -422,12 +464,42 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
 
 // ------------------------------------------------------------------ sets, packing and files
 interface SetPic { keys: string[]; shot: Shot }
-interface SetB { kind: RealKind; item: string; rot: 0 | 1 | 2 | 3 | 'all'; pics: SetPic[]; masked: boolean }
+interface SetB { kind: RealKind; item: string; rot: 0 | 1 | 2 | 3 | 'all'; pics: SetPic[]; masked: boolean; baseColour?: string; maskLevels?: number }
 let sets: SetB[] = [];
 const files = new Map<string, string>(); // name -> data URL
+const pending: Promise<void>[] = []; // mask files still being written (greyPng is async)
 
-function encode(canvas: HTMLCanvasElement, name: string): void {
-  const url = canvas.toDataURL('image/webp', 0.85);
+/**
+ * Tint mask weight levels by default: 0, 1/7 .. 1 (exact 0 and 1 on and off the part, soft steps only at edges). A
+ * ride whose mask has much edge (the carousel's 48 stripes) may bake fewer (bakeObject maskLevels) to keep its size rule.
+ */
+const MASK_LEVELS = 8;
+/**
+ * A mask sheet is quantised to its levels of weight and written lossless as an 8-bit grey PNG (png.ts). A lossy WebP
+ * mask left a haze of 1-5/255 weights over its black and ringing at its edges; Chromium's lossless WebP was exact but
+ * large on these mostly black sheets (drop tower: 0.96 MB for a mask covering 2% of its pixels; grey PNG 0.13 MB).
+ */
+function encodeMask(canvas: HTMLCanvasElement, name: string, levels = MASK_LEVELS): void {
+  if (!Number.isInteger(levels) || levels < 2 || levels > 256) throw new Error(`${name}: mask levels must be 2..256, got ${levels}`);
+  const d = (canvas.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, canvas.width, canvas.height).data;
+  const grey = new Uint8Array(canvas.width * canvas.height);
+  const step = 255 / (levels - 1);
+  for (let i = 0; i < grey.length; i++) grey[i] = Math.round(Math.round((d[i * 4] as number) / step) * step);
+  pending.push(greyPng(grey, canvas.width, canvas.height, zlib).then((png) => { files.set(name, `data:image/png;base64,${base64(png)}`); }));
+}
+/** zlib (RFC 1950) compression in the page: CompressionStream('deflate'). */
+async function zlib(raw: Uint8Array): Promise<Uint8Array> {
+  const s = new Blob([raw as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream('deflate'));
+  return new Uint8Array(await new Response(s).arrayBuffer());
+}
+function base64(b: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+function encode(canvas: HTMLCanvasElement, name: string, quality = 0.85): void {
+  const url = canvas.toDataURL('image/webp', quality);
   if (!url.startsWith('data:image/webp')) throw new Error('this browser cannot encode WebP');
   files.set(name, url);
 }
@@ -437,6 +509,14 @@ interface OutSet {
   sheets: { file: string; w: number; h: number; mask?: string }[];
   frames: Record<string, RealFrame>;
   pictures: number;
+  /** Rides: the colour part's designed colour (index `baseColour`). */
+  baseColour?: string;
+  /**
+   * Masked sets: the mask's share of the set's drawn pixels (mask weight summed over pixels with alpha, / their count),
+   * and of the pictures, how many have no mask at all (bake report; a mask that covers nothing is a failed bake).
+   */
+  maskCoverage?: number;
+  emptyMasks?: number;
 }
 
 function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
@@ -491,6 +571,19 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
     pg.usedW = Math.max(pg.usedW, at.x + w + PAD); pg.usedH = Math.max(pg.usedH, at.y + h + PAD);
   }
   const out: OutSet = { kind: s.kind, item: s.item, density: d, rot: s.rot, sheets: [], frames: {}, pictures: pics.length };
+  if (s.baseColour !== undefined) out.baseColour = s.baseColour;
+  if (s.masked) {
+    let sum = 0, n = 0, empty = 0;
+    for (const { pic } of pics) {
+      const c = (pic.canvas.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, pic.canvas.width, pic.canvas.height).data;
+      const m = pic.mask ? (pic.mask.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, pic.canvas.width, pic.canvas.height).data : null;
+      let ps = 0;
+      for (let i = 0; i < c.length; i += 4) if ((c[i + 3] as number) > 0) { n++; const v = m ? (m[i] as number) / 255 : 0; sum += v; ps += v; }
+      if (ps === 0) empty++;
+    }
+    out.maskCoverage = n ? +(sum / n).toFixed(4) : 0;
+    out.emptyMasks = empty;
+  }
   pages.forEach((p, i) => {
     if (p.items.length === 0) return;
     const W = Math.min(PAGE, p.usedW), H = Math.min(PAGE, p.usedH);
@@ -501,12 +594,12 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
     encode(c, file);
     const sheet: OutSet['sheets'][number] = { file, w: W, h: H };
     if (s.masked) {
-      const mfile = `${prefix}-${i}-mask.webp`;
+      const mfile = `${prefix}-${i}-mask.png`;
       const mc = document.createElement('canvas'); mc.width = W; mc.height = H;
       const mg = mc.getContext('2d') as CanvasRenderingContext2D;
       mg.fillStyle = '#000'; mg.fillRect(0, 0, W, H);
       for (const it of p.items) if (it.p.mask) mg.drawImage(it.p.mask, it.x, it.y);
-      encode(mc, mfile);
+      encodeMask(mc, mfile, s.maskLevels);
       sheet.mask = mfile;
       out.sheets.push(sheet, { file: mfile, w: W, h: H });
     } else out.sheets.push(sheet);
@@ -529,7 +622,7 @@ export interface BakeApi {
   shoot(bs: BakeScene, o: ShootOpts): Shot;
   shootShadow(bs: BakeScene, target: any): Shot;
   /** Start a set; `add` registers one picture under every frame key that shows it. */
-  set(kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all', masked?: boolean): { add(keys: string[], shot: Shot): void };
+  set(kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all', masked?: boolean, baseColour?: string, maskLevels?: number): { add(keys: string[], shot: Shot): void };
   /** Clip every render to vertical planes [nx, nz, k] (three.js x/z; kept where nx·x + nz·z + k >= 0); null clears. */
   clip(planes: [number, number, number][] | null): void;
   log(...a: unknown[]): void;
@@ -552,6 +645,7 @@ window.bakeItem = async (id, opts) => {
   snapF = renderD / (densities[0] as number);
   sets = [];
   files.clear();
+  pending.length = 0;
   renderCount = 0; renderMs = 0;
   const api: BakeApi = {
     THREE, densities, input: opts.input, newScene, setEnv, boxOf, log,
@@ -560,8 +654,10 @@ window.bakeItem = async (id, opts) => {
     clip(planes) {
       renderer.clippingPlanes = planes ? planes.map(([nx, nz, k]) => new THREE.Plane(new THREE.Vector3(nx, 0, nz), k)) : [];
     },
-    set(kind, item, rot, masked = false) {
+    set(kind, item, rot, masked = false, baseColour, maskLevels) {
       const s: SetB = { kind, item, rot, pics: [], masked };
+      if (maskLevels !== undefined) s.maskLevels = maskLevels;
+      if (baseColour !== undefined) s.baseColour = baseColour;
       sets.push(s);
       return { add: (keys, shot) => { s.pics.push({ keys, shot }); } };
     },
@@ -572,6 +668,7 @@ window.bakeItem = async (id, opts) => {
     const o = packSet(s, d, `${s.kind}-${s.item}-${opts.hash}-d${d}-r${s.rot}`);
     if (o.sheets.length) out.push(o);
   }
+  await Promise.all(pending.splice(0));
   return { sets: out, files: [...files.keys()], renders: renderCount, renderSeconds: +(renderMs / 1000).toFixed(1) };
 };
 window.takeFile = (name) => { const f = files.get(name); files.delete(name); return f; };
