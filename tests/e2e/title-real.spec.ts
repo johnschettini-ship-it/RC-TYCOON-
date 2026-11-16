@@ -91,6 +91,21 @@ async function released(page: Page): Promise<{ sets: number; tints: number; grou
   });
 }
 
+/**
+ * Live bitmaps other than the card pictures: the card set (boot step 4) stays decoded at the title by design (the park
+ * release keeps it), so with a bake that has one, its sheets are live beside the title's 6 pictures.
+ */
+async function liveBesideCards(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const all = (window as unknown as { __liveBitmaps(): number }).__liveBitmaps();
+    const r = (window as unknown as { __tcReal?: { sets: { state(k: string): string } } }).__tcReal;
+    const key = 'preview:cards:d2:rall';
+    if (!r || r.sets.state(key) !== 'ready') return all;
+    const ix = (await (await fetch('art/real/index.json')).json()) as { sets: Array<{ key: string; sheets: unknown[] }> };
+    return all - (ix.sets.find((e) => e.key === key)?.sheets.length ?? 0);
+  });
+}
+
 test.describe('realistic title screen (VITE_ART=real build)', () => {
   test.skip(!REAL, 'needs a VITE_ART=real build (set VITE_ART=real)');
   // Each test makes its own phone or desktop context: once is enough.
@@ -241,7 +256,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     await expect.poll(async () => (await placed(page)).framing, { timeout: 10_000 }).toBe('wide');
     await expect(ready(page)).toHaveCount(1);
     // Only one framing decoded at a time: 4 pictures and 2 signs.
-    expect(await page.evaluate(() => (window as unknown as { __liveBitmaps(): number }).__liveBitmaps())).toBe(6);
+    expect(await liveBesideCards(page)).toBe(6);
     await shot(page, 'rotated-844x390');
     await ctx.close();
   });
@@ -266,7 +281,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     const { ctx, page, errors } = await open(browser, SIZES[3]);
     await page.goto('/');
     test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
-    const live = (): Promise<number> => page.evaluate(() => (window as unknown as { __liveBitmaps(): number }).__liveBitmaps());
+    const live = (): Promise<number> => liveBesideCards(page);
     await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
     const atTitle = await live();
     expect(atTitle).toBe(6);
@@ -305,7 +320,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     const { ctx, page, errors } = await open(browser, SIZES[3]);
     await page.goto('/');
     test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
-    const live = (): Promise<number> => page.evaluate(() => (window as unknown as { __liveBitmaps(): number }).__liveBitmaps());
+    const live = (): Promise<number> => liveBesideCards(page);
     await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
     expect(await live()).toBe(6);
     // Count the title's frames: the canvas's drawImage calls.
