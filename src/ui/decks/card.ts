@@ -12,6 +12,7 @@ import { h, setAttr, toggleClass } from '../dom';
 import { formatMoney } from '../format';
 import { attachCardDrag } from './drag';
 import { heldCardId, type CardSpec } from './model';
+import { trackCost } from './realAfford';
 import { holdCard, putBack, selectTool, type ToolCardDef } from './toolCards';
 
 export interface ToolCardView {
@@ -163,6 +164,8 @@ export function contentCard(ctx: UiContext, spec: CardSpec): HTMLElement {
   // A mouse or a pen drags a flat ride or stall card to the map (§4.6). The drag comes before the press: it drops the
   // click that follows a drag.
   attachCardDrag(ctx, card, spec);
+  // The realistic build marks a card the park cannot pay for (`realAfford.ts`); the website build folds this away.
+  if (import.meta.env.VITE_ART === 'real') trackCost(card, spec.cost);
   card.addEventListener('click', (e) => {
     if (heldCardId(ctx.game.tool) === spec.id) {
       selectTool(ctx, 'inspect');

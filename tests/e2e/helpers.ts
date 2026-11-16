@@ -19,6 +19,18 @@ export function watchErrors(page: Page): { errors: string[]; expectNoErrors(): v
   };
 }
 
+/**
+ * The raw settings key of the build under test, for init scripts (they run before the page's code). The realistic
+ * build (VITE_ART=real) prefixes every storage key with `tcreal:` (`src/render/real/storagePrefix.ts`) by patching
+ * `Storage`, so code that runs after the page booted (`page.evaluate`) keeps writing `tc.settings`.
+ */
+export const SETTINGS_KEY = process.env.VITE_ART === 'real' ? 'tcreal:tc.settings' : 'tc.settings';
+
+/** Stores a settings document before every page load, under the build's settings key. */
+export async function presetSettings(page: Page, doc: string): Promise<void> {
+  await page.addInitScript(([k, d]) => window.localStorage.setItem(k as string, d as string), [SETTINGS_KEY, doc]);
+}
+
 /** Start a new park from the title screen. The game starts at 1×. */
 export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
   await page.goto('/');

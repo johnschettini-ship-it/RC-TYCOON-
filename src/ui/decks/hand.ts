@@ -15,6 +15,7 @@ import type { UiContext } from '../context';
 import { h, newId, setAttr } from '../dom';
 import { contentCard, createToolCard, setHeld, zoneName, type ToolCardView } from './card';
 import { RIDE_ZONES, STALL_ZONES, handSignature, heldCardId, rideCards, stallCards, zonesPresent, type CardSpec, type DeckId } from './model';
+import { markAfford } from './realAfford';
 import { cardsOfDeck, type ToolCardDef } from './toolCards';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -240,6 +241,7 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
     // The Rides and Stalls decks always hold their start content, so this text cannot show today.
     if (nodes.length === 0) nodes.push(h('p', { class: 'muted', text: text('ui.picker.empty') }));
     cards.replaceChildren(...nodes);
+    if (import.meta.env.VITE_ART === 'real') markAfford(cards, ctx.game.world);
     if (heldWrap) setHeld(heldWrap, false);
     heldWrap = null;
     heldId = null;
@@ -327,6 +329,8 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
           signature = sig;
           refresh(false);
         }
+        // The realistic build dims the ride and stall cards the park cannot pay for (`realAfford.ts`).
+        if (import.meta.env.VITE_ART === 'real' && open !== null) markAfford(cards, ctx.game.world);
       }
       if (open === null) return;
       for (const v of shownTools) v.update();
