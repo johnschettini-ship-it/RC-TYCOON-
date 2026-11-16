@@ -2,20 +2,27 @@
 // 16 chair swings on 5.2 m chains, two rider looks alternating (so the ride repeats every 45 degrees: the phone's
 // 16 even angles need 2 pictures per swing level and occupancy), and a round base, so one set serves every view
 // turn (rot 'all'). Swing levels 0-4 (anim.ts rideFrameFor) throw the chairs out 0 to 45 degrees.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the turning canopy, the red stripes of its cone and valance (the cream stripes keep theirs); base #a8232b.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api, swingTowerKeys } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
+import { stripesMask } from '../textures.js';
 
 const N = 16;
 const RING = 2.3;
 const CHAIN = 5.2;
 const CANOPY_Y = 6.2;
 const MAX_SWING = Math.PI / 4;
+/** The canopy's red (kit.js roofStripes; its valance red #b8202a is the same family). */
+const BASE_COLOUR = '#a8232b';
 
 function build() {
   const K = kit();
   const { mat } = K;
+  // the canopy's red stripes (the kit's stripe textures: roofStripes 48 flat stripes, valance 24 scalloped)
+  colourPart(mat.roofStripes, stripesMask(48, false));
+  colourPart(mat.valance, stripesMask(24, true));
   const root = new THREE.Group();
   root.add(M(new THREE.CylinderGeometry(5.7, 5.85, 0.3, 72), mat.concrete).translateY(0.15));
   root.add(M(new THREE.CylinderGeometry(5.4, 5.4, 0.08, 72), mat.deck).translateY(0.34));
@@ -77,6 +84,6 @@ export default {
     const groups = swingTowerKeys(period); // flatRides.js: the pictures, and density 2's
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(((g.angle % period) / 32) * Math.PI * 2, g.swing, g.full) }));
     B.log(`swing_tower: ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'swing_tower', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'swing_tower', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

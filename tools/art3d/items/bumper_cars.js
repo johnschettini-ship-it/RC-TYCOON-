@@ -6,7 +6,8 @@
 // bumper rings and antenna lamps jostle on the floor, each round its own spot once per cycle, some spinning on the
 // spot (whole frequencies, so the loop closes). Frames: arenaKeys.bumperKeys (16 time steps per cycle folded into 8
 // pictures; the empty ride is one rest picture). Front (deck, sign) at +z: rots [0, 1, 2, 3].
-import { THREE, placeOnFootprint, bakeObject, kit } from './common.js';
+// Colour part: the nine cars' fibreglass bodies, all six designed colours; the others become lighter or darker shades of the chosen colour; base #22a38a.
+import { THREE, placeOnFootprint, bakeObject, kit, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { stripes } from '../textures.js';
@@ -23,13 +24,18 @@ const ACZ = (AZ0 + AZ1) / 2; // arena centre z
 const COL = 7.35; // column line
 const FASCIA_Y = 4.7; // underside of the fascia
 const CAR_COLOURS = ['#d7322b', '#2f74c8', '#f2c230', '#7d4fc0', '#22a38a', '#ee8a24'];
+/**
+ * The cars' teal, of middle lightness among them (luma 134 of red 85, blue 107, lemon 194, violet 97, orange 152), so
+ * a chosen colour keeps the cars as shades of it (0.6x to 1.45x).
+ */
+const BASE_COLOUR = '#22a38a';
 
 /** One bumper car (forward +z): rubber ring, fibreglass body, seat, wheel, a whip antenna. */
 function car(K, colour, seed) {
   const { mat } = K;
   const g = new THREE.Group();
   const rubber = std({ color: '#1d1d1f', roughness: 0.85 });
-  const body = gloss(colour);
+  const body = colourPart(gloss(colour));
   const trim = std({ color: '#d9dadc', metalness: 1, roughness: 0.3 });
   g.add(extrudeUp(roundRect(1.3, 2.0, 0.5), 0.14, mat.darkSteel, 0.06, 0.02));
   // rubber bumper ring round the chassis
@@ -187,6 +193,6 @@ export default {
       return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(s.t, s.full) };
     });
     B.log(`bumper_cars: ${pictures.length} pictures per rotation`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'bumper_cars', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'bumper_cars', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

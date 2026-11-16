@@ -9,6 +9,8 @@
 //   VITE_ART=real npx vite build --outDir <dir> && mkdir -p <dir>/art && cp -r dist-art/real <dir>/art/real
 //   node tools/art3d/reviewShots.mjs --root <dir> --items carousel,bench,... --out <dir>/review
 // --looks classic,real (default) limits the looks shot.
+// --colours also shoots each flat ride in the 6 ride colours (reviewPage.ts REVIEW_COLOURS, turn 0, both looks) through
+// the game's setRideColour command; a build without that command shoots the original colours only and the page says so.
 // --items defaults to the stage 1 list: every ITEM_LIST entry with a `catalog`, plus bench and bin.
 // The park is a flat 64 x 64 sandbox (everything unlocked, free); items are placed one at a time and demolished again.
 import fs from 'node:fs';
@@ -25,6 +27,7 @@ const defaultItems = [...ITEM_LIST.filter((i) => i.catalog).map((i) => i.id), 'b
 const ids = (arg('--items', '') || defaultItems.join(',')).split(',').filter(Boolean);
 const TURNS = [0, 1];
 const LOOKS = (arg('--looks', '') || 'classic,real').split(',');
+const COLOURS = process.argv.includes('--colours');
 const ZOOM = 2;
 const SITE = { x: 30, y: 30 };
 const SHOT = { w: 390, h: 520 }; // css px, centred on the item
@@ -39,7 +42,7 @@ async function bundle(entry, name) {
   await b.close();
   return import(path.join(tmp, name));
 }
-const { reviewPage } = await bundle('tools/art3d/reviewPage.ts', 'reviewPage.mjs');
+const { reviewPage, REVIEW_COLOURS } = await bundle('tools/art3d/reviewPage.ts', 'reviewPage.mjs');
 const { itemSpec } = await bundle('tools/art3d/catalog.ts', 'catalog.mjs');
 const { REAL_STEP_PX } = await bundle('src/render/artStyle.ts', 'artStyle.mjs');
 // Both modules are loaded: the bundle folder is not needed any more (and never left behind by a later failure).
@@ -64,6 +67,13 @@ function plan(id) {
  */
 const PAGE_HELPERS = `
 window.__undo = [];
+// Ride colour (reviewShots --colours): 'ok', 'unsupported' (the build has no setRideColour command) or the refusal.
+window.__colour = (colour) => {
+  const r = window.__tc.dispatch({ type: 'setRideColour', rideId: window.__rideId, colour });
+  if (r.ok) return 'ok';
+  const why = String(r.error ?? r.reason ?? JSON.stringify(r));
+  return /unknown command/i.test(why) ? 'unsupported' : why;
+};
 window.__sig = () => {
   const s = window.__tc.world.state; let h = 2166136261 >>> 0;
   for (const v of Object.values(s.map)) if (ArrayBuffer.isView(v)) for (let i = 0; i < v.length; i++) h = Math.imul(h ^ (v[i] & 0xffff), 16777619) >>> 0;
@@ -73,7 +83,7 @@ window.__must = (r, what) => { if (!r.ok) throw new Error(what + ': ' + (r.error
 window.__place = ({ kind, id }, site) => {
   const g = window.__tc, must = window.__must, undo = window.__undo; undo.length = 0;
   const at = { x: site.x, y: site.y };
-  if (kind === 'ride') { must(g.dispatch({ type: 'placeRide', defId: id, ...at, rotation: 0 }), 'placeRide'); undo.push({ type: 'demolish', ...at }); return; }
+  if (kind === 'ride') { const r = must(g.dispatch({ type: 'placeRide', defId: id, ...at, rotation: 0 }), 'placeRide'); window.__rideId = r.id; undo.push({ type: 'demolish', ...at }); return; }
   if (kind === 'stall') { must(g.dispatch({ type: 'placeStall', defId: id, ...at, rotation: 0 }), 'placeStall'); undo.push({ type: 'demolish', ...at }); return; }
   if (kind === 'scenery') {
     let r = g.dispatch({ type: 'placeScenery', defId: id, ...at, rotation: 0, edge: -1 });
@@ -102,6 +112,7 @@ const { port, server } = await serve(root);
 const browser = await chromium.launch();
 const files = {}; // id -> shots
 const notes = [];
+let coloursState = COLOURS ? 'shot' : undefined; // 'unsupported' once the build refuses the command as unknown
 for (const look of LOOKS) {
   const { page, logs } = await phonePage(browser);
   await page.goto(`http://localhost:${port}/index.html?art=${look}`);
@@ -127,7 +138,7 @@ for (const look of LOOKS) {
       notes.push(`${look} ${id}: ${placed.error}`);
       continue;
     }
-    for (const turn of TURNS) {
+    const shoot = async (turn, file) => {
       await page.evaluate(([cx, cy, z, t, lift]) => { window.__tcView.frame(cx, cy, z, t, lift); window.__tc.setSpeed(0); }, [SITE.x + p.w / 2, SITE.y + p.d / 2, ZOOM, turn, p.heightM * REAL_STEP_PX * 0.4]);
       const t0 = Date.now();
       if (look === 'real') {
@@ -138,9 +149,23 @@ for (const look of LOOKS) {
         }
       }
       await page.waitForTimeout(800);
-      const file = `${id}-${look}-t${turn}.png`;
       await page.screenshot({ path: path.join(out, file), clip: { x: 0, y: Math.round((844 - SHOT.h) / 2), width: SHOT.w, height: SHOT.h } });
+    };
+    for (const turn of TURNS) {
+      const file = `${id}-${look}-t${turn}.png`;
+      await shoot(turn, file);
       (files[id] ??= []).push({ look, turn, file });
+    }
+    // ride colours: turn 0 in each of the 6 colours, while the build has the command
+    if (p.kind === 'ride' && coloursState === 'shot') {
+      for (const colour of REVIEW_COLOURS) {
+        const res = await page.evaluate((c) => window.__colour(c), colour);
+        if (res === 'unsupported') { coloursState = 'unsupported'; notes.push('colours: this build has no setRideColour command; original colours only'); break; }
+        if (res !== 'ok') { notes.push(`${look} ${id} colour ${colour}: ${res}`); continue; }
+        const file = `${id}-${look}-c${colour}.png`;
+        await shoot(0, file);
+        files[id].push({ look, turn: 0, colour, file });
+      }
     }
     await page.evaluate((e) => window.__clean(e), empty);
   }
@@ -148,7 +173,7 @@ for (const look of LOOKS) {
   await page.close();
 }
 const pretty = (id) => id.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
-fs.writeFileSync(path.join(out, 'index.html'), reviewPage(ids.filter((id) => files[id]).map((id) => ({ id, name: pretty(id), shots: files[id] }))));
+fs.writeFileSync(path.join(out, 'index.html'), reviewPage(ids.filter((id) => files[id]).map((id) => ({ id, name: pretty(id), shots: files[id] })), { colours: coloursState }));
 console.log(`wrote ${Object.values(files).flat().length} pictures and ${path.join(out, 'index.html')}`);
 for (const n of notes) console.log('note: ' + n);
 await browser.close();

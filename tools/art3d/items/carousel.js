@@ -2,18 +2,25 @@
 // horses in two alternating designs, 5 inner horses, every ring, rib, stripe and bulb count a divisor of 72 degrees),
 // so 16 pictures 4.5 degrees apart show every angle the game asks for, and, being round, one set serves all four
 // view turns (rot 'all'; a turn only shifts the phase). Scaled to fit its 12 m footprint.
-import { THREE, kit, placeOnFootprint, fitScale, bakeObject } from './common.js';
+// Colour part: the canopy, the red stripes of its cone and valance (the cream stripes keep theirs); base #a8232b.
+import { THREE, kit, placeOnFootprint, fitScale, bakeObject, colourPart, partMask } from './common.js';
 import { CAROUSEL, carouselKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
+import { stripesMask } from '../textures.js';
 
 const R = 5.8;
 const PERIOD = CAROUSEL.period; // 72 degrees
 const STEPS = CAROUSEL.steps; // pictures per period (4.5 degrees apart)
+/** The canopy's red (kit.js roofStripes; its valance red #b8202a is the same family). */
+const BASE_COLOUR = '#a8232b';
 
 function build() {
   const K = kit();
   const { mat } = K;
+  // the canopy's red stripes (the kit's stripe textures: roofStripes 48 flat stripes, valance 24 scalloped)
+  colourPart(mat.roofStripes, stripesMask(48, false));
+  colourPart(mat.valance, stripesMask(24, true));
   const root = new THREE.Group();
   const base = M(new THREE.CylinderGeometry(R + 0.45, R + 0.55, 0.3, 72), mat.concrete);
   base.position.y = 0.15;
@@ -97,6 +104,6 @@ export default {
       return { keys: g.keys, keys2: g.keys2, pose: () => { m.spin.rotation.y = (p * PERIOD) / STEPS; for (const r of m.riders) r.visible = g.full; } };
     });
     B.log(`carousel: scale ${m.scale.toFixed(3)}, ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'carousel', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'carousel', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

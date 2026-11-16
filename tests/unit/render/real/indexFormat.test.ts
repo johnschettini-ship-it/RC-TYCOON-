@@ -128,6 +128,37 @@ describe('checkIndex', () => {
       `ride:carousel:d2:r0: 1 frame keys of density 4 missing at density 2 (${k1})`,
     ].sort());
   });
+  // Ride colour choice (Task 4): the game recolours a ride's colour part at load, from its mask and base colour.
+  it('a ride set needs a tint mask beside every sheet', () => {
+    const i = clone();
+    const s = i.sets.find((x) => x.key === 'ride:carousel:d2:r1')!;
+    delete s.sheets[0]!.mask;
+    s.sheets = s.sheets.slice(0, 1);
+    const f = filesOf(i);
+    expect(problems(i, f)).toContain('ride:carousel:d2:r1: sheet ride-carousel-d2-r1.webp has no tint mask (ride colour)');
+  });
+  it('a ride set needs its colour part\'s base colour, as #rrggbb', () => {
+    for (const bad of [undefined, 'red', '#abc', '#A8232B0', '']) {
+      const i = clone();
+      const s = i.sets.find((x) => x.key === 'ride:carousel:d2:r2')!;
+      if (bad === undefined) delete s.baseColour; else s.baseColour = bad;
+      expect(problems(i), String(bad)).toContain(`ride:carousel:d2:r2: base colour ${bad === undefined ? 'missing' : `'${bad}' is not #rrggbb`} (ride colour)`);
+    }
+    const i = clone();
+    i.sets.find((x) => x.key === 'ride:carousel:d2:r2')!.baseColour = '#A8232B';
+    expect(problems(i)).toEqual([]);
+  });
+  it('a ride\'s turns and densities share one base colour', () => {
+    const i = clone();
+    i.sets.find((x) => x.key === 'ride:carousel:d2:r3')!.baseColour = '#123456';
+    expect(problems(i)).toContain('ride:carousel: base colours differ between its sets (#a8232b, #123456)');
+  });
+  it('other kinds need neither (ground, shadows)', () => {
+    const i = clone();
+    expect(i.sets.filter((s) => s.kind !== 'ride').every((s) => s.baseColour === undefined && s.sheets.every((x) => x.mask === undefined))).toBe(true);
+    expect(problems(i)).toEqual([]);
+  });
+
   it('rot all satisfies rotations', () => {
     const i = clone(); const r = i.sets.find((s) => s.kind === 'ride')!;
     i.sets = [r]; r.rot = 'all';

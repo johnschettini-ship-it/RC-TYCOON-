@@ -2,12 +2,25 @@
 // with the gondolas. The wheel turns by the game's ride angle (32 steps per turn); 16 gondolas in 4 colours, and
 // the riders of gondola i copied from gondola i mod 4, so the wheel repeats every 90 degrees: the phone's 16 even
 // angles need 4 pictures per occupancy. Not round, so one set per sprite rotation (boarding steps at the front).
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the gondolas, tub and canopy, all four designed colours; the others become lighter or darker shades of the chosen colour; base #3b7d4f.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { BIG_WHEEL_PERIOD, bigWheelKeys, d2Api } from './flatRides.js';
 import { ferrisWheel } from '../rides.js';
 
 const N = 16;
 const PERIOD_STEPS = BIG_WHEEL_PERIOD; // 90 degrees in game angle steps (32 per turn)
+/**
+ * The gondolas' colours (rides.js ferrisWheel: red, blue, yellow, green). The base is the green, of middle lightness
+ * (luma 108 of red 85, blue 102, yellow 182), so a chosen colour keeps them as shades of it (0.8x to 1.7x).
+ */
+const GONDOLA_COLOURS = ['#c8372d', '#2f6fb5', '#f0b323', '#3b7d4f'];
+const BASE_COLOUR = '#3b7d4f';
+/**
+ * Mask weights 0 and 1 only: with 8 levels the 16 gondolas' masks (riders and rims cut into them) took the wheel to
+ * 2.58 MB, over its 2.5 MB size rule. The gondolas' outer edges stay soft through the picture's own alpha; only where a
+ * gondola meets its rim or riders is the edge hard (one pixel).
+ */
+const MASK_LEVELS = 2;
 
 function build() {
   const K = kit();
@@ -16,6 +29,12 @@ function build() {
   const wheel = kids.find((c) => c.isGroup && Math.abs(c.position.y - hubY) < 1e-6 && c.position.z === 0 && c.children.length > N);
   const gondolas = kids.filter((c) => c.isGroup && c !== wheel);
   if (!wheel || gondolas.length !== N) throw new Error(`big_wheel: found ${gondolas.length} gondolas`);
+  // colour part: each gondola's own painted meshes (tub and canopy) in one of the gondola colours, not its riders
+  let parts = 0;
+  for (const g of gondolas) {
+    for (const c of g.children) if (c.isMesh && GONDOLA_COLOURS.includes(`#${c.material.color.getHexString()}`)) { colourPart(c.material); parts++; }
+  }
+  if (parts !== 2 * N) throw new Error(`big_wheel: ${parts} gondola colour meshes, expected tub and canopy of ${N}`);
   // riders: persons are the gondola children with their own children (Groups); copy from gondola i % 4
   const ridersOf = (g) => g.children.filter((c) => c.isGroup);
   for (let i = 4; i < N; i++) {
@@ -41,6 +60,6 @@ export default {
     const groups = bigWheelKeys(); // flatRides.js: the pictures, and density 2's
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(((g.angle % PERIOD_STEPS) / 32) * Math.PI * 2, g.full) }));
     B.log(`big_wheel: ${pictures.length} pictures per rotation`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'big_wheel', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'big_wheel', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR, maskLevels: MASK_LEVELS });
   },
 };

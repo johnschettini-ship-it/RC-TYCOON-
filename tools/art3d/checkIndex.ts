@@ -8,6 +8,9 @@ import type { RealIndex, RealKind } from '../../src/render/real/indexFormat';
 const MAX_SHEET = 2048;
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
 
+/** `#rrggbb` (either case). */
+const HEX = /^#[0-9a-f]{6}$/i;
+
 const okNum = (n: number): boolean => Number.isFinite(n) && n >= 0;
 
 /** Returns a list of problems; empty means the index and the files agree. */
@@ -40,6 +43,23 @@ export function checkIndex(index: RealIndex, files: Set<string>): string[] {
     }
   }
   for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
+
+  // Ride colour choice: every ride sheet has a tint mask of the ride's colour part, and the ride records the part's
+  // designed base colour, the same in every set (turns and densities), so a chosen colour can recolour it at load.
+  const bases = new Map<string, Set<string>>();
+  for (const set of index.sets) {
+    if (set.kind !== 'ride') continue;
+    const masks = new Set(set.sheets.flatMap((s) => (s.mask === undefined ? [] : [s.mask])));
+    for (const s of set.sheets) if (!masks.has(s.file) && s.mask === undefined) problems.push(`${set.key}: sheet ${s.file} has no tint mask (ride colour)`);
+    const b = set.baseColour;
+    if (b === undefined) problems.push(`${set.key}: base colour missing (ride colour)`);
+    else if (!HEX.test(b)) problems.push(`${set.key}: base colour '${b}' is not #rrggbb (ride colour)`);
+    else {
+      const id = `${set.kind}:${set.item}`;
+      bases.set(id, (bases.get(id) ?? new Set<string>()).add(b.toLowerCase()));
+    }
+  }
+  for (const [id, b] of bases) if (b.size > 1) problems.push(`${id}: base colours differ between its sets (${[...b].join(', ')})`);
 
   // every item at every density the index lists, and no other density
   const listed = new Set<number>(index.densities as readonly number[]);

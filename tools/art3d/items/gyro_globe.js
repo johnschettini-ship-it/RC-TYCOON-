@@ -5,7 +5,8 @@
 // angles follow today's look (st.angle x 1, 2, 3), so the pictures repeat only after a whole turn: period 32 angle
 // slots, 16 pictures full and one at rest empty (the game runs a ride only with riders; towerMotion.js cycleKeys),
 // and the game's 2 turns per run (REVOLUTIONS default) end where they started. Round, with no entrance (a ring of bollards): one set serves every view turn.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the outer gimbal, its red ring, yoke and arms (the red plinth keeps its colour); base #c3322a.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
@@ -16,6 +17,8 @@ const R1 = 5.3; // outer ring
 const R2 = 4.4; // middle ring
 const HUB = 2.3; // pod hubs above and below the centre
 const SEATS = 8;
+/** The outer gimbal's red (the same paint as the plinth, which keeps its own). */
+const BASE_COLOUR = '#c3322a';
 
 function build() {
   const K = kit();
@@ -46,15 +49,16 @@ function build() {
   // outer ring (turns about y): upright ring in its local x-y plane, on a yoke over the turntable
   const outer = new THREE.Group();
   root.add(outer);
+  const ringRed = colourPart(red.clone()); // '#c3322a'
   outer.add(M(new THREE.CylinderGeometry(0.75, 0.8, 0.35, 32), mat.darkSteel).translateY(2.1));
-  const ringO = M(new THREE.TorusGeometry(R1, 0.2, 10, 128), red);
+  const ringO = M(new THREE.TorusGeometry(R1, 0.2, 10, 128), ringRed);
   ringO.position.y = C;
   outer.add(ringO);
   const yokeTop = V(0, 2.3, 0);
-  outer.add(rod(yokeTop, V(0, C - R1, 0), 0.22, red, 12));
+  outer.add(rod(yokeTop, V(0, C - R1, 0), 0.22, ringRed, 12));
   for (const s of [-1, 1]) {
     const a = -Math.PI / 2 + s * 0.62;
-    outer.add(rod(V(s * 0.5, 2.25, 0), V(Math.cos(a) * R1, C + Math.sin(a) * R1, 0), 0.13, red, 10));
+    outer.add(rod(V(s * 0.5, 2.25, 0), V(Math.cos(a) * R1, C + Math.sin(a) * R1, 0), 0.13, ringRed, 10));
   }
   for (const s of [-1, 1]) {
     // axle bearings of the middle ring, at the outer ring's level points
@@ -134,6 +138,6 @@ export default {
     const groups = towerKeys('gyro_globe');
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle, g.full) }));
     B.log(`gyro_globe: ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'gyro_globe', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'gyro_globe', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

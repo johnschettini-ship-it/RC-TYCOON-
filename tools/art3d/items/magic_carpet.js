@@ -8,7 +8,8 @@
 // 8 positions 45 degrees apart serve the 16 steps (every other step; size rule).
 // Non-square, so one set per sprite rotation (rots [0,1,2,3]).
 // Model frame: long axis along x (the footprint's 4 tiles at rotation 0); the carpet orbits in the y-z plane.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the carpet deck, its woven rug (the cream medallion and diamonds keep theirs) and rug edges, all its warm colours; the others become lighter or darker shades of the chosen colour; base #f39a2b.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -25,9 +26,20 @@ const HALF_W = 1.4; // rug half width
 const FRAME_H = 0.3; // carpet frame depth under the rug
 const SEATS = 10; // per side
 
+/**
+ * The rug's orange, of middle lightness among its stripes (luma 165 of red 86, red-orange 98, yellow 211; borders and
+ * edges 41 to 58), so a chosen colour keeps the stripes and borders as shades of it (0.25x to 1.3x).
+ */
+const BASE_COLOUR = '#f39a2b';
+const RUG_CREAM = '#fff3b0';
 /** The rug: today's stripes (red, orange, yellow, red-orange) woven, a cream diamond medallion and a border. */
-function rugTexture() {
-  return canvasTex(1024, 320, (c, w, h) => {
+function rugTexture(ink = (col) => col) {
+  return canvasTex(1024, 320, (c0, w, h) => {
+    // every paint goes through `ink` (the tint mask draws the same rug: white on the colour, black on the cream)
+    const c = new Proxy(c0, {
+      get: (o, k) => (typeof o[k] === 'function' ? o[k].bind(o) : o[k]),
+      set: (o, k, v) => { o[k] = k === 'fillStyle' || k === 'strokeStyle' ? ink(v) : v; return true; },
+    });
     const cols = ['#c43a2a', '#f39a2b', '#ffd166', '#e8503a'];
     const n = 8;
     for (let k = 0; k < n; k++) { c.fillStyle = cols[k % 4]; c.fillRect((k / n) * w, 0, w / n + 1, h); }
@@ -60,7 +72,7 @@ function build() {
   const plate = deckPlate();
   const towerMat = paint(K, '#d9682a');
   const armMat = paint(K, '#f2b630');
-  const skirtMat = paint(K, '#7a2a1c', { clearcoat: 0.1, roughness: 0.6 }); // rug edges
+  const skirtMat = colourPart(paint(K, '#7a2a1c', { clearcoat: 0.1, roughness: 0.6 })); // rug edges
   const seatMat = plastic('#5b1d12', 0.5);
 
   // ---- ground (no pad, the park's ground shows): two open boarding decks. Guests come in through the entrance
@@ -124,7 +136,7 @@ function build() {
   // ---- the carpet (translates, stays level): frame, rug, trim, fringe, end brackets, seats, riders
   const carpet = new THREE.Group();
   root.add(carpet);
-  const rugMat = new THREE.MeshStandardMaterial({ map: rugTexture(), roughness: 0.95 }); // flat weave: no noise (picture size)
+  const rugMat = colourPart(new THREE.MeshStandardMaterial({ map: rugTexture(), roughness: 0.95 }), rugTexture((col) => (col === RUG_CREAM ? '#000000' : '#ffffff'))); // flat weave: no noise (picture size)
   carpet.add(boxAt(HALF_L * 2 - 0.2, FRAME_H, HALF_W * 2 - 0.3, 0, -FRAME_H / 2 - 0.04, 0, mat.darkSteel));
   const rug = boxAt(HALF_L * 2, 0.08, HALF_W * 2, 0, 0, 0, [skirtMat, skirtMat, rugMat, skirtMat, skirtMat, skirtMat]);
   carpet.add(rug);
@@ -181,6 +193,6 @@ export default {
       return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(carpetPhi(pos), g.full) };
     });
     B.log(`magic_carpet: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'magic_carpet', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'magic_carpet', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

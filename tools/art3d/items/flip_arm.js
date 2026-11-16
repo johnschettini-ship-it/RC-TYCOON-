@@ -8,7 +8,8 @@
 // period 32: the arm is one-sided); 8 arm angles 45 degrees apart (size rule). Not round (the arm turns in one
 // plane beside the column), so one set per sprite rotation (rots [0,1,2,3]); see NON_ROUND in items/flatRides.js.
 // Model frame: the arm turns about the z axis; the column stands behind it (-z), the gondola reaches out to +z.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the gondola, its red seat-back panels (the yellow restraints and orange joint keep theirs); base #c43a24.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -16,6 +17,8 @@ import { flipKeys, flipPhi, GATES } from './swingers.js';
 import { paint, plastic, tube, boxBeam, boxAt, stairs, deck, railing, peakHeight, deckPlate, gate } from './swingParts.js';
 
 const HUB_Y = 7.0;
+/** The gondola's red (the same paint as the column and drum, which keep theirs). */
+const BASE_COLOUR = '#c43a24';
 const R = 5.0; // hub to the gondola spine
 const CW = 2.6; // hub to the counterweight
 const ARM_Z = -0.95; // plane of the arm
@@ -98,6 +101,7 @@ function build() {
   // gondola: spine along z at the arm end, two rows of seats facing +x and -x, restraints, footrests
   const g = new THREE.Group();
   g.position.y = -R;
+  const gondolaRed = colourPart(red.clone()); // '#c43a24', the column's red keeps its own
   arm.add(g);
   g.add(boxAt(0.5, 0.5, G_Z1 - G_Z0, 0, 0, (G_Z0 + G_Z1) / 2, mat.darkSteel));
   g.add(boxAt(0.62, 0.62, 0.7, 0, 0, ARM_Z, orange)); // joint to the arm
@@ -105,7 +109,7 @@ function build() {
   const riders = [];
   let seed = 680;
   for (const s of [-1, 1]) {
-    g.add(boxAt(0.3, 1.0, G_Z1 - G_Z0 - 0.4, s * 0.3, 0.05, (G_Z0 + G_Z1) / 2 + 0.2, red)); // seat-back panel
+    g.add(boxAt(0.3, 1.0, G_Z1 - G_Z0 - 0.4, s * 0.3, 0.05, (G_Z0 + G_Z1) / 2 + 0.2, gondolaRed)); // seat-back panel
     for (const z of zs) {
       g.add(boxAt(0.5, 0.1, 0.46, s * 0.62, -0.38, z, seatMat)); // seat pan
       g.add(boxAt(0.08, 0.85, 0.44, s * 0.48, 0.02, z, seatMat)); // backrest
@@ -142,6 +146,6 @@ export default {
       return { keys: gr.keys, keys2: gr.keys2, pose: () => m.pose(flipPhi(slot), gr.full) };
     });
     B.log(`flip_arm: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'flip_arm', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'flip_arm', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };
