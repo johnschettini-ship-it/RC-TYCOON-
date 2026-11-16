@@ -345,10 +345,13 @@ test.describe('in the park', () => {
       const shadow = getComputedStyle(el).boxShadow;
       // Spread of each outer shadow: "<colour> <x> <y> <blur> <spread>"; inset shadows stay inside the card.
       const r = el.getBoundingClientRect();
-      // The card's box grown by each outer shadow ("<colour> <x> <y> <blur> <spread>"); inset shadows stay inside.
+      // The card's box grown by each hard outer shadow ("<colour> <x> <y> <blur> <spread>"); inset shadows stay inside.
+      // A soft (blurred) drop shadow is not a ring: the realistic cards' shadow (blur 8 px) fades out above the card.
+      // Today's shadows are all hard (blur 0), so the website build measures every one.
       const ring = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
       for (const part of shadow.split(/,(?![^(]*\))/).filter((p) => !p.includes('inset'))) {
         const [x = 0, y = 0, blur = 0, spread = 0] = (part.replace(/rgba?\([^)]*\)/, '').match(/-?[\d.]+px/g) ?? []).map(parseFloat);
+        if (blur > 0) continue;
         ring.left = Math.min(ring.left, r.left + x - spread - blur);
         ring.top = Math.min(ring.top, r.top + y - spread - blur);
         ring.right = Math.max(ring.right, r.right + x + spread + blur);
