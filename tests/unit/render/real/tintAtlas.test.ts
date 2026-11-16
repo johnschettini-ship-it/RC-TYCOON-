@@ -228,7 +228,7 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     expect(sets.total()).toBe(a.bytes() + a.scratchBytes());
     // The crowd's frames evicted the random ones (least recently used); its ~960 frames fit the 1,728 slots of 24 pages.
     expect(tinted).toBe(1000);
-  });
+  }, 30_000); // ~1,000 software tints at d4 take seconds alone; under machine load they pass the 5 s default.
 
   it('a coaster-like d4 view and the turn after it fit without refusal (Task 4b: the coaster bench stall)', () => {
     // Sizes from the coaster bench at density 4: rail tiles up to 163 x 347 (a 350-row page each 6), rail tiles of
