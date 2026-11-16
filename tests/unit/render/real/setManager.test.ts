@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { setKey, type RealIndex, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
-import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, type Decoded, type SetIO, type SetManagerOptions } from '../../../../src/render/real/setManager';
+import { CLASSIC_HOLD, HOLD_RESERVE_BYTES, SetManager, TINT_BAND_SLOW_MS, type Decoded, type SetIO, type SetManagerOptions } from '../../../../src/render/real/setManager';
 
 const TINT_SCRATCH = 'tint:scratch';
 
@@ -780,11 +780,13 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
     const io = new PixIO();
     const errors: [SetKey, unknown][] = [];
     let t = 0;
-    // Each clock read moves 3 ms: a frame's TINT_FRAME_MS (3 ms) is spent after one band.
+    // Each clock read moves 3 ms: a frame's TINT_FRAME_MS (3 ms) is spent after one band. Fixed band rows (no
+    // adaptive halving: a 3 ms band would otherwise shrink them); the adaptive band tests set their own threshold.
     const m = new SetManager(index(sets), io, budget, (k, e) => errors.push([k, e]), 0, {
       makeCanvas: (makeCanvas ?? ((w: number, h: number) => new Pix(w, h))) as never,
       now: () => (t += 3),
       tintBandPx: BAND,
+      tintBandSlowMs: Infinity,
       toBitmap: null,
       ...more,
     });
@@ -1133,6 +1135,67 @@ describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
       }
       expect(Math.max(...perFrame)).toBeLessThanOrEqual(3 / 0.25);
       expect(Math.max(...perFrame)).toBeGreaterThan(1);
+    });
+
+    /**
+     * A clock the tint advances by `msPerRow()` per band row (two reads of the band, mask and base, half each): band
+     * time grows with its rows, as on a device. Returns the rows of each band in order.
+     */
+    const timedCanvas = (msPerRow: () => number) => {
+      const clock = { t: 0 };
+      const rows: number[] = [];
+      let reads = 0;
+      const make = (w: number, h: number) => {
+        const c = new Pix(w, h);
+        const getContext = c.getContext.bind(c);
+        c.getContext = () => {
+          const ctx = getContext() as { getImageData(x: number, y: number, w: number, h: number): unknown };
+          const read = ctx.getImageData.bind(ctx);
+          ctx.getImageData = (x: number, y: number, ww: number, hh: number) => {
+            clock.t += (hh * msPerRow()) / 2;
+            if (reads++ % 2 === 0) rows.push(hh);
+            return read(x, y, ww, hh);
+          };
+          return ctx;
+        };
+        return c;
+      };
+      return { clock, rows, make };
+    };
+
+    it('adaptive bands: a band over 1.5 ms halves the next band\'s rows, until one band stays under 1.5 ms', async () => {
+      expect(TINT_BAND_SLOW_MS).toBe(1.5);
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      const tc = timedCanvas(() => 0.1); // 32 rows: 3.2 ms; 16: 1.6 ms; 8: 0.8 ms
+      const { m, step } = setupColours([A], 1e9, tc.make, { now: () => tc.clock.t, tintBandSlowMs: undefined });
+      for (let f = 0; f < 60 && m.state(key) !== 'ready'; f++) await step([key]);
+      expect(m.state(key)).toBe('ready');
+      expect(tc.rows.slice(0, 4)).toEqual([32, 16, 8, 8]);
+      // Every band after the first two measures under 1.5 ms, and the rows add up to the sheet.
+      for (const r of tc.rows.slice(2)) expect(r * 0.1).toBeLessThanOrEqual(1.5);
+      expect(tc.rows.reduce((a, b) => a + b, 0)).toBe(H);
+    });
+
+    it('adaptive bands: after slow bands, fast bands grow the rows back slowly (an eighth, at least a row), never past tintBandPx', async () => {
+      const A = rideEntry('carousel', 2);
+      const key = setKey('ride', 'carousel', 2, 0, 2);
+      let perRow = 0.4; // 8 rows: 3.2 ms, 4 rows: 1.6 ms
+      const tc = timedCanvas(() => perRow);
+      const { m, step } = setupColours([A], 1e9, tc.make, { now: () => tc.clock.t, tintBandPx: 8, tintBandSlowMs: undefined });
+      for (let f = 0; f < 80 && m.state(key) !== 'ready'; f++) {
+        await step([key]);
+        if (tc.rows.length >= 2) perRow = 0.01; // the device is fast again
+      }
+      expect(m.state(key)).toBe('ready');
+      expect(tc.rows.slice(0, 3)).toEqual([8, 4, 2]);
+      const grow = tc.rows.slice(2);
+      for (let i = 1; i < grow.length - 1; i++) {
+        expect(grow[i]! - grow[i - 1]!).toBeGreaterThanOrEqual(0);
+        expect(grow[i]! - grow[i - 1]!).toBeLessThanOrEqual(Math.max(1, grow[i - 1]! >> 3));
+      }
+      expect(Math.max(...tc.rows)).toBe(8);
+      expect(grow.slice(0, 7)).toEqual([2, 3, 4, 5, 6, 7, 8]);
     });
 
     it('with no budget left (atlas spent 3 ms) a coarse clock runs no band between the 8-frame bands', async () => {

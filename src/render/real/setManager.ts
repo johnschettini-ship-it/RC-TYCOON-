@@ -44,14 +44,22 @@ export const TINT_FORCE_FRAMES = 8;
 const BAND_MS_FLOOR = 0.25;
 /** The band time estimate shrinks by this on each frame no band runs (a slow band is not remembered for ever). */
 const BAND_MS_DECAY = 0.75;
+/**
+ * Adaptive band height (Task 6 fix round): a band measured over this many ms halves the rows of the next band (down
+ * to 1); a band at most half of it grows them back by an eighth (at least a row), up to `tintBandPx`. One band then
+ * stays near or under this on a device where the default band is slow.
+ */
+export const TINT_BAND_SLOW_MS = 1.5;
 
 export interface SetManagerOptions {
   /** Canvas factory for coloured sets' tinted sheets and band scratch. Default: `OffscreenCanvas`, else a DOM canvas. */
   makeCanvas?: (w: number, h: number) => CanvasLike;
   /** Clock for the per-frame tint budget, ms (default `performance.now`). */
   now?: () => number;
-  /** Rows per tint step (default `TINT_BAND_PX`). */
+  /** Rows per tint step at most (default `TINT_BAND_PX`). */
   tintBandPx?: number;
+  /** A band slower than this many ms halves the next band's rows (default `TINT_BAND_SLOW_MS`; Infinity: fixed rows). */
+  tintBandSlowMs?: number;
   /**
    * Ms the tint atlas has spent tinting this frame (`RealLook.tintSpentMs`): one `TINT_FRAME_MS` budget a frame is
    * shared, and a coloured set's band runs in what is left (one band at least only when nothing else ran). Can also be
@@ -213,6 +221,9 @@ export class SetManager {
   private tintSpent: () => number;
   /** How long the last tint band took, ms: the estimate for whether the next one fits the frame's budget. */
   private bandMs = 0;
+  /** Rows of the next tint band: adapts to the measured band time (`TINT_BAND_SLOW_MS`), at most `bandPx`. */
+  private bandRows: number;
+  private readonly bandSlowMs: number;
   /** Frames (`endFrame`s with a tint in progress) since a band last ran. */
   private framesSinceBand = 0;
   private readonly makeBitmap: ((img: CanvasImageSource) => Promise<ImageBitmap>) | null;
@@ -240,6 +251,8 @@ export class SetManager {
     this.makeCanvas = opts.makeCanvas ?? defaultCanvas;
     this.now = opts.now ?? (() => performance.now());
     this.bandPx = opts.tintBandPx ?? TINT_BAND_PX;
+    this.bandRows = this.bandPx;
+    this.bandSlowMs = opts.tintBandSlowMs ?? TINT_BAND_SLOW_MS;
     this.tintSpent = opts.tintSpentMs ?? (() => 0);
     this.makeBitmap = opts.toBitmap !== undefined ? opts.toBitmap
       : typeof createImageBitmap === 'function' ? (img) => createImageBitmap(img as ImageBitmapSource) : null;
@@ -657,9 +670,11 @@ export class SetManager {
     try {
       while (!finished && ((bands === 0 && force) || (budget > 0 && used + Math.max(this.bandMs, BAND_MS_FLOOR) <= budget))) {
         const t0 = this.now();
-        finished = run.job.step();
+        finished = run.job.step(this.bandRows);
         const dt = Math.max(0, this.now() - t0);
         this.bandMs = dt;
+        if (dt > this.bandSlowMs) this.bandRows = Math.max(1, Math.floor(this.bandRows / 2));
+        else if (dt <= this.bandSlowMs / 2) this.bandRows = Math.min(this.bandPx, this.bandRows + Math.max(1, this.bandRows >> 3));
         used += Math.max(dt, BAND_MS_FLOOR);
         bands++;
       }

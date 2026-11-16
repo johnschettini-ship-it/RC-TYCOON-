@@ -130,8 +130,11 @@ export interface TintJob {
   readonly bytes: number;
   /** True once every band is tinted. */
   readonly done: boolean;
-  /** Tints the next band; true when the sheet is done (the scratch canvas is then released). Throws on a canvas error. */
-  step(): boolean;
+  /**
+   * Tints the next band (`rows` rows, at most the `bandPx` the job was made with; default all of them); true when the
+   * sheet is done (the scratch canvas is then released). Throws on a canvas error.
+   */
+  step(rows?: number): boolean;
   /** The tinted sheet once done, as a decoded sheet (its `close` frees the canvas). */
   result(): Decoded;
   /** Frees everything it made (a job abandoned or failed). */
@@ -184,9 +187,9 @@ export function tintSheetShaded(base: Decoded, mask: Decoded, baseRgb: Rgb, targ
   return {
     get bytes() { return w * h * 4 + (released ? 0 : scratchBytes); },
     get done() { return y >= h; },
-    step() {
+    step(want?: number) {
       if (y >= h) return true;
-      const rows = Math.min(band, h - y);
+      const rows = Math.min(want === undefined ? band : Math.max(1, Math.min(band, Math.floor(want))), h - y);
       const m = cut(mask.image, rows);
       const b = cut(base.image, rows);
       tintShadedInPlace(b.data, m.data, baseRgb, targetRgb);
