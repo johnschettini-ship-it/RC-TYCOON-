@@ -6,7 +6,7 @@
 // entrance at the front (+z), exit at the back. Frames: arenaKeys.thunderKeys (16 time steps per cycle, 2 per
 // picture; the empty ride is one rest picture at the bottom). The track runs along x: rots [0, 1, 2, 3].
 // Colour part: the disc, its orange plate and its twelve red and yellow seats (darker and lighter shades of the chosen colour; the crown keeps its colours); base #ee7a22.
-import { THREE, placeOnFootprint, bakeObject, kit, colourPart, partMask } from './common.js';
+import { THREE, placeOnFootprint, bakeObject, kit, colourMesh, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -125,7 +125,7 @@ function build() {
   const spin = new THREE.Group();
   spin.position.y = 0.85;
   disc.add(spin);
-  spin.add(M(new THREE.CylinderGeometry(DISC_R, DISC_R - 0.1, 0.22, 48), colourPart(orange.clone()))); // '#ee7a22'
+  spin.add(colourMesh(M(new THREE.CylinderGeometry(DISC_R, DISC_R - 0.1, 0.22, 48), orange)));
   spin.add(M(new THREE.CylinderGeometry(DISC_R - 0.15, DISC_R - 0.15, 0.03, 48), std({ color: '#3a3d42', roughness: 0.8 })).translateY(0.12));
   spin.add(M(new THREE.TorusGeometry(DISC_R, 0.06, 8, 64), yellow).rotateX(Math.PI / 2).translateZ(-0.05));
   // centre crown: a drum with bulbs and a lightning finial

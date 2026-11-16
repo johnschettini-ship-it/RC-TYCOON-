@@ -9,6 +9,7 @@
 // in a WeakMap, so a material cloned from a part material is not part of the colour unless it is marked itself.
 
 const PART = new WeakMap();
+const MESH = new WeakMap();
 
 /** Marks `material` as the ride's colour part (`maskMap`: only where that texture is white). Returns the material. */
 export function colourPart(material, maskMap) {
@@ -16,8 +17,19 @@ export function colourPart(material, maskMap) {
   return material;
 }
 
+/**
+ * Marks one mesh as the colour part (its whole material). For a part that shares its material with meshes that are
+ * not the part: marking the mesh keeps the model as it was. A cloned material would draw the same but takes a new id,
+ * and three.js sorts by material id, which moved coplanar faces and changed the pictures (fix round 1).
+ */
+export function colourMesh(mesh) {
+  MESH.set(mesh, true);
+  return mesh;
+}
+
 /** The `masked` predicate of a ride bake: per mesh, its mask (true, { map } or false), per material for an array. */
 export function partMask(mesh) {
+  if (MESH.has(mesh)) return MESH.get(mesh);
   const m = mesh.material;
   return Array.isArray(m) ? m.map((x) => PART.get(x) ?? false) : (PART.get(m) ?? false);
 }

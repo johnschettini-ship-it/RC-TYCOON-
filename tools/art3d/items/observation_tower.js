@@ -7,7 +7,7 @@
 // Steps at the same height share a picture (9 heights); empty, the ride is at rest (the game runs a ride only with
 // riders): one picture. Front (entrance, exit, booth): one set per view turn.
 // Colour part: the cabin roof, its white cap and the sky-blue band round it (a darker shade); the navy deck keeps its colour; base #e9e6df.
-import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
+import { THREE, kit, placeOnFootprint, bakeObject, colourMesh, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
@@ -100,8 +100,8 @@ function build() {
   }
   cab.add(M(new THREE.TorusGeometry(CAB_R - 0.12, 0.025, 6, 64), mat.stainless).rotateX(Math.PI / 2).translateZ(-1.05));
   const roofY = 0.1 + GH;
-  cab.add(M(new THREE.CylinderGeometry(CAB_R + 0.12, CAB_R + 0.12, 0.34, 64), colourPart(sky.clone())).translateY(roofY + 0.17));
-  cab.add(M(new THREE.CylinderGeometry(1.2, CAB_R + 0.05, 0.28, 64), colourPart(mat.steelWhite.clone())).translateY(roofY + 0.48));
+  cab.add(colourMesh(M(new THREE.CylinderGeometry(CAB_R + 0.12, CAB_R + 0.12, 0.34, 64), sky)).translateY(roofY + 0.17));
+  cab.add(colourMesh(M(new THREE.CylinderGeometry(1.2, CAB_R + 0.05, 0.28, 64), mat.steelWhite)).translateY(roofY + 0.48));
   const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.045, 8, 6), K.ringBulb, 48);
   const m4 = new THREE.Matrix4();
   for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; m4.makeTranslation(Math.cos(a) * (CAB_R + 0.14), roofY + 0.05, Math.sin(a) * (CAB_R + 0.14)); bulbs.setMatrixAt(i, m4); }

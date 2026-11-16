@@ -18,9 +18,6 @@ const BASE_COLOUR = '#a8232b';
 function build() {
   const K = kit();
   const { mat } = K;
-  // the canopy's red stripes (the kit's stripe textures: roofStripes 48 flat stripes, valance 24 scalloped)
-  colourPart(mat.roofStripes, stripesMask(48, false));
-  colourPart(mat.valance, stripesMask(24, true));
   const root = new THREE.Group();
   const base = M(new THREE.CylinderGeometry(R + 0.45, R + 0.55, 0.3, 72), mat.concrete);
   base.position.y = 0.15;
@@ -90,6 +87,11 @@ function build() {
   }
   const s = fitScale(R + 0.55, 3, 0.12);
   root.scale.setScalar(s);
+  // the canopy's red stripes (the kit's stripe textures: roofStripes 48 flat stripes, valance 24 scalloped), marked
+  // once the model is built: reaching the kit's lazy materials earlier changed the order they are made in, and so the
+  // draw order and the pictures (fix round 1)
+  colourPart(mat.roofStripes, stripesMask(48, false));
+  colourPart(mat.valance, stripesMask(24, true));
   return { root, spin, riders, scale: s };
 }
 

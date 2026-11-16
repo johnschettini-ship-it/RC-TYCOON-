@@ -6,14 +6,17 @@
 // friendly sheet ghost bobbing by the tower. Spooky but family-friendly: no gore, nothing that hurts. No riders.
 // Light change in 4 steps (arenaKeys.manorKeys, repeating every 8 angle slots): windows flicker, the lanterns
 // glow brighter and dimmer, and the ghost bobs and sways. Front at +z: rots [0, 1, 2, 3].
-// Colour part: the front door (controller ruling: today's look has no shutters, so both looks colour the door alone); base #3b2a24.
+// Colour part: the window shutters and the front door (owner ruling, fix round 1); base #2c4a3e.
 import { THREE, placeOnFootprint, bakeObject, kit, colourPart, partMask } from './common.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { painted, glow, slab, canvasTex, hash01 } from './arenaKit.js';
 import { manorKeys, LIGHT_STEPS, GATE_X } from './arenaKeys.js';
 
-/** The front door's dark brown: a chosen colour lights it to that colour, keeping its shading. */
-const BASE_COLOUR = '#3b2a24';
+/**
+ * The shutters' dark green: most of the colour part (every window has a pair; the door shows only from the front).
+ * The door's dark brown #3b2a24 (luma 45 of the shutters' 67) takes the chosen colour as a darker shade.
+ */
+const BASE_COLOUR = '#2c4a3e';
 const HX = 5.4; // house half-width
 const Z0 = -4.6, Z1 = 2.4; // house depth
 const FLOOR = 3.2; // storey height
@@ -156,7 +159,7 @@ function build() {
   const lit = [glow('#ff9a1a', 1.1, '#ffb347'), glow('#5cf03a', 0.9, '#7ae05a'), glow('#a85cff', 1.1, '#b07ae8')];
   const dark = std({ color: '#241d33', roughness: 0.2, metalness: 0.2 });
   const panes = [];
-  const shutter = painted('#2c4a3e', { metalness: 0, roughness: 0.7, clearcoat: 0 });
+  const shutter = colourPart(painted('#2c4a3e', { metalness: 0, roughness: 0.7, clearcoat: 0 }));
   const addWindow = (x, y, z, ry, w = 0.9, h = 1.5) => {
     const g = new THREE.Group();
     g.position.set(x, y, z); g.rotation.y = ry;

@@ -335,9 +335,13 @@ export type Shot = Partial<Record<BakeDensity, Pic | null>>;
  * colour), false / 0 black, or `{ map }` a mask map laid out as the material's own map (white where the colour goes).
  */
 export type MaskSpec = boolean | 0 | 1 | { map: any };
-// Mask materials keep what decides which pixels a material covers: its side (an open cone seen from inside) and its
-// alpha test with its map (a scalloped valance), so the mask covers exactly the pixels the picture shows. A see-through
-// material that is not the part (glass, opacity < 0.6) is left out of the mask pass, so the part behind it still masks.
+// A plain material (front side, no alpha test, opaque) takes the shared WHITE or BLACK, as every mask did before the
+// ride colour masks (fix round 1: per-material copies of white and black cut the coaster rail masks to 30%). Only the
+// cases that need more get their own mask material, keeping what decides which pixels the material covers: its side
+// (an open cone seen from inside), its alpha test with its map (a scalloped valance), a mask map; and a see-through
+// material that is not the part (glass, opacity < 0.6) is left out, so the part behind it still masks.
+const WHITE = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const BLACK = new THREE.MeshBasicMaterial({ color: 0x000000 });
 const maskMats = new Map<any, Map<unknown, any>>();
 const FLAT_OUT = (s: any): void => { s.fragmentShader = s.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor = vec4( diffuse, 1.0 );'); };
 const MAP_OUT = (s: any): void => { s.fragmentShader = s.fragmentShader.replace('#include <dithering_fragment>', '#include <dithering_fragment>\n\tgl_FragColor.a = 1.0;'); };
@@ -349,6 +353,8 @@ function maskMat(orig: any, spec: MaskSpec): any {
   if (hit) return hit;
   const side = orig?.side ?? THREE.FrontSide;
   const alphaTest = orig?.alphaTest ?? 0;
+  const seeThrough = !!orig?.transparent && (orig.opacity ?? 1) < 0.6;
+  if (typeof spec !== 'object' && side === THREE.FrontSide && !(alphaTest > 0) && !seeThrough) return spec ? WHITE : BLACK;
   let m: any;
   if (typeof spec === 'object') {
     // the mask map in the place of the material's map, with its repeat and offset (its alpha carries the same edge)
@@ -359,7 +365,7 @@ function maskMat(orig: any, spec: MaskSpec): any {
     t.needsUpdate = true;
     m = new THREE.MeshBasicMaterial({ map: t, side, alphaTest });
     m.onBeforeCompile = MAP_OUT;
-  } else if (!spec && orig?.transparent && (orig.opacity ?? 1) < 0.6) {
+  } else if (!spec && seeThrough) {
     m = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
   } else {
     m = new THREE.MeshBasicMaterial({ color: spec ? 0xffffff : 0x000000, side, alphaTest, map: alphaTest > 0 && orig?.map ? orig.map : null });
@@ -516,6 +522,8 @@ interface OutSet {
    * and of the pictures, how many have no mask at all (bake report; a mask that covers nothing is a failed bake).
    */
   maskCoverage?: number;
+  /** Drawn pixels the coverage is taken over (to weigh sets together). */
+  maskDrawn?: number;
   emptyMasks?: number;
 }
 
@@ -582,6 +590,7 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
       if (ps === 0) empty++;
     }
     out.maskCoverage = n ? +(sum / n).toFixed(4) : 0;
+    out.maskDrawn = n;
     out.emptyMasks = empty;
   }
   pages.forEach((p, i) => {

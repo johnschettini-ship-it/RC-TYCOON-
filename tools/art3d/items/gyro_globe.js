@@ -6,7 +6,7 @@
 // slots, 16 pictures full and one at rest empty (the game runs a ride only with riders; towerMotion.js cycleKeys),
 // and the game's 2 turns per run (REVOLUTIONS default) end where they started. Round, with no entrance (a ring of bollards): one set serves every view turn.
 // Colour part: the outer gimbal, its red ring, yoke and arms (the red plinth keeps its colour); base #c3322a.
-import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
+import { THREE, kit, placeOnFootprint, bakeObject, colourMesh, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
@@ -49,16 +49,15 @@ function build() {
   // outer ring (turns about y): upright ring in its local x-y plane, on a yoke over the turntable
   const outer = new THREE.Group();
   root.add(outer);
-  const ringRed = colourPart(red.clone()); // '#c3322a'
   outer.add(M(new THREE.CylinderGeometry(0.75, 0.8, 0.35, 32), mat.darkSteel).translateY(2.1));
-  const ringO = M(new THREE.TorusGeometry(R1, 0.2, 10, 128), ringRed);
+  const ringO = colourMesh(M(new THREE.TorusGeometry(R1, 0.2, 10, 128), red));
   ringO.position.y = C;
   outer.add(ringO);
   const yokeTop = V(0, 2.3, 0);
-  outer.add(rod(yokeTop, V(0, C - R1, 0), 0.22, ringRed, 12));
+  outer.add(colourMesh(rod(yokeTop, V(0, C - R1, 0), 0.22, red, 12)));
   for (const s of [-1, 1]) {
     const a = -Math.PI / 2 + s * 0.62;
-    outer.add(rod(V(s * 0.5, 2.25, 0), V(Math.cos(a) * R1, C + Math.sin(a) * R1, 0), 0.13, ringRed, 10));
+    outer.add(colourMesh(rod(V(s * 0.5, 2.25, 0), V(Math.cos(a) * R1, C + Math.sin(a) * R1, 0), 0.13, red, 10)));
   }
   for (const s of [-1, 1]) {
     // axle bearings of the middle ring, at the outer ring's level points

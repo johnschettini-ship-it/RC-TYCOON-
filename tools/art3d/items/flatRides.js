@@ -130,13 +130,14 @@ export function carouselKeys() {
 
 /**
  * Swing tower frame keys: picture `${slot % period}:${swing}:${occ}` (the chairs repeat every `period` angle slots).
- * Density 2 (half the pictures, controller ruling 2026-11-15): every full picture stays (both angles, all five swing
- * levels); an empty frame shows the rest picture.
+ * An empty frame shows the rest picture `0:0:0` at both densities, as the towers do (an empty ride never runs in the
+ * game): the 9 empty moving pictures took a turn at density 4 to 35.8 MiB, over the 32 MiB size rule (ruling, ride
+ * colour fix round 1). Every full picture stays at both densities (both angles, all five swing levels).
  */
 export function swingTowerKeys(period) {
-  const pick = (a, s, full) => `${a % period}:${s}:${full ? 1 : 0}`;
+  const pick = (a, s, full) => (full ? `${a % period}:${s}:1` : '0:0:0');
   const swings = [0, 1, 2, 3, 4];
-  return withD2('swing_tower', rideKeys('swing_tower', swings, pick), swings, (a, s, full) => (full ? pick(a, s, true) : pick(0, 0, false)));
+  return withD2('swing_tower', rideKeys('swing_tower', swings, pick), swings, pick);
 }
 
 /**
