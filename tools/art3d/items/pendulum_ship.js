@@ -8,7 +8,8 @@
 // poses serve the 16 steps (size rule; only the 63 and 68 degree steps share one). Non-square, so one set per
 // sprite rotation (rots [0,1,2,3]).
 // Model frame: long axis along z (the footprint's 5 tiles at rotation 0), axle along x.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the hull, its red topsides and dark red bottom (the yellow strake and cream line keep theirs); base #b8321f.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -98,16 +99,20 @@ function gunwaleGeometry(nt = 48) {
   return g;
 }
 
-/** Hull paint: red topsides, a yellow strake with a thin cream line, dark red bottom. */
-function hullTexture() {
+/** The hull's red topsides (the dark red bottom #6e1f17 is of its family: a darker shade of a chosen colour). */
+const BASE_COLOUR = '#b8321f';
+/** Hull paint: red topsides, a yellow strake with a thin cream line, dark red bottom. `ink` maps each paint (masks). */
+function hullTexture(ink = (col) => col) {
   return canvasTex(256, 256, (c, w, h) => {
-    const band = (v0, v1, col) => { c.fillStyle = col; c.fillRect(0, v0 * h, w, (v1 - v0) * h); };
+    const band = (v0, v1, col) => { c.fillStyle = ink(col); c.fillRect(0, v0 * h, w, (v1 - v0) * h); };
     band(0, 1, '#b8321f');
     band(0.07, 0.19, '#f2c230');
     band(0.19, 0.215, '#f4ead2');
     band(0.72, 1, '#6e1f17');
   });
 }
+/** Tint mask of the hull paint: white on the red family (topsides, bottom), black on the strake and the cream line. */
+const hullMask = () => hullTexture((col) => (col === '#b8321f' || col === '#6e1f17' ? '#ffffff' : '#000000'));
 
 function build() {
   const K = kit();
@@ -116,7 +121,7 @@ function build() {
   const plate = deckPlate();
   const frameMat = paint(K, '#e2672b');
   const armMat = paint(K, '#efeae0');
-  const hullMat = new THREE.MeshPhysicalMaterial({ map: hullTexture(), color: '#ffffff', roughness: 0.35, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.15 });
+  const hullMat = colourPart(new THREE.MeshPhysicalMaterial({ map: hullTexture(), color: '#ffffff', roughness: 0.35, metalness: 0.05, clearcoat: 0.8, clearcoatRoughness: 0.15 }), hullMask());
   // varnished timber in plain colour (no grain texture: grain costs picture size under the size rule)
   const varnish = new THREE.MeshPhysicalMaterial({ color: '#b97f45', roughness: 0.35, clearcoat: 0.7, clearcoatRoughness: 0.2 });
   const inner = new THREE.MeshStandardMaterial({ color: '#c99e6e', roughness: 0.7, side: THREE.BackSide });
@@ -244,6 +249,6 @@ export default {
       return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(p, g.full) };
     });
     B.log(`pendulum_ship: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'pendulum_ship', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'pendulum_ship', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };
