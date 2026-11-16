@@ -30,7 +30,6 @@ export function run(dir: string | undefined): number {
   const baked = new Set(index.sets.filter((s) => s.kind === 'ride').map((s) => s.item));
   const rides = rideSizeRows(r, FLAT_RIDES.map((d) => d.id).filter((id) => baked.has(id)));
   for (const l of formatRideSizeRows(rides)) console.log(l);
-  for (const x of rides.flatMap((y) => y.allowed)) console.log(`size rule allowed: ${x}`);
   const rideProblems = rides.flatMap((y) => y.problems);
   for (const x of rideProblems) console.error(`SIZE RULE FAIL: ${x}`);
   return problems.length === 0 && !over && r.missingFiles.length === 0 && rideProblems.length === 0 ? 0 : 1;

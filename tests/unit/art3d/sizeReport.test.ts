@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ASSUMED_MEAN_BYTES, BIG_RIDES, RIDE_SIZE_ALLOW, S5_LIMIT_BYTES, catalogueEntries, rideSizeRows, sizeReport, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
+import { ASSUMED_MEAN_BYTES, BIG_RIDES, S5_LIMIT_BYTES, catalogueEntries, rideSizeRows, sizeReport, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
 import type { RealIndex, RealKind, RealSetEntry } from '../../../src/render/real/indexFormat';
 
 function set(kind: RealKind, item: string, density: 2 | 4, rot: RealSetEntry['rot'], file: string, w = 10, h = 10): RealSetEntry {
@@ -111,16 +111,10 @@ describe('sizeReport', () => {
       expect(r[0]).toMatchObject({ residentD4: 32 * MiB, transientD4: 64 * MiB, problems: [] });
       expect(r[1]!.problems).toEqual(['big_wheel: 32.00 MiB decoded per turn at density 4, over 32.00 MiB']);
     });
-    it('a ride with no baked sets is a problem; an allowed breach is listed with its reason, not failed', () => {
-      const r = rows(ride('carousel', 1001, 10));
+    it('a ride with no baked sets is a problem; no ride is exempt (swing_tower holds the rule since fix round 1)', () => {
       expect(rideSizeRows(sizeReport(index([]), new Map(), cat('ride', 'x')), ['x'])[0]!.problems).toEqual(['x: not baked']);
-      for (const [id, a] of Object.entries(RIDE_SIZE_ALLOW)) {
-        expect(a.reason.length, id).toBeGreaterThan(20);
-        const big = rows(ride(id, 10_000_000, (40 * MiB) / 4))[0]!;
-        expect(big.problems.some((p) => p.includes(a.rule === 'decoded' ? 'decoded per turn' : 'compressed')), id).toBe(false);
-        expect(big.allowed.length, id).toBe(1);
-      }
-      expect(r[0]!.allowed).toEqual([]);
+      const big = rows(ride('swing_tower', 10_000_000, (40 * MiB) / 4))[0]!;
+      expect(big.problems).toEqual(['swing_tower: 10.00 MB compressed, over 2.50 MB', 'swing_tower: 40.00 MiB decoded per turn at density 4, over 32.00 MiB']);
     });
   });
 

@@ -42,10 +42,10 @@
      "file": "ride-carousel-d2-r0.webp",
      "w": 256,
      "h": 128,
-     "mask": "ride-carousel-d2-r0-mask.webp"
+     "mask": "ride-carousel-d2-r0-mask.png"
     },
     {
-     "file": "ride-carousel-d2-r0-mask.webp",
+     "file": "ride-carousel-d2-r0-mask.png",
      "w": 256,
      "h": 128
     }
@@ -83,10 +83,10 @@
      "file": "ride-carousel-d2-r1.webp",
      "w": 256,
      "h": 128,
-     "mask": "ride-carousel-d2-r1-mask.webp"
+     "mask": "ride-carousel-d2-r1-mask.png"
     },
     {
-     "file": "ride-carousel-d2-r1-mask.webp",
+     "file": "ride-carousel-d2-r1-mask.png",
      "w": 256,
      "h": 128
     }
@@ -124,10 +124,10 @@
      "file": "ride-carousel-d2-r2.webp",
      "w": 256,
      "h": 128,
-     "mask": "ride-carousel-d2-r2-mask.webp"
+     "mask": "ride-carousel-d2-r2-mask.png"
     },
     {
-     "file": "ride-carousel-d2-r2-mask.webp",
+     "file": "ride-carousel-d2-r2-mask.png",
      "w": 256,
      "h": 128
     }
@@ -165,10 +165,10 @@
      "file": "ride-carousel-d2-r3.webp",
      "w": 256,
      "h": 128,
-     "mask": "ride-carousel-d2-r3-mask.webp"
+     "mask": "ride-carousel-d2-r3-mask.png"
     },
     {
-     "file": "ride-carousel-d2-r3-mask.webp",
+     "file": "ride-carousel-d2-r3-mask.png",
      "w": 256,
      "h": 128
     }

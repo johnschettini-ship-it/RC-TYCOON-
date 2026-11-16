@@ -13,6 +13,8 @@
 // --only bakes just those items; the output folder and index still hold every other item whose cache entry is valid
 // for the current code and input (so a partial bake never deletes the rest of a full bake).
 // Chromium runs WebGL2 on SwiftShader (the flags of the phone-test bake); `playwright install` is not needed.
+// Each item bakes in a fresh browser, so its pictures depend on its own code and input only (not on what was baked
+// before it).
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -65,6 +67,14 @@ function webpSize(buf) {
 }
 
 const mb = (n) => (n / 1e6).toFixed(2);
+
+/**
+ * The least share of drawn pixels the tint masks of a kind may cover at the bake's largest density (mask weight over
+ * pixels with alpha, all its sets together). Measured on the bake before the ride colour masks (81d24fb: rail 0.884,
+ * car 0.562, support 0.712, guest 0.209) less 5%: a mask path change that cut the coaster rails to 30% (fix round 1)
+ * fails the bake instead of reaching the game.
+ */
+const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 };
 
 (async () => {
   const t0 = Date.now();
@@ -133,7 +143,11 @@ const mb = (n) => (n / 1e6).toFixed(2);
     let cached = valid && (o.cache || !chosen(job.it.id));
     if (!cached && !chosen(job.it.id)) continue; // --only: other items join the index only from a valid cache entry
     if (!cached) {
-      if (!page) await openPage();
+      // A fresh browser per item: an item's pictures depended on the items baked before it in the same page (the
+      // same kiddie_cars code gave 1.2 M different pixels, up to 49 levels, after teacup_twirl than alone; fix round
+      // 1), so a picture changed whenever an earlier item did. Alone, an item bakes the same pixels every time.
+      if (browser) { await browser.close(); browser = null; page = null; }
+      await openPage();
       rmSync(job.dir, { recursive: true, force: true });
       mkdirSync(job.dir, { recursive: true });
       const res = await page.evaluate(([id, opts]) => window.bakeItem(id, opts), [job.it.id, { densities: o.densities, hash: job.hash.slice(0, 8), input: job.input }]);
@@ -210,6 +224,21 @@ const mb = (n) => (n / 1e6).toFixed(2);
   if (s5) console.log(`S5 FAIL: projected full art passes ${mb(N.S5_LIMIT_BYTES)} MB`);
   if (sr.missingFiles.length) console.log(`SIZE FAIL: ${sr.missingFiles.length} indexed file(s) missing`);
   const emptyRides = [...maskedRides].filter(([, any]) => !any).map(([id]) => id);
+  const byKind = {};
+  for (const r of report) for (const s of r.sets) {
+    if (s.maskCoverage === undefined || s.density !== Math.max(...o.densities) || !(s.kind in MASK_COVERAGE_FLOOR)) continue;
+    const k = (byKind[s.kind] ??= { sum: 0, n: 0 });
+    k.sum += s.maskCoverage * (s.maskDrawn ?? 0); k.n += s.maskDrawn ?? 0;
+  }
+  const lowKinds = [];
+  for (const [kind, floor] of Object.entries(MASK_COVERAGE_FLOOR)) {
+    const k = byKind[kind];
+    if (!k || !k.n) continue; // not in this bake (--only), or a cache entry from before maskDrawn
+    const share = k.sum / k.n;
+    console.log(`mask coverage ${kind}: ${(100 * share).toFixed(1)} % (floor ${(100 * floor).toFixed(0)} %)`);
+    if (share < floor) lowKinds.push(kind);
+  }
+  if (lowKinds.length) console.log(`MASK FAIL: tint masks of ${lowKinds.join(', ')} under their coverage floor`);
   if (emptyRides.length) console.log(`MASK FAIL: no picture of ${emptyRides.join(', ')} shows its colour part (empty masks)`);
-  if (pageErrors || problems.length || s5 || sr.missingFiles.length || emptyRides.length) process.exit(1);
+  if (pageErrors || problems.length || s5 || sr.missingFiles.length || emptyRides.length || lowKinds.length) process.exit(1);
 })().catch((e) => { console.error(e); process.exit(1); });

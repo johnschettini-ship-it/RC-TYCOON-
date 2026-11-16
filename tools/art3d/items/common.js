@@ -7,10 +7,10 @@
 import * as THREE from 'three';
 import { makeKit, TILE } from '../kit.js';
 import { rideKeys } from './rideKeys.js';
-import { checkRideColour, colourPart, partMask } from './colourPart.js';
+import { checkRideColour, colourMesh, colourPart, partMask } from './colourPart.js';
 import { frameKey } from '../../../src/render/real/indexFormat';
 
-export { THREE, TILE, frameKey, colourPart, partMask };
+export { THREE, TILE, frameKey, colourMesh, colourPart, partMask };
 
 /** A fresh kit (daylight). Builders add their meshes to K.root. */
 export function kit() {

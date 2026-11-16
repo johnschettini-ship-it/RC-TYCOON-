@@ -196,17 +196,6 @@ export const RIDE_COMPRESSED_MAX_BIG = 4_000_000;
 /** What one turn of a ride may hold decoded at density 4 once loaded (its sheets; a mask is decoded only during a tint). */
 export const RIDE_DECODED_TURN_MAX = 32 * 1024 * 1024;
 
-/**
- * Size-rule breaches that are known and decided elsewhere: reported, not failed. Every entry names the rule and why it
- * is not fixed here; an entry nobody can give a reason for is not an exception.
- */
-export const RIDE_SIZE_ALLOW: Readonly<Record<string, { rule: 'compressed' | 'decoded'; reason: string }>> = {
-  swing_tower: {
-    rule: 'decoded',
-    reason: 'over since batch 1 (35.8 MiB per turn at d4, 20 pictures, final-fix report): its pictures are not changed by the ride colour masks (masks are not resident); cutting it is the controller\'s call',
-  },
-};
-
 export interface RideSizeRow {
   id: string;
   /** Sheets and masks, bytes. */
@@ -216,8 +205,6 @@ export interface RideSizeRow {
   residentD4: number;
   transientD4: number;
   problems: string[];
-  /** Breaches RIDE_SIZE_ALLOW lists, with its reason. */
-  allowed: string[];
 }
 
 /** The per-ride size rules for `rides` (ride ids), from the ride kind's rows of a size report. */
@@ -225,15 +212,10 @@ export function rideSizeRows(r: SizeReport, rides: readonly string[]): RideSizeR
   return rides.map((id) => {
     const it = r.perItem.find((p) => p.id === id && p.kind === 'ride');
     const limit = BIG_RIDES.includes(id) ? RIDE_COMPRESSED_MAX_BIG : RIDE_COMPRESSED_MAX;
-    if (!it) return { id, compressed: 0, limit, residentD4: 0, transientD4: 0, problems: [`${id}: not baked`], allowed: [] };
-    const out: RideSizeRow = { id, compressed: it.compressedBytes, limit, residentD4: it.residentPerTurn.d4, transientD4: it.decodedPerTurn.d4, problems: [], allowed: [] };
-    const allow = RIDE_SIZE_ALLOW[id];
-    const breach = (rule: 'compressed' | 'decoded', text: string): void => {
-      if (allow?.rule === rule) out.allowed.push(`${text} (allowed: ${allow.reason})`);
-      else out.problems.push(text);
-    };
-    if (it.compressedBytes > limit) breach('compressed', `${id}: ${mb(it.compressedBytes)} MB compressed, over ${mb(limit)} MB`);
-    if (it.residentPerTurn.d4 > RIDE_DECODED_TURN_MAX) breach('decoded', `${id}: ${mib(it.residentPerTurn.d4)} MiB decoded per turn at density 4, over ${mib(RIDE_DECODED_TURN_MAX)} MiB`);
+    if (!it) return { id, compressed: 0, limit, residentD4: 0, transientD4: 0, problems: [`${id}: not baked`] };
+    const out: RideSizeRow = { id, compressed: it.compressedBytes, limit, residentD4: it.residentPerTurn.d4, transientD4: it.decodedPerTurn.d4, problems: [] };
+    if (it.compressedBytes > limit) out.problems.push(`${id}: ${mb(it.compressedBytes)} MB compressed, over ${mb(limit)} MB`);
+    if (it.residentPerTurn.d4 > RIDE_DECODED_TURN_MAX) out.problems.push(`${id}: ${mib(it.residentPerTurn.d4)} MiB decoded per turn at density 4, over ${mib(RIDE_DECODED_TURN_MAX)} MiB`);
     return out;
   });
 }
@@ -241,7 +223,7 @@ export function rideSizeRows(r: SizeReport, rides: readonly string[]): RideSizeR
 /** Lines of the per-ride table. */
 export function formatRideSizeRows(rows: readonly RideSizeRow[]): string[] {
   const out = ['ride                compressed MB (limit)  d4 per turn MiB resident  with masks (tint)'];
-  for (const r of rows) out.push(`${r.id.padEnd(19)} ${mb(r.compressed).padStart(7)} (${mb(r.limit)})  ${mib(r.residentD4).padStart(24)}  ${mib(r.transientD4).padStart(17)}${r.problems.length ? '  OVER' : r.allowed.length ? '  allowed' : ''}`);
+  for (const r of rows) out.push(`${r.id.padEnd(19)} ${mb(r.compressed).padStart(7)} (${mb(r.limit)})  ${mib(r.residentD4).padStart(24)}  ${mib(r.transientD4).padStart(17)}${r.problems.length ? '  OVER' : ''}`);
   return out;
 }
 

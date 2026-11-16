@@ -7,7 +7,7 @@
 // a picture (11 heights, towerMotion.js DROP_SNAP); empty, the ride is at rest (the game runs a ride only with riders): one picture. Front
 // (entrance at the front, exit at the back, both on the sim's gate column, towerMotion.js TOWER_GATES): one set per view turn.
 // Colour part: the carriage, its orange top band (what shows above the seats) with its yellow sides and restraint bars as a lighter shade; base #e4652f.
-import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
+import { THREE, kit, placeOnFootprint, bakeObject, colourMesh, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { rider } from '../rides.js';
@@ -115,16 +115,14 @@ function build() {
   // the carriage: a square frame round the column, three open seats a side facing out
   const car = new THREE.Group();
   root.add(car);
-  const carYellow = colourPart(yellow.clone());
-  const carOrange = colourPart(orange.clone());
   const IN = COL / 2 + 0.22, OUT = 1.75;
   const mid = (IN + OUT) / 2, wid = OUT - IN;
   for (let f = 0; f < 4; f++) {
     const side = new THREE.Group();
     side.rotation.y = (f * Math.PI) / 2;
     car.add(side);
-    side.add(M(new THREE.BoxGeometry(2 * OUT, 0.55, wid), carYellow).translateY(0.62).translateZ(mid - 0.0001 * f));
-    side.add(M(new THREE.BoxGeometry(2 * OUT + 0.04, 0.12, wid + 0.04), carOrange).translateY(0.95).translateZ(mid));
+    side.add(colourMesh(M(new THREE.BoxGeometry(2 * OUT, 0.55, wid), yellow)).translateY(0.62).translateZ(mid - 0.0001 * f));
+    side.add(colourMesh(M(new THREE.BoxGeometry(2 * OUT + 0.04, 0.12, wid + 0.04), orange)).translateY(0.95).translateZ(mid));
     side.add(M(new THREE.BoxGeometry(0.5, 0.5, 0.22), mat.darkSteel).translateY(0.62).translateZ(IN - 0.1)); // guide shoe
   }
   const seatMat = std({ color: '#262626', roughness: 0.6 });
@@ -142,12 +140,12 @@ function build() {
       s.add(M(new THREE.BoxGeometry(0.5, 0.1, 0.4), seatMat).translateZ(0.3));
       s.add(M(new THREE.BoxGeometry(0.34, 0.2, 0.14), seatMat).translateY(1.2).translateZ(0.12)); // headrest
       for (const sd of [-1, 1]) {
-        const bar = M(new THREE.BoxGeometry(0.06, 0.6, 0.07), carYellow);
+        const bar = colourMesh(M(new THREE.BoxGeometry(0.06, 0.6, 0.07), yellow));
         bar.position.set(sd * 0.14, 0.5, 0.42);
         bar.rotation.x = 0.18;
         s.add(bar);
       }
-      s.add(rod(V(-0.14, 0.22, 0.48), V(0.14, 0.22, 0.48), 0.035, carYellow, 6));
+      s.add(colourMesh(rod(V(-0.14, 0.22, 0.48), V(0.14, 0.22, 0.48), 0.035, yellow, 6)));
       const p = rider(K, 1400 + n, { kind: 'dangle', armsUp: n % 4 === 1 });
       p.position.set(0, 0.05, 0.22);
       s.add(p);

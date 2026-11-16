@@ -9,7 +9,7 @@
 // plane beside the column), so one set per sprite rotation (rots [0,1,2,3]); see NON_ROUND in items/flatRides.js.
 // Model frame: the arm turns about the z axis; the column stands behind it (-z), the gondola reaches out to +z.
 // Colour part: the gondola, its red seat-back panels (the yellow restraints and orange joint keep theirs); base #c43a24.
-import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
+import { THREE, kit, placeOnFootprint, bakeObject, colourMesh, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -101,7 +101,6 @@ function build() {
   // gondola: spine along z at the arm end, two rows of seats facing +x and -x, restraints, footrests
   const g = new THREE.Group();
   g.position.y = -R;
-  const gondolaRed = colourPart(red.clone()); // '#c43a24', the column's red keeps its own
   arm.add(g);
   g.add(boxAt(0.5, 0.5, G_Z1 - G_Z0, 0, 0, (G_Z0 + G_Z1) / 2, mat.darkSteel));
   g.add(boxAt(0.62, 0.62, 0.7, 0, 0, ARM_Z, orange)); // joint to the arm
@@ -109,7 +108,7 @@ function build() {
   const riders = [];
   let seed = 680;
   for (const s of [-1, 1]) {
-    g.add(boxAt(0.3, 1.0, G_Z1 - G_Z0 - 0.4, s * 0.3, 0.05, (G_Z0 + G_Z1) / 2 + 0.2, gondolaRed)); // seat-back panel
+    g.add(colourMesh(boxAt(0.3, 1.0, G_Z1 - G_Z0 - 0.4, s * 0.3, 0.05, (G_Z0 + G_Z1) / 2 + 0.2, red))); // seat-back panel (the column's red keeps its own)
     for (const z of zs) {
       g.add(boxAt(0.5, 0.1, 0.46, s * 0.62, -0.38, z, seatMat)); // seat pan
       g.add(boxAt(0.08, 0.85, 0.44, s * 0.48, 0.02, z, seatMat)); // backrest
