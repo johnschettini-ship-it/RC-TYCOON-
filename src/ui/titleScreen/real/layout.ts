@@ -7,9 +7,10 @@
  * that scales smoothly (any scale, not whole numbers):
  * - The menu is design E's menu: `base` is `titleLayout` of the same input, used as is for the menu, plate and sheet.
  * - Framing: tall when the window is taller than wide, else wide.
- * - The picture covers the window's width (plus the drift on each side) and reaches down to the window bottom on the
- *   desktop, or to just under the menu's top edge on phones and low windows, where a gradient fill takes over below
- *   it. On the desktop only, the wheel (`menuAnchorX`, its left edge) stays right of the menu block, drift included:
+ * - The picture fits the window's width (plus the drift on each side), so the whole park shows (the wheel, the lake);
+ *   it ends at the window bottom on the desktop, and just under the menu's top edge on phones and low windows.
+ *   Above it the sky's top row and below it the lawn's bottom row are stretched to the window's edges (`view.ts`), so
+ *   there is no seam. The whole wheel stays inside the window. On the desktop only, the wheel (`menuAnchorX`, its left edge) stays right of the menu block, drift included:
  *   phones and low windows have the menu across the bottom, under the picture's bottom edge (it covers at most the
  *   24 px the picture runs under it), so there is no side to keep clear.
  * - The name sign sits in the sky above the ride tops (the higher of `nameRow` and the wheel's top) and inside the safe area: if it does
@@ -78,8 +79,10 @@ export interface RealTitleLayout {
   s: number;
   /** The picture's box, CSS px (layers at rest). */
   picture: Rect;
-  /** The gradient fill from the picture's bottom edge to the window bottom (h 0 when none). */
+  /** The fill from the picture's bottom edge to the window bottom (the lawn's bottom row continued; h 0 when none). */
   fill: Rect;
+  /** The fill from the window top to the picture's top edge (the sky's top row continued; h 0 when none). */
+  fillAbove: Rect;
   sign: SignKind;
   signS: number;
   signBox: Rect;
@@ -117,18 +120,30 @@ export function realTitleLayout(input: RealTitleInput, idx: TitleIndex): RealTit
   const drift = input.reducedMotion ? { sky: 0, park: 0, front: 0 } : { ...DRIFT };
   const d = Math.max(drift.sky, drift.park, drift.front);
 
-  // The picture's bottom edge: the window bottom on the desktop, a little under the menu's top edge elsewhere.
-  const bottom = base.kind === 'desktop' ? h : Math.min(h, h - base.mb - menuH + UNDER_MENU);
-  let s = Math.max((w + 2 * d) / F.w, bottom / F.h);
-  let x: number;
+  // The picture fits the window's width (plus the drift on each side): the whole park shows, wheel and lake included;
+  // above it the sky's top row continues, below it the lawn's bottom row (`view.ts`).
+  // Its bottom edge: the window bottom on the desktop (the wide picture's bottom row is the lake, which does not
+  // continue well, so all the room is sky above), a little under the menu's top edge elsewhere (the menu stands on
+  // the continued lawn).
+  const bottomLimit = base.kind === 'desktop' ? h : Math.min(h, h - base.mb - menuH + UNDER_MENU);
+  let s = (w + 2 * d) / F.w;
+  let x = (w - F.w * s) / 2;
   if (base.kind === 'desktop' && base.menuBox && F.menuAnchorX > 0 && F.menuAnchorX < F.w) {
-    // The wheel's left edge (drifting left by the park's drift) stays right of the menu block; the picture still covers
-    // both sides of the window.
+    // The wheel's left edge (drifting left by the park's drift) stays right of the menu block. Only when the fitted
+    // picture fails that: it moves right and grows until it still covers both sides of the window.
     const right = base.menuBox.left + base.menuBox.width + MENU_CLEAR + drift.park;
-    s = Math.max(s, (right + d) / F.menuAnchorX, (w + d - right) / (F.w - F.menuAnchorX));
-    x = Math.max((w - F.w * s) / 2, right - F.menuAnchorX * s);
-  } else x = (w - F.w * s) / 2;
-  let y = bottom - F.h * s;
+    if (x + F.menuAnchorX * s < right) {
+      s = Math.max(s, (right + d) / F.menuAnchorX, (w + d - right) / (F.w - F.menuAnchorX));
+      x = Math.max((w - F.w * s) / 2, right - F.menuAnchorX * s);
+    }
+  }
+  // The whole wheel inside the window, drift included (the picture still covers both sides).
+  const wheelL = F.wheel.x * s;
+  const wheelR = (F.wheel.x + F.wheel.fw) * s;
+  if (x + wheelR + drift.park > w) x = Math.max(w + d - F.w * s, w - drift.park - wheelR);
+  if (x + wheelL - drift.park < 0) x = Math.min(-d, drift.park - wheelL);
+  const H = F.h * s;
+  let y = bottomLimit - H;
 
   // The sign: the one-line board on wide framings while it keeps its size, else the stacked board; never wider than
   // the safe width less its sides, never larger than the picture's own scale (same bake density).
@@ -140,7 +155,8 @@ export function realTitleLayout(input: RealTitleInput, idx: TitleIndex): RealTit
   // The ride tops: `nameRow`, or the wheel's top when it stands higher (the sign never covers the wheel).
   const rideTop = (): number => y + Math.min(F.nameRow, F.wheel.y) * s;
   const missing = (): number => nameTop + S.h * signS + NAME_GAP - rideTop();
-  if (missing() > 0) y += Math.min(missing(), MOVE_SHARE * F.h * s);
+  // Down for the name: freely while the picture's bottom stays above its limit, then up to MOVE_SHARE of its height.
+  if (missing() > 0) y += Math.min(missing(), Math.max(0, bottomLimit - (y + H)) + MOVE_SHARE * H);
   if (missing() > 0) signS = Math.max(signS * SIGN_MIN_SHARE, (rideTop() - NAME_GAP - nameTop) / S.h);
   if (missing() > 0) y += missing();
   const signW = S.w * signS;
@@ -155,6 +171,7 @@ export function realTitleLayout(input: RealTitleInput, idx: TitleIndex): RealTit
     s,
     picture,
     fill: { x: 0, y: fillTop, w, h: Math.max(0, h - fillTop) },
+    fillAbove: { x: 0, y: 0, w, h: Math.max(0, picture.y) },
     sign,
     signS,
     signBox,

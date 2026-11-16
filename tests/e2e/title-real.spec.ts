@@ -9,7 +9,9 @@
  * (above the rides, inside the window), the desktop menu clear of the wheel, a slow and a failed download (menu works,
  * no error), a rotation without a blank frame, reduced motion (a still picture), three round trips to a park (title
  * bitmaps closed in the park, the park's released at the title), and the axe scan with the hidden heading.
- * Screenshots go to `$SHOT_DIR` (default: the test's output folder).
+ * The whole wheel inside the window at every size and text size, and the fills above and below the picture continuing
+ * the sky's top row and the lawn's bottom row (no seam). Screenshots go to `$SHOT_DIR` (default: the test's output
+ * folder), named `title-real-<name><$SHOT_SUFFIX>.png`.
  */
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { openTool, scan } from './helpers';
@@ -20,7 +22,11 @@ const SIZES = [
   { name: 'phone-360x640', w: 360, h: 640, dpr: 2, mobile: true },
   { name: 'sideways-812x375', w: 812, h: 375, dpr: 3, mobile: true },
   { name: 'desktop-1366x768', w: 1366, h: 768, dpr: 1, mobile: false },
+  { name: 'desktop-1920x1080', w: 1920, h: 1080, dpr: 1, mobile: false },
+  { name: 'desktop-1280x800', w: 1280, h: 800, dpr: 2, mobile: false },
+  { name: 'desktop-1024x768', w: 1024, h: 768, dpr: 1, mobile: false },
 ] as const;
+type Size = (typeof SIZES)[number];
 
 /** Counts live ImageBitmaps (made by createImageBitmap, not yet closed): the title's and the park's decodes. */
 const COUNT_BITMAPS = (): void => {
@@ -53,7 +59,7 @@ async function open(browser: Browser, s: { w: number; h: number; dpr: number; mo
 
 const shot = async (page: Page, name: string): Promise<void> => {
   const dir = process.env.SHOT_DIR ?? test.info().outputPath();
-  await page.screenshot({ path: `${dir}/title-real-${name}.png` });
+  await page.screenshot({ path: `${dir}/title-real-${name}${process.env.SHOT_SUFFIX ?? ''}.png` });
 };
 
 const ready = (page: Page) => page.locator('canvas.title-real-scene[data-ready]');
@@ -62,7 +68,19 @@ async function hasTitleArt(page: Page): Promise<boolean> {
   return page.evaluate(() => fetch('art/real/title/index.json').then((r) => r.ok, () => false));
 }
 
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+const parseBox = (v: string | undefined): Box => {
+  const [x, y, w, h] = (v ?? '').split(',').map(Number);
+  return { x: x ?? NaN, y: y ?? NaN, w: w ?? NaN, h: h ?? NaN };
+};
 interface Placed {
+  picture: Box;
+  wheel: Box;
   framing: string;
   sign: string;
   box: { x: number; y: number; w: number; h: number };
@@ -70,12 +88,50 @@ interface Placed {
   anchor: number;
 }
 async function placed(page: Page): Promise<Placed> {
-  return page.locator('canvas.title-real-scene').evaluate((c) => {
-    const d = (c as HTMLCanvasElement).dataset;
-    const [sign, nums] = (d.sign ?? ':').split(':');
-    const [x, y, w, h] = (nums ?? '').split(',').map(Number);
-    return { framing: d.framing ?? '', sign: sign ?? '', box: { x: x ?? NaN, y: y ?? NaN, w: w ?? NaN, h: h ?? NaN }, nameRow: Number(d.nameRow), anchor: Number(d.anchor) };
-  });
+  const raw = await page.locator('canvas.title-real-scene').evaluate((c) => ({ ...(c as HTMLCanvasElement).dataset }));
+  const [sign, nums] = (raw.sign ?? ':').split(':');
+  return {
+    picture: parseBox(raw.picture),
+    wheel: parseBox(raw.wheel),
+    framing: raw.framing ?? '',
+    sign: sign ?? '',
+    box: parseBox(nums),
+    nameRow: Number(raw.nameRow),
+    anchor: Number(raw.anchor),
+  };
+}
+
+/**
+ * The checks of one size: the framing, the sign in the window and above the ride tops (and the menu), the whole wheel
+ * in the window (at both ends of its drift), the desktop menu clear of the wheel, the phone menu below it, the menu
+ * buttons in the window, no sideways scroll.
+ */
+async function checkPlaced(page: Page, s: Size): Promise<void> {
+  const p = await placed(page);
+  expect(p.framing).toBe(s.h > s.w ? 'tall' : 'wide');
+  expect(p.box.x).toBeGreaterThanOrEqual(16 - 0.1);
+  expect(p.box.x + p.box.w).toBeLessThanOrEqual(s.w - 16 + 0.1);
+  expect(p.box.y).toBeGreaterThanOrEqual(12 - 0.1);
+  expect(p.box.y + p.box.h).toBeLessThanOrEqual(p.nameRow - 8 + 0.1);
+  const menu = await page.locator('.title-menu').boundingBox();
+  if (!menu) throw new Error('no menu');
+  expect(p.box.y + p.box.h).toBeLessThanOrEqual(menu.y + 0.5);
+  expect(p.wheel.x, 'wheel left').toBeGreaterThanOrEqual(-0.1);
+  expect(p.wheel.x + p.wheel.w, 'wheel right').toBeLessThanOrEqual(s.w + 0.1);
+  expect(p.wheel.y, 'wheel top').toBeGreaterThanOrEqual(-0.1);
+  expect(p.wheel.y + p.wheel.h, 'wheel bottom').toBeLessThanOrEqual(s.h + 0.1);
+  if (s.w >= 900) {
+    expect(p.anchor).toBeGreaterThanOrEqual(menu.x + menu.width);
+    expect(p.wheel.x).toBeGreaterThanOrEqual(menu.x + menu.width);
+    // The whole picture shows on the desktop (the lake at its bottom).
+    expect(p.picture.y).toBeGreaterThanOrEqual(-0.1);
+    expect(p.picture.y + p.picture.h).toBeLessThanOrEqual(s.h + 0.1);
+  } else expect(p.wheel.y + p.wheel.h, 'wheel above the menu').toBeLessThanOrEqual(menu.y + 0.5);
+  for (const b of await page.locator('.title-menu button:visible').all()) {
+    const r = await b.boundingBox();
+    expect(r && r.x >= 0 && r.y >= 0 && r.x + r.width <= s.w + 0.5 && r.y + r.height <= s.h + 0.5, await b.innerText()).toBe(true);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 }
 
 /** The realistic look's memory by owner, and the card set's decoded bytes when it is resident (else 0). */
@@ -125,24 +181,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
       test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
       await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
       await expect(ready(page)).toHaveCSS('opacity', '1');
-      const p = await placed(page);
-      expect(p.framing).toBe(s.h > s.w ? 'tall' : 'wide');
-      // The sign: in the window (16 px sides, 12 px top), 8 px above the ride tops.
-      expect(p.box.x).toBeGreaterThanOrEqual(16 - 0.1);
-      expect(p.box.x + p.box.w).toBeLessThanOrEqual(s.w - 16 + 0.1);
-      expect(p.box.y).toBeGreaterThanOrEqual(12 - 0.1);
-      expect(p.box.y + p.box.h).toBeLessThanOrEqual(p.nameRow - 8 + 0.1);
-      // The sign does not run under the menu.
-      const menu = await page.locator('.title-menu').boundingBox();
-      if (!menu) throw new Error('no menu');
-      expect(p.box.y + p.box.h).toBeLessThanOrEqual(menu.y + 0.5);
-      if (s.w >= 900) expect(p.anchor).toBeGreaterThanOrEqual(menu.x + menu.width);
-      // Every menu button inside the window, no sideways scroll.
-      for (const b of await page.locator('.title-menu button:visible').all()) {
-        const r = await b.boundingBox();
-        expect(r && r.x >= 0 && r.y >= 0 && r.x + r.width <= s.w + 0.5 && r.y + r.height <= s.h + 0.5, await b.innerText()).toBe(true);
-      }
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await checkPlaced(page, s);
       // The name stays for screen readers, visually hidden.
       const heading = page.getByRole('heading', { level: 1, name: 'Thrills & Chills' });
       await expect(heading).toHaveCount(1);
@@ -154,24 +193,73 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     });
   }
 
-  test('large text (175 %) at 390x844: the menu and the sign still fit', async ({ browser }) => {
-    const s = SIZES[0];
-    const { ctx, page, errors } = await open(browser, s);
-    await page.goto('/');
-    test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
-    await page.waitForFunction(() => (window as unknown as { __tc?: unknown }).__tc !== undefined);
-    await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('textScale', 175));
-    await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
-    await page.waitForTimeout(300);
-    const p = await placed(page);
-    const menu = await page.locator('.title-menu').boundingBox();
-    if (!menu) throw new Error('no menu');
-    expect(p.box.y + p.box.h).toBeLessThanOrEqual(Math.min(p.nameRow - 8, menu.y) + 0.5);
-    expect(menu.y + menu.height).toBeLessThanOrEqual(s.h + 0.5);
-    await shot(page, 'phone-390x844-text175');
-    expect(errors).toEqual([]);
-    await ctx.close();
-  });
+  for (const s of SIZES) {
+    test(`${s.name}, large text (175 %): the menu, the sign and the whole wheel still fit`, async ({ browser }) => {
+      const { ctx, page, errors } = await open(browser, s);
+      await page.goto('/');
+      test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
+      await page.waitForFunction(() => (window as unknown as { __tc?: unknown }).__tc !== undefined);
+      await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('textScale', 175));
+      await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+      await page.waitForTimeout(400);
+      await checkPlaced(page, s);
+      await shot(page, `${s.name}-text175`);
+      expect(errors).toEqual([]);
+      await ctx.close();
+    });
+  }
+
+  for (const s of [SIZES[0], SIZES[3]]) {
+    test(`${s.name}: the fills continue the sky's top row above the picture and the lawn below it (no seam)`, async ({ browser }) => {
+      const { ctx, page } = await open(browser, s, 'reduce');
+      await page.goto('/');
+      test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
+      await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+      await page.waitForTimeout(300);
+      const p = await placed(page);
+      const out = await page.evaluate(async ({ P, sign }) => {
+        const c = document.querySelector('canvas.title-real-scene') as HTMLCanvasElement;
+        const k = c.width / window.innerWidth;
+        const x = c.getContext('2d') as CanvasRenderingContext2D;
+        const px = (cx: number, cy: number): number[] => [...x.getImageData(Math.floor(cx * k), Math.floor(cy * k), 1, 1).data].slice(0, 3);
+        const ix = (await (await fetch('art/real/title/index.json')).json()) as Record<string, { w: number; layers: { sky: string } }>;
+        const framing = c.dataset.framing as string;
+        const sky = await createImageBitmap(await (await fetch(`art/real/title/${ix[framing]?.layers.sky}`)).blob());
+        const t = document.createElement('canvas');
+        t.width = sky.width;
+        t.height = 1;
+        const tx = t.getContext('2d') as CanvasRenderingContext2D;
+        tx.drawImage(sky, 0, 0, sky.width, 1, 0, 0, sky.width, 1);
+        const top = tx.getImageData(0, 0, sky.width, 1).data;
+        const skyW = sky.width;
+        sky.close();
+        // Points across the window, clear of the sign (it stands in the sky).
+        const xs = [0.04, 0.1, 0.3, 0.5, 0.7, 0.9, 0.96].map((f) => f * window.innerWidth).filter((cx) => cx < sign.x - 4 || cx > sign.x + sign.w + 4);
+        const above = P.y > 4 ? xs.map((cx) => {
+          const sx = Math.min(skyW - 1, Math.max(0, Math.floor(((cx - P.x) / P.w) * skyW)));
+          return { fill: px(cx, P.y / 2), seam: px(cx, P.y - 1.5), sky: [top[sx * 4], top[sx * 4 + 1], top[sx * 4 + 2]] as number[] };
+        }) : [];
+        const bottom = P.y + P.h;
+        // Below: the softened lawn against the picture's last row, both averaged over the window's width.
+        const avg = (cy: number): number[] => {
+          const n = 64;
+          const sum = [0, 0, 0];
+          for (let i = 0; i < n; i++) px(((i + 0.5) * window.innerWidth) / n, cy).forEach((v, j) => (sum[j] = (sum[j] ?? 0) + v / n));
+          return sum;
+        };
+        const below = bottom < window.innerHeight - 4 ? [{ fill: avg(bottom + 1.5), picture: avg(bottom - 1 / k) }] : [];
+        return { above, below };
+      }, { P: p.picture, sign: p.box });
+      const near = (a: number[], b: number[], tol: number): boolean => a.every((v, i) => Math.abs(v - (b[i] ?? 0)) <= tol);
+      expect(out.above.length + out.below.length, 'a fill to check').toBeGreaterThan(0);
+      for (const a of out.above) {
+        expect(near(a.fill, a.sky, 10), `fill ${a.fill} vs sky top ${a.sky}`).toBe(true);
+        expect(near(a.seam, a.sky, 10), `seam ${a.seam} vs sky top ${a.sky}`).toBe(true);
+      }
+      for (const b of out.below) expect(near(b.fill, b.picture, 12), `lawn fill ${b.fill} vs the picture's last row ${b.picture}`).toBe(true);
+      await ctx.close();
+    });
+  }
 
   for (const s of SIZES) {
     test(`${s.name}: the scenario list stays in the window under the sign and scrolls (its first card reachable)`, async ({ browser }) => {
