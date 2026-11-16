@@ -10,7 +10,8 @@
  * - `show` releases the park's art first (`releasePark`), then decodes the title art; `hide` (a park opens) closes every
  *   title bitmap and empties the canvas. While the title covers the window the renderer draws no park (`titleHolds`).
  * - A rotation keeps the old framing on screen until the new one is decoded (no blank frame): for that moment both
- *   framings are decoded (about 32 MB, over the 24 MB of one framing; accepted by the review), then the old is closed.
+ *   framings are decoded (about 41 MB with the baked art: wide 23.27 MB + tall 18.11 MB, over the 24 MB cap of one framing;
+ *   accepted by the review), then the old is closed.
  * - Reduced motion: no drift, the wheel stands still. A change while the title shows (the setting, or the system's
  *   `prefers-reduced-motion`, both applied as the `tc-rm` class on the document by `src/a11y`) takes effect at once.
  * - The title element hidden by someone else (the stage 1 bench hides `.title-screen` while it measures a park) counts
@@ -148,6 +149,10 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     const idx = session.index();
     reduced = displayPrefs().reducedMotion;
     lay = art && idx && input ? realTitleLayout({ ...input, reducedMotion: reduced, framing: art.framing }, idx) : null;
+    // The plate and sheet stop under the name (design E's `--tl-name-bottom`, set by title.ts's `place` in the classic
+    // look): the sign's bottom edge, or the safe top while no sign shows. Without it their max-height is invalid and a
+    // tall view (the scenario list) grows past the window top, out of reach.
+    if (input) el.style.setProperty('--tl-name-bottom', `${lay ? lay.signBox.y + lay.signBox.h : (input.safe?.top ?? 0)}px`);
     if (input) session.want(input.h > input.w ? 'tall' : 'wide');
   };
 

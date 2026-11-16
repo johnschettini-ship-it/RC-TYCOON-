@@ -4,7 +4,7 @@
  * an 812 × 375 phone held sideways at large text.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { newPark, scan, watchErrors } from './helpers';
+import { newPark, presetSettings, scan, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Tc {
@@ -100,7 +100,7 @@ test.describe('ride colour swatches', () => {
       test(`fits ${name} at ${large ? 'large' : 'normal'} text`, async ({ page }, info) => {
         if (large) {
           const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-          await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+          await presetSettings(page, doc);
         }
         await page.setViewportSize(vp);
         await newPark(page);

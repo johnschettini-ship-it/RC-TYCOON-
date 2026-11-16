@@ -6,7 +6,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
-import { isPhone, newPark, openTool, scan, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, presetSettings, scan, watchErrors } from './helpers';
 
 interface Box {
   x: number;
@@ -107,6 +107,8 @@ async function withSave(page: Page, park: string): Promise<void> {
 }
 
 test.describe('title screen: the skyline (design E)', () => {
+  // The realistic build replaces design E's pixel skyline with the baked panorama (title-real.spec.ts covers it).
+  test.skip(process.env.VITE_ART === 'real', 'design E skyline: website build only');
   test('the scene and the name are hard pixels at the places of PORTING §3; the menu fits (with a save)', async ({ page }, info) => {
     test.setTimeout(90_000);
     const watch = watchErrors(page);
@@ -206,7 +208,7 @@ test.describe('title screen: the skyline (design E)', () => {
   test('175% text with en-XA: no menu button clips its text; every button can be reached', async ({ page }) => {
     const watch = watchErrors(page);
     const doc = serializeSettings({ ...defaultSettings(), locale: 'en-XA', textScale: 175 });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
     await page.goto('/');
     await expect(page.locator('#ui')).toHaveAttribute('data-text-scale', '175');
     await expect(page.getByTestId('title-new')).toContainText('Ñéŵ');
@@ -267,11 +269,13 @@ const contrast = (a: number[], b: number[]): number => {
 const whole = (v: number): boolean => Math.abs(v - Math.round(v)) <= 0.01;
 
 test.describe('title screen: repairs of Task 15b', () => {
+  // These measure design E's scene and logo, which the realistic build does not have (title-real.spec.ts covers its layout).
+  test.skip(process.env.VITE_ART === 'real', 'design E layout: website build only');
   test('below the picture: the last row of the scene fills the space down to the window bottom (667 x 375 at 175%)', async ({ page }, info) => {
     test.skip(isPhone(info), 'window sizes are set on the desktop project');
     const watch = watchErrors(page);
     const doc = serializeSettings({ ...defaultSettings(), textScale: 175 });
-    await page.addInitScript((d) => window.localStorage.setItem('tc.settings', d), doc);
+    await presetSettings(page, doc);
     await page.setViewportSize({ width: 667, height: 375 });
     await page.goto('/');
     await expect(page.getByTestId('title-new')).toBeVisible();

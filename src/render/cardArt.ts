@@ -8,10 +8,36 @@
 export type CardArt = (ctx: CanvasRenderingContext2D, id: string, w: number, h: number, pad: number) => boolean;
 
 let art: CardArt | null = null;
+/** Whether the drawer's pictures are decoded now (its set can land after the cards were drawn, or be freed). */
+let ready: (() => boolean) | null = null;
+let wasReady = false;
+let generation = 0;
 
-/** Sets (or clears) the drawer. */
-export function setCardArt(fn: CardArt | null): void {
+/**
+ * Sets (or clears) the drawer. `isReady` tells whether its pictures are decoded now: when that changes,
+ * `cardArtGeneration` moves on, so cards drawn before (or with) the pictures are drawn again.
+ */
+export function setCardArt(fn: CardArt | null, isReady?: () => boolean): void {
   art = fn;
+  ready = fn && isReady ? isReady : null;
+  wasReady = ready ? ready() : fn !== null;
+  generation++;
+}
+
+/**
+ * A number that changes whenever the card pictures the drawer can give may have changed (a drawer set or cleared, its
+ * pictures decoded or freed). Callers that keep drawn cards (the card previews, the hand's tool cards) draw them
+ * again when it changes.
+ */
+export function cardArtGeneration(): number {
+  if (ready) {
+    const now = ready();
+    if (now !== wasReady) {
+      wasReady = now;
+      generation++;
+    }
+  }
+  return generation;
 }
 
 /** True when a card picture was drawn for `id`; false when the caller should draw today's preview. */

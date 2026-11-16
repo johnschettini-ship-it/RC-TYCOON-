@@ -171,4 +171,6 @@
 /* Large text: a slimmer band (less padding), so more of the picture shows above it. */
 #ui:not([data-text-scale='100']) .hand .content-card .card-name { padding: 2px 5px 0; }
 #ui:not([data-text-scale='100']) .hand .content-card .card-price-row { padding: 0 5px 3px; }
-#ui:not([data-text-scale='100']) .hand .tool-card .tool-card-label { padding: 2px 4px 3px; }
+/* The tool name keeps 1 px at the sides: "Marketing" at 175 % (112.6 px) fits the 123 px card (borders included, high
+   contrast's 3 px too) instead of breaking as "Marketin/g". */
+#ui:not([data-text-scale='100']) .hand .tool-card .tool-card-label { padding: 2px 1px 3px; }

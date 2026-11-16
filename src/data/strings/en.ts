@@ -59,8 +59,8 @@ export const en: Record<string, string> = {
   ...perfStrings,
   ...offlineStrings,
   ...contentStrings,
-  ...(import.meta.env.VITE_ART === 'real' ? realBenchStrings : {}),
-  ...(import.meta.env.VITE_ART === 'real' ? realCardsStrings : {}),
+  ...(import.meta.env?.VITE_ART === 'real' ? realBenchStrings : {}),
+  ...(import.meta.env?.VITE_ART === 'real' ? realCardsStrings : {}),
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {

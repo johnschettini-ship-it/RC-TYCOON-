@@ -270,6 +270,77 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     await expect(page.locator(sel)).toHaveAccessibleName('Footpath');
   });
 
+  test('card pictures that decode after the cards were drawn replace the icon and today\'s preview', async ({ page }) => {
+    test.setTimeout(60_000);
+    // The boot waits 3 s for the card set: hold its sheet back 8 s, so the first cards are drawn without it.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route('**/art/real/preview-cards-*.webp', async (route) => {
+      await held;
+      await route.continue();
+    });
+    const timer = setTimeout(() => release(), 8_000);
+    try {
+      await newPark(page, 'Late Park');
+      await expectRealLook(page);
+      const cardSet = (): Promise<string> =>
+        page.evaluate(() => (window as unknown as { __tcReal: { sets: { state(k: string): string } } }).__tcReal.sets.state('preview:cards:d2:rall'));
+      expect(await cardSet()).not.toBe('ready');
+      const openDeck = async (deck: string): Promise<void> => {
+        const hand = page.getByTestId('hand');
+        if ((await hand.getAttribute('data-deck')) !== deck || !(await hand.isVisible())) await page.getByTestId(`deck-${deck}`).click();
+        await expect(hand).toHaveAttribute('data-deck', deck);
+      };
+      const preview = (): Promise<string> => page.locator('[data-testid="card-carousel"] canvas.card-preview').evaluate((c) => (c as HTMLCanvasElement).toDataURL());
+      await openDeck('rides');
+      const before = await preview();
+      await toolControl(page, 'footpath');
+      const sel = '[data-testid="tool-footpath"]';
+      await expect(page.locator(`${sel} .tool-card-picture`)).toHaveCount(0);
+      release();
+      await expect.poll(cardSet, { timeout: 15_000 }).toBe('ready');
+      // The open deck's tool card takes its baked picture.
+      await expect(page.locator(`${sel} .tool-card-picture`)).toHaveCount(1, { timeout: 5_000 });
+      // A deck drawn before: its ride cards show their baked pictures when shown again.
+      await openDeck('rides');
+      await expect.poll(preview, { timeout: 5_000 }).not.toBe(before);
+    } finally {
+      clearTimeout(timer);
+      release();
+    }
+  });
+
+  for (const [w, h] of [
+    [390, 844],
+    [360, 640],
+  ] as const) {
+    test(`${w} × ${h}: no tool card name breaks inside a word ("Marketin/g"), normal and large text, high contrast too`, async ({ page }) => {
+      await page.setViewportSize({ width: w, height: h });
+      await newPark(page, 'Word Park');
+      await expectRealLook(page);
+      await toolControl(page, 'marketing');
+      for (const hc of [false, true]) {
+        await page.evaluate((v) => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('highContrast', v), hc);
+        for (const scale of [100, 175] as const) {
+          await textScale(page, scale);
+          await page.evaluate(() => document.fonts.ready.then(() => undefined));
+          // Lines of each label against its words: a word broken across lines gives more lines than words.
+          const broken = await page.evaluate(() =>
+            [...document.querySelectorAll<HTMLElement>('.hand .tool-card-label')]
+              .map((l) => {
+                const r = document.createRange();
+                r.selectNodeContents(l);
+                const lines = new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size;
+                return { name: l.textContent ?? '', lines, words: (l.textContent ?? '').trim().split(/\s+/).length };
+              })
+              .filter((x) => x.lines > x.words),
+          );
+          expect(broken, `${scale}%${hc ? ', high contrast' : ''}`).toEqual([]);
+        }
+      }
+    });
+  }
+
   test('an extension card without a picture shows its icon centred in the frame, no broken image', async ({ page }) => {
     await newPark(page, 'Icon Park');
     await expectRealLook(page);

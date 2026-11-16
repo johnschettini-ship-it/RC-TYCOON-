@@ -11,6 +11,7 @@
 import { text } from '../../data/strings/en';
 import { CARD_DRAG_PX, HAND_REFRESH_MS } from '../../data/tuning/interface';
 import { displayPrefs } from '../../a11y/prefs';
+import { cardArtGeneration } from '../../render/cardArt';
 import type { UiContext } from '../context';
 import { h, newId, setAttr } from '../dom';
 import { contentCard, createToolCard, setHeld, zoneName, type ToolCardView } from './card';
@@ -89,6 +90,8 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
   let lastLayout = '';
   let signature = handSignature(ctx.game.world);
   let lastCheck = 0;
+  /** The realistic build: the `cardArtGeneration` when the hand was made (its cards are drawn at it or later). */
+  let artGeneration = import.meta.env.VITE_ART === 'real' ? cardArtGeneration() : 0;
 
   const applyHidden = (): void => {
     const hide = open === null || tucked;
@@ -328,6 +331,16 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
         if (sig !== signature) {
           signature = sig;
           refresh(false);
+        }
+        if (import.meta.env.VITE_ART === 'real') {
+          // Card pictures decoded (or freed) after the cards were drawn: tool cards take their picture (or icon) again,
+          // the ride and stall cards are built again with fresh previews.
+          const g = cardArtGeneration();
+          if (g !== artGeneration) {
+            artGeneration = g;
+            for (const d of decks.values()) for (const v of d.tools) v.card.querySelector('.tool-card-art')?.replaceChildren(v.def.icon());
+            refresh(false);
+          }
         }
         // The realistic build dims the ride and stall cards the park cannot pay for (`realAfford.ts`).
         if (import.meta.env.VITE_ART === 'real' && open !== null) markAfford(cards, ctx.game.world);
