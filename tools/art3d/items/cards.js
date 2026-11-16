@@ -12,6 +12,9 @@
 // The models come from the items' own bake modules: each module's `bake` runs against a stand-in API that renders
 // nothing except the one shot wanted for the card (the first picture of the wanted set), which it re-frames: the
 // model is scaled so the picture fits CARD_W x CARD_H px at density 2, whatever its real size.
+//
+// Tool cards (realistic title and cards): the base tool cards' objects (items/toolCards.js) are frames `tool:<id>`,
+// each on its own small ground and framed the same way.
 import { THREE, TILE, frameKey, kit } from './common.js';
 import { std, rep, tx } from '../kit.js';
 import { bakeCamera } from '../camera.ts';
@@ -44,10 +47,17 @@ import bumper_cars from './bumper_cars.js';
 import mirror_maze from './mirror_maze.js';
 import haunted_manor from './haunted_manor.js';
 import thunder_disc from './thunder_disc.js';
+import { TOOL_OBJECTS } from './toolCards.js';
 
 /** The box a card picture fits, in density-2 px (about the card preview's 168 x 120 CSS px, less its padding). */
 export const CARD_W = 160;
 export const CARD_H = 114;
+/**
+ * The box a tool card object fits: smaller, as a tool card's picture area is (about 0.8 of a content card's preview);
+ * it keeps the card set's growth for the 8 tool objects within 0.5 MB decoded.
+ */
+export const TOOL_W = 128;
+export const TOOL_H = 92;
 
 const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
   observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc };
@@ -69,8 +79,8 @@ function grassPatch(w, d) {
   return m;
 }
 
-/** Scale `group` (under `bs.world`) so its picture fits CARD_W x CARD_H at density 2, then shoot it (density 2 only). */
-function cardShot(B, bs, group) {
+/** Scale `group` (under `bs.world`) so its picture fits W x H (default CARD_W x CARD_H) at density 2, then shoot it (density 2 only). */
+function cardShot(B, bs, group, W = CARD_W, H = CARD_H) {
   const cam = bakeCamera(0, 2);
   bs.world.scale.set(1, cam.heightScale, 1);
   group.scale.setScalar(1);
@@ -81,13 +91,13 @@ function cardShot(B, bs, group) {
     x0 = Math.min(x0, p.sx); x1 = Math.max(x1, p.sx); y0 = Math.min(y0, p.sy); y1 = Math.max(y1, p.sy);
   }
   // The box's projection is a little larger than the picture (corners of a box round a round model), so it fits.
-  const s = Math.min(CARD_W / (x1 - x0), CARD_H / (y1 - y0));
+  const s = Math.min(W / (x1 - x0), H / (y1 - y0));
   group.scale.setScalar(s);
   let shot = B.shoot(bs, { target: group });
   // Then fit the trimmed picture itself (thin parts and leaf cards make the box larger than what shows).
   const pic = shot[2];
   if (pic) {
-    const f = Math.min(CARD_W / pic.canvas.width, CARD_H / pic.canvas.height);
+    const f = Math.min(W / pic.canvas.width, H / pic.canvas.height);
     if (Math.abs(f - 1) > 0.03) {
       group.scale.setScalar(s * f * 0.99);
       shot = B.shoot(bs, { target: group });
@@ -192,12 +202,24 @@ function coasterCard(B, coaster) {
   return cardShot(B, bs, group);
 }
 
+/** A base tool card's object (`tool:<id>`, items/toolCards.js), framed as the other card pictures. */
+function toolCard(B, card) {
+  const build = TOOL_OBJECTS[card.id.replace(/^tool:/, '')];
+  if (!build) throw new Error(`cards: no tool object for ${card.id}`);
+  const bs = B.newScene();
+  const group = new THREE.Group();
+  bs.world.add(group);
+  group.add(build(kit()));
+  B.setEnv(group);
+  return cardShot(B, bs, group, TOOL_W, TOOL_H);
+}
+
 export default {
   async bake(B) {
     const { items, coaster } = B.input.cards;
     const set = B.set('preview', 'cards', 'all');
     for (const card of items) {
-      const shot = card.kind === 'track' ? coasterCard(B, coaster) : await itemCard(B, card);
+      const shot = card.kind === 'track' ? coasterCard(B, coaster) : card.kind === 'tool' ? toolCard(B, card) : await itemCard(B, card);
       set.add([frameKey([card.id])], shot);
       B.log(`cards: ${card.id} ${shot[2].canvas.width}x${shot[2].canvas.height}`);
     }

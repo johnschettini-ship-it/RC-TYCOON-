@@ -3,6 +3,7 @@
  * state of its toolbar button. Also what a press on a ride or stall card does (`holdCard`).
  */
 import { text } from '../../data/strings/en';
+import { toolCardPicture } from '../../render/cardArt';
 import { pathItemAction, toolOptions } from '../../render/management/toolOptions';
 import type { ToolId } from '../../render/types';
 import type { PanelKind, UiContext } from '../context';
@@ -72,6 +73,14 @@ export function allToolCards(_ctx: UiContext): ToolCardDef[] {
     { id: 'finance', deck: 'manage', label: text('ui.tool.finance'), icon: () => icon('finance'), onClick: (c) => togglePanel(c, 'finance'), pressed: (c) => panelIs(c, 'finance') },
     { id: 'park', deck: 'manage', label: text('ui.tool.park'), icon: () => icon('park'), onClick: (c) => togglePanel(c, 'park'), pressed: (c) => panelIs(c, 'park') },
   ];
+  // Realistic build: a base card shows its baked object (`tool:<id>` in the card set), else its icon. Extension cards
+  // keep their icons.
+  if (import.meta.env.VITE_ART === 'real') {
+    for (const c of base) {
+      const fallback = c.icon;
+      c.icon = () => toolCardPicture(c.id) ?? fallback();
+    }
+  }
   const extra: ToolCardDef[] = toolbarEntries().map((e) => ({
     id: e.id,
     deck: e.deck,
