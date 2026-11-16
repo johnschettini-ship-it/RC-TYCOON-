@@ -2,12 +2,13 @@
  * Card pictures (stage 1 round 2, change 3): the baked card picture of a baked item, drawn by the card and picker
  * previews in the VITE_ART=real build when its set is ready; today's preview otherwise, and always for stand-ins.
  */
+import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setKey, type RealIndex, type RealSetEntry } from '../../../../src/render/real/indexFormat';
 import { CARD_SET, cardPicture } from '../../../../src/render/real/cards';
 import { createRealLook } from '../../../../src/render/real/look';
 import type { ReadySet } from '../../../../src/render/real/setManager';
-import { drawCardArt, setCardArt } from '../../../../src/render/cardArt';
+import { drawCardArt, setCardArt, toolCardPicture } from '../../../../src/render/cardArt';
 import { bootReal } from '../../../../src/render/real/boot';
 import { setStepPx } from '../../../../src/render/heightStep';
 import { perfProbe } from '../../../../src/perf/stats';
@@ -20,6 +21,7 @@ const ENTRY: RealSetEntry = {
     carousel: { sheet: 'cards.webp', sx: 0, sy: 0, w: 160, h: 100, ox: 0, oy: 0 },
     oak_round: { sheet: 'cards.webp', sx: 160, sy: 0, w: 80, h: 114, ox: 0, oy: 0 },
     steel_coaster: { sheet: 'cards.webp', sx: 0, sy: 100, w: 140, h: 100, ox: 0, oy: 0 },
+    'tool:footpath': { sheet: 'cards.webp', sx: 140, sy: 114, w: 160, h: 80, ox: 0, oy: 0 },
   },
 };
 
@@ -144,5 +146,52 @@ describe('boot', () => {
     expect((r?.sets as unknown as { state(k: string): string }).state(CARD_SET)).toBe('ready');
     expect(drawCardArt(fakeCtx(), 'carousel', 168, 120, 7)).toBe(true);
     expect(drawCardArt(fakeCtx(), 'teacup_twirl', 168, 120, 7)).toBe(false);
+  });
+});
+
+describe('tool card pictures (realistic title and cards, Task 4)', () => {
+  const draw = cardPicture({ use: (k) => (k === CARD_SET ? ready : null) });
+
+  it('cardPicture resolves `tool:<id>`: the baked object of a tool card', () => {
+    const ctx = fakeCtx();
+    expect(draw(ctx, 'tool:footpath', 168, 120, 7.2)).toBe(true);
+    const d = ctx.calls.find((c) => c.op === 'drawImage')!;
+    expect((d.args as number[]).slice(1, 5)).toEqual([140, 114, 160, 80]);
+  });
+
+  it('a tool id with no frame, or the set not ready: no picture', () => {
+    const ctx = fakeCtx();
+    expect(draw(ctx, 'tool:shows', 168, 120, 7)).toBe(false);
+    expect(draw(ctx, 'tool:', 168, 120, 7)).toBe(false);
+    expect(cardPicture({ use: () => null })(ctx, 'tool:footpath', 168, 120, 7)).toBe(false);
+    expect(ctx.calls).toEqual([]);
+  });
+
+  /** A canvas stand-in: its context records the calls. */
+  const fakeCanvas = (w: number, h: number) => {
+    const ctx = fakeCtx();
+    return { width: w, height: h, ctx, getContext: () => ctx } as unknown as HTMLCanvasElement & { ctx: ReturnType<typeof fakeCtx> };
+  };
+
+  it('toolCardPicture: a canvas with the picture of `tool:<id>` at the card preview size and the device pixel ratio', () => {
+    setCardArt(draw);
+    const c = toolCardPicture('footpath', 2, fakeCanvas) as ReturnType<typeof fakeCanvas>;
+    expect(c).not.toBeNull();
+    expect([c.width, c.height]).toEqual([336, 240]);
+    expect(c.ctx.calls.find((x) => x.op === 'scale')?.args).toEqual([2, 2]);
+    expect(c.ctx.calls.some((x) => x.op === 'drawImage')).toBe(true);
+  });
+
+  it('toolCardPicture: null for a tool id with no frame, an unknown id or no drawer (the card keeps its icon)', () => {
+    setCardArt(draw);
+    expect(toolCardPicture('shows', 1, fakeCanvas)).toBeNull();
+    expect(toolCardPicture('nope', 1, fakeCanvas)).toBeNull();
+    setCardArt(null);
+    expect(toolCardPicture('footpath', 1, fakeCanvas)).toBeNull();
+  });
+
+  it('the base tool cards ask for it in the realistic build only, keeping the icon when it is null', () => {
+    const src = readFileSync(new URL('../../../../src/ui/decks/toolCards.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/if \(import\.meta\.env\.VITE_ART === 'real'\) \{[^}]*toolCardPicture\(c\.id\) \?\? fallback\(\)/);
   });
 });

@@ -93,3 +93,9 @@ function cardDeps() {
   }
   return [...out];
 }
+
+// Tool cards (realistic title and cards, Task 4): the 8 base tool cards of the decks (src/ui/decks/toolCards.ts) get a
+// baked object each, frame `tool:<id>` of the card set, modelled in items/toolCards.js. Appended after the cards entry
+// is made: it holds this same CARD_ITEMS array (its bake input), and its cache key gains the tool objects' module.
+CARD_ITEMS.push(...['footpath', 'queue', 'pathItems', 'staff', 'research', 'marketing', 'finance', 'park'].map((id) => ({ id: `tool:${id}`, kind: 'tool' })));
+ITEM_LIST.find((x) => x.id === 'cards').deps.push('items/toolCards.js');

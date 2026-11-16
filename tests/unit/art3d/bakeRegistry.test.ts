@@ -154,7 +154,7 @@ describe('cache key covers the code an item is built from', () => {
       expect(seen.size, it.id).toBeGreaterThan(1);
     }
     expect([...missing], 'not in SHARED or the item\'s deps').toEqual([]);
-  });
+  }, 20_000); // parses the bake modules once per item: 4-5 s on a loaded 4-core machine, at the 5 s default
 
   it('a file not followed (LEAF_USE) is only used for the names its reason gives', () => {
     const users = ITEM_FILES_IMPORTING_LEAVES();
@@ -189,4 +189,26 @@ describe('cache key covers the code an item is built from', () => {
     walk(dir);
     return out;
   }
+});
+
+// Realistic title and cards, Task 4: the base tool cards show baked objects, `tool:<id>` frames in the card set.
+describe('tool card objects', () => {
+  const TOOL_IDS = ['footpath', 'queue', 'pathItems', 'staff', 'research', 'marketing', 'finance', 'park'];
+  it('the card set bakes a `tool:<id>` picture for each of the 8 base tool cards', async () => {
+    const { CARD_ITEMS } = await load('items/registry.js');
+    const tools = CARD_ITEMS.filter((c: { kind: string }) => c.kind === 'tool').map((c: { id: string }) => c.id);
+    expect(tools.sort()).toEqual(TOOL_IDS.map((id) => `tool:${id}`).sort());
+  });
+  it('the ids are the base tool cards of the decks (src/ui/decks/toolCards.ts)', () => {
+    const src = readFileSync(new URL('../../../src/ui/decks/toolCards.ts', import.meta.url), 'utf8');
+    const base = src.slice(src.indexOf('const base: ToolCardDef[] = ['), src.indexOf('const extra: ToolCardDef[]'));
+    expect([...base.matchAll(/\bid: '(\w+)'/g)].map((m) => m[1]).sort()).toEqual([...TOOL_IDS].sort());
+  });
+  it('the cards bake builds each tool object from items/toolCards.js, which the cards cache key lists', async () => {
+    const { ITEM_LIST } = await load('items/registry.js');
+    const cards = ITEM_LIST.find((x: { id: string }) => x.id === 'cards');
+    expect(cards.deps).toContain('items/toolCards.js');
+    const src = readFileSync(new URL('items/toolCards.js', dir), 'utf8');
+    for (const id of TOOL_IDS) expect(src, id).toMatch(new RegExp(`\\b${id}: \\(`));
+  });
 });

@@ -38,7 +38,7 @@ export function trackGeometry(pieceIds: string[]): Record<string, { special: str
 }
 
 /** One card picture to bake (items/cards.js): the item, its kind, and its catalogue footprint and height. */
-export interface CardItem { id: string; kind: 'ride' | 'stall' | 'scenery' | 'path' | 'track'; spec?: ReturnType<typeof itemSpec> }
+export interface CardItem { id: string; kind: 'ride' | 'stall' | 'scenery' | 'path' | 'track' | 'tool'; spec?: ReturnType<typeof itemSpec> }
 
 /**
  * The card bake's input: the items with their specs, and for the steel coaster today's track preview scene

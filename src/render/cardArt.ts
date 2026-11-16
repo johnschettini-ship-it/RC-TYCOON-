@@ -18,3 +18,35 @@ export function setCardArt(fn: CardArt | null): void {
 export function drawCardArt(ctx: CanvasRenderingContext2D, id: string, w: number, h: number, pad: number): boolean {
   return art !== null && art(ctx, id, w, h, pad);
 }
+
+/** The card preview size in CSS px (as `src/ui/decks/card.ts`): the tool card pictures are drawn at it. */
+const TOOL_W = 168;
+const TOOL_H = 120;
+
+/** A tool card picture canvas: it fills the card's picture area (`.tool-card-art`), its picture contained. */
+function pictureCanvas(w: number, h: number): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  c.className = 'tool-card-picture';
+  c.style.cssText = 'display:block;width:100%;height:0;min-height:100%;object-fit:contain';
+  return c;
+}
+
+/**
+ * The baked object of the base tool card `id` (frame `tool:<id>` of the card set) on a new canvas of the card preview
+ * size at device pixel ratio `dpr`; null when there is none (no drawer, no frame, the set not ready): the card keeps
+ * its icon. Realistic build only (`src/ui/decks/toolCards.ts` asks behind `import.meta.env.VITE_ART === 'real'`).
+ */
+export function toolCardPicture(
+  id: string,
+  dpr = Math.min(3, globalThis.devicePixelRatio || 1),
+  make: (w: number, h: number) => HTMLCanvasElement = pictureCanvas,
+): HTMLCanvasElement | null {
+  if (art === null) return null;
+  const c = make(Math.round(TOOL_W * dpr), Math.round(TOOL_H * dpr));
+  const g = c.getContext('2d');
+  if (!g) return null;
+  g.scale(dpr, dpr);
+  return drawCardArt(g, `tool:${id}`, TOOL_W, TOOL_H, Math.min(TOOL_W, TOOL_H) * 0.04) ? c : null;
+}

@@ -4,6 +4,8 @@
  * draw it (through `src/render/cardArt.ts`) when the item has one and the set is ready, else today's preview.
  * An item drawn in the game with another item's art (a stand-in, e.g. fizz_stand → snack_shack) keeps today's
  * preview: its card shows what it is, not its stand-in.
+ * Tool cards (realistic title and cards): the base tool cards' baked objects are frames `tool:<id>` in the same set
+ * (`toolCardPicture` in cardArt.ts asks for them).
  */
 import type { CardArt } from '../cardArt';
 import { realItem } from './fallbacks';
@@ -19,7 +21,7 @@ export const CARD_SET: SetKey = 'preview:cards:d2:rall';
 /** The drawer for `setCardArt`: the baked card picture of `id`, fitted and centred like today's previews. */
 export function cardPicture(sets: Pick<SetManager, 'use'>): CardArt {
   return (ctx, id, w, h, pad) => {
-    if (realItem(id) !== id) return false;
+    if (!id.startsWith('tool:') && realItem(id) !== id) return false;
     const rs = sets.use(CARD_SET);
     if (!rs) return false;
     const f = rs.frames[frameKey([id])];
