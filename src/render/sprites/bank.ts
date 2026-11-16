@@ -94,8 +94,12 @@ export class SpriteBank {
     this.guestBuilds = 0;
   }
 
-  ride(defId: string, w: number, d: number, rotation: Dir, frame: number, bucket: ZoomBucket): Sprite {
-    const key = spriteKey(defId, rotation, frame, bucket);
+  /**
+   * `colour`: the ride's chosen colour (a palette hex) or absent / null for Original. A coloured ride is cached under
+   * its own key (the id with the colour appended), so each colour keeps its own sprites and Original keeps today's key.
+   */
+  ride(defId: string, w: number, d: number, rotation: Dir, frame: number, bucket: ZoomBucket, colour?: string | null): Sprite {
+    const key = spriteKey(colour ? `${defId}#${colour}` : defId, rotation, frame, bucket);
     let sp = this.cache.get(key);
     if (sp) return sp;
     const ghost = frame === GHOST_FRAME_VALID ? GHOST_TINT_VALID : frame === GHOST_FRAME_INVALID ? GHOST_TINT_INVALID : null;
@@ -103,7 +107,7 @@ export class SpriteBank {
     sp = buildSprite(
       rideArtBounds(defId, w, d, rotation),
       bucket,
-      (ctx) => drawRideArt(ctx, defId, w, d, { rotation, angle: f.angle / ANGLE_FRAMES, swing: f.swing / 4, occupancy: f.occupancy }),
+      (ctx) => drawRideArt(ctx, defId, w, d, { rotation, angle: f.angle / ANGLE_FRAMES, swing: f.swing / 4, occupancy: f.occupancy, colour }),
       ghost,
     );
     this.cache.set(key, sp);

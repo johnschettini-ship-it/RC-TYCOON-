@@ -27,6 +27,11 @@ export interface RideArtState {
   swing: number;
   /** 0 empty … 4 full. */
   occupancy: number;
+  /**
+   * The player's ride colour (a `TRACK_PALETTE` hex) for the ride's main part (the plan's colour part, the same one
+   * the realistic look tints); absent or null draws Original, exactly today's art.
+   */
+  colour?: string | null;
 }
 
 const HEIGHTS: Readonly<Record<string, number>> = {
@@ -159,7 +164,8 @@ function drawCarousel(ctx: Ctx, ex: number, ey: number, st: RideArtState): void 
   items.push({ n: nearness(cu, cv), draw: () => cylinder(ctx, cu, cv, 0.24, 9, 62, '#d9b64a', '#f0d66e') });
   items.sort((a, b) => a.n - b.n);
   for (const it of items) it.draw();
-  cone(ctx, cu, cv, 1.4, 56, 86, ['#4fbf63', '#fff3d6', '#3aa552', '#fff3d6'], 16);
+  const canopy = st.colour ? [st.colour, '#fff3d6', shade(st.colour, 0.82), '#fff3d6'] : ['#4fbf63', '#fff3d6', '#3aa552', '#fff3d6'];
+  cone(ctx, cu, cv, 1.4, 56, 86, canopy, 16);
   // Scalloped valance on the visible rim.
   for (let k = 0; k < 24; k++) {
     const a = (k / 24) * TAU;
@@ -256,7 +262,7 @@ function drawBigWheel(ctx: Ctx, ex: number, ey: number, st: RideArtState): void 
   const filled = seatsFilled(gondolas, st.occupancy);
   for (let i = 0; i < gondolas; i++) {
     const p = rimPt(TAU * (i / gondolas + st.angle));
-    const c = colours[i] as string;
+    const c = st.colour ?? (colours[i] as string);
     ctx.fillStyle = shade(c, 0.7);
     ctx.fillRect(p.x - 0.75, p.y, 1.5, 3);
     ctx.fillStyle = c;
@@ -331,7 +337,7 @@ function drawSwingTower(ctx: Ctx, ex: number, ey: number, st: RideArtState): voi
     ctx.arc(sx(p.u, p.v), sy(p.u, p.v, Hc - 0.5), 1.4, 0, TAU);
     ctx.fill();
   }
-  cone(ctx, cu, cv, 0.5, Hc + 2, Hc + 22, ['#f0643a', '#ffd166'], 10);
+  cone(ctx, cu, cv, 0.5, Hc + 2, Hc + 22, [st.colour ?? '#f0643a', '#ffd166'], 10);
   const tx = sx(cu, cv);
   const ty = sy(cu, cv, Hc + 22);
   ctx.fillStyle = '#ffd166';
@@ -373,7 +379,7 @@ function drawTeacups(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
     items.push({
       n: nearness(p.u, p.v),
       draw: () => {
-        const c = cupColours[i] as string;
+        const c = st.colour ?? (cupColours[i] as string);
         const hp = circlePt(p.u, p.v, 0.3, spin);
         const handleBack = Math.cos(spin) + Math.sin(spin) < 0;
         const handle = (): void => {
