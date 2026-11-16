@@ -10,7 +10,8 @@
  * - `show` releases the park's art first (`releasePark`), then decodes the title art; `hide` (a park opens) closes every
  *   title bitmap and empties the canvas. While the title covers the window the renderer draws no park (`titleHolds`).
  * - A rotation keeps the old framing on screen until the new one is decoded (no blank frame): for that moment both
- *   framings are decoded (about 32 MB, over the 24 MB of one framing; accepted by the review), then the old is closed.
+ *   framings are decoded (about 41 MB with the baked art: wide 23.27 MB + tall 18.11 MB, over the 24 MB cap of one framing;
+ *   accepted by the review), then the old is closed.
  * - Reduced motion: no drift, the wheel stands still. A change while the title shows (the setting, or the system's
  *   `prefers-reduced-motion`, both applied as the `tc-rm` class on the document by `src/a11y`) takes effect at once.
  * - The title element hidden by someone else (the stage 1 bench hides `.title-screen` while it measures a park) counts
