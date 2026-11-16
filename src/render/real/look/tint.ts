@@ -7,15 +7,12 @@
 import type { Sprite } from '../../spriteCache';
 import type { SetKey } from '../indexFormat';
 import type { Decoded, ReadySet } from '../setManager';
-import type { CanvasLike } from '../tint';
+import { TINT_FRAME_MS, type CanvasLike } from '../tint';
 import { TintAtlas } from '../tintAtlas';
 import type { RealSets, Resolved, SetMeta } from './types';
 
-/**
- * Tinting budget per frame, ms (round 3 item 4): frames are tinted while a frame has spent less than this on them (at
- * least one a frame); a frame not tinted yet draws its untinted picture meanwhile, counted by `incomplete()`.
- */
-export const TINT_FRAME_MS = 3;
+/** Tinting budget per frame, ms (round 3 item 4): defined with the set manager's sheet tints in `../tint.ts`. */
+export { TINT_FRAME_MS };
 
 /** Tinted frames not drawn for this many prepares are freed (and pages left empty with them). */
 const KEEP_FRAMES = 120;

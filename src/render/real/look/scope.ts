@@ -44,7 +44,7 @@ export interface LookScope {
 }
 
 export function makeScope(core: LookCore, sets: RealSets): LookScope {
-  const { gameRec, recOf, staffRec, resolveAt, twinOf, groundItems, guestItems } = core;
+  const { gameRec, colourRec, recOf, staffRec, resolveAt, twinOf, groundItems, guestItems } = core;
   const combos: Combo[] = [];
   const comboIds = new Map<ItemRec, number[]>();
   function combo(rec: ItemRec, turn: number, everyTurn = false): number {
@@ -90,8 +90,13 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
   function sigOf(world: World): unknown[] {
     const s = world.state;
     let pieces = 0;
-    for (const r of s.rides) if (r.kind === 'track') pieces += s.track.rides[String(r.id)]?.pieces.length ?? 0;
-    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, pieces, s.staff.members.length];
+    // Ride colours (Task 5): a colour change wants other sets, so the coloured rides are part of the signature.
+    let colours = '';
+    for (const r of s.rides) {
+      if (r.kind === 'track') pieces += s.track.rides[String(r.id)]?.pieces.length ?? 0;
+      else if (r.colour != null) colours += `${r.id}:${r.colour},`;
+    }
+    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, pieces, s.staff.members.length, colours];
   }
 
   function indexObjects(world: World): void {
@@ -121,7 +126,9 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
       const w = def?.w ?? 3;
       const d = def?.d ?? 3;
       const t = r.rotation ?? 0;
-      obj(r.x + w / 2, r.y + d / 2, zAt(r.x, r.y), w + d, RIDE_UP_PX, gameCombo('ride', r.defId, t), gameCombo('shadow', r.defId, t));
+      const rec = gameRec('ride', r.defId);
+      const rideCombo = rec ? combo(r.colour != null ? colourRec(rec, r.colour) : rec, t) : -1;
+      obj(r.x + w / 2, r.y + d / 2, zAt(r.x, r.y), w + d, RIDE_UP_PX, rideCombo, gameCombo('shadow', r.defId, t));
     }
     for (const st of s.stalls) {
       const t = st.rotation ?? 0;

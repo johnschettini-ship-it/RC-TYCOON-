@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
+import { colourOfKey, setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
 import { createRealLook, DEGRADE_FRAMES, NO_ROOM_GAP, pickDensity, quantisePose, TINT_FRAME_MS, type RealSets } from '../../../../src/render/real/look';
 import { REAL_FALLBACK, realItem } from '../../../../src/render/real/fallbacks';
 import { SetManager, type Decoded, type ReadySet, type SetState } from '../../../../src/render/real/setManager';
@@ -63,7 +63,8 @@ function makeIndex(): RealIndex {
     sets.push(entry('ride', 'carousel', d, 'all', { 'carousel:f0:occ0': FRAME, 'carousel:f3:occ1': FRAME }));
     sets.push(entry('shadow', 'carousel', d, 'all', { carousel: FRAME }));
     for (const r of ROTS) {
-      sets.push(entry('ride', 'big_wheel', d, r, { 'big_wheel:f0:occ0': FRAME }));
+      // The big wheel has a base colour, as every baked ride (ride colours, Task 5).
+      sets.push({ ...entry('ride', 'big_wheel', d, r, { 'big_wheel:f0:occ0': FRAME }), baseColour: '#3b7d4f' });
       sets.push(entry('stall', 'snack_shack', d, r, { snack_shack: FRAME }));
       sets.push(entry('shadow', 'snack_shack', d, r, { snack_shack: FRAME }));
       sets.push(entry('scenery', 'oak_round', d, r, { 'oak_round:f0': FRAME }));
@@ -93,14 +94,19 @@ class FakeSets implements RealSets {
   private readonly ready = new Map<SetKey, ReadySet>();
   constructor(private readonly index: RealIndex, private readonly fill: Record<string, number[]> = {}) {}
 
-  setState(key: SetKey, s: SetState): void {
+  setState(key: SetKey, s: SetState, extra: Partial<ReadySet> = {}): void {
     this.states.set(key, s);
     if (s === 'ready') {
-      const e = this.index.sets.find((x) => x.key === key);
+      // A coloured key (ride colours, Task 5) is served from its Original entry, under its own key.
+      const base = colourOfKey(key)?.base ?? key;
+      const e = this.index.sets.find((x) => x.key === base);
       if (!e) throw new Error(`no ${key}`);
-      this.ready.set(key, { ...e, images: e.sheets.map((sh) => new PixCanvas(sh.w, sh.h, this.fill[sh.file] ?? [128, 128, 128, 255]) as unknown as CanvasImageSource) });
+      this.ready.set(key, { ...e, key, images: e.sheets.map((sh) => new PixCanvas(sh.w, sh.h, this.fill[sh.file] ?? [128, 128, 128, 255]) as unknown as CanvasImageSource), ...extra });
     } else this.ready.delete(key);
   }
+  /** Coloured sets tinting: their pictures so far (Task 5). */
+  interims = new Map<SetKey, ReadySet>();
+  interim(key: SetKey): ReadySet | null { return this.state(key) === 'loading' ? this.interims.get(key) ?? null : null; }
   want(keys: SetKey[], priority: 'now' | 'ahead'): void { this.wants.push({ keys: [...keys], priority }); }
   use(key: SetKey): ReadySet | null { this.used.push(key); return this.ready.get(key) ?? null; }
   peek(key: SetKey): ReadySet | null { return this.ready.get(key) ?? null; }
@@ -1196,5 +1202,149 @@ describe('ground stand-ins never pin a set (Task 3 fix round 1: S3 livelock, cap
     expect(t.sets.state(t.d4)).toBe('none');
     expect(t.sets.state(t.d2)).toBe('ready');
     expect(got.at(-1)!.scale).toBe(2);
+  });
+});
+
+describe('RealLook: ride colours (Task 5)', () => {
+  const C = 2; // lemon
+  const k = (item: string, d: 2 | 4, rot: 0 | 1 | 2 | 3 | 'all', colour?: number) => setKey('ride', item, d, rot, colour);
+
+  it('a coloured ride draws from its coloured set, a set of its own; Original from the Original set', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(k('big_wheel', 2, 0), 'ready');
+    sets.setState(k('big_wheel', 2, 0, C), 'ready');
+    sets.setState(k('big_wheel', 2, 0, 4), 'ready');
+    expect(look.ride('big_wheel', 0, 0, 0, C)!.image).toBe(sets.images(k('big_wheel', 2, 0, C))[0]);
+    expect(look.ride('big_wheel', 0, 0, 0, 4)!.image).toBe(sets.images(k('big_wheel', 2, 0, 4))[0]);
+    expect(look.ride('big_wheel', 0, 0, 0, null)!.image).toBe(sets.images(k('big_wheel', 2, 0))[0]);
+    expect(look.ride('big_wheel', 0, 0, 0)!.image).toBe(sets.images(k('big_wheel', 2, 0))[0]);
+    expect(look.incomplete()).toBe(0);
+  });
+
+  it('prepare wants a coloured ride\'s coloured sets, and again when its colour changes', () => {
+    const { sets, look } = setup();
+    const world = emptyWorld();
+    world.state.rides.push({ id: 1, kind: 'flat', defId: 'big_wheel', rotation: 0, x: AT.x, y: AT.y, colour: C } as Ride);
+    look.prepare(world, 0, VIEW, 1, 1);
+    const now = sets.wanted('now');
+    expect(now).toContain(k('big_wheel', 2, 0, C));
+    expect(now).not.toContain(k('big_wheel', 2, 0));
+    sets.wants = [];
+    world.state.rides[0]!.colour = 4;
+    look.prepare(world, 0, VIEW, 1, 1);
+    expect(sets.wanted('now')).toContain(k('big_wheel', 2, 0, 4));
+    expect(sets.wanted('now')).not.toContain(k('big_wheel', 2, 0, C));
+  });
+
+  it('while its coloured set tints, a ride draws the Original pictures it is tinting (incomplete), then the tinted set', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const key = k('big_wheel', 2, 0, C);
+    sets.setState(key, 'loading');
+    const e = makeIndex().sets.find((x) => x.key === k('big_wheel', 2, 0))!;
+    const base = new PixCanvas(8, 8) as unknown as CanvasImageSource;
+    sets.interims.set(key, { ...e, key, images: [base] });
+    expect(look.ride('big_wheel', 0, 0, 0, C)!.image).toBe(base);
+    expect(look.incomplete()).toBe(1);
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(key, 'ready');
+    expect(look.ride('big_wheel', 0, 0, 0, C)!.image).toBe(sets.images(key)[0]);
+    expect(look.incomplete()).toBe(0);
+  });
+
+  it('a colour change keeps the old picture (Original or the old colour) drawn until the new set is ready: never a blank frame', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    sets.setState(k('big_wheel', 2, 0), 'ready');
+    // Original → lemon: lemon loading (not tinting yet), Original still decoded.
+    sets.setState(k('big_wheel', 2, 0, C), 'loading');
+    expect(look.ride('big_wheel', 0, 0, 0, C)!.image).toBe(sets.images(k('big_wheel', 2, 0))[0]);
+    expect(look.incomplete()).toBe(1);
+    // Lemon → sky: lemon ready, Original gone, sky loading: lemon stands in.
+    sets.setState(k('big_wheel', 2, 0, C), 'ready');
+    sets.setState(k('big_wheel', 2, 0), 'none');
+    sets.setState(k('big_wheel', 2, 0, 4), 'loading');
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.ride('big_wheel', 0, 0, 0, 4)!.image).toBe(sets.images(k('big_wheel', 2, 0, C))[0]);
+    expect(look.incomplete()).toBe(1);
+    // Nothing of the ride decoded: skipped (null), as any loading set.
+    sets.setState(k('big_wheel', 2, 0, C), 'none');
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    expect(look.ride('big_wheel', 0, 0, 0, 4)).toBeNull();
+  });
+
+  it('a failed tint draws the Original pictures and lists the coloured set in fallbacksUsed', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 1, 1);
+    const key = k('big_wheel', 2, 0, C);
+    sets.setState(key, 'ready', { tintFailed: true });
+    expect(look.ride('big_wheel', 0, 0, 0, C)!.image).toBe(sets.images(key)[0]);
+    expect(look.fallbacksUsed()).toContain(key);
+  });
+
+  it('the density-2 twin of a coloured density-4 set is the coloured density-2 set', () => {
+    const { sets, look } = setup();
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2); // density 4
+    sets.setState(k('big_wheel', 4, 0, C), 'loading');
+    sets.setState(k('big_wheel', 2, 0), 'ready');
+    sets.setState(k('big_wheel', 2, 0, C), 'ready');
+    sets.wants = [];
+    const sp = look.ride('big_wheel', 0, 0, 0, C)!;
+    expect(sp.image).toBe(sets.images(k('big_wheel', 2, 0, C))[0]);
+    expect(sp.scale).toBe(2);
+    expect(look.soft()).toBe(1);
+    expect(look.incomplete()).toBe(0);
+    // Not ready: the late want asks for the coloured twin and the coloured density-4 set.
+    sets.setState(k('big_wheel', 2, 0, C), 'loading');
+    look.prepare(emptyWorld(), 0, VIEW, 2, 2);
+    sets.wants = [];
+    look.ride('big_wheel', 0, 0, 0, C);
+    expect(sets.wanted('now')).toEqual([k('big_wheel', 2, 0, C), k('big_wheel', 4, 0, C)].sort());
+  });
+
+  it('with the real set manager: a coloured ride draws Original while it tints, then the tinted picture; memory as Original', async () => {
+    const index = makeIndex();
+    // The carousel's sets as the bake ships them: a mask beside each sheet and a base colour.
+    for (const e of index.sets) {
+      if (e.kind !== 'ride' || e.item !== 'carousel') continue;
+      e.sheets = [{ file: `${e.key}-s0`, w: 8, h: 8, mask: `${e.key}-m0` }, { file: `${e.key}-m0`, w: 8, h: 8 }];
+      e.frames = Object.fromEntries(Object.entries(e.frames).map(([fk, f]) => [fk, { ...f, sheet: `${e.key}-s0` }]));
+      e.baseColour = '#8a1c1c';
+    }
+    const decodes: string[] = [];
+    const io = {
+      read: async (f: string) => new Blob([f]),
+      decode: async (b: Blob): Promise<Decoded> => {
+        const f = await b.text();
+        decodes.push(f);
+        const c = new PixCanvas(8, 8, f.endsWith('-m0') ? [255, 255, 255, 255] : [0x8a, 0x1c, 0x1c, 255]);
+        return { image: c as unknown as CanvasImageSource, bytes: 256, close() {} };
+      },
+    };
+    let t = 0;
+    const sets = new SetManager(index, io, 1e9, () => undefined, 0, { makeCanvas: make, now: () => (t += 3), tintBandPx: 2 });
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    const world = emptyWorld();
+    world.state.rides.push({ id: 1, kind: 'flat', defId: 'carousel', rotation: 0, x: AT.x, y: AT.y, colour: C } as Ride);
+    const flush = async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); };
+    const seen: string[] = [];
+    for (let n = 1; n < 20; n++) {
+      sets.beginFrame(n);
+      look.prepare(world, 0, VIEW, 1, 1);
+      const sp = look.ride('carousel', 0, 0, 0, C);
+      if (sp) {
+        const px = Array.from((sp.image as unknown as PixCanvas).data.subarray(((FRAME.sy) * 8 + FRAME.sx) * 4, ((FRAME.sy) * 8 + FRAME.sx) * 4 + 3));
+        const tag = px[0] === 0x8a ? 'original' : px[0] === 0xf2 ? 'lemon' : px.join(',');
+        if (seen.at(-1) !== tag) seen.push(tag);
+      }
+      sets.endFrame();
+      await flush();
+    }
+    expect(seen).toEqual(['original', 'lemon']);
+    expect(sets.state(k('carousel', 2, 'all', C))).toBe('ready');
+    // The Original carousel set was never decoded, and its masks only for the tint.
+    expect(sets.state(k('carousel', 2, 'all'))).toBe('none');
+    expect(decodes.filter((f) => f.includes('carousel'))).toEqual([`${k('carousel', 2, 'all')}-s0`, `${k('carousel', 2, 'all')}-m0`]);
   });
 });

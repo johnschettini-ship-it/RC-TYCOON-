@@ -498,7 +498,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       if (!inView(ax + b.left, ay + b.top, ax + b.right, ay + b.bottom)) continue;
       const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
       // Realistic frame: the frame's angle and swing bits (`anim.ts` `encodeRideFrame`), occupancy level apart.
-      const rs = import.meta.env.VITE_ART === 'real' && L ? L.ride(r.defId, vrot, fr & 255, (fr >> 8) & 7) : undefined;
+      const rs = import.meta.env.VITE_ART === 'real' && L ? L.ride(r.defId, vrot, fr & 255, (fr >> 8) & 7, r.colour) : undefined;
       rideSprites[ri] = rs === undefined ? bank.ride(r.defId, w, d, vrot, fr, bucket, r.colour == null ? null : paletteColour(r.colour)) : rs;
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;

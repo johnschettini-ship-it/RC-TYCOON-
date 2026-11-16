@@ -678,3 +678,200 @@ describe('room beside the outgoing sets (final review minor 1)', () => {
     expect(await run(true)).toBe(600);
   });
 });
+
+describe('ride colours (Task 5): coloured sets are tinted once at load', () => {
+  /** A canvas holding pixels (enough for the band tint in node). */
+  class Pix {
+    data: Uint8ClampedArray;
+    constructor(public width: number, public height: number, fill?: number[]) {
+      this.data = new Uint8ClampedArray(width * height * 4);
+      if (fill) for (let i = 0; i < this.data.length; i += 4) this.data.set(fill, i);
+    }
+    getContext(): unknown {
+      const self = this;
+      return {
+        drawImage(src: Pix, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number) {
+          for (let y = 0; y < sh; y++) self.data.set(src.data.subarray(((sy + y) * src.width + sx) * 4, ((sy + y) * src.width + sx + sw) * 4), ((dy + y) * self.width + dx) * 4);
+        },
+        getImageData(x: number, y: number, w: number, h: number) {
+          const data = new Uint8ClampedArray(w * h * 4);
+          for (let r = 0; r < h; r++) data.set(self.data.subarray(((y + r) * self.width + x) * 4, ((y + r) * self.width + x + w) * 4), r * w * 4);
+          return { width: w, height: h, data };
+        },
+        putImageData(img: { width: number; height: number; data: Uint8ClampedArray }, x: number, y: number) {
+          for (let r = 0; r < img.height; r++) self.data.set(img.data.subarray(r * img.width * 4, (r + 1) * img.width * 4), ((y + r) * self.width + x) * 4);
+        },
+      };
+    }
+  }
+  const W = 4;
+  const H = 100;
+  const BAND = 32;
+  /** Decoded bytes of one sheet (and of one mask, and of one tinted copy). */
+  const SHEET = W * H * 4;
+  const SCRATCH = W * BAND * 4;
+  const RED = [0x8a, 0x1c, 0x1c, 255];
+  const LEMON = [0xf2, 0xc2, 0x30];
+  const SKY = [0x3d, 0x9b, 0xe0];
+
+  function rideEntry(item: string, density: 2 | 4): RealSetEntry {
+    const f = `${item}-d${density}-0`;
+    return {
+      key: setKey('ride', item, density, 0), kind: 'ride', item, density, rot: 0,
+      sheets: [{ file: `${f}.webp`, w: W, h: H, mask: `${f}-mask.png` }, { file: `${f}-mask.png`, w: W, h: H }],
+      frames: {}, baseColour: '#8a1c1c',
+    };
+  }
+
+  /** Decodes land at once: sheets are the base red, masks full weight. */
+  class PixIO implements SetIO {
+    decodes: string[] = [];
+    closed: string[] = [];
+    read(file: string): Promise<Blob> { return Promise.resolve(new Blob([file])); }
+    async decode(blob: Blob): Promise<Decoded> {
+      const file = await blob.text();
+      this.decodes.push(file);
+      const img = new Pix(W, H, file.endsWith('-mask.png') ? [255, 255, 255, 255] : RED);
+      return { image: img as unknown as CanvasImageSource, bytes: SHEET, close: () => { this.closed.push(file); } };
+    }
+  }
+
+  function setupColours(sets: RealSetEntry[], budget: number, makeCanvas?: (w: number, h: number) => unknown) {
+    const io = new PixIO();
+    const errors: [SetKey, unknown][] = [];
+    let t = 0;
+    // Each clock read moves 3 ms: a frame's TINT_FRAME_MS (3 ms) is spent after one band.
+    const m = new SetManager(index(sets), io, budget, (k, e) => errors.push([k, e]), 0, {
+      makeCanvas: (makeCanvas ?? ((w: number, h: number) => new Pix(w, h))) as never,
+      now: () => (t += 3),
+      tintBandPx: BAND,
+    });
+    let frame = 0;
+    const step = async (keys: SetKey[]): Promise<void> => {
+      m.beginFrame(++frame);
+      m.want(keys, 'now');
+      for (const k of keys) m.use(k) ?? m.interim(k);
+      m.endFrame();
+      await flush();
+      await flush();
+    };
+    return { io, m, errors, step };
+  }
+  const pixel = (img: CanvasImageSource): number[] => Array.from((img as unknown as Pix).data.subarray(0, 3));
+
+  it('an Original ride set never decodes its masks: resident and estimate exclude them', async () => {
+    const A = rideEntry('carousel', 2);
+    // Room for the sheet alone: the masks are not part of an Original set's cost.
+    const { io, m, step } = setupColours([A], SHEET);
+    await step([A.key]);
+    expect(m.state(A.key)).toBe('ready');
+    expect(io.decodes).toEqual([`carousel-d2-0.webp`]);
+    expect(m.residentBytes()).toBe(SHEET);
+    const rs = m.use(A.key)!;
+    expect(rs.images).toHaveLength(1);
+    expect(rs.sheets).toEqual([{ file: 'carousel-d2-0.webp', w: W, h: H }]);
+  });
+
+  it('a coloured set draws the Original pictures while tinting, then the tinted ones; afterwards it costs what Original costs', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, step } = setupColours([A], 1e9);
+    await step([key]);
+    expect(m.state(key)).toBe('loading');
+    expect(m.use(key)).toBeNull();
+    const during = m.interim(key);
+    expect(during).not.toBeNull();
+    expect(pixel(during!.images[0]!)).toEqual(RED.slice(0, 3));
+    let frames = 1;
+    while (m.state(key) !== 'ready' && frames < 50) { await step([key]); frames++; if (m.state(key) !== 'ready') expect(m.interim(key)).not.toBeNull(); }
+    // 100 rows in bands of 32, one band a frame: four frames of tinting, never one long frame.
+    expect(frames).toBeGreaterThanOrEqual(4);
+    const rs = m.use(key)!;
+    expect(rs.key).toBe(key);
+    expect(rs.images).toHaveLength(1);
+    expect(pixel(rs.images[0]!).map((c, i) => Math.abs(c - LEMON[i]!) <= 1)).toEqual([true, true, true]);
+    expect(m.interim(key)).toBeNull();
+    // Base and mask closed: resident is exactly the Original set's size.
+    expect(io.closed.sort()).toEqual(['carousel-d2-0-mask.png', 'carousel-d2-0.webp']);
+    expect(m.residentBytes()).toBe(SHEET);
+    // The peak was the base, the mask, the tinted copy and the band scratch, together.
+    expect(m.peakBytes()).toBe(3 * SHEET + SCRATCH);
+  });
+
+  it('the tint peak is admitted before it starts and never passes the budget', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const peak = 3 * SHEET + SCRATCH;
+    const tight = setupColours([A], peak - 1);
+    for (let f = 0; f < 5; f++) await tight.step([key]);
+    expect(tight.m.state(key)).not.toBe('ready');
+    expect(tight.io.decodes).toEqual([]);
+    expect(tight.m.peakBytes()).toBe(0);
+    const fits = setupColours([A], peak);
+    for (let f = 0; f < 10; f++) await fits.step([key]);
+    expect(fits.m.state(key)).toBe('ready');
+    expect(fits.m.peakBytes()).toBeLessThanOrEqual(peak);
+  });
+
+  it('the same ride in two colours is two sets, tinted one after the other', async () => {
+    const A = rideEntry('carousel', 2);
+    const lemon = setKey('ride', 'carousel', 2, 0, 2);
+    const sky = setKey('ride', 'carousel', 2, 0, 4);
+    const { io, m, step } = setupColours([A], 1e9);
+    let both = 0;
+    for (let f = 0; f < 30; f++) {
+      await step([lemon, sky]);
+      if (m.interim(lemon) && m.interim(sky)) both++;
+    }
+    expect(both).toBe(0);
+    expect(m.state(lemon)).toBe('ready');
+    expect(m.state(sky)).toBe('ready');
+    expect(pixel(m.use(sky)!.images[0]!).map((c, i) => Math.abs(c - SKY[i]!) <= 1)).toEqual([true, true, true]);
+    expect(m.use(lemon)!.images[0]).not.toBe(m.use(sky)!.images[0]);
+    expect(m.residentBytes()).toBe(2 * SHEET);
+    // One tint at a time: the peak is one tint beside the other (finished) set.
+    expect(m.peakBytes()).toBeLessThanOrEqual(SHEET + 3 * SHEET + SCRATCH);
+    expect(io.decodes.filter((f) => f.endsWith('mask.png'))).toHaveLength(2);
+  });
+
+  it('a failed tint (canvas without a 2D context) keeps the Original pictures as the set, flagged and reported', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, errors, step } = setupColours([A], 1e9, (w, h) => ({ width: w, height: h, getContext: () => null }));
+    for (let f = 0; f < 5; f++) await step([key]);
+    expect(m.state(key)).toBe('ready');
+    const rs = m.use(key)!;
+    expect(rs.tintFailed).toBe(true);
+    expect(pixel(rs.images[0]!)).toEqual(RED.slice(0, 3));
+    expect(errors.map(([k]) => k)).toEqual([key]);
+    expect(io.closed).toEqual(['carousel-d2-0-mask.png']);
+    expect(m.residentBytes()).toBe(SHEET);
+  });
+
+  it('a coloured set no longer wanted mid-tint frees its base, mask and tinted copy', async () => {
+    const A = rideEntry('carousel', 2);
+    const key = setKey('ride', 'carousel', 2, 0, 2);
+    const { io, m, step } = setupColours([A], 1e9);
+    await step([key]);
+    await step([key]);
+    expect(m.interim(key)).not.toBeNull();
+    for (let f = 0; f < 4; f++) await step([]);
+    expect(m.state(key)).toBe('none');
+    expect(m.residentBytes()).toBe(0);
+    expect(io.closed.sort()).toEqual(['carousel-d2-0-mask.png', 'carousel-d2-0.webp']);
+  });
+
+  it('a coloured density-2 set\'s density-4 counterpart is the coloured density-4 set; unknown colour keys are refused', async () => {
+    const A2 = rideEntry('carousel', 2);
+    const A4 = rideEntry('carousel', 4);
+    const { m, errors, step } = setupColours([A2, A4], 1e9);
+    const k2 = setKey('ride', 'carousel', 2, 0, 3);
+    const k4 = setKey('ride', 'carousel', 4, 0, 3);
+    for (let f = 0; f < 12; f++) await step([k2, k4]);
+    expect(m.state(k2)).toBe('ready');
+    expect(m.state(k4)).toBe('ready');
+    // A set without a base colour (a stall), or a colour outside the palette, is an unknown set.
+    await step([setKey('ride', 'carousel', 2, 0, 99)]);
+    expect(errors.map(([k]) => k)).toEqual([setKey('ride', 'carousel', 2, 0, 99)]);
+  });
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fixture from '../../../fixtures/real-index.json';
-import { frameKey, setKey, type RealIndex } from '../../../../src/render/real/indexFormat';
+import { colourOfKey, frameKey, setKey, type RealIndex } from '../../../../src/render/real/indexFormat';
 import { checkIndex } from '../../../../tools/art3d/checkIndex';
 
 const base = fixture as unknown as RealIndex;
@@ -13,6 +13,13 @@ describe('keys', () => {
     expect(setKey('ride', 'carousel', 2, 3)).toBe('ride:carousel:d2:r3');
     expect(setKey('ground', 'grass', 4, 'all')).toBe('ground:grass:d4:rall');
     expect(frameKey(['carousel', 'f7', 'occ2'])).toBe('carousel:f7:occ2');
+  });
+  it('a ride colour is part of the set key (Task 5): a coloured set is its own set', () => {
+    expect(setKey('ride', 'carousel', 4, 'all', 2)).toBe('ride:carousel:d4:rall:c2');
+    expect(setKey('ride', 'carousel', 4, 'all', null)).toBe('ride:carousel:d4:rall');
+    expect(setKey('ride', 'carousel', 2, 1, 0)).toBe('ride:carousel:d2:r1:c0');
+    expect(colourOfKey('ride:carousel:d2:r1:c7')).toEqual({ base: 'ride:carousel:d2:r1', colour: 7 });
+    expect(colourOfKey('ride:carousel:d2:r1')).toBeNull();
   });
   it('fixture keys match setKey', () => {
     for (const s of base.sets) expect(s.key).toBe(setKey(s.kind, s.item, s.density, s.rot));
