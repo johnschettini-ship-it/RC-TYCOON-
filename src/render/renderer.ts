@@ -33,6 +33,7 @@ import { drawRideArt, rideArtBounds, type ArtBounds } from './sprites/rides';
 import { drawStallArt, stallArtBounds } from './sprites/stalls';
 import { CHUNK_CACHE_MB, chunkCacheBudgetPixels, PREFETCH_HEADROOM, TerrainLayer, grassShade, type TerrainEnv, type ViewRect } from './terrain';
 import { KIND_TRACK, TrackLayer, trackRideTiles, trackTroubleTiles } from './track';
+import { paletteColour } from './track/colours';
 import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer, PATH_ITEM_IDS } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
@@ -498,7 +499,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       const fr = def ? (coarseRides ? coarseRideFrame(rideFrameFor(r, def)) : rideFrameFor(r, def)) : 0;
       // Realistic frame: the frame's angle and swing bits (`anim.ts` `encodeRideFrame`), occupancy level apart.
       const rs = import.meta.env.VITE_ART === 'real' && L ? L.ride(r.defId, vrot, fr & 255, (fr >> 8) & 7) : undefined;
-      rideSprites[ri] = rs === undefined ? bank.ride(r.defId, w, d, vrot, fr, bucket) : rs;
+      rideSprites[ri] = rs === undefined ? bank.ride(r.defId, w, d, vrot, fr, bucket, r.colour == null ? null : paletteColour(r.colour)) : rs;
       const cols = columnsFor(eu, ev);
       const left = ax - ev * HW;
       for (let k = 0; k < cols.length; k++) {

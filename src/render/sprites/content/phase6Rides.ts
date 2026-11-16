@@ -75,12 +75,14 @@ export function drawMagicCarpet(ctx: Ctx, ex: number, ey: number, st: RideArtSta
   const a1 = at(f, 1.6, 0);
   line3(ctx, a0.u, a0.v, CARPET_PIVOT, a1.u, a1.v, CARPET_PIVOT, '#5b4636', 4);
   // Underside, then the patterned top in stripes along the carpet, then the fringe.
-  poly3(ctx, [...corner(-CARPET_HALF, -CARPET_WIDTH, hc - 3), ...corner(CARPET_HALF, -CARPET_WIDTH, hc - 3), ...corner(CARPET_HALF, CARPET_WIDTH, hc - 3), ...corner(-CARPET_HALF, CARPET_WIDTH, hc - 3)], '#7a1f12');
+  // The carpet deck is the colour part: stripes in light and dark shades of it.
+  const stripeColours = st.colour ? [shade(st.colour, 0.85), shade(st.colour, 1.2), shade(st.colour, 1.4), st.colour] : CARPET_COLOURS;
+  poly3(ctx, [...corner(-CARPET_HALF, -CARPET_WIDTH, hc - 3), ...corner(CARPET_HALF, -CARPET_WIDTH, hc - 3), ...corner(CARPET_HALF, CARPET_WIDTH, hc - 3), ...corner(-CARPET_HALF, CARPET_WIDTH, hc - 3)], st.colour ? shade(st.colour, 0.53) : '#7a1f12');
   const stripes = 8;
   for (let k = 0; k < stripes; k++) {
     const l0 = -CARPET_HALF + (2 * CARPET_HALF * k) / stripes;
     const l1 = -CARPET_HALF + (2 * CARPET_HALF * (k + 1)) / stripes;
-    poly3(ctx, [...corner(l0, -CARPET_WIDTH, hc), ...corner(l1, -CARPET_WIDTH, hc), ...corner(l1, CARPET_WIDTH, hc), ...corner(l0, CARPET_WIDTH, hc)], CARPET_COLOURS[k % CARPET_COLOURS.length] as string);
+    poly3(ctx, [...corner(l0, -CARPET_WIDTH, hc), ...corner(l1, -CARPET_WIDTH, hc), ...corner(l1, CARPET_WIDTH, hc), ...corner(l0, CARPET_WIDTH, hc)], stripeColours[k % stripeColours.length] as string);
   }
   // A diamond in the middle and tassels on both short ends.
   poly3(ctx, [...corner(-0.4, 0, hc + 0.2), ...corner(0, -0.3, hc + 0.2), ...corner(0.4, 0, hc + 0.2), ...corner(0, 0.3, hc + 0.2)], '#fff3b0');
@@ -144,7 +146,7 @@ export function drawKiddieCars(ctx: Ctx, ex: number, ey: number, st: RideArtStat
   for (let i = 0; i < cars; i++) {
     const a = TAU * st.angle + (i / cars) * TAU;
     const p = circlePt(cu, cv, 0.98, a);
-    const c = KIDDIE_CARS[i] as string;
+    const c = st.colour ?? (KIDDIE_CARS[i] as string);
     const item: Item = {
       n: nearness(p.u, p.v),
       draw: () => {
@@ -234,11 +236,12 @@ export function drawMerryMill(ctx: Ctx, ex: number, ey: number, st: RideArtState
     const x = sx(t.u, t.v);
     const y = sy(t.u, t.v, t.h);
     line2(ctx, x, y, x, y + 7, '#4a3a8c', 1.2);
-    ctx.fillStyle = i % 2 ? '#56b4e9' : '#8d7ae8';
+    const g = st.colour ?? (i % 2 ? '#56b4e9' : '#8d7ae8');
+    ctx.fillStyle = g;
     ctx.beginPath();
     ctx.ellipse(x, y + 11, 7, 4.5, 0, 0, TAU);
     ctx.fill();
-    oval(ctx, x, y + 8.5, 6, 2.2, shade(i % 2 ? '#56b4e9' : '#8d7ae8', 0.75));
+    oval(ctx, x, y + 8.5, 6, 2.2, shade(g, 0.75));
     for (let s = 0; s < 2; s++) if (i * 2 + s < filled) rider(ctx, x - 2.5 + s * 5, y + 6, i * 2 + s);
   }
 }
@@ -299,7 +302,8 @@ export function drawGyroGlobe(ctx: Ctx, ex: number, ey: number, st: RideArtState
       line2(ctx, s0[0], s0[1], s1[0], s1[1], colour, width);
     }
   };
-  ring(a, up, GYRO_OUTER, '#c43a2a', 5, false);
+  // The outer ring is the colour part (far half shaded).
+  ring(a, up, GYRO_OUTER, st.colour ? shade(st.colour, 0.85) : '#c43a2a', 5, false);
   ring(a, b2, GYRO_MIDDLE, '#f39a2b', 4, false);
   // Axle pins of the middle ring on the outer ring.
   for (const sgn of [-1, 1]) {
@@ -329,7 +333,7 @@ export function drawGyroGlobe(ctx: Ctx, ex: number, ey: number, st: RideArtState
   }
   drawSorted(pods);
   ring(a, b2, GYRO_MIDDLE, '#ffb04a', 4, true);
-  ring(a, up, GYRO_OUTER, '#e8503a', 5, true);
+  ring(a, up, GYRO_OUTER, st.colour ?? '#e8503a', 5, true);
   // Top light: a star on the outer ring's crown that blinks with the turn.
   const crown = pt([0, 0, GYRO_OUTER + 2]);
   const on = (mix32(Math.floor(st.angle * 16)) & 1) === 0;

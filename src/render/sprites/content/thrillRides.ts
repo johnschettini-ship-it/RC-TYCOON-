@@ -101,7 +101,8 @@ export function drawPendulumShip(ctx: Ctx, ex: number, ey: number, st: RideArtSt
   // Far A-frame and arms, the hull (far side, deck, riders, near side), then the near ones.
   leg(-1.05, '#c4552c');
   arm(-0.32, '#a8321c');
-  side(-width, '#a8321c', null);
+  // The hull is the colour part: far side in shadow, near side in the colour.
+  side(-width, st.colour ? shade(st.colour, 0.72) : '#a8321c', null);
   const deckPts: number[] = [];
   for (let k = 0; k <= n; k++) {
     const t = -1 + (2 * k) / n;
@@ -128,7 +129,7 @@ export function drawPendulumShip(ctx: Ctx, ex: number, ey: number, st: RideArtSt
       if (r * 2 + k < filled) rider(ctx, x, y - 5, r * 2 + k);
     }
   }
-  side(width, '#e8503a', '#f5d03b');
+  side(width, st.colour ?? '#e8503a', '#f5d03b');
   // Figurehead: a flame at each end.
   for (const t of [-1, 1]) {
     const p = ship(t * half * 1.02, deck(t) + 2, 0);
@@ -192,7 +193,7 @@ export function drawThunderDisc(ctx: Ctx, ex: number, ey: number, st: RideArtSta
   const centre = at(f, l, 0);
   const h = trackHeight(l) + 6;
   const spin = TAU * st.angle * 3;
-  cylinder(ctx, centre.u, centre.v, 0.6, h - 4, h, '#a8321c', '#f0643a');
+  cylinder(ctx, centre.u, centre.v, 0.6, h - 4, h, st.colour ? shade(st.colour, 0.7) : '#a8321c', st.colour ?? '#f0643a');
   const seats = 12;
   const filled = seatsFilled(seats, st.occupancy);
   const items: Item[] = [];
@@ -259,7 +260,9 @@ export function drawDropTower(ctx: Ctx, ex: number, ey: number, st: RideArtState
   platform(ctx, ex, ey, '#f6dcc4', '#a8321c');
   box(ctx, cu - 0.55, cv - 0.55, cu + 0.55, cv + 0.55, 3, 12, '#f0643a', '#c4552c', '#a8321c');
   const hg = 14 + (TOWER_TOP - 44) * dropProfile(st.angle);
-  const ring = (u0: number, v0: number, u1: number, v1: number): void => box(ctx, u0, v0, u1, v1, hg, hg + 8, '#ffd166', '#f39a2b', '#c4552c');
+  // The seat ring (carriage) is the colour part: lit top, colour side, shaded side.
+  const [rt, rl, rr] = st.colour ? [shade(st.colour, 1.15), st.colour, shade(st.colour, 0.75)] : ['#ffd166', '#f39a2b', '#c4552c'];
+  const ring = (u0: number, v0: number, u1: number, v1: number): void => box(ctx, u0, v0, u1, v1, hg, hg + 8, rt, rl, rr);
   const r0 = cu - 0.62;
   const r1 = cu + 0.62;
   const q0 = cv - 0.62;
@@ -375,8 +378,8 @@ export function drawFlipArm(ctx: Ctx, ex: number, ey: number, st: RideArtState):
     ctx.lineCap = 'round';
     ctx.stroke();
   };
-  bench(-3, '#7a1f12', 12);
-  bench(-3, '#e8503a', 8);
+  bench(-3, st.colour ? shade(st.colour, 0.53) : '#7a1f12', 12);
+  bench(-3, st.colour ?? '#e8503a', 8);
   const filled = seatsFilled(8, st.occupancy);
   for (let i = 0; i < filled; i++) {
     const t = -0.85 + (1.7 * i) / 7;

@@ -41,7 +41,7 @@ export function drawBumperCars(ctx: Ctx, ex: number, ey: number, st: RideArtStat
     const a = st.angle;
     const u = ex / 2 + ru * Math.sin(TAU * (a * (1 + (i % 3)) + i / cars));
     const v = ey / 2 + rv * Math.sin(TAU * (a * (2 - (i % 2)) + i / cars + 0.25));
-    const c = CAR_COLOURS[i] as string;
+    const c = st.colour ?? (CAR_COLOURS[i] as string);
     items.push({
       n: nearness(u, v),
       draw: () => {
@@ -150,7 +150,7 @@ export function drawRocketRounds(ctx: Ctx, ex: number, ey: number, st: RideArtSt
       n: nearness(p.u, p.v),
       draw: () => {
         line3(ctx, cu, cv, hub, p.u, p.v, h + 4, '#7a8a96', 2);
-        rocket(ctx, sx(p.u, p.v), sy(p.u, p.v, h), dx, dy, ROCKET_COLOURS[i] as string, i < filled, i);
+        rocket(ctx, sx(p.u, p.v), sy(p.u, p.v, h), dx, dy, st.colour ?? (ROCKET_COLOURS[i] as string), i < filled, i);
       },
     });
   }
@@ -207,11 +207,12 @@ export function drawSpiralSlide(ctx: Ctx, ex: number, ey: number, st: RideArtSta
     const i1 = circlePt(cu, cv, r0, a1);
     const o1 = circlePt(cu, cv, r1, a1);
     const mid = circlePt(cu, cv, (r0 + r1) / 2, (a0 + a1) / 2);
-    const colour = k % 2 ? '#e8f7ff' : '#3fa7d6';
+    const colour = k % 2 ? '#e8f7ff' : (st.colour ?? '#3fa7d6');
+    const wall = st.colour ? shade(st.colour, 0.7) : '#8d5ad8';
     items.push({
       n: nearness(mid.u, mid.v),
       draw: () => {
-        poly3(ctx, [o0.u, o0.v, h0, o1.u, o1.v, h1, o1.u, o1.v, h1 - 4, o0.u, o0.v, h0 - 4], '#8d5ad8');
+        poly3(ctx, [o0.u, o0.v, h0, o1.u, o1.v, h1, o1.u, o1.v, h1 - 4, o0.u, o0.v, h0 - 4], wall);
         poly3(ctx, [i0.u, i0.v, h0, o0.u, o0.v, h0, o1.u, o1.v, h1, i1.u, i1.v, h1], colour);
       },
     });
@@ -278,7 +279,8 @@ export function drawObservationTower(ctx: Ctx, ex: number, ey: number, st: RideA
     const p = circlePt(cu, cv, 0.62, a);
     rider(ctx, sx(p.u, p.v), sy(p.u, p.v, hc + 9), i);
   }
-  cylinder(ctx, cu, cv, 0.76, hc + cabin, hc + cabin + 4, '#20628a', '#3fa7d6');
+  // Cabin roof: the colour part.
+  cylinder(ctx, cu, cv, 0.76, hc + cabin, hc + cabin + 4, st.colour ? shade(st.colour, 0.58) : '#20628a', st.colour ?? '#3fa7d6');
   // Mast above the cabin roof, then the beacon crown.
   cylinder(ctx, cu, cv, 0.17, hc + cabin + 4, mast, '#e9eef5', '#ffffff');
   cylinder(ctx, cu, cv, 0.34, mast, mast + 6, '#20628a', '#3fa7d6');
@@ -299,7 +301,9 @@ export function drawMirrorMaze(ctx: Ctx, ex: number, ey: number, st: RideArtStat
   const v0 = 0.3;
   const u1 = ex - 0.3;
   const v1 = ey - 0.3;
-  box(ctx, u0, v0, u1, v1, 3, wall, '#e8f7ff', '#a9cbe3', '#86aecb');
+  // The roof (the box top) is the colour part; its maze lines darken with it.
+  box(ctx, u0, v0, u1, v1, 3, wall, st.colour ?? '#e8f7ff', '#a9cbe3', '#86aecb');
+  const mazeLine = st.colour ? shade(st.colour, 0.6) : '#4f63d9';
   // Moving sheen across the mirror walls.
   const sweep = (st.angle * 2) % 1;
   for (let k = 0; k < 3; k++) {
@@ -326,14 +330,14 @@ export function drawMirrorMaze(ctx: Ctx, ex: number, ey: number, st: RideArtStat
       const m = mix32(i * 17 + j * 131 + 7);
       const a = u0 + i * cell;
       const b = v0 + j * celv;
-      if (i < n && (m & 1) && j > 0 && j < n) line3(ctx, a, b, wall, a + cell, b, wall, '#4f63d9', 2);
-      if (j < n && (m & 2) && i > 0 && i < n) line3(ctx, a, b, wall, a, b + celv, wall, '#4f63d9', 2);
+      if (i < n && (m & 1) && j > 0 && j < n) line3(ctx, a, b, wall, a + cell, b, wall, mazeLine, 2);
+      if (j < n && (m & 2) && i > 0 && i < n) line3(ctx, a, b, wall, a, b + celv, wall, mazeLine, 2);
     }
   }
-  line3(ctx, u0, v0, wall, u1, v0, wall, '#4f63d9', 2);
-  line3(ctx, u0, v0, wall, u0, v1, wall, '#4f63d9', 2);
-  line3(ctx, u1, v0, wall, u1, v1, wall, '#4f63d9', 2);
-  line3(ctx, u0, v1, wall, u1, v1, wall, '#4f63d9', 2);
+  line3(ctx, u0, v0, wall, u1, v0, wall, mazeLine, 2);
+  line3(ctx, u0, v0, wall, u0, v1, wall, mazeLine, 2);
+  line3(ctx, u1, v0, wall, u1, v1, wall, mazeLine, 2);
+  line3(ctx, u0, v1, wall, u1, v1, wall, mazeLine, 2);
   // Doorway on the visible face nearest the entrance (east when the front faces east).
   const east = st.rotation === 3;
   const dx = east ? sx(u1, cv) : sx(cu, v1);
@@ -394,11 +398,19 @@ export function drawHauntedManor(ctx: Ctx, ex: number, ey: number, st: RideArtSt
     const b = v0 + ((k + 0.5) / cols) * (v1 - v0);
     const lit2 = (mix32(k * 29 + flick + 3) & 7) !== 0;
     windowGlow(ctx, [u1, b - 0.16, 22, u1, b + 0.16, 23, u1, b + 0.16, 36, u1, b - 0.16, 35], lit2);
+    if (st.colour) {
+      // Shutters (with the door, the colour part) beside each window; Original has none.
+      const side = shade(st.colour, 0.85);
+      for (const o of [-1, 1]) {
+        poly3(ctx, [a + o * 0.2, v1, 21, a + o * 0.3, v1, 21, a + o * 0.3, v1, 37, a + o * 0.2, v1, 37], st.colour);
+        poly3(ctx, [u1, b + o * 0.19, 21, u1, b + o * 0.29, 21, u1, b + o * 0.29, 37, u1, b + o * 0.19, 37], side);
+      }
+    }
   }
   // Arched door with a soft glow.
   const dx = east ? sx(u1, cv) : sx(cu, v1);
   const dy = east ? sy(u1, cv, 3) : sy(cu, v1, 3);
-  ctx.fillStyle = '#2a2240';
+  ctx.fillStyle = st.colour ?? '#2a2240';
   ctx.beginPath();
   rrect(ctx, dx - 8, dy - 18, 16, 18, 8, 0);
   ctx.fill();
