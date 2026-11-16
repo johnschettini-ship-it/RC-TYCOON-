@@ -7,7 +7,8 @@
 // same two rider looks in each), so the sails repeat every quarter turn: period 8 angle slots, 4 pictures per
 // occupancy and view turn. (Earlier versions: a mill turning on its base needed 32 pictures, 40 MB per turn at
 // density 4; a mill always facing the viewer read wrong after a view turn.)
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the four gondolas' tubs (their yokes match the sails and keep theirs); base #8d7ae8.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std, rep } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -26,6 +27,8 @@ const GZ = 0.9; // gondolas hang this far in front of the sail plane (clear of t
 const SAIL = MILL.sail;
 /** Turn of the mill on its footprint at sprite rotation 0: the windshaft (+z of the mill) points to the game's south. */
 const FACING = 0;
+/** The gondola tubs' colour. */
+const BASE_COLOUR = '#8d7ae8';
 
 const paint = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, metalness: 0.1, clearcoat: 0.6, clearcoatRoughness: 0.2 });
 
@@ -70,7 +73,7 @@ function gondola(K, color, looks) {
   tub.position.y = -1.55;
   tub.scale.set(0.88, 1, 1);
   g.add(tub);
-  const shell = paint(color);
+  const shell = colourPart(paint(color));
   tub.add(lathe([[0, 0], [0.5, 0], [0.58, 0.08], [0.62, 0.3], [0.63, 0.62], [0.6, 0.66], [0.58, 0.6], [0.56, 0.3], [0.48, 0.1], [0, 0.1]], 40, shell));
   tub.add(M(new THREE.TorusGeometry(0.615, 0.03, 8, 40), mat.brass).rotateX(Math.PI / 2).translateZ(-0.65));
   const bench = std({ color: '#f2ead8', roughness: 0.7 });
@@ -196,6 +199,6 @@ export default {
     cycleD2('merry_mill', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, MILL.d2Step);
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`merry_mill: ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'merry_mill', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'merry_mill', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

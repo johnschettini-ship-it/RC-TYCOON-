@@ -6,7 +6,8 @@
 // deck), with a per-rocket share cos(2 pi (2a + i/3)). Rockets are coloured i % 3 (opposite rockets alike) and their
 // riders copied the same way, so the state at a + 1/2 is the state at a turned 180 degrees: period 16 angle slots,
 // 8 pictures per occupancy. Round, static parts 90-degree symmetric (8 stars, 16 bulbs): one set for every view turn.
-import { THREE, kit, placeOnFootprint, bakeObject } from './common.js';
+// Colour part: the six rockets' hulls and fins (the white noses keep theirs), all three designed colours; the others become lighter or darker shades of the chosen colour; base #3d9be0.
+import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { cycleD2, cycleKeys, d2Api } from './flatRides.js';
 import { M, V, rod, std } from '../kit.js';
 import { person, randomLook } from '../people.js';
@@ -17,6 +18,11 @@ export const PERIOD = ROCKET.period;
 const TAU = Math.PI * 2;
 const { n: N, pivotR: PIVOT_R, pivotY: PIVOT_Y, arm: ARM } = ROCKET;
 const LINK = 0.32; // height of the parallelogram
+/**
+ * The rockets' colours: red #e8503a, blue, yellow #f5d03b. The base is the blue, of middle lightness (luma 140 of
+ * 111, 205), so a chosen colour keeps the rockets as shades of it (0.8x to 1.5x).
+ */
+const BASE_COLOUR = '#3d9be0';
 
 const paint = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.3, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.1 });
 
@@ -28,7 +34,7 @@ function lathe(pts, seg, mat, phiStart, phiLength) {
 function rocket(K, color, looks) {
   const { mat } = K;
   const g = new THREE.Group();
-  const hull = paint(color);
+  const hull = colourPart(paint(color));
   const white = paint('#f2f1ec');
   const AX = 0.55; // axis height above the arm head
   const body = new THREE.Group();
@@ -197,6 +203,6 @@ export default {
     cycleD2('rocket_rounds', groups, { period: PERIOD }, (a, full) => `${a}:${full ? 1 : 0}`, ROCKET.d2Step);
     const pictures = [...groups.values()].map((g) => ({ keys: g.keys, keys2: g.keys2, pose: () => m.pose(g.angle / 32, g.full) }));
     B.log(`rocket_rounds: ${pictures.length} pictures`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'rocket_rounds', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'rocket_rounds', model: m.root, rots: 'all', place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };
