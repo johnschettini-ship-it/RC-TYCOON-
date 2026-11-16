@@ -270,6 +270,46 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     await expect(page.locator(sel)).toHaveAccessibleName('Footpath');
   });
 
+  test('card pictures that decode after the cards were drawn replace the icon and today\'s preview', async ({ page }) => {
+    test.setTimeout(60_000);
+    // The boot waits 3 s for the card set: hold its sheet back 8 s, so the first cards are drawn without it.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route('**/art/real/preview-cards-*.webp', async (route) => {
+      await held;
+      await route.continue();
+    });
+    const timer = setTimeout(() => release(), 8_000);
+    try {
+      await newPark(page, 'Late Park');
+      await expectRealLook(page);
+      const cardSet = (): Promise<string> =>
+        page.evaluate(() => (window as unknown as { __tcReal: { sets: { state(k: string): string } } }).__tcReal.sets.state('preview:cards:d2:rall'));
+      expect(await cardSet()).not.toBe('ready');
+      const openDeck = async (deck: string): Promise<void> => {
+        const hand = page.getByTestId('hand');
+        if ((await hand.getAttribute('data-deck')) !== deck || !(await hand.isVisible())) await page.getByTestId(`deck-${deck}`).click();
+        await expect(hand).toHaveAttribute('data-deck', deck);
+      };
+      const preview = (): Promise<string> => page.locator('[data-testid="card-carousel"] canvas.card-preview').evaluate((c) => (c as HTMLCanvasElement).toDataURL());
+      await openDeck('rides');
+      const before = await preview();
+      await toolControl(page, 'footpath');
+      const sel = '[data-testid="tool-footpath"]';
+      await expect(page.locator(`${sel} .tool-card-picture`)).toHaveCount(0);
+      release();
+      await expect.poll(cardSet, { timeout: 15_000 }).toBe('ready');
+      // The open deck's tool card takes its baked picture.
+      await expect(page.locator(`${sel} .tool-card-picture`)).toHaveCount(1, { timeout: 5_000 });
+      // A deck drawn before: its ride cards show their baked pictures when shown again.
+      await openDeck('rides');
+      await expect.poll(preview, { timeout: 5_000 }).not.toBe(before);
+    } finally {
+      clearTimeout(timer);
+      release();
+    }
+  });
+
   test('an extension card without a picture shows its icon centred in the frame, no broken image', async ({ page }) => {
     await newPark(page, 'Icon Park');
     await expectRealLook(page);

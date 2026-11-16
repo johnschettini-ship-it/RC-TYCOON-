@@ -5,6 +5,7 @@
  * pen drags a flat ride or stall card to the map (`drag.ts`).
  */
 import { text } from '../../data/strings/en';
+import { cardArtGeneration } from '../../render/cardArt';
 import { drawPreview } from '../../render/renderer';
 import { drawTrackPreview } from '../../render/track';
 import type { UiContext } from '../context';
@@ -100,6 +101,8 @@ const PREVIEW_H = 120;
 
 /** Drawn previews by id and device pixel ratio. */
 const previews = new Map<string, HTMLCanvasElement>();
+/** The realistic build: the `cardArtGeneration` the previews were drawn at. */
+let previewGeneration = -1;
 
 function newCanvas(dpr: number): HTMLCanvasElement {
   return h('canvas', { class: 'card-preview', width: Math.round(PREVIEW_W * dpr), height: Math.round(PREVIEW_H * dpr), 'aria-hidden': 'true' });
@@ -111,6 +114,14 @@ function newCanvas(dpr: number): HTMLCanvasElement {
  */
 export function previewCanvas(spec: CardSpec): HTMLCanvasElement {
   const dpr = Math.min(3, window.devicePixelRatio || 1);
+  // The realistic build: card pictures decoded (or freed) since the previews were drawn: draw them again.
+  if (import.meta.env.VITE_ART === 'real') {
+    const g = cardArtGeneration();
+    if (g !== previewGeneration) {
+      previewGeneration = g;
+      previews.clear();
+    }
+  }
   const key = `${spec.id}@${dpr}`;
   let source = previews.get(key);
   if (!source) {

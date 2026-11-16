@@ -114,7 +114,8 @@ export async function bootReal(deps: Partial<RealBootDeps> = {}): Promise<RealOp
     sets.endFrame();
     const t0 = Date.now();
     while (sets.state(CARD_SET) === 'loading' && Date.now() - t0 < CARD_WAIT_MS) await new Promise((r) => setTimeout(r, 10));
-    setCardArt(cardPicture(sets));
+    // A set still loading after the wait (slow network) lands later: the probe tells the cards to draw again.
+    setCardArt(cardPicture(sets), () => sets.peek(CARD_SET) !== null);
   }
   setParkRelease(() => {
     ground.dispose();

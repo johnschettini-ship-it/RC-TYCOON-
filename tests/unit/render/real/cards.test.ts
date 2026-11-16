@@ -8,7 +8,7 @@ import { setKey, type RealIndex, type RealSetEntry } from '../../../../src/rende
 import { CARD_SET, cardPicture } from '../../../../src/render/real/cards';
 import { createRealLook } from '../../../../src/render/real/look';
 import type { ReadySet } from '../../../../src/render/real/setManager';
-import { drawCardArt, setCardArt, toolCardPicture } from '../../../../src/render/cardArt';
+import { cardArtGeneration, drawCardArt, setCardArt, toolCardPicture } from '../../../../src/render/cardArt';
 import { bootReal } from '../../../../src/render/real/boot';
 import { setStepPx } from '../../../../src/render/heightStep';
 import { perfProbe } from '../../../../src/perf/stats';
@@ -146,6 +146,30 @@ describe('boot', () => {
     expect((r?.sets as unknown as { state(k: string): string }).state(CARD_SET)).toBe('ready');
     expect(drawCardArt(fakeCtx(), 'carousel', 168, 120, 7)).toBe(true);
     expect(drawCardArt(fakeCtx(), 'teacup_twirl', 168, 120, 7)).toBe(false);
+    // The drawer comes with a probe of its set: freed (or landing late), the generation moves on and cards redraw.
+    const g = cardArtGeneration();
+    expect(cardArtGeneration()).toBe(g);
+    (r?.sets as unknown as { releaseAll(keep?: string[]): void }).releaseAll();
+    expect(cardArtGeneration()).toBe(g + 1);
+    expect(cardArtGeneration()).toBe(g + 1);
+  });
+});
+
+describe('cardArtGeneration (cards drawn before their pictures decode are drawn again)', () => {
+  it('moves on when a drawer is set or cleared and when its pictures become ready or are freed', () => {
+    let ready = false;
+    const g0 = cardArtGeneration();
+    setCardArt(() => ready, () => ready);
+    const g1 = cardArtGeneration();
+    expect(g1).toBe(g0 + 1);
+    expect(cardArtGeneration()).toBe(g1);
+    ready = true;
+    expect(cardArtGeneration()).toBe(g1 + 1);
+    expect(cardArtGeneration()).toBe(g1 + 1);
+    ready = false;
+    expect(cardArtGeneration()).toBe(g1 + 2);
+    setCardArt(null);
+    expect(cardArtGeneration()).toBe(g1 + 3);
   });
 });
 
