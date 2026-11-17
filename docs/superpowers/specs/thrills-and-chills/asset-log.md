@@ -11,4 +11,4 @@ as an OWNER row.
 
 | File | Source | Tool | Licence | Date | Used by |
 |---|---|---|---|---|---|
-| `art-src/title/poster-wide.webp` | supplied by owner | pending owner confirmation | pending owner confirmation | 2026-11-17 | Realistic title cover, wide and tall framing (`art/real/title/poster-wide.webp`, copied by `tools/art3d/cover.mjs`). A stand-in (1376 x 768): the owner will supply larger wide and tall versions. |
+| `art-src/title/poster-wide.webp` | supplied by owner | not recorded (owner chose not to name it) | not confirmed; the owner accepted the rights risk and approved shipping ("Ship it", 2026-11-17) | 2026-11-17 | Realistic title cover, wide and tall framing (`art/real/title/poster-wide.webp`, copied by `tools/art3d/cover.mjs`). A stand-in (1376 x 768): the owner will supply larger wide and tall versions. |
