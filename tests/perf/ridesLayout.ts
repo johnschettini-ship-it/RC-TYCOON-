@@ -35,7 +35,7 @@ export const RIDES_EXTRA = { defId: 'carousel', cell: [1, 2] as const, colour: 4
 
 /**
  * New rides batch B (2026-11-17 new rides design): a cell per ride, by id, among the free cells of the band whose
- * footprints stay inside the zoom 0.5 view at rotations 0 and 2. Free for later rides: (-3, -2), (4, 2), (4, 3), and
+ * footprints stay inside the zoom 0.5 view at rotations 0 and 2. Free for later rides: (-3, -2), (4, 3), and
  * (-5, -4) for a ride smaller than 4 × 4 (a 4 × 4 there leaves the view at rotation 2).
  */
 export const RIDES_CELLS_B: Readonly<Record<string, readonly [number, number]>> = {
@@ -43,4 +43,5 @@ export const RIDES_CELLS_B: Readonly<Record<string, readonly [number, number]>> 
   spin_wheel_drop: [-3, -3],
   loop_swing: [-4, -2],
   carousel_deluxe: [3, 2],
+  station_show: [4, 2],
 };

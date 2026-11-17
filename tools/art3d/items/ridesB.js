@@ -129,3 +129,19 @@ export function deluxeKeys() {
   const pick = fullOrRest((a) => `s${deluxeStep(a)}`);
   return cycleD2('carousel_deluxe', cycleKeys('carousel_deluxe', opts, pick), opts, pick, 2);
 }
+
+// ------------------------------------------------------------------ Train Station Show
+
+/**
+ * Train Station Show (today's drawStationShow): a walk-through, no riders, one occupancy state; 4 light steps that
+ * repeat every 8 angle slots (as the mirror maze and haunted manor). Density 2 keeps all 4: 2 steps would move the
+ * chasing lamps two places a step, with no direction.
+ */
+export const STATION_LIGHT_STEPS = 4;
+export const stationKeys = () => cycleKeys('station_show', { period: 8, walkThrough: true }, (slot) => `l${slot >> 1}`);
+
+/**
+ * Entrance and exit in the model frame ([x, z] metres, footprint centred, front at +z): the sim's gate column
+ * floor((w - 1) / 2) = 1 for w = 4 is x = -2, on the front row and the back row (d = 3: z in (2, 6) and (-6, -2)).
+ */
+export const STATION_GATES = { entrance: [-2, 5.4], exit: [-2, -5.4] };

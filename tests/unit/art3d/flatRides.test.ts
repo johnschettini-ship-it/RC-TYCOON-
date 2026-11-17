@@ -468,6 +468,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     out.spin_wheel_drop = rb.wheelKeys();
     out.loop_swing = rb.loopKeys();
     out.carousel_deluxe = rb.deluxeKeys();
+    out.station_show = rb.stationKeys();
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }
@@ -486,6 +487,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     // New rides batch B (2026-11-17).
     chair_swing_twist: { step: 2, d4: 17, d2: 17 }, spin_wheel_drop: { step: 2, d4: 17, d2: 17 },
     loop_swing: { step: 2, d4: 10, d2: 10 }, carousel_deluxe: { step: 2, d4: 9, d2: 9 },
+    station_show: { step: 2, d4: 4, d2: 4, walkThrough: true },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -770,5 +772,25 @@ describe('new rides batch B frames', () => {
     }
     // consecutive even slots move 3 steps forward (22.5 degrees), never backwards within the period's fold
     for (let a = 0; a < 32; a += 2) expect((deluxeStep(a + 2) - deluxeStep(a) + 8) % 8).toBe(3);
+  });
+
+  it('station_show: a walk-through (one occupancy state), 4 light steps repeating every 8 slots as today\'s; gates on the sim\'s gate tiles', async () => {
+    const { stationKeys, STATION_LIGHT_STEPS, STATION_GATES } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    expect(STATION_LIGHT_STEPS).toBe(today.STATION_LIGHT_STEPS);
+    const m: Keys = stationKeys();
+    expect(m.size).toBe(4);
+    periodOk(m, 'station_show', 8, false);
+    for (let a = 0; a < 32; a++) {
+      expect(pictureOf(m, keyAt('station_show', a, true))).toBe(pictureOf(m, keyAt('station_show', a, false)));
+      expect(pictureOf(m, keyAt('station_show', a, false))).toBe(`l${today.stationStep((a & ~1) / 32)}`);
+    }
+    const def = getFlatRideDef('station_show')!;
+    const colX = (gateIndex(def.w) + 0.5) * 4 - (def.w * 4) / 2;
+    for (const g of [STATION_GATES.entrance, STATION_GATES.exit]) expect(g[0]).toBe(colX);
+    expect(STATION_GATES.entrance[1]).toBeGreaterThan((def.d * 4) / 2 - 4);
+    expect(STATION_GATES.entrance[1]).toBeLessThan((def.d * 4) / 2);
+    expect(STATION_GATES.exit[1]).toBeLessThan(-(def.d * 4) / 2 + 4);
+    expect(STATION_GATES.exit[1]).toBeGreaterThan(-(def.d * 4) / 2);
   });
 });

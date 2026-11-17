@@ -46,6 +46,7 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   spin_wheel_drop: 12,
   loop_swing: 16,
   carousel_deluxe: 14,
+  station_show: 10,
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,

@@ -53,6 +53,7 @@ import chair_swing_twist from './chair_swing_twist.js';
 import spin_wheel_drop from './spin_wheel_drop.js';
 import loop_swing from './loop_swing.js';
 import carousel_deluxe from './carousel_deluxe.js';
+import station_show from './station_show.js';
 
 /** The box a card picture fits, in density-2 px (about the card preview's 168 x 120 CSS px, less its padding). */
 export const CARD_W = 160;
@@ -67,7 +68,7 @@ export const TOOL_H = 92;
 const MODULES = { carousel, swing_tower, big_wheel, snack_shack, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
   observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc };
 // New rides batch B (2026-11-17).
-Object.assign(MODULES, { chair_swing_twist, spin_wheel_drop, loop_swing, carousel_deluxe });
+Object.assign(MODULES, { chair_swing_twist, spin_wheel_drop, loop_swing, carousel_deluxe, station_show });
 
 /** The set (kind, rot) whose first picture is the card, by card kind. */
 const WANT = {

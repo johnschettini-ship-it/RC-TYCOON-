@@ -8,5 +8,6 @@ export const RIDES_B: Readonly<Record<string, readonly [string, number]>> = {
   spin_wheel_drop: ['thrill', 600],
   loop_swing: ['thrill', 650],
   carousel_deluxe: ['gentle', 350],
+  station_show: ['gentle', 300],
 };
 export const RIDES_B_IDS: readonly string[] = Object.keys(RIDES_B);

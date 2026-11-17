@@ -436,3 +436,81 @@ export function drawCarouselDeluxe(ctx: Ctx, ex: number, ey: number, st: RideArt
   }
   star(ctx, sx(cu, cv), sy(cu, cv, DELUXE_ROOF + 29), 4.5, 2, 5, '#f5c518');
 }
+
+// ------------------------------------------------------------------ Train Station Show (4×3, chill, covered walk-through)
+
+/** Light steps: the show's lamps, windows and clock change 4 times, every 2 of the 32 angle slots (8 per turn's quarter). */
+export const STATION_LIGHT_STEPS = 4;
+/** The light step (0..3) at turn fraction `a`: the realistic bake's step at the even slot below. */
+export function stationStep(a: number): number {
+  return Math.floor((a - Math.floor(a)) * 16) % STATION_LIGHT_STEPS;
+}
+
+export function drawStationShow(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
+  const cu = ex / 2;
+  const cv = ey / 2;
+  const k = st.rotation;
+  const phi = (-k * Math.PI) / 2;
+  /** Map point of a model point (metres, footprint centre 0, front at +z) at this rotation. */
+  const P = (x: number, z: number): { u: number; v: number } => {
+    const xr = x * Math.cos(phi) + z * Math.sin(phi);
+    const zr = -x * Math.sin(phi) + z * Math.cos(phi);
+    return { u: cu + xr / 4, v: cv + zr / 4 };
+  };
+  const mbox = (x0: number, z0: number, x1: number, z1: number, h0: number, h1: number, top: string, left: string, right: string): Item => {
+    const a = P(x0, z0);
+    const b = P(x1, z1);
+    return {
+      n: nearness((a.u + b.u) / 2, (a.v + b.v) / 2),
+      draw: () => box(ctx, Math.min(a.u, b.u), Math.min(a.v, b.v), Math.max(a.u, b.u), Math.max(a.v, b.v), h0 * 8, h1 * 8, top, left, right),
+    };
+  };
+  const step = stationStep(st.angle);
+  platform(ctx, ex, ey, '#d8d0c0', '#7a6a58');
+  const items: Item[] = [];
+  // The platform and the track along the east side, a green engine and a carriage standing at it.
+  items.push(mbox(3.2, -5.6, 5.4, 5.6, 0.4, 1.0, '#c9c0ae', '#a39884', '#8f846f'));
+  items.push(mbox(5.6, -5.8, 7.6, 5.8, 0.4, 0.55, '#6a5a48', '#544737', '#4a3e30'));
+  items.push(mbox(5.9, -5.2, 7.3, 0.4, 0.8, 3.0, '#2f6d4a', '#255a3c', '#1f4c33'));
+  items.push(mbox(6.2, -0.2, 7.0, 0.6, 3.0, 4.2, '#2a2a2a', '#1f1f1f', '#171717'));
+  items.push(mbox(5.9, 0.8, 7.3, 5.4, 0.8, 3.2, '#7a2a1c', '#66231a', '#521c14'));
+  // The platform canopy on its columns (the lamps chase along it).
+  items.push(mbox(3.3, -5.2, 5.3, 5.2, 3.6, 3.85, '#e9e2d0', '#cfc6b0', '#b9b09a'));
+  // The station building (the roof is the colour part) and its clock tower over the entrance.
+  const roof = st.colour ?? '#4a5568';
+  items.push(mbox(-6.8, -3.2, 3.0, 2.6, 0.4, 4.6, roof, '#9a4a34', '#84402d'));
+  items.push(mbox(-2.9, 1.2, -1.1, 3.0, 4.6, 7.4, '#efe6cf', '#9a4a34', '#84402d'));
+  drawSorted(items);
+  // A pitched cap on the tower, the clock face (its hand turns a quarter each step) and the lamps.
+  const t = P(-2, 2.1);
+  cone(ctx, t.u, t.v, 0.32, 7.4 * 8, 9.0 * 8, [shade(roof, 0.85), roof], 4);
+  // The front (entrance) or the back (exit) face, whichever the viewer sees: windows, door and clock are on both.
+  const front = Math.sin(phi) > 0.5 || Math.cos(phi) > 0.5;
+  const fz = front ? 1 : -1;
+  const face = P(-2, front ? 3.05 : 1.15);
+  const fx = sx(face.u, face.v);
+  const fy = sy(face.u, face.v, 6.3 * 8);
+  dot(ctx, fx, fy, 5, '#fff8e0');
+  const ha = (step / STATION_LIGHT_STEPS) * TAU;
+  line2(ctx, fx, fy, fx + 4 * Math.sin(ha), fy - 4 * Math.cos(ha), '#2a2a2a', 1.2);
+  // Arched windows on the front, lit in turn; the doorway.
+  for (let i = 0; i < 4; i++) {
+    const w = P(-6 + i * 2.4 + (i >= 2 ? 1.4 : 0), fz > 0 ? 2.62 : -3.22);
+    const lit = (i + step) % 4 < 2;
+    const x = sx(w.u, w.v);
+    const y = sy(w.u, w.v, 2.6 * 8);
+    ctx.fillStyle = lit ? '#ffd27a' : '#3a4250';
+    ctx.beginPath();
+    rrect(ctx, x - 4, y - 6, 8, 12, 4, 0);
+    ctx.fill();
+  }
+  const door = P(-2, fz > 0 ? 2.62 : -3.22);
+  ctx.fillStyle = '#3a2a1c';
+  ctx.beginPath();
+  rrect(ctx, sx(door.u, door.v) - 6, sy(door.u, door.v, 0.4 * 8) - 18, 12, 18, 6, 0);
+  ctx.fill();
+  for (let i = 0; i < 4; i++) {
+    const l = P(4.3, -4.5 + i * 3);
+    dot3(ctx, l.u, l.v, 3.4 * 8, 2.2, i === step ? '#fff3b0' : '#c9a46a');
+  }
+}
