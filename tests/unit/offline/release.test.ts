@@ -68,9 +68,12 @@ describe('the asset log (owner-supplied files)', () => {
   it('lists each file whose licence is pending as an owner item, never as passed', () => {
     expect(assetOwnerItems(assetLogRows(log))).toEqual(['Owner: confirm the licence of art-src/title/poster-wide.webp (supplied by owner; licence pending owner confirmation)']);
   });
-  it('the real asset log lists the poster with its licence pending', () => {
+  it('the real asset log lists the poster with the owner\'s shipping decision (licence not confirmed, risk accepted)', () => {
     const rows = assetLogRows(readFileSync(new URL('../../../docs/superpowers/specs/thrills-and-chills/asset-log.md', import.meta.url), 'utf8'));
-    expect(rows.find((r) => r.path === 'art-src/title/poster-wide.webp')).toMatchObject({ source: 'supplied by owner', licence: 'pending owner confirmation' });
+    const poster = rows.find((r) => r.path === 'art-src/title/poster-wide.webp');
+    expect(poster).toMatchObject({ source: 'supplied by owner' });
+    expect(poster?.licence).toMatch(/not confirmed/);
+    expect(poster?.licence).toMatch(/accepted the rights risk/);
   });
 });
 
