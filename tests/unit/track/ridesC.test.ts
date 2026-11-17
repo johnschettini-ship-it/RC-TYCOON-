@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { getTrackRideDef } from '../../../src/data/catalog/trackRides';
-import { getTrackTypeDef } from '../../../src/data/track';
+import { getTrackPieceDef, getTrackTypeDef } from '../../../src/data/track';
+import { TRACK_ERR } from '../../../src/data/strings/track';
 import { isUnlocked } from '../../../src/sim/research/api';
 import { checkTrackRideForLoad, nextTrackPieces } from '../../../src/sim/rides/track/api';
 import { executeCommand } from '../../../src/sim/commands';
@@ -14,13 +15,14 @@ import type { TestResult } from '../../../src/sim/rides/track/types';
 import type { World } from '../../../src/sim/types';
 import { deserialize, serialize, validateState } from '../../../src/save';
 import { makeTestWorld } from '../../helpers/world';
-import { addAll, dataOf, EAST, expectOk, place, rideOf } from './helpers';
+import { addAll, buildR1, dataOf, EAST, expectOk, place, rideOf } from './helpers';
 import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, SKY_RIDE, testLap, WATER_COASTER } from './ridesCCircuits';
 import { runTicks } from '../../helpers/world';
 import { rideWetsRiders } from '../../../src/sim/rides/track/waterHooks';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { waterRatingExtras } from '../../../src/sim/rides/track/ratings';
-import { LAUNCH_ACCEL } from '../../../src/data/tuning/track';
+import { G, LAUNCH_ACCEL } from '../../../src/data/tuning/track';
+import { findClosingPath, isPlainPiece } from '../../../src/sim/rides/track/autoFinish';
 import { add } from './helpers';
 
 /** The checks every batch C circuit passes: the test lap passed, the stats copied, the save sound and round-tripped. */
@@ -81,11 +83,15 @@ describe('Mine Train (family, start)', () => {
 });
 
 describe('Launch Coaster (thrill, research)', () => {
-  it('catalogue row and track type: beside the Inverted Coaster, launched at 22 m/s with no chain lift', () => {
-    expect(getTrackRideDef('launch_coaster')).toMatchObject({ phase: 6, unlock: 'coasters', tag: 'thrill', drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 70, intensityHeightM: 45, defaultPrice: 600 });
+  it('catalogue row and track type: beside the Inverted Coaster, launched at 32 m/s with no chain lift, limits a launch can climb', () => {
+    expect(getTrackRideDef('launch_coaster')).toMatchObject({ phase: 6, unlock: 'coasters', tag: 'thrill', drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 50, intensityHeightM: 40, defaultPrice: 600 });
     const t = getTrackTypeDef('launch_coaster')!;
     expect(t).toMatchObject({ chain: false, alsoPieces: [] });
-    expect(t.physics.launchSpeedMms).toBe(22_000);
+    expect(t.physics.launchSpeedMms).toBe(32_000);
+    // Review fix P2-2: one launch (frictionless v²/2g) reaches over the height limit, and the limit is over the step.
+    const v = t.physics.launchSpeedMms / 1000;
+    expect((v * v) / (2 * G)).toBeGreaterThan(t.maxHeightM);
+    expect(t.maxHeightM).toBeGreaterThan(t.intensityHeightM);
     expect(t.groups).toContain('Ln');
     expect(t.render).toEqual({ rail: 'steel', supports: 'round', car: 'launch', colours: { track: 10, supports: 9, cars: 2 } });
     expect(t.costs.base).toBeGreaterThan(getTrackTypeDef('inverted_coaster')!.costs.base);
@@ -95,20 +101,19 @@ describe('Launch Coaster (thrill, research)', () => {
     expect(isUnlocked(makeTestWorld(), 'launch_coaster')).toBe(false);
   });
 
-  it('a launched circuit builds with commands and rates as a big thrill coaster', () => {
+  it('a launched top hat to the 40 m step height builds with commands and rates as a big thrill coaster', () => {
     const w = makeTestWorld();
     const id = buildCircuit(w, 'launch_coaster', 6, 4, LAUNCH_COASTER);
     const t = testLap(w, id);
     expectSound(w, id, t);
-    // The launch reaches its speed: the only power on the circuit.
-    expect(t.vMaxMms).toBe(22_000);
-    expect(t.inversions).toBe(1);
-    expect(t.highestM).toBe(16);
+    // The launch reaches its speed: the only power on the circuit; the train clears the step height on it.
+    expect(t.vMaxMms).toBe(32_000);
+    expect(t.highestM).toBe(getTrackTypeDef('launch_coaster')!.intensityHeightM);
     expect(t.excitement).toBeGreaterThan(550);
     expect(t.excitement).toBeLessThan(800);
     expect(t.intensity).toBeGreaterThan(500);
     expect(t.intensity).toBeLessThan(850);
-    expect(t.nausea).toBeLessThan(700);
+    expect(t.nausea).toBeLessThan(600);
   });
 
   it('without the launch the train cannot climb the hill: the same circuit with straights fails its test', () => {
@@ -118,16 +123,17 @@ describe('Launch Coaster (thrill, research)', () => {
     expect(testLap(w, id).passed).toBe(false);
   });
 
-  it('the launch accelerates at LAUNCH_ACCEL: 5 pieces take the train from 2 m/s to 22 m/s, and 2 pieces do not', () => {
-    // The motors push while any car's centre is on the launch: five pieces (20 m) plus the 7.5 m between the first and
-    // the last of 4 cars give v² = 2² + 2·a·27.5, over 22 m/s; two pieces (8 m + 7.5 m) give under 20 m/s.
-    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (20 + 7.5))).toBeGreaterThan(22);
-    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (8 + 7.5))).toBeLessThan(20);
+  it('the launch accelerates at LAUNCH_ACCEL: 7 pieces take the train from 2 m/s to 32 m/s, and 2 pieces cannot clear 40 m', () => {
+    // The motors push while any car's centre is on the launch: seven pieces (28 m) plus the 7.5 m between the first and
+    // the last of 4 cars give v² = 2² + 2·a·35.5, over 32 m/s; two pieces (8 m + 7.5 m) give about 22 m/s (25 m).
+    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (28 + 7.5))).toBeGreaterThan(32);
+    const two = Math.sqrt(4 + 2 * LAUNCH_ACCEL * (8 + 7.5));
+    expect((two * two) / (2 * G)).toBeLessThan(30);
     const w = makeTestWorld();
-    const pieces = LAUNCH_COASTER.map((p, i) => (p === 'launch' && i >= 4 ? 'straight' : p));
+    let n = 0;
+    const pieces = LAUNCH_COASTER.map((p) => (p === 'launch' && n++ >= 2 ? 'straight' : p));
     const id = buildCircuit(w, 'launch_coaster', 6, 4, pieces);
-    const t = testLap(w, id);
-    expect(t.passed).toBe(false);
+    expect(testLap(w, id).passed).toBe(false);
   });
 
   it('cannot take a chain lift; other coasters cannot build the launch', () => {
@@ -140,6 +146,23 @@ describe('Launch Coaster (thrill, research)', () => {
     addAll(w, s, ['station']);
     expect(nextTrackPieces(w, s).map((p) => p.id)).not.toContain('launch');
     expect(add(w, s, 'launch').ok).toBe(false);
+  });
+
+  it('Auto-finish may lay a launch on a Launch Coaster (review fix P2-2): a train braked to 2 m/s gets home on one', () => {
+    const launch = getTrackPieceDef('launch')!;
+    expect(isPlainPiece(getTrackTypeDef('launch_coaster')!, launch)).toBe(true);
+    expect(isPlainPiece(getTrackTypeDef('steel_coaster')!, launch)).toBe(false);
+    const w = makeTestWorld();
+    const id = place(w, 'launch_coaster', 6, 4, EAST);
+    addAll(w, id, ['station', 'station', 'launch', 'flat_to_gentle_up', 'gentle_up_to_flat', 'flat_to_gentle_down', 'gentle_down_to_flat', { id: 'brakes', brakeSpeed: 2 }, 'turn_medium_right']);
+    const o = findClosingPath(w, id);
+    if (o.kind !== 'found') throw new Error(`no path: ${JSON.stringify(o)}`);
+    expect(o.pieces.map((p) => p.defId)).toContain('launch');
+    expect(o.test.passed).toBe(true);
+    const pieces = o.pieces.map((p) => (p.brakeSpeed === null ? { defId: p.defId, chain: p.chain } : { defId: p.defId, chain: p.chain, brakeSpeed: p.brakeSpeed }));
+    expectOk(executeCommand(w, { type: 'autoFinishTrack', rideId: id, pieces }, { setup: true }));
+    expect(dataOf(w, id).circuitClosed).toBe(true);
+    expect(testLap(w, id).passed).toBe(true);
   });
 });
 
@@ -189,7 +212,7 @@ describe('Water Coaster (thrill, research)', () => {
 });
 
 describe('Flying Coaster (thrill, research, late)', () => {
-  it('catalogue row and track type: the Inverted Coaster\'s track with prone cars', () => {
+  it('catalogue row and track type: the Inverted Coaster\'s track with prone cars, airtime in full', () => {
     expect(getTrackRideDef('flying_coaster')).toMatchObject({ phase: 6, unlock: 'coasters', tag: 'thrill', drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 60, intensityHeightM: 40, defaultPrice: 600 });
     const t = getTrackTypeDef('flying_coaster')!;
     const inv = getTrackTypeDef('inverted_coaster')!;
@@ -213,7 +236,9 @@ describe('Flying Coaster (thrill, research, late)', () => {
     const inv = testLap(w2, buildCircuit(w2, 'inverted_coaster', 4, 2, FLYING_COASTER));
     // Same track and physics: the same measured lap, rated a step higher.
     expect([t.vMaxMms, t.posGMax, t.rideTimeTicks]).toEqual([inv.vMaxMms, inv.posGMax, inv.rideTimeTicks]);
-    expect(t.excitement).toBeGreaterThan(inv.excitement);
+    // Review fix P2-3: a clear excitement edge, about 0.4 on the same lap (6.55 against 6.15).
+    expect(t.excitement - inv.excitement).toBeGreaterThanOrEqual(35);
+    expect(t.excitement - inv.excitement).toBeLessThanOrEqual(50);
     expect(t.intensity).toBeGreaterThan(inv.intensity);
     expect(t.nausea).toBeGreaterThan(inv.nausea);
     expect(t.excitement).toBeGreaterThan(500);
@@ -280,5 +305,32 @@ describe('batch C and old saves', () => {
       for (const id of ['launch_coaster', 'water_coaster', 'flying_coaster', 'sky_ride']) expect(isUnlocked(r.world, id), `${name} ${id}`).toBe(false);
       expect(validateState(r.world.state), name).toBeNull();
     }
+  });
+});
+
+describe('review fixes: the load check and the water ground rule', () => {
+  it('a save whose Steel Coaster holds a launch (a piece its type cannot build) is refused on load (P2-1)', () => {
+    const w = makeTestWorld();
+    const id = buildR1(w);
+    expect(checkTrackRideForLoad(dataOf(w, id), w.state)).toBeNull();
+    const k = dataOf(w, id).pieces.findIndex((p) => p.defId === 'straight');
+    dataOf(w, id).pieces[k]!.defId = 'launch';
+    expect(checkTrackRideForLoad(dataOf(w, id), w.state)).toBe('Track piece does not belong to this ride type');
+    const r = deserialize(serialize(w, '4.0.0', '2026-11-17T22:00:00.000Z'));
+    expect(r.ok).toBe(false);
+  });
+
+  it('the Water Coaster\'s splashdown and channel must stand on flat ground; the Log Flume keeps raised channels (P2-5)', () => {
+    const w = makeTestWorld();
+    const id = place(w, 'water_coaster', 6, 4, EAST);
+    addAll(w, id, ['station', 'flume_straight', { id: 'flat_to_gentle_up', chain: true }, { id: 'gentle_up_to_flat', chain: true }]);
+    for (const piece of ['flume_splashdown', 'flume_straight']) {
+      const r = add(w, id, piece);
+      expect(r.ok, piece).toBe(false);
+      if (!r.ok) expect(r.reason).toBe(TRACK_ERR.waterOnGround);
+    }
+    expect(nextTrackPieces(w, id).map((p) => p.id)).toContain('straight');
+    const f = place(w, 'log_flume', 6, 14, EAST);
+    addAll(w, f, ['flume_station', 'flume_lift', 'flume_straight', 'flume_splashdown']);
   });
 });

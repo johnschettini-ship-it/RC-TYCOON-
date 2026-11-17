@@ -9,6 +9,8 @@ export const TRACK_ERR = {
   outsidePark: 'Outside the park',
   mustStartWithStation: 'Track must start with a station',
   stationOnGround: 'Station must be on the ground',
+  // New rides batch C: a coaster's splashdown channel is a pool on the ground.
+  waterOnGround: 'Water channel must be on the ground',
   doesNotFit: 'Piece does not fit the track end',
   typeCannotUse: 'This ride type cannot use this piece',
   hitsPath: 'Track hits a path',

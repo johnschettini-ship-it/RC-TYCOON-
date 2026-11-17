@@ -245,10 +245,11 @@ export const WATER_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(WATER_EX
 const RIDES_C_EXTRAS: Extra[] = [
   {
     // Launch Coaster: the Steel Coaster's groups and inversions plus the launch, and no chain lift (a launch replaces
-    // it). Launch speed 22 m/s (about 80 km/h): five launch pieces reach it from the station speed at LAUNCH_ACCEL.
+    // it). Launch speed 32 m/s (about 115 km/h; review fix P2-2): enough to clear the 40 m intensity step on one launch;
+    // seven launch pieces reach it from the station speed at LAUNCH_ACCEL.
     // Friction as the Steel Coaster; rating terms as the Inverted Coaster (1.3 / 0.5 / 0.2); costs over the Inverted
     // Coaster's (3,500), as the motors cost more to buy and run.
-    id: 'launch_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx', 'Ln'], chain: false, launchSpeedMms: 22_000, mu: 0.015, cd: 0.0008, chainSpeedMms: 0, carLengthMm: 2500, defaultCars: 4,
+    id: 'launch_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx', 'Ln'], chain: false, launchSpeedMms: 32_000, mu: 0.015, cd: 0.0008, chainSpeedMms: 0, carLengthMm: 2500, defaultCars: 4,
     ratings: { e: 1.3, i: 0.5, n: 0.2, kAir: 1.0, extra: 'none' },
     costs: { base: 3800, pieceFactorPermille: 1100, runBase: 150, extraTrain: 900 },
     render: { rail: 'steel', supports: 'round', car: 'launch', colours: { track: 10, supports: 9, cars: 2 } },
@@ -266,10 +267,12 @@ const RIDES_C_EXTRAS: Extra[] = [
   },
   {
     // Flying Coaster: the Inverted Coaster's track, supports and hanging (rail 2.4 m over the riders' line), with prone
-    // cars. Its pieces and friction; rating terms a step over it (1.4 / 0.6 / 0.3: lying face down adds to every
-    // one), airtime counting as on the Inverted Coaster; the dearest coaster to build (base 4,000).
+    // cars. Its pieces and friction; rating terms over it (2.1 / 0.6 / 0.3: lying face down adds to every one) and
+    // airtime counting in full (kAir 1.0, the Inverted Coaster's 0.8: flying riders feel it face first). Review fix
+    // P2-3: it rates about 0.4 above the Inverted Coaster on the same lap. Big coasters rate over the soft cap (6.0),
+    // where a type term counts half, so +0.8 on `e` gives +0.4. The dearest coaster to build (base 4,000).
     id: 'flying_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx'], chain: true, mu: 0.015, cd: 0.0008, chainSpeedMms: 3000, carLengthMm: 2500, defaultCars: 4,
-    ratings: { e: 1.4, i: 0.6, n: 0.3, kAir: 0.8, extra: 'none' },
+    ratings: { e: 2.1, i: 0.6, n: 0.3, kAir: 1.0, extra: 'none' },
     costs: { base: 4000, pieceFactorPermille: 1200, runBase: 150, extraTrain: 1000 },
     render: { rail: 'inverted', supports: 'arm', car: 'flying', colours: { track: 7, supports: 9, cars: 2 } },
   },

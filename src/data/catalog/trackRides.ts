@@ -27,9 +27,10 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   // New rides batch C (docs/superpowers/specs/2026-11-17-new-rides-design.md). Each row sits beside its nearest type.
   // Mine Train: a family coaster between the Junior Coaster (20/12 m, $3) and the Spinning Mouse (24/16 m, $4): its
   // height limits and price are the Mouse's; 4 seats a car as the big coasters, 2–6 cars, 2 trains as the Junior.
-  // Launch Coaster: a big steel coaster beside the Inverted Coaster (70/45 m, $6): the same height limits and price;
-  // shorter trains (2–6 cars) because a launch must push the whole train.
-  { id: 'launch_coaster', name: 'Launch Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 70, intensityHeightM: 45, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
+  // Launch Coaster: a big steel coaster beside the Inverted Coaster ($6, the same price); shorter trains (2–6 cars)
+  // because a launch must push the whole train. It has no chain lift, so its limits are what one 32 m/s launch can
+  // climb (review fix P2-2): 50 m (about v²/2g = 52 m less friction), with the intensity step from 40 m.
+  { id: 'launch_coaster', name: 'Launch Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 50, intensityHeightM: 40, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
   // Water Coaster: boats on a coaster track, beside the Bobsled Run (35/25 m) and the Log Flume (30/20 m): a 40 m limit
   // (step from 25 m), the big coasters' $5; 4 seats a boat, 1–3 boats a train, 3 trains.
   { id: 'water_coaster', name: 'Water Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 1, carsMax: 3, maxTrains: 3, maxHeightM: 40, intensityHeightM: 25, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 500 },

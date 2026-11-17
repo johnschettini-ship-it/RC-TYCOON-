@@ -170,11 +170,11 @@ export const HELIX_RISE_M = 4;
 
 /**
  * Launch pieces (new rides batch C, the Launch Coaster): while any car of a gravity train is on a launch piece, the
- * linear motors drive it toward the type's launch speed at LAUNCH_ACCEL (about 1.2 g, a firm launch; it never slows a
- * faster train). Not in any spec (a starting value): at 12 m/s² five 4 m launch pieces take a train from the station
- * speed to 22 m/s. Cost: as many straights as the block brake costs dollars over one (catalog §8 style multiple).
+ * linear motors drive it toward the type's launch speed at LAUNCH_ACCEL (about 1.6 g, a hard hydraulic-style launch; it
+ * never slows a faster train). Not in any spec (a starting value; review fix P2-2): at 16 m/s² seven 4 m launch pieces
+ * take a 4-car train from the station speed to the Launch Coaster's 32 m/s. Cost: 4 straights.
  */
-export const LAUNCH_ACCEL = 12;
+export const LAUNCH_ACCEL = 16;
 export const LAUNCH_COST_MULTIPLE = 4;
 
 /**

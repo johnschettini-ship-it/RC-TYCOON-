@@ -184,7 +184,7 @@ describe('batch C rides in today\'s look', () => {
       return r.ops.join(';');
     });
     const launches = opsOf('launch');
-    expect(launches).toHaveLength(5);
+    expect(launches).toHaveLength(7);
     for (const l of launches) expect(l).toContain('strokeStyle=#5ec8ff');
     for (const o of opsOf(null)) expect(o).not.toContain('#5ec8ff');
   });

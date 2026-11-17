@@ -67,14 +67,14 @@ describe('launch', () => {
     expect(v).toBeLessThan(want + LAUNCH_ACCEL * DT);
   });
 
-  it('stops at the launch speed (22 m/s) and never slows a faster train', () => {
-    const pieces = lay(['straight', ...Array<string>(8).fill('launch'), 'straight', 'straight']);
+  it('stops at the launch speed (32 m/s) and never slows a faster train', () => {
+    const pieces = lay(['straight', ...Array<string>(10).fill('launch'), 'straight', 'straight']);
     const ctx = ctxFor(pieces, LAUNCH);
-    expect(speedAt(ctx, trainAt(2000, 2), 36_000)).toBe(22);
-    const fast = trainAt(2000, 25);
+    expect(speedAt(ctx, trainAt(2000, 2), 44_000)).toBe(32);
+    const fast = trainAt(2000, 35);
     const v = speedAt(ctxFor(pieces, LAUNCH), fast, 20_000);
-    expect(v).toBeGreaterThan(24);
-    expect(v).toBeLessThan(25);
+    expect(v).toBeGreaterThan(34);
+    expect(v).toBeLessThan(35);
   });
 
   it('a type without a launch speed rolls over a launch piece as over a straight', () => {

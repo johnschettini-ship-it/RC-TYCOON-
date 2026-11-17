@@ -25,7 +25,7 @@
  * `planPath` re-checks a given list in the same way (the `autoFinishTrack` command), so the command refuses a path
  * the world no longer allows (a path laid across it, or cash spent) and changes nothing.
  */
-import { getTrackPieceDef, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
+import { getTrackPieceDef, typeBuildsPiece, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
 import { TRACK_ERR, fillTrackString } from '../../../data/strings/track';
 import { AUTO_FINISH, BRAKE_SPEED, CHAIN_EXTRA_CENTS, MAX_PIECES, STEEP_RISE_M, TILE_MM } from '../../../data/tuning/track';
 import type { CommandContext } from '../../commands/types';
@@ -75,15 +75,17 @@ export interface AutoFinishLimits {
 /** Groups that are never plain, even without a `special` (loops, corkscrews, helices). */
 const NOT_PLAIN_GROUPS: readonly string[] = ['L', 'Cs', 'Hx'];
 
-/** A plain piece of this type: one Auto-finish may use (plain brakes included, owner 2026-11-12; block brakes not). */
+/**
+ * A plain piece of this type: one Auto-finish may use (plain brakes included, owner 2026-11-12; block brakes not). The
+ * type must build it (`typeBuildsPiece`); a water piece a rail type borrows (batch C, the Water Coaster's channel)
+ * stays out, as water features do. Batch C: a launch is plain on a type with a launch speed, so Auto-finish can lay
+ * one where a Launch Coaster (no chain) must climb.
+ */
 export function isPlainPiece(type: TrackTypeDef, def: TrackPieceDef): boolean {
-  return (
-    def.set === type.pieceSet &&
-    type.groups.includes(def.group) &&
-    !type.excludePieces.includes(def.id) &&
-    (def.special === null || def.special === 'brakes') &&
-    !NOT_PLAIN_GROUPS.includes(def.group)
-  );
+  if (!typeBuildsPiece(type, def) || NOT_PLAIN_GROUPS.includes(def.group)) return false;
+  if (def.water && type.medium === 'rail') return false;
+  if (def.special === 'launch') return type.physics.launchSpeedMms > 0;
+  return def.special === null || def.special === 'brakes';
 }
 
 /**

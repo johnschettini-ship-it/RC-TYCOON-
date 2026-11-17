@@ -38,17 +38,20 @@ export const MINE_TRAIN: PieceSpec[] = [
 ];
 
 
+const BRAKE_7: PieceSpec = { id: 'brakes', brakeSpeed: 7 };
+const DOWN_12: PieceSpec[] = ['flat_to_gentle_down', 'gentle_down', 'gentle_to_steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat'];
+
 /**
- * Launch Coaster from (6, 4) heading +x: five launch pieces (to 22 m/s, no chain), a 16 m hill, a turn, a 16 m drop, a
- * vertical loop, brakes, and medium turns home.
+ * Launch Coaster from (6, 4) heading +x (review fix P2-2): seven launch pieces (to 32 m/s, no chain) and a top hat that
+ * climbs 40 m, the type's intensity step height; then brakes and three 12 m drops down in stages (a single 40 m drop
+ * would pass 5 G in the pull-out), and turns home (the closing pieces are Auto-finish's).
  */
 export const LAUNCH_COASTER: PieceSpec[] = [
-  'station', 'station', ...times(5, 'launch'),
-  'flat_to_gentle_up', 'gentle_to_steep_up', 'steep_up', 'steep_to_gentle_up', 'gentle_up_to_flat', 'turn_medium_right',
-  'flat_to_gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat',
-  'vertical_loop_right', { id: 'brakes', brakeSpeed: 9 },
-  'turn_medium_right', 'turn_medium_right', 'turn_medium_left', 'turn_medium_right', 'turn_medium_left', 'turn_medium_right',
-  'straight', 'straight', 'turn_small_right',
+  'station', 'station', ...times(7, 'launch'),
+  'flat_to_gentle_up', 'gentle_to_steep_up', ...times(5, 'steep_up'), 'steep_to_gentle_up', 'gentle_up_to_flat',
+  BRAKE_7, 'turn_medium_right', ...DOWN_12, BRAKE_7, ...DOWN_12, BRAKE_7, 'turn_medium_right', ...DOWN_12, BRAKE_7,
+  'flat_to_gentle_down', 'gentle_down_to_flat', 'flat_to_gentle_down', 'gentle_down_to_flat',
+  'turn_medium_right', 'turn_medium_left', 'turn_medium_right', ...times(5, 'straight'), BRAKE_7, 'turn_medium_left', 'turn_small_right', 'turn_small_right',
 ];
 
 /**
