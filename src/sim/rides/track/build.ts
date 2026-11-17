@@ -2,7 +2,7 @@
  * Track building: plan and apply pieces and gates (phase-2 §4.5, §4.6, §6). Owner: W1-G.
  * `planAppend` is pure, so the builder UI can use it for the ghost (valid, reason, cost, tiles).
  */
-import { getTrackPieceDef, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
+import { getTrackPieceDef, typeBuildsPiece, type TrackPieceDef, type TrackTypeDef } from '../../../data/track';
 import { BRAKE_SPEED, MAX_PIECES } from '../../../data/tuning/track';
 import { TRACK_ERR } from '../../../data/strings/track';
 import { canAfford, pay, recordLedger, type CommandContext } from '../../economy/ledger';
@@ -64,8 +64,8 @@ export function planAppend(
   const def = getTrackPieceDef(defId);
   if (!def) return { ok: false, reason: TRACK_ERR.unknownPiece };
   if (pieces.length === 0 && def.special !== 'station') return { ok: false, reason: TRACK_ERR.mustStartWithStation };
-  // A type builds only pieces of its own set (rail, flume, or rapids; Phase 4 §4.4) in its groups.
-  if (def.set !== type.pieceSet || !type.groups.includes(def.group) || type.excludePieces.includes(def.id)) {
+  // A type builds only pieces of its own set (rail, flume, or rapids; Phase 4 §4.4) in its groups, and its `alsoPieces`.
+  if (!typeBuildsPiece(type, def)) {
     return { ok: false, reason: TRACK_ERR.typeCannotUse };
   }
   if (chain && (!type.chain || !def.chainable)) return { ok: false, reason: TRACK_ERR.typeCannotUse };

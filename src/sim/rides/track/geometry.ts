@@ -4,7 +4,7 @@
  * entry tile (0, 0) spans metres [0, 4] × [0, 4], the entry joint is (0, 2), heading +x, entry height 0.
  * Sample tables are derived data built once per def; saves never store them.
  */
-import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, type TrackBank, type TrackPieceDef, type TrackSlope } from '../../../data/track';
+import { ALL_TRACK_PIECES, getTrackPieceDef, getTrackTypeDef, typeBuildsPiece, type TrackBank, type TrackPieceDef, type TrackSlope } from '../../../data/track';
 import {
   BANK_ANGLE_DEG,
   CORKSCREW_KAPPA,
@@ -440,16 +440,14 @@ export function worldYaw(piece: TrackPieceInstance, localYaw: number): number {
 
 /**
  * Pieces of a type whose entry matches an end state (palette, §7.1): pieces of the type's set (rail, flume, or rapids)
- * in its groups. `afterStation`: the end is the station run.
+ * in its groups, and its `alsoPieces` (`typeBuildsPiece`). `afterStation`: the end is the station run.
  */
 export function piecesForEnd(typeId: string, slope: TrackSlope, bank: TrackBank, afterStation = false): TrackPieceDef[] {
   const type = getTrackTypeDef(typeId);
   if (!type) return [];
   return ALL_TRACK_PIECES.filter(
     (p) =>
-      p.set === type.pieceSet &&
-      type.groups.includes(p.group) &&
-      !type.excludePieces.includes(p.id) &&
+      typeBuildsPiece(type, p) &&
       p.entry.slope === slope &&
       p.entry.bank === bank &&
       (p.special !== 'station' || afterStation),

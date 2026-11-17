@@ -115,8 +115,8 @@ describe('palette filtering (§7.1 step 3)', () => {
     expect(paletteGroupOf('B')).toBe('banking');
     expect(paletteGroupOf('Sp')).toBe('special');
     const w = makeTestWorld();
-    // Starting roster (owner, 2026-11-17): six track types at the start.
-    const start = ['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume'];
+    // Starting roster (owner, 2026-11-17): six track types at the start, and the Mine Train of new rides batch C.
+    const start = ['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume', 'mine_train'];
     expect(pickableTrackTypes(w).map((t) => t.id)).toEqual(start);
     w.state.management.research.unlocked.push('ghost_train', 'go_karts');
     expect(pickableTrackTypes(w).map((t) => t.id).sort()).toEqual([...start, 'ghost_train', 'go_karts'].sort());

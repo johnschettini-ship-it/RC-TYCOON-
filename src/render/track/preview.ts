@@ -10,7 +10,7 @@ import type { TrackPieceInstance } from '../../sim/rides/track/types';
 import type { Ctx } from '../sprites/shapes';
 import { drawCardArt } from '../cardArt';
 import { paletteColour } from './colours';
-import { lookFor, paintCar, paintRun, paintSupport, Projector, type TrackColours } from './paint';
+import { lookFor, lookForPiece, paintCar, paintRun, paintSupport, Projector, type TrackColours } from './paint';
 import { trackFrame, viewFrame } from './project';
 
 function piece(defId: string, x: number, y: number, z: number, dir: 0 | 1 | 2 | 3): TrackPieceInstance {
@@ -31,7 +31,28 @@ export function previewPieces(typeId: string): TrackPieceInstance[] {
       piece(type.pieceSet === 'flume' ? 'flume_splashdown' : 'rapids_whirlpool', 2, 3, 0, 1),
     ];
   }
-  if (typeId === 'inverted_coaster') {
+  if (type?.groups.includes('Ln')) {
+    // Batch C, the Launch Coaster: the launch straight leaves the station, then the hill.
+    return [
+      piece('station', 0, 0, 0, 0),
+      piece('station', 1, 0, 0, 0),
+      piece('turn_small_right', 2, 0, 0, 0),
+      piece('launch', 2, 1, 0, 1),
+      piece('flat_to_gentle_up', 2, 2, 0, 1),
+      piece('gentle_up_to_flat', 2, 3, 1, 1),
+    ];
+  }
+  if (type && type.alsoPieces.includes('flume_splashdown')) {
+    // Batch C, the Water Coaster: a short hill down into the splashdown channel.
+    return [
+      piece('station', 0, 0, 0, 0),
+      piece('station', 1, 0, 0, 0),
+      piece('turn_small_right', 2, 0, 0, 0),
+      piece('flat_to_gentle_down', 2, 1, 0, 1),
+      piece('flume_splashdown', 2, 2, -1, 1),
+    ];
+  }
+  if (typeId === 'inverted_coaster' || typeId === 'flying_coaster') {
     return [piece('station', 0, 0, 0, 0), piece('station', 1, 0, 0, 0), piece('corkscrew_right', 2, 0, 0, 0)];
   }
   if (typeId === 'bobsled_run') {
@@ -103,9 +124,12 @@ export function drawTrackPreview(ctx: CanvasRenderingContext2D, typeId: string, 
   samples.forEach((s, i) => {
     const p = pieces[i] as TrackPieceInstance;
     const mid = Math.floor(s.n / 2);
-    if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) - look.drop);
     const def = getTrackPieceDef(p.defId);
-    paintRun(c, P, look, col, s, 0, s.n - 1, { special: def?.special ?? null, chain: false, conveyor: def?.water?.drive === 'conveyor' && def.special !== 'station' });
+    const pl = lookForPiece(type, def);
+    // A sky ride tower reaches the rope, `lift` over the riders' line (batch C; as the track layer places it).
+    const up = type.render.supports === 'tower' ? (pl.lift ?? 0) - pl.drop : -pl.drop;
+    if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) + up);
+    paintRun(c, P, pl, col, s, 0, s.n - 1, { special: def?.special ?? null, chain: false, conveyor: def?.water?.drive === 'conveyor' && def.special !== 'station' });
   });
   // Two cars in the station (one boat on a water ride).
   const st = samples[1];

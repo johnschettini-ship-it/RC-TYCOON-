@@ -24,9 +24,9 @@ const CORKSCREWS = ['corkscrew_left', 'corkscrew_right'];
 const HELIXES = ['helix_left_up', 'helix_left_down', 'helix_right_up', 'helix_right_down'];
 
 describe('Phase 6 piece table (catalog §8)', () => {
-  it('adds 6 pieces after the rail and water pieces, numbered on', () => {
-    expect(EXTRA_PIECES.map((p) => p.id)).toEqual([...CORKSCREWS, ...HELIXES]);
-    expect(ALL_TRACK_PIECES).toHaveLength(TRACK_PIECES.length + WATER_PIECES.length + 6);
+  it('adds 6 pieces (and the batch C launch) after the rail and water pieces, numbered on', () => {
+    expect(EXTRA_PIECES.map((p) => p.id)).toEqual([...CORKSCREWS, ...HELIXES, 'launch']);
+    expect(ALL_TRACK_PIECES).toHaveLength(TRACK_PIECES.length + WATER_PIECES.length + 7);
     EXTRA_PIECES.forEach((p, i) => expect(p.num).toBe(TRACK_PIECES.length + WATER_PIECES.length + 1 + i));
     for (const p of EXTRA_PIECES) expect([p.set, p.water, p.chainable]).toEqual(['rail', null, false]);
   });

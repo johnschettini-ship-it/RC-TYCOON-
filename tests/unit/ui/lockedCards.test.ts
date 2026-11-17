@@ -18,9 +18,9 @@ const isRide = (id: string): boolean => ['flatRide', 'trackRide'].includes(conte
 const isStall = (id: string): boolean => contentInfo(id)?.kind === 'stall';
 
 describe('locked preview cards: which and in what order', () => {
-  it('a new park: the Rides deck shows 22 unlocked cards, then the next 6 research rides in research order', () => {
+  it('a new park: the Rides deck shows 23 unlocked cards, then the next 6 research rides in research order', () => {
     const w = makeTestWorld();
-    expect(rideCards(w)).toHaveLength(22);
+    expect(rideCards(w)).toHaveLength(23);
     const locked = lockedCards(w, 'rides');
     expect(LOCKED_CARDS_MAX).toBe(6);
     expect(locked.map((c) => c.id)).toEqual(RESEARCH_ORDER.map((r) => r.id).filter(isRide).slice(0, 6));
@@ -52,9 +52,10 @@ describe('locked preview cards: which and in what order', () => {
     const ids = lockedCards(w, 'rides').map((c) => c.id);
     expect(ids).toEqual(['ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft', 'magic_carpet', 'merry_mill']);
     // The last research rides: fewer than 6 left.
-    // (17 research rides with new rides batch B; the first 14 researched leave 3.)
-    w.state.management.research.unlocked.push(...RESEARCH_ORDER.map((r) => r.id).filter(isRide).slice(0, 14));
-    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['monorail', 'inverted_coaster', 'loop_swing']);
+    // (All research rides but the last 3 researched leave 3; batches B and C add research rides.)
+    const researchRides = RESEARCH_ORDER.map((r) => r.id).filter(isRide);
+    w.state.management.research.unlocked.push(...researchRides.slice(0, researchRides.length - 3));
+    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['inverted_coaster', 'loop_swing', 'flying_coaster']);
   });
 
   it('follows the order research will take: the current item first, then the focused categories', () => {
@@ -62,7 +63,7 @@ describe('locked preview cards: which and in what order', () => {
     const r = w.state.management.research;
     for (const k of Object.keys(r.focus) as (keyof typeof r.focus)[]) r.focus[k] = k === 'coasters';
     r.current = 'ghost_train';
-    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['ghost_train', 'bobsled_run', 'inverted_coaster', 'thunder_disc', 'go_karts', 'haunted_manor']);
+    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['ghost_train', 'bobsled_run', 'launch_coaster', 'water_coaster', 'inverted_coaster', 'flying_coaster']);
   });
 
   it('the item research is on now is marked current with its progress; the others are not', () => {

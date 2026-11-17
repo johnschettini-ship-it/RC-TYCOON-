@@ -74,18 +74,18 @@ describe('starting roster (owner, 2026-11-17)', () => {
     }
   });
 
-  it('a new free play park offers 22 rides at the start (16 flat incl. the 4 new family rides, 6 track); 17 rides wait for research (5 of new rides batch B)', () => {
+  it('a new free play park offers 23 rides at the start (16 flat incl. the 4 new family rides, 7 track incl. the Mine Train); 21 rides wait for research (5 of new rides batch B, 4 of batch C)', () => {
     const w = makeTestWorld();
     const flat = FLAT_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
     const track = TRACK_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
     expect(flat.sort()).toEqual(
       ['carousel', 'big_wheel', 'swing_tower', 'teacup_twirl', 'spiral_slide', 'rocket_rounds', 'pendulum_ship', 'bumper_cars', 'kiddie_cars', 'mirror_maze', 'observation_tower', 'drop_tower', 'dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'].sort(),
     );
-    expect(track.sort()).toEqual(['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume'].sort());
+    expect(track.sort()).toEqual(['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume', 'mine_train'].sort());
     const researched = RESEARCH_ORDER.filter((r) => FLAT_RIDES.some((d) => d.id === r.id) || TRACK_RIDES.some((d) => d.id === r.id)).map((r) => r.id);
     // The research rides keep their relative order; new rides batch B's 5 are inserted by cost among the Build 3 ones.
     expect(researched).toEqual(['thunder_disc', 'go_karts', 'ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft', 'magic_carpet', 'merry_mill',
-      'station_show', 'chair_swing_twist', 'bobsled_run', 'gyro_globe', 'spin_wheel_drop', 'carousel_deluxe', 'monorail', 'inverted_coaster', 'loop_swing']);
+      'station_show', 'chair_swing_twist', 'bobsled_run', 'gyro_globe', 'launch_coaster', 'spin_wheel_drop', 'water_coaster', 'carousel_deluxe', 'sky_ride', 'monorail', 'inverted_coaster', 'loop_swing', 'flying_coaster']);
     for (const id of researched) expect(isUnlocked(w, id), id).toBe(false);
   });
 
@@ -182,7 +182,8 @@ describe('research item choice and focus', () => {
     r.focus.thrill = false;
     // The Wooden Coaster and Spinning Mouse start unlocked: Build 3's Bobsled Run is the first Coasters item.
     expect(pickNextResearch(r)).toBe('bobsled_run');
-    r.unlocked.push('bobsled_run', 'inverted_coaster');
+    // Every Coasters item researched (new rides batch C adds its coasters to the category).
+    r.unlocked.push(...RESEARCH_ORDER.filter((i) => i.category === 'coasters').map((i) => i.id));
     expect(pickNextResearch(r)).toBe('ice_cream_cart');
   });
 
@@ -256,7 +257,7 @@ describe('research completion', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    // The last item of the default order (new rides batch B: the Loop Swing, late, 650 points).
+    // The last item of the default order (new rides batch C: the Flying Coaster, late, 700 points).
     const last = RESEARCH_ORDER[RESEARCH_ORDER.length - 1]!;
     r.unlocked = RESEARCH_ORDER.slice(0, -1).map((i) => i.id);
     r.current = last.id;
@@ -271,7 +272,7 @@ describe('research completion', () => {
     const done = w.state.management.messages.filter((m) => m.textId === MSG.researchComplete);
     expect(done).toHaveLength(1);
     expect(done[0]?.category).toBe('research');
-    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'loop_swing', name: 'Loop Swing' });
+    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'flying_coaster', name: 'Flying Coaster' });
   });
 });
 

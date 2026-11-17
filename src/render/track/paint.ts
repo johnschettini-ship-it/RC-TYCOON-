@@ -46,6 +46,8 @@ export interface RailLook {
   /** Phase 6: half width (m) of a monorail beam under the sample line, and its depth (m). */
   beam?: number;
   beamDepth?: number;
+  /** Batch C: a haul rope (sky ride) `lift` m above the sample line, in place of rails. */
+  cable?: boolean;
 }
 
 export const LOOKS: Readonly<Record<RailStyle, RailLook>> = {
@@ -62,16 +64,33 @@ export const LOOKS: Readonly<Record<RailStyle, RailLook>> = {
   inverted: { gauge: 1.0, railPx: 1.7, tieEvery: 1, tieHalf: 0.6, tiePx: 1.5, tieColour: '#434b57', spine: true, drop: -0.5, spinePx: 3.8, road: 0, channel: 0, wall: 0, lift: 2.4 },
   bobsled: { gauge: 1.2, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 0.45, spinePx: 0, road: 0, channel: 0.85, wall: 0.65, trough: '#eaf5fb' },
   beam: { gauge: 0.9, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: 1.0, spinePx: 0, road: 0, channel: 0, wall: 0, beam: 0.45, beamDepth: 1.0 },
+  // Batch C: the sky ride's haul rope runs HANG_M above the riders' line; `drop` is negative as on the inverted track,
+  // so towers reach up to the rope.
+  cable: { gauge: 0, railPx: 0, tieEvery: 1, tieHalf: 0, tiePx: 0, tieColour: null, spine: false, drop: -0.15, spinePx: 0, road: 0, channel: 0, wall: 0, lift: 2.4, cable: true },
 };
 
 /** Water colours (flat, cool hues: master §2.5). */
 export const WATER = { surface: '#3f9fd8', deep: '#2b78b8', light: '#9fd8f5', foam: '#f2fbff' } as const;
 
 /** Junior coasters use the steel style with a narrower gauge and a thinner spine. */
+const JUNIOR_LOOK: RailLook = { ...LOOKS.steel, gauge: 1.0, railPx: 1.5, spinePx: 2.4, drop: 0.4 };
+/** Batch C, the Mine Train: dark steel rails on rough wooden sleepers, spaced wider than a wooden coaster's. */
+const MINE_LOOK: RailLook = { ...LOOKS.wood, gauge: 1.0, railPx: 1.6, tieEvery: 0.75, tieHalf: 0.8, tiePx: 2.6, tieColour: '#7a5634' };
+
 export function lookFor(type: Pick<TrackTypeDef, 'render'>): RailLook {
   const base = LOOKS[type.render.rail];
-  if (type.render.car === 'junior') return { ...base, gauge: 1.0, railPx: 1.5, spinePx: 2.4, drop: 0.4 };
+  if (type.render.car === 'junior') return JUNIOR_LOOK;
+  if (type.render.car === 'ore') return MINE_LOOK;
   return base;
+}
+
+/**
+ * Look of one piece of a type: the type's look, or the Log Flume's channel for a water piece on a rail type (batch C:
+ * the Water Coaster's splashdown and channel straight run through water between its coaster rails).
+ */
+export function lookForPiece(type: Pick<TrackTypeDef, 'render' | 'medium'>, def: { water: unknown } | undefined): RailLook {
+  if (type.medium === 'rail' && def?.water) return LOOKS.flume;
+  return lookFor(type);
 }
 
 export interface TrackColours {
@@ -244,6 +263,10 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
     paintBeam(ctx, P, look, col, s, k0, k1, opt);
     return;
   }
+  if (look.cable) {
+    paintCable(ctx, P, look, col, s, k0, k1, opt);
+    return;
+  }
   const lift = look.lift ?? 0;
   const half = look.gauge / 2;
   const lx: number[] = [];
@@ -318,6 +341,7 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
   if (lift > 0) spine();
   if (opt.chain) polyline(ctx, cx, cy, '#2b2f36', 1.6);
   if (opt.special === 'brakes' || opt.special === 'blockBrake') paintBrakeFins(ctx, P, s, k0, k1, opt.special === 'blockBrake');
+  if (opt.special === 'launch') paintLaunchMotors(ctx, P, s, k0, k1);
   if (opt.special === 'spooky') paintTunnel(ctx, P, s, k0, k1);
 }
 
@@ -457,6 +481,29 @@ function paintBeam(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours, s:
   polyline(ctx, every2(edge, 0), every2(edge, 1), col.track, 1.6);
 }
 
+/**
+ * Sky ride haul rope (batch C): one dark rope `lift` m above the sample line with a light glint, and the station
+ * platform below it. The gondolas hang from the rope (`paintCar` 'gondola'); towers carry it (`paintSupport` 'tower').
+ */
+function paintCable(ctx: Ctx, P: Projector, look: RailLook, col: TrackColours, s: WorldSamples, k0: number, k1: number, opt: RunOptions): void {
+  const lift = look.lift ?? 0;
+  const xs: number[] = [];
+  const ys: number[] = [];
+  let nearRight = 0;
+  for (let k = k0; k <= k1; k++) {
+    trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
+    const wx = (s.x[k] as number) + (fr[6] as number) * lift;
+    const wy = (s.y[k] as number) + (fr[7] as number) * lift;
+    const wz = (s.z[k] as number) + (fr[8] as number) * lift;
+    xs.push(P.x(wx, wy));
+    ys.push(P.y(wx, wy, wz));
+    nearRight += P.vx(fr[3] as number, fr[4] as number) + P.vy(fr[3] as number, fr[4] as number) + (fr[5] as number);
+  }
+  if (opt.special === 'station') paintPlatform(ctx, P, s, k0, k1, nearRight > 0, 0.95);
+  polyline(ctx, xs, ys, shade(col.track, 0.7), 1.7);
+  polyline(ctx, xs, ys.map((y) => y - 0.5), shade(col.track, 1.25), 0.6);
+}
+
 /** Station platform: a deck on both sides of the rails (or channel) from `from` m out, with a yellow safety edge. */
 function paintPlatform(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: number, rightNear: boolean, from = 0.85): void {
   const deck = 0.3;
@@ -578,6 +625,27 @@ function paintBrakeFins(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1:
   }
 }
 
+/**
+ * Launch (batch C): a row of linear motor plates between the rails, dark with a light edge, and glowing blue stator
+ * lines every metre, so a launch reads apart from brakes (orange) and block brakes (yellow and black).
+ */
+function paintLaunchMotors(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: number): void {
+  for (let k = k0; k < k1; k++) {
+    const k2 = k + 1;
+    const x0 = P.x(s.x[k] as number, s.y[k] as number);
+    const y0 = P.y(s.x[k] as number, s.y[k] as number, (s.z[k] as number) + 0.1);
+    const x1 = P.x(s.x[k2] as number, s.y[k2] as number);
+    const y1 = P.y(s.x[k2] as number, s.y[k2] as number, (s.z[k2] as number) + 0.1);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = k % 4 === 0 ? '#5ec8ff' : '#3a414c';
+    ctx.lineWidth = k % 4 === 0 ? 2.2 : 3.2;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+  }
+}
+
 /** Spooky tunnel (§4.2): a closed box 4 m high over the rail, with a friendly ghost face on its end walls. */
 function paintTunnel(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: number): void {
   const n = s.n;
@@ -655,6 +723,91 @@ export function paintSupport(ctx: Ctx, P: Projector, style: SupportStyle, colour
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.stroke();
+    return;
+  }
+  if (style === 'tower') {
+    // Sky ride (batch C): (wx, wy, top) is the rope. A tall tapering lattice pylon 1.6 m beside the track on the far
+    // side rises past the rope; a cross arm reaches over it and a sheave wheel carries the rope.
+    let rX = -Math.sin(yaw);
+    let rY = Math.cos(yaw);
+    if (P.vx(rX, rY) + P.vy(rX, rY) > 0) {
+      rX = -rX;
+      rY = -rY;
+    }
+    const fX = Math.cos(yaw);
+    const fY = Math.sin(yaw);
+    const px = wx + rX * 1.6;
+    const py = wy + rY * 1.6;
+    const head = top + 0.7;
+    const dark = shade(colour, 0.7);
+    // Four legs: wide at the foot (0.9 m), narrow at the head (0.25 m).
+    const leg = (sa: number, sb: number, z: number): [number, number] => {
+      const w = 0.9 + (0.25 - 0.9) * Math.min(1, (z - ground) / Math.max(0.1, head - ground));
+      const lx = px + fX * w * sa + rX * w * sb;
+      const ly = py + fY * w * sa + rY * w * sb;
+      return [P.x(lx, ly), P.y(lx, ly, z)];
+    };
+    const corners: Array<[number, number]> = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    ctx.lineCap = 'butt';
+    for (let h = ground; h < head - 0.4; h += 2.2) {
+      const h2 = Math.min(head, h + 2.2);
+      ctx.beginPath();
+      for (const [sa, sb] of corners) {
+        const a = leg(sa, sb, h);
+        const b = leg(-sa, sb, h2);
+        ctx.moveTo(a[0], a[1]);
+        ctx.lineTo(b[0], b[1]);
+      }
+      const r0 = leg(-1, 1, h2);
+      ctx.moveTo(r0[0], r0[1]);
+      for (const [sa, sb] of corners) {
+        const c = leg(sa, sb, h2);
+        ctx.lineTo(c[0], c[1]);
+      }
+      ctx.strokeStyle = dark;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+    for (const [sa, sb] of corners) {
+      const a = leg(sa, sb, ground);
+      const b = leg(sa, sb, head);
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.strokeStyle = sa + sb > 0 ? shade(colour, 0.8) : colour;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    }
+    // Footing, cross arm over the rope, and the sheave.
+    ctx.beginPath();
+    ctx.ellipse(P.x(px, py), P.y(px, py, ground), 0.9 * PX_X, 0.45 * PX_X, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#8b939d';
+    ctx.fill();
+    const ax = wx - rX * 0.4;
+    const ay = wy - rY * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(P.x(px, py), P.y(px, py, head));
+    ctx.lineTo(P.x(ax, ay), P.y(ax, ay, head));
+    ctx.moveTo(P.x(px, py), P.y(px, py, head - 0.9));
+    ctx.lineTo(P.x(wx + rX * 0.6, wy + rY * 0.6), P.y(wx + rX * 0.6, wy + rY * 0.6, head));
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, P.y(wx, wy, head));
+    ctx.lineTo(x, yt);
+    ctx.strokeStyle = dark;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(x, yt - 0.6, 2.4, 1.6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#30353d';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, yt - 0.6, 1.0, 0.7, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#c5ced8';
+    ctx.fill();
     return;
   }
   if (style === 'lattice') {
@@ -753,6 +906,17 @@ export function carDims(shape: CarShape, front: boolean): CarDims {
       return { a: 1.0, b: 0.55, h0: -0.2, h1: 0.45 };
     case 'monorail':
       return { a: 1.42, b: 0.75, h0: -0.45, h1: 1.45 };
+    // Batch C: a sleek low launch car, an ore cart, a coaster boat, a prone flying car, a sky ride gondola.
+    case 'launch':
+      return { a: 1.1, b: 0.74, h0: 0.1, h1: 0.5 };
+    case 'ore':
+      return { a: 0.95, b: 0.72, h0: 0.15, h1: 0.88 };
+    case 'boat':
+      return { a: 1.35, b: 0.8, h0: -0.05, h1: 0.6 };
+    case 'flying':
+      return { a: 0.95, b: 0.8, h0: 0.25, h1: 0.45 };
+    case 'gondola':
+      return { a: 0.7, b: 0.7, h0: -0.35, h1: 1.05 };
     default:
       return { a: 1.05, b: 0.78, h0: 0.15, h1: 0.85 };
   }
@@ -783,6 +947,10 @@ export function paintCar(ctx: Ctx, shape: CarShape, yaw: number, pitch: number, 
   }
   if (shape === 'inverted' || shape === 'bobsled' || shape === 'monorail') {
     paintPhase6Car(ctx, shape, f, r, u, d, colour, front);
+    return;
+  }
+  if (shape === 'launch' || shape === 'ore' || shape === 'boat' || shape === 'flying' || shape === 'gondola') {
+    paintRidesCCar(ctx, shape, f, r, u, d, colour, front);
     return;
   }
   // Bogie under the body.
@@ -889,6 +1057,79 @@ function paintPhase6Car(ctx: Ctx, shape: 'inverted' | 'bobsled' | 'monorail', f:
   paintBox(ctx, carP, at3(f, r, u, 0, 0, 0.62), f, r, u, d.a * 0.92, d.b + 0.01, 0, 0.42, '#24364a');
   paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1), f, r, u, d.a * 0.9, d.b * 0.85, 0, 0.12, '#f4f6f8');
   if (front) paintBox(ctx, carP, at3(f, r, u, d.a + 0.25, 0, 0.1), f, r, u, 0.25, d.b * 0.8, -0.3, d.h1 - 0.3, shade(colour, 1.1), shade(colour, 0.55));
+}
+
+/**
+ * Batch C cars (new rides design, all original shapes):
+ * - `launch`: a low wedge car with a dark seat band, a white side stripe and, on the front car, a sharp nose.
+ * - `ore`: a riveted ore cart on a dark chassis, with a rim band and two ribs; the front car carries a lamp.
+ * - `boat`: a boat hull on a bogie, a white gunwale, a dark cockpit and, on the front car, a raised prow.
+ * - `flying`: a prone car hanging `HANG_M` below the rail: bogie, two hangers, a flat shell over the riders, who lie
+ *   face down under it (`riderHeightM`).
+ * - `gondola`: a cabin hanging from the rope `HANG_M` above: grip, hanger, roof, window band, open sides.
+ */
+function paintRidesCCar(ctx: Ctx, shape: 'launch' | 'ore' | 'boat' | 'flying' | 'gondola', f: number[], r: number[], u: number[], d: CarDims, colour: string, front: boolean): void {
+  const c: [number, number, number] = [0, 0, 0];
+  const dark = '#30353d';
+  if (shape === 'flying') {
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, HANG_M), f, r, u, 0.55, 0.3, -0.12, 0.14, dark);
+    for (const sa of [-0.45, 0.45]) paintBox(ctx, carP, at3(f, r, u, sa, 0, d.h1), f, r, u, 0.07, 0.07, 0, HANG_M - d.h1 - 0.1, dark);
+    // The shell over the riders, and its harness bar at the front.
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1), f, r, u, d.a, d.b, 0, 0.22, colour, shade(colour, 0.55));
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 + 0.23), f, r, u, d.a * 0.8, d.b * 0.4, 0, 0.001, shade(colour, 1.2));
+    paintBox(ctx, carP, at3(f, r, u, d.a - 0.1, 0, d.h0), f, r, u, 0.06, d.b * 0.9, 0, d.h1 - d.h0, '#f2c230');
+    if (front) paintBox(ctx, carP, at3(f, r, u, d.a + 0.2, 0, d.h1 + 0.02), f, r, u, 0.2, d.b * 0.6, 0, 0.16, shade(colour, 1.15), shade(colour, 0.55));
+    return;
+  }
+  if (shape === 'gondola') {
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, HANG_M), f, r, u, 0.25, 0.18, -0.1, 0.18, dark);
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 + 0.12), f, r, u, 0.06, 0.06, 0, HANG_M - d.h1 - 0.2, dark);
+    // Floor, corner posts, window band and a roof in the car colour.
+    paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h0 + 0.45, colour, shade(colour, 0.55));
+    for (const [sa, sb] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
+      paintBox(ctx, carP, at3(f, r, u, sa * (d.a - 0.05), sb * (d.b - 0.05), 0), f, r, u, 0.05, 0.05, d.h0 + 0.45, d.h1, shade(colour, 0.7));
+    }
+    paintBox(ctx, carP, c, f, r, u, d.a + 0.06, d.b + 0.06, d.h1, d.h1 + 0.16, shade(colour, 1.1), shade(colour, 0.55));
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 + 0.16), f, r, u, d.a * 0.5, d.b * 0.5, 0, 0.08, '#f4f6f8');
+    return;
+  }
+  // Rail cars: a bogie under the body.
+  paintBox(ctx, carP, c, f, r, u, d.a * 0.7, d.b * 0.55, -0.15, d.h0, dark);
+  if (shape === 'launch') {
+    paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h1, colour, shade(colour, 0.55));
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, 0.28), f, r, u, d.a * 0.98, d.b + 0.01, 0, 0.06, '#f4f4f4');
+    paintBox(ctx, carP, at3(f, r, u, -0.1, 0, d.h1 + 0.01), f, r, u, d.a * 0.62, d.b * 0.7, 0, 0.001, '#2b2f36');
+    paintBox(ctx, carP, at3(f, r, u, -d.a + 0.15, 0, d.h1), f, r, u, 0.1, d.b * 0.8, 0, 0.3, '#2b2f36');
+    if (front) paintBox(ctx, carP, at3(f, r, u, d.a + 0.3, 0, d.h0), f, r, u, 0.3, d.b * 0.7, 0, (d.h1 - d.h0) * 0.6, shade(colour, 1.12), shade(colour, 0.55));
+    return;
+  }
+  if (shape === 'ore') {
+    paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h1, colour, shade(colour, 0.5));
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 - 0.12), f, r, u, d.a + 0.04, d.b + 0.04, 0, 0.12, '#4a3a2a');
+    for (const sa of [-0.45, 0.45]) paintBox(ctx, carP, at3(f, r, u, sa, 0, d.h0), f, r, u, 0.05, d.b + 0.02, 0, d.h1 - d.h0 - 0.12, shade(colour, 0.65));
+    paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 + 0.01), f, r, u, d.a * 0.78, d.b * 0.72, 0, 0.001, '#2b2f36');
+    if (front) {
+      const lamp = at3(f, r, u, d.a + 0.06, 0, d.h1 - 0.25);
+      paintBox(ctx, carP, lamp, f, r, u, 0.08, 0.16, -0.12, 0.12, '#30353d');
+      ctx.beginPath();
+      ctx.arc(carP.x(lamp[0] + f[0]! * 0.1, lamp[1] + f[1]! * 0.1), carP.y(lamp[0] + f[0]! * 0.1, lamp[1] + f[1]! * 0.1, lamp[2] + f[2]! * 0.1), 1.3, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffe08a';
+      ctx.fill();
+    }
+    return;
+  }
+  // Boat: hull, gunwale, cockpit, prow.
+  paintBox(ctx, carP, c, f, r, u, d.a, d.b, d.h0, d.h1, colour, shade(colour, 0.5));
+  paintBox(ctx, carP, at3(f, r, u, 0, 0, d.h1 - 0.08), f, r, u, d.a + 0.02, d.b + 0.02, 0, 0.08, '#f4f6f8');
+  paintBox(ctx, carP, at3(f, r, u, -0.1, 0, d.h1 + 0.01), f, r, u, d.a * 0.66, d.b * 0.68, 0, 0.001, '#2b2f36');
+  if (front) paintBox(ctx, carP, at3(f, r, u, d.a + 0.25, 0, d.h0 + 0.1), f, r, u, 0.28, d.b * 0.55, 0, d.h1 - d.h0 + 0.15, shade(colour, 1.12), shade(colour, 0.5));
+}
+
+/** Height (m, along the car's up) of the riders' heads above the rail point: over the seat well, or inside a cabin. */
+export function riderHeightM(shape: CarShape, d: CarDims): number {
+  if (shape === 'gondola') return 0.45;
+  if (shape === 'flying') return d.h0;
+  return d.h1 + 0.3;
 }
 
 /**

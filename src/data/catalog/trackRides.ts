@@ -24,6 +24,23 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   { id: 'inverted_coaster', name: 'Inverted Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 70, intensityHeightM: 45, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
   { id: 'bobsled_run', name: 'Bobsled Run', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 2, carsMin: 1, carsMax: 4, maxTrains: 4, maxHeightM: 35, intensityHeightM: 25, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
   { id: 'monorail', name: 'Monorail', phase: 6, unlock: 'gentle', tag: 'chill', flags: F(), drive: 'powered', seatsPerCar: 6, carsMin: 3, carsMax: 6, maxTrains: 4, maxHeightM: 24, intensityHeightM: 12, driveSpeedMms: 8000, driveSpeedMinMms: null, defaultPrice: 200 },
+  // New rides batch C (docs/superpowers/specs/2026-11-17-new-rides-design.md). Each row sits beside its nearest type.
+  // Mine Train: a family coaster between the Junior Coaster (20/12 m, $3) and the Spinning Mouse (24/16 m, $4): its
+  // height limits and price are the Mouse's; 4 seats a car as the big coasters, 2–6 cars, 2 trains as the Junior.
+  // Launch Coaster: a big steel coaster beside the Inverted Coaster ($6, the same price); shorter trains (2–6 cars)
+  // because a launch must push the whole train. It has no chain lift, so its limits are what one 32 m/s launch can
+  // climb (review fix P2-2): 50 m (about v²/2g = 52 m less friction), with the intensity step from 40 m.
+  { id: 'launch_coaster', name: 'Launch Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 50, intensityHeightM: 40, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
+  // Water Coaster: boats on a coaster track, beside the Bobsled Run (35/25 m) and the Log Flume (30/20 m): a 40 m limit
+  // (step from 25 m), the big coasters' $5; 4 seats a boat, 1–3 boats a train, 3 trains.
+  { id: 'water_coaster', name: 'Water Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 1, carsMax: 3, maxTrains: 3, maxHeightM: 40, intensityHeightM: 25, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 500 },
+  // Flying Coaster: riders lie face down under the track, beside the Inverted Coaster (70/45 m, 3–8 cars, $6): the same
+  // trains and price, and the Wooden Coaster's lower limits (60/40 m), as a prone ride stays nearer the ground.
+  { id: 'flying_coaster', name: 'Flying Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 60, intensityHeightM: 40, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
+  // Sky Ride: gondolas on a cable, beside the Monorail (powered, 24/12 m, $2): higher limits (30 m, step from 20 m), as
+  // the rope runs high over the park; a slow constant 4 m/s; one 4-seat gondola a train, up to 8 gondolas.
+  { id: 'sky_ride', name: 'Sky Ride', phase: 6, unlock: 'gentle', tag: 'chill', flags: F(), drive: 'powered', seatsPerCar: 4, carsMin: 1, carsMax: 1, maxTrains: 8, maxHeightM: 30, intensityHeightM: 20, driveSpeedMms: 4000, driveSpeedMinMms: null, defaultPrice: 200 },
+  { id: 'mine_train', name: 'Mine Train', phase: 2, unlock: 'start', tag: 'family', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 2, maxHeightM: 24, intensityHeightM: 16, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
 ]);
 
 /** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */

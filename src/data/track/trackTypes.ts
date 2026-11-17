@@ -5,7 +5,7 @@
  */
 import { getTrackRideDef } from '../catalog/trackRides';
 import { FLUME_K, FLUME_V_CURRENT, RAPIDS_K, RAPIDS_V_CURRENT } from '../tuning/track';
-import type { PieceGroup, RatingExtra, TrackDriveMode, TrackTypeDef } from './types';
+import type { PieceGroup, RatingExtra, TrackDriveMode, TrackPieceDef, TrackTypeDef } from './types';
 
 interface Extra {
   id: string;
@@ -19,6 +19,10 @@ interface Extra {
   spins?: boolean;
   /** Pieces of the groups the type still cannot build (default none). */
   excludePieces?: string[];
+  /** Pieces of another set the type builds as well (default none; new rides batch C). */
+  alsoPieces?: string[];
+  /** Launch speed (mm/s) of the type's launch pieces (default 0: no launch; new rides batch C). */
+  launchSpeedMms?: number;
   /** Station runs on the circuit (default 1). */
   maxStations?: number;
   ratings: { e: number; i: number; n: number; kAir: number; extra: RatingExtra };
@@ -91,9 +95,10 @@ function build(e: Extra): TrackTypeDef {
     stationPiece: 'station',
     groups: Object.freeze([...e.groups]),
     excludePieces: Object.freeze([...(e.excludePieces ?? [])]),
+    alsoPieces: Object.freeze([...(e.alsoPieces ?? [])]),
     chain: e.chain,
     maxStations: e.maxStations ?? 1,
-    physics: { mu: e.mu, cd: e.cd, chainSpeedMms: e.chainSpeedMms, driveSpeedMms: cat.driveSpeedMms ?? 0 },
+    physics: { mu: e.mu, cd: e.cd, chainSpeedMms: e.chainSpeedMms, driveSpeedMms: cat.driveSpeedMms ?? 0, launchSpeedMms: e.launchSpeedMms ?? 0 },
     water: null,
     vehicle: {
       seatsPerCar: cat.seatsPerCar,
@@ -202,9 +207,10 @@ function buildWater(e: WaterExtra): TrackTypeDef {
     stationPiece: `${e.pieceSet}_station`,
     groups: Object.freeze(['S', 'St', 'G', 'X', 'Ts', 'Tm', 'W'] as PieceGroup[]),
     excludePieces: Object.freeze([]),
+    alsoPieces: Object.freeze([]),
     chain: false,
     maxStations: 1,
-    physics: { mu: WATER_MU, cd: WATER_CD, chainSpeedMms: 0, driveSpeedMms: 0 },
+    physics: { mu: WATER_MU, cd: WATER_CD, chainSpeedMms: 0, driveSpeedMms: 0, launchSpeedMms: 0 },
     water: { currentMms: e.currentMms, k: e.k },
     vehicle: {
       seatsPerCar: cat.seatsPerCar,
@@ -231,11 +237,84 @@ function buildWater(e: WaterExtra): TrackTypeDef {
 /** The 2 Build 2 water types: Log Flume and Rapids Raft. */
 export const WATER_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(WATER_EXTRAS.map(buildWater));
 
-/** Every track type: Build 1 rail, Build 2 water, then Build 3 rail. */
-export const ALL_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze([...TRACK_TYPES, ...WATER_TRACK_TYPES, ...EXTRA_TRACK_TYPES]);
+/**
+ * New rides batch C (docs/superpowers/specs/2026-11-17-new-rides-design.md): five track types on the rail medium. Not in
+ * any spec (tuning starting values, set beside the nearest existing type): the rating terms, costs, friction, chain and
+ * launch speeds, and car lengths. Each row says what it sits beside.
+ */
+const RIDES_C_EXTRAS: Extra[] = [
+  {
+    // Launch Coaster: the Steel Coaster's groups and inversions plus the launch, and no chain lift (a launch replaces
+    // it). Launch speed 32 m/s (about 115 km/h; review fix P2-2): enough to clear the 40 m intensity step on one launch;
+    // seven launch pieces reach it from the station speed at LAUNCH_ACCEL.
+    // Friction as the Steel Coaster; rating terms as the Inverted Coaster (1.3 / 0.5 / 0.2); costs over the Inverted
+    // Coaster's (3,500), as the motors cost more to buy and run.
+    id: 'launch_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx', 'Ln'], chain: false, launchSpeedMms: 32_000, mu: 0.015, cd: 0.0008, chainSpeedMms: 0, carLengthMm: 2500, defaultCars: 4,
+    ratings: { e: 1.3, i: 0.5, n: 0.2, kAir: 1.0, extra: 'none' },
+    costs: { base: 3800, pieceFactorPermille: 1100, runBase: 150, extraTrain: 900 },
+    render: { rail: 'steel', supports: 'round', car: 'launch', colours: { track: 10, supports: 9, cars: 2 } },
+  },
+  {
+    // Water Coaster: the Steel Coaster's plain groups (no loops or corkscrews: boats stay upright) and the Log Flume's
+    // splashdown and channel straight (`alsoPieces`), where the splash brake slows the boats to 4 m/s and wets the
+    // riders. Boats are 3 m long; friction and drag a little over the Steel Coaster's; rating terms between the Steel
+    // and the Inverted Coaster (the splash extras come from the water table); costs between the Wooden Coaster (2,800)
+    // and the Inverted Coaster (3,500).
+    id: 'water_coaster', groups: COASTER, alsoPieces: ['flume_splashdown', 'flume_straight'], chain: true, mu: 0.02, cd: 0.001, chainSpeedMms: 2500, carLengthMm: 3000, defaultCars: 2,
+    ratings: { e: 1.2, i: 0.4, n: 0.2, kAir: 1.0, extra: 'none' },
+    costs: { base: 3200, pieceFactorPermille: 1000, runBase: 120, extraTrain: 600 },
+    render: { rail: 'steel', supports: 'round', car: 'boat', colours: { track: 5, supports: 9, cars: 2 } },
+  },
+  {
+    // Flying Coaster: the Inverted Coaster's track, supports and hanging (rail 2.4 m over the riders' line), with prone
+    // cars. Its pieces and friction; rating terms over it (2.1 / 0.6 / 0.3: lying face down adds to every one) and
+    // airtime counting in full (kAir 1.0, the Inverted Coaster's 0.8: flying riders feel it face first). Review fix
+    // P2-3: it rates about 0.4 above the Inverted Coaster on the same lap. Big coasters rate over the soft cap (6.0),
+    // where a type term counts half, so +0.8 on `e` gives +0.4. The dearest coaster to build (base 4,000).
+    id: 'flying_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx'], chain: true, mu: 0.015, cd: 0.0008, chainSpeedMms: 3000, carLengthMm: 2500, defaultCars: 4,
+    ratings: { e: 2.1, i: 0.6, n: 0.3, kAir: 1.0, extra: 'none' },
+    costs: { base: 4000, pieceFactorPermille: 1200, runBase: 150, extraTrain: 1000 },
+    render: { rail: 'inverted', supports: 'arm', car: 'flying', colours: { track: 7, supports: 9, cars: 2 } },
+  },
+  {
+    // Sky Ride: a powered type as the Monorail is (flat, gentle slopes, turns), with a station at each end (2 station
+    // runs: the second is a stop, master R26). Cable look: the rope runs 2.4 m over the riders' line on tall towers,
+    // and each 2 m gondola hangs from it. Scenic rating terms as the Mini Railway (2.0 e, scenic extra) less a little,
+    // with a touch of sway in the nausea; costs as the Monorail's, a gondola cheaper than a monorail train.
+    id: 'sky_ride', groups: ['S', 'St', 'G', 'Ts', 'Tm'], maxStations: 2, chain: false, mu: 0, cd: 0, chainSpeedMms: 0, carLengthMm: 2000, defaultCars: 1,
+    ratings: { e: 1.8, i: 0.0, n: 0.1, kAir: 1.0, extra: 'scenic' },
+    costs: { base: 2600, pieceFactorPermille: 900, runBase: 80, extraTrain: 300 },
+    render: { rail: 'cable', supports: 'tower', car: 'gondola', colours: { track: 10, supports: 4, cars: 0 } },
+  },
+  {
+    // Mine Train: the Junior Coaster's groups (no steep slopes, no loops: low drops) plus the helix, for many turns; the
+    // Spinning Mouse's small-turn rating extra rewards a twisty layout. Friction, chain and costs sit between the
+    // Junior Coaster (1,500) and the Bobsled Run (2,600); rating terms a touch over the Junior's (themed, longer trains).
+    id: 'mine_train', groups: ['S', 'St', 'G', 'Ts', 'Tm', 'B', 'Br', 'BB', 'Hx'], chain: true, mu: 0.02, cd: 0.001, chainSpeedMms: 2000, carLengthMm: 2200, defaultCars: 4,
+    ratings: { e: 1.3, i: 0.1, n: 0.0, kAir: 1.0, extra: 'smallTurns' },
+    costs: { base: 1800, pieceFactorPermille: 800, runBase: 70, extraTrain: 450 },
+    render: { rail: 'wood', supports: 'lattice', car: 'ore', colours: { track: 10, supports: 11, cars: 1 } },
+  },
+];
+
+/** The batch C track types (rail medium). */
+export const RIDES_C_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(RIDES_C_EXTRAS.map(build));
+
+/** Every track type: Build 1 rail, Build 2 water, Build 3 rail, then the new rides batch C types. */
+export const ALL_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze([...TRACK_TYPES, ...WATER_TRACK_TYPES, ...EXTRA_TRACK_TYPES, ...RIDES_C_TRACK_TYPES]);
 
 const BY_ID: ReadonlyMap<string, TrackTypeDef> = new Map(ALL_TRACK_TYPES.map((t) => [t.id, t]));
 
 export function getTrackTypeDef(id: string): TrackTypeDef | undefined {
   return BY_ID.get(id);
+}
+
+/**
+ * A type builds a piece of its own set in its groups (Phase 4 §4.4: rail, flume or rapids), less its excluded pieces,
+ * and any piece it names in `alsoPieces` (new rides batch C: the Water Coaster's splashdown). The one rule the build
+ * check, the palette, Auto-finish's plain pieces and the load check share.
+ */
+export function typeBuildsPiece(type: TrackTypeDef, def: TrackPieceDef): boolean {
+  if (type.alsoPieces.includes(def.id)) return true;
+  return def.set === type.pieceSet && type.groups.includes(def.group) && !type.excludePieces.includes(def.id);
 }

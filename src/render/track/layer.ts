@@ -51,7 +51,9 @@ import {
   CAR_BOUNDS,
   carDims,
   GATE_BOUNDS,
+  riderHeightM,
   lookFor,
+  lookForPiece,
   paintCar,
   paintGateBooth,
   paintRun,
@@ -111,7 +113,7 @@ export interface ViewBox {
 }
 
 /** Car shapes by cache index (Phase 6 shapes appended, so older indices stay). */
-const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft', 'inverted', 'bobsled', 'monorail'];
+const CAR_SHAPES: readonly CarShape[] = ['coaster', 'junior', 'loco', 'mouse', 'ghost', 'kart', 'log', 'raft', 'inverted', 'bobsled', 'monorail', 'launch', 'ore', 'boat', 'flying', 'gondola'];
 
 export interface SliceRec {
   rideId: number;
@@ -263,7 +265,7 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
   const data = world.state.track.rides[String(rideId)];
   const type = data ? getTrackTypeDef(data.typeId) : undefined;
   if (!data || !type) return [];
-  const look = lookFor(type);
+  const typeLook = lookFor(type);
   const colours = coloursOf(data);
   const out: SliceRec[] = [];
   let lastPiece = -1;
@@ -278,6 +280,8 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
     const s = samplesOf(piece);
     const runs = runsInTile(s, t.x, t.y);
     if (runs.length === 0) continue;
+    // Batch C: a water piece on a rail type (the Water Coaster's splashdown) paints as a channel.
+    const look = def.water ? lookForPiece(type, def) : typeLook;
     const cx = (t.x + 0.5) * TILE_M;
     const cy = (t.y + 0.5) * TILE_M;
     const ax = projectX(cx, cy, f);
@@ -286,7 +290,9 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
     let support: SliceRec['support'] = null;
     const lift = look.lift ?? 0;
     // Hanging cars (Phase 6 inverted): every rail tile on the track's own ground gets an arm support, stations too.
-    if (t.support || (lift > 0 && t.railMin <= t.ground)) {
+    // Batch C, the sky ride: a tower on every third tile only (by the tile's diagonal), so the rope spans between them.
+    const towerTile = type.render.supports !== 'tower' || (t.x + t.y) % 3 === 0;
+    if (towerTile && (t.support || (lift > 0 && t.railMin <= t.ground))) {
       const k = supportSample(s, runs, t.x, t.y);
       if (lift > 0) {
         // The arm holds the spine, `lift − drop` up the (possibly rolled) track frame from the sample.
@@ -1003,7 +1009,7 @@ export class TrackLayer {
       const col = j % cols;
       const along = d.a * 0.55 * (1 - (2 * (row + 0.5)) / rows);
       const side = cols === 2 ? (col === 0 ? -0.4 : 0.4) * d.b : 0;
-      const h = d.h1 + 0.3;
+      const h = riderHeightM(shapeName, d);
       const wx = (c.x[i] as number) + (fr[0] as number) * along + (fr[3] as number) * side + (fr[6] as number) * h;
       const wy = (c.y[i] as number) + (fr[1] as number) * along + (fr[4] as number) * side + (fr[7] as number) * h;
       const wz = (c.z[i] as number) + (fr[2] as number) * along + (fr[5] as number) * side + (fr[8] as number) * h;

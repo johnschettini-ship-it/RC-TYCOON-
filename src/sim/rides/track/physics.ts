@@ -21,6 +21,7 @@ import {
   DT,
   G,
   GAP_RULE_MM,
+  LAUNCH_ACCEL,
   POWERED_ACCEL,
   POWERED_DECEL,
   RELEASE_ACCEL,
@@ -143,6 +144,17 @@ function trainOnChain(ctx: StepContext, sMid: number): boolean {
     if (layout.open && (s < 0 || s >= layout.lengthMm)) continue;
     const pi = pieceIndexAt(layout, s);
     if (ctx.pieces[pi]?.chain) return true;
+  }
+  return false;
+}
+
+/** Batch C: any car's centre is on a launch piece (as `trainOnChain`: the motors push while any car is over them). */
+function trainOnLaunch(ctx: StepContext, sMid: number): boolean {
+  const layout = ctx.layout;
+  for (let k = 0; k < ctx.cars; k++) {
+    const s = wrapMm(layout, sMid + carOffsetMm(k, ctx.cars, ctx.carLenMm));
+    if (layout.open && (s < 0 || s >= layout.lengthMm)) continue;
+    if (layout.statics[pieceIndexAt(layout, s)]?.def.special === 'launch') return true;
   }
   return false;
 }
@@ -298,6 +310,14 @@ export function stepTrain(ctx: StepContext, t: TrainState): StepResult {
     if (!pieceControlled && v1 < type.physics.chainSpeedMms / 1000 && trainOnChain(ctx, t.s)) {
       v1 = Math.min(type.physics.chainSpeedMms / 1000, v + CHAIN_ACCEL * DT);
     }
+    // Batch C (Launch Coaster): launch pieces drive the train up to the type's launch speed, never slowing it.
+    const launchV = type.physics.launchSpeedMms / 1000;
+    if (!pieceControlled && launchV > 0 && v1 < launchV && trainOnLaunch(ctx, t.s)) {
+      v1 = Math.min(launchV, Math.max(v1, v + LAUNCH_ACCEL * DT));
+      controlled = true;
+    }
+    // Batch C (Water Coaster): the Log Flume's splashdown brakes a coaster boat as it brakes a log (≤ 4 m/s out).
+    if (def?.water?.drive === 'splash' && v1 > SPLASH_MAX_V) v1 = toward(v, SPLASH_MAX_V, pieceEndM, 0, SPLASH_DECEL);
     if (def?.special === 'brakes') {
       const target = inst?.brakeSpeed ?? 6;
       if (v1 > target) v1 = toward(v, target, pieceEndM, 0);

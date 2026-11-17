@@ -11,7 +11,7 @@
  * long, radius 1.4 m round a heartline that rises 1 m; helix: 6 m lead, a 4.8 m circle, 6 m lead, climbing 4 m on a
  * smooth step), computed once and rounded to the mm.
  */
-import { CORKSCREW_COST_MULTIPLE, CORKSCREW_MIN_ENTRY, HELIX_COST_MULTIPLE, HELIX_RADIUS_M, HELIX_RISE_M } from '../tuning/track';
+import { CORKSCREW_COST_MULTIPLE, CORKSCREW_MIN_ENTRY, HELIX_COST_MULTIPLE, HELIX_RADIUS_M, HELIX_RISE_M, LAUNCH_COST_MULTIPLE } from '../tuning/track';
 import type { TrackPieceDef } from './types';
 
 /** Straight piece cost (phase-2 §4.2 row 2), cents: the base of the Phase 6 cost multiples. */
@@ -84,7 +84,38 @@ function helix(num: number, side: 'left' | 'right', dir: 'up' | 'down'): TrackPi
 /** First row number of the Phase 6 pieces: after the 29 rail and 21 water pieces. */
 const FIRST_NUM = 51;
 
-/** Corkscrew left and right, then the helix left up, left down, right up, right down. */
+/**
+ * Launch (new rides batch C, the Launch Coaster): a flat 4 m straight of linear motors, group `Ln`, special `launch`.
+ * Its geometry is the straight's, so it joins, samples and supports like one; only the physics differs (`LAUNCH_ACCEL`
+ * toward the type's `launchSpeedMms`). Not chainable: a launch replaces the lift.
+ */
+function launch(num: number): TrackPieceDef {
+  return Object.freeze({
+    num,
+    id: 'launch',
+    name: 'Launch',
+    group: 'Ln',
+    set: 'rail',
+    entry: { slope: 'F', bank: 'none' },
+    exit: { dx: 1, dy: 0, dz: 0, turn: 0, slope: 'F', bank: 'none' },
+    tiles: [[0, 0]],
+    railMin: 0,
+    railMax: 0,
+    lengthMm: 4_000,
+    kv: 0,
+    kh: 0,
+    geometry: { kind: 'straight' },
+    cost: LAUNCH_COST_MULTIPLE * STRAIGHT_CENTS,
+    chainable: false,
+    inversions: 0,
+    minEntryMms: 0,
+    turnKind: null,
+    special: 'launch',
+    water: null,
+  } satisfies TrackPieceDef);
+}
+
+/** Corkscrew left and right, the helix left up, left down, right up, right down, then the launch (batch C). */
 export const EXTRA_PIECES: readonly TrackPieceDef[] = Object.freeze([
   corkscrew(FIRST_NUM, 'left'),
   corkscrew(FIRST_NUM + 1, 'right'),
@@ -92,4 +123,5 @@ export const EXTRA_PIECES: readonly TrackPieceDef[] = Object.freeze([
   helix(FIRST_NUM + 3, 'left', 'down'),
   helix(FIRST_NUM + 4, 'right', 'up'),
   helix(FIRST_NUM + 5, 'right', 'down'),
+  launch(FIRST_NUM + 6),
 ]);

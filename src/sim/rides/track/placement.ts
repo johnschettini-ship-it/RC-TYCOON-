@@ -191,6 +191,11 @@ export function checkPieceTiles(
   if (def.special === 'station') {
     for (const i of idx) if (piece.z !== map.heights[i] || map.slope[i] !== 0) return { ok: false, reason: TRACK_ERR.stationOnGround };
   }
+  // Batch C: a water piece on a rail type (the Water Coaster's splashdown and channel) is a pool on flat ground, as a
+  // station is, so the channel never hangs in mid-air on coaster supports. Water types keep their raised channels.
+  if (def.water && type.medium === 'rail') {
+    for (const i of idx) if (piece.z !== map.heights[i] || map.slope[i] !== 0) return { ok: false, reason: TRACK_ERR.waterOnGround };
+  }
   for (let k = 0; k < wts.length; k++) {
     if ((wts[k] as WorldPieceTile).railMin < (map.heights[idx[k] as number] as number)) return { ok: false, reason: TRACK_ERR.belowGround };
   }
