@@ -10,6 +10,13 @@ import { cycleD2, cycleKeys, timeD2, timeKeys } from './flatRides.js';
 
 const TAU = Math.PI * 2;
 
+/**
+ * The batch B rides with a front (rots [0, 1, 2, 3]): the loop swing's arm turns in one plane between its towers; the
+ * station show has an entrance and a non-square footprint. Kept here, not in flatRides.js NON_ROUND, so the shared file
+ * every flat ride's cache key hashes stays as it was (no re-bake of the batch 1 rides).
+ */
+export const NON_ROUND_B = ['loop_swing', 'station_show'];
+
 /** Picture ids: `a<slot>` for a full frame at an even slot, `rest` for every empty frame. */
 const fullOrRest = (id) => (a, full) => (full ? id(a) : 'rest');
 

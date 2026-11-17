@@ -80,7 +80,7 @@ function build() {
   g.position.y = -ARM;
   arm.add(g);
   g.add(box(5.0, 0.5, 0.5, 0, 0, 0, mat.darkSteel));
-  g.add(box(5.2, 0.12, 2.1, 0, -0.62, 0, shell)); // floor pan
+  g.add(box(5.2, 0.12, 0.7, 0, -0.62, 0, shell)); // floor pan under the spine only, so the riders' legs and faces show when the arm is level
   for (const s of [-1, 1]) g.add(box(0.12, 1.5, 2.1, s * 2.62, -0.05, 0, shell)); // end plates
   g.add(box(1.0, 0.9, 0.7, 0, 0.6, 0, red)); // the joint to the arm
   const riders = [];

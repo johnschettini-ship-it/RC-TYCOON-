@@ -1,6 +1,6 @@
 // Spinning Wheel Drop (thrill flat ride, 3 x 3 tiles = 12 x 12 m, 12 m): a turret on a round pad turns slowly while a
-// telescopic arm carries a 9.6 m wheel of 16 outward-facing seats (20 riders max in the catalogue: 16 seats, the
-// riders sit facing out with shoulder bars). Running (items/ridesB.js wheelPose, today's drawSpinWheelDrop): the wheel
+// telescopic arm carries a 9.6 m wheel of 16 outward-facing seats (16 riders, the catalogue's capacity; the riders
+// sit facing out with shoulder bars, in 8 looks). Running (items/ridesB.js wheelPose, today's drawSpinWheelDrop): the wheel
 // spins flat at boarding height, then the arm rises 3.9 m while a hydraulic ram tilts the wheel up to 75 degrees, holds
 // it near vertical, and lowers it flat again; the turret turns once per turn so the wheel tilts towards every side in
 // turn. Period 32 slots: 16 pictures full, one at rest. Round (a ring fence with four gaps, no front): rot 'all'.
@@ -100,7 +100,7 @@ function build() {
     s.add(M(new THREE.BoxGeometry(0.1, 1.25, 0.56), i % 2 ? blue : yellow).translateX(-0.18).translateY(0.6));
     s.add(M(new THREE.BoxGeometry(0.46, 0.08, 0.5), seatMat).translateX(0.06).translateY(0.42));
     for (const z of [-0.17, 0.17]) s.add(rod(V(-0.1, 1.15, z), V(0.32, 0.72, z), 0.035, mat.darkSteel, 6));
-    const p = rider(K, 1900 + i, { kind: 'sit' });
+    const p = rider(K, 1900 + (i % 8), { kind: 'sit' }); // 8 looks: 2.5 spins a turn end on the seat 8 on, same look
     p.position.set(-0.08, 0.46, 0);
     p.rotation.y = Math.PI / 2; // faces out
     s.add(p);

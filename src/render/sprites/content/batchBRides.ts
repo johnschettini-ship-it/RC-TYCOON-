@@ -43,21 +43,38 @@ export function twistShare(a: number): number {
   return Math.sin(Math.PI * a) ** 2;
 }
 
+/**
+ * The tilting top's frame at turn fraction `a` (map u, map v, up): e1 leans down towards the heading phi, e2 is level,
+ * n is the top's axis. Angles turn the way the realistic look's do (three.js rotation.y > 0 takes +u towards -v), so
+ * phi and the spin run from +u towards -v: both looks show the same lean and spin at a frame.
+ */
+export function twistFrame(a: number): { w: number; tau: number; phi: number; spin: number; e1: V3; e2: V3; n: V3 } {
+  const w = twistShare(a);
+  const tau = TWIST_TILT * w;
+  const phi = -TAU * a;
+  const spin = -TAU * a * TWIST_SPIN;
+  return {
+    w, tau, phi, spin,
+    e1: [Math.cos(tau) * Math.cos(phi), Math.cos(tau) * Math.sin(phi), -Math.sin(tau)],
+    e2: [-Math.sin(phi), Math.cos(phi), 0],
+    n: [Math.sin(tau) * Math.cos(phi), Math.sin(tau) * Math.sin(phi), Math.cos(tau)],
+  };
+}
+
+/** Chair i's angle in the top's frame (from e1): its map heading is i / 12 of a turn plus the spin, as the bake's. */
+export function twistChairAngle(i: number, a: number): number {
+  const f = twistFrame(a);
+  return (i / TWIST_CHAIRS) * TAU + f.spin - f.phi;
+}
+
 export function drawChairSwingTwist(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
   const cu = ex / 2;
   const cv = ey / 2;
   platform(ctx, ex, ey, '#f3e3c8', '#9a4a2a');
   disc(ctx, cu, cv, 1.35, 3, '#e9c79a', '#c4552c', 1.5);
   cylinder(ctx, cu, cv, 0.4, 3, 9, '#9a4a2a', '#d8833a');
-  const w = twistShare(st.angle);
+  const { w, spin, e1, e2, n } = twistFrame(st.angle);
   const head = TWIST_REST + TWIST_RISE * w;
-  const tau = TWIST_TILT * w;
-  const phi = TAU * st.angle;
-  const spin = TAU * st.angle * TWIST_SPIN;
-  // The tilted frame of the top: e1 leans down towards phi, e2 is level, n is the top's axis.
-  const e1: V3 = [Math.cos(tau) * Math.cos(phi), Math.cos(tau) * Math.sin(phi), -Math.sin(tau)];
-  const e2: V3 = [-Math.sin(phi), Math.cos(phi), 0];
-  const n: V3 = [Math.sin(tau) * Math.cos(phi), Math.sin(tau) * Math.sin(phi), Math.cos(tau)];
   const at = (o: V3) => ptAt(cu, cv, head, o);
   const inPlane = (th: number, r: number, up: number): V3 => [
     (Math.cos(th) * e1[0] + Math.sin(th) * e2[0]) * r + n[0] * up,
@@ -69,7 +86,7 @@ export function drawChairSwingTwist(ctx: Ctx, ex: number, ey: number, st: RideAr
   const colours = ['#f5c518', '#ef7d2a'];
   const items: Item[] = [];
   for (let i = 0; i < TWIST_CHAIRS; i++) {
-    const th = (i / TWIST_CHAIRS) * TAU + spin;
+    const th = twistChairAngle(i, st.angle);
     const rim = inPlane(th, TWIST_RIM, 0);
     const hl = Math.hypot(rim[0], rim[1]) || 1;
     const seat: V3 = [
@@ -160,21 +177,37 @@ export function wheelShare(a: number): number {
   return smooth((0.9 - t) / 0.2);
 }
 
+/**
+ * The wheel's frame at turn fraction `a` (map u, map v, up): e1 rises towards the turret's heading phi, e2 is level, n
+ * is the wheel's axis. Angles turn the way the realistic look's do (+u towards -v), as twistFrame.
+ */
+export function wheelFrame(a: number): { w: number; tau: number; phi: number; spin: number; e1: V3; e2: V3; n: V3 } {
+  const w = wheelShare(a);
+  const tau = WHEEL_TILT * w;
+  const phi = -TAU * a;
+  const spin = -TAU * a * WHEEL_SPIN;
+  return {
+    w, tau, phi, spin,
+    e1: [Math.cos(tau) * Math.cos(phi), Math.cos(tau) * Math.sin(phi), Math.sin(tau)],
+    e2: [-Math.sin(phi), Math.cos(phi), 0],
+    n: [-Math.sin(tau) * Math.cos(phi), -Math.sin(tau) * Math.sin(phi), Math.cos(tau)],
+  };
+}
+
+/** Seat i's angle in the wheel's frame (from e1, the turret's heading): i / 16 of a turn plus the spin, as the bake's. */
+export function wheelSeatAngle(i: number, a: number): number {
+  return (i / WHEEL_SEATS) * TAU + wheelFrame(a).spin;
+}
+
 export function drawSpinWheelDrop(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
   const cu = ex / 2;
   const cv = ey / 2;
   platform(ctx, ex, ey, '#efe2d0', '#8a3a2a');
   disc(ctx, cu, cv, 1.4, 3, '#d9cdbd', '#8a7a6a', 1.5);
-  const w = wheelShare(st.angle);
-  const tau = WHEEL_TILT * w;
-  const phi = TAU * st.angle;
-  const spin = TAU * st.angle * WHEEL_SPIN;
+  const { w, spin, e1, e2, n } = wheelFrame(st.angle);
   const hub = WHEEL_HUB + WHEEL_RISE * w;
   // The turret turns once per turn; the wheel leans towards phi.
   cylinder(ctx, cu, cv, 0.5, 3, 9, '#3a3f45', '#5a6068');
-  const e1: V3 = [Math.cos(tau) * Math.cos(phi), Math.cos(tau) * Math.sin(phi), Math.sin(tau)];
-  const e2: V3 = [-Math.sin(phi), Math.cos(phi), 0];
-  const n: V3 = [-Math.sin(tau) * Math.cos(phi), -Math.sin(tau) * Math.sin(phi), Math.cos(tau)];
   const at = (o: V3) => ptAt(cu, cv, hub, o);
   const inPlane = (th: number, r: number, up = 0): V3 => [
     (Math.cos(th) * e1[0] + Math.sin(th) * e2[0]) * r + n[0] * up,
@@ -191,7 +224,7 @@ export function drawSpinWheelDrop(ctx: Ctx, ex: number, ey: number, st: RideArtS
   const seatCols = ['#f5c518', '#2e86de'];
   const seats: Item[] = [];
   for (let i = 0; i < WHEEL_SEATS; i++) {
-    const th = (i / WHEEL_SEATS) * TAU + spin;
+    const th = wheelSeatAngle(i, st.angle);
     const p = at(inPlane(th, WHEEL_R + 3, 3));
     seats.push({
       n: p[2],
@@ -201,7 +234,7 @@ export function drawSpinWheelDrop(ctx: Ctx, ex: number, ey: number, st: RideArtS
         ctx.fillRect(p[0] - 3.5, p[1] - 5, 7, 8);
         ctx.fillStyle = c;
         ctx.fillRect(p[0] - 3, p[1] - 4, 6, 6);
-        if (i < filled) rider(ctx, p[0], p[1] - 7, i);
+        if (i < filled) rider(ctx, p[0], p[1] - 7, i % 8); // 8 looks: the wheel's 2.5 spins a turn end on a seat 8 on
       },
     });
   }
@@ -324,6 +357,8 @@ export function drawLoopSwing(ctx: Ctx, ex: number, ey: number, st: RideArtState
 
 /** The ride repeats every 60 degrees (6 of each design round each ring); its horses rise and fall 6 times a turn. */
 export const DELUXE_PERIOD = Math.PI / 3;
+/** Riders aboard when full: 6 horses and 6 two-seat carriages outside, 6 horses inside, 12 horses upstairs. */
+export const DELUXE_SEATS = 36;
 const DELUXE_DECK = 40;
 const DELUXE_ROOF = 76;
 
@@ -342,13 +377,19 @@ function horse(ctx: Ctx, x: number, y: number, dir: number, body: string): void 
   ctx.stroke();
 }
 
+/** The ride's turn at turn fraction `a`: +u towards -v, as the realistic look's (three.js rotation.y > 0). */
+export function deluxeSpin(a: number): number {
+  return -TAU * a;
+}
+
 export function drawCarouselDeluxe(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
   const cu = ex / 2;
   const cv = ey / 2;
   platform(ctx, ex, ey, '#e6e0d4', '#5d6f8f');
   cylinder(ctx, cu, cv, 1.85, 3, 8, '#8a7a5a', '#efe3c6');
-  const spin = TAU * st.angle;
-  const filled = seatsFilled(36, st.occupancy);
+  // 36 places: the catalogue's 36 riders.
+  const spin = deluxeSpin(st.angle);
+  const filled = seatsFilled(DELUXE_SEATS, st.occupancy);
   let seat = 0;
   const lower: Item[] = [];
   const horseCols = ['#f4f1ea', '#2b2522'];

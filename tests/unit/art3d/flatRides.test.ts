@@ -11,16 +11,23 @@ import { d2FloorOk, keyAt, keysAt, periodOk, pictureOf, type Keys } from './fram
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
+/** The rides that bake one set per view turn: batch 1's NON_ROUND and batch B's NON_ROUND_B (items/ridesB.js). */
+async function nonRound(): Promise<string[]> {
+  const { NON_ROUND } = await load('items/flatRides.js');
+  const { NON_ROUND_B } = await load('items/ridesB.js');
+  return [...NON_ROUND, ...NON_ROUND_B];
+}
+
 describe('NON_ROUND', () => {
   it('names flat rides only', async () => {
-    const { NON_ROUND } = await load('items/flatRides.js');
+    const NON_ROUND = await nonRound();
     const ids = new Set(FLAT_RIDES.map((d) => d.id));
     for (const id of NON_ROUND) expect(ids.has(id), id).toBe(true);
   });
   // The list is what the bake turns by: each ride module bakes one set per view turn exactly when it has a front.
   for (const { id } of FLAT_RIDES) {
     it(`${id}: its module bakes rots [0, 1, 2, 3] if it is in NON_ROUND, else one 'all' set`, async () => {
-      const { NON_ROUND } = await load('items/flatRides.js');
+      const NON_ROUND = await nonRound();
       const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
       const rots = [...src.matchAll(/rots: (\[0, 1, 2, 3\]|'all')/g)].map((m) => m[1]);
       expect(rots, `${id}: one bakeObject call`).toHaveLength(1);
@@ -792,5 +799,99 @@ describe('new rides batch B frames', () => {
     expect(STATION_GATES.entrance[1]).toBeLessThan((def.d * 4) / 2);
     expect(STATION_GATES.exit[1]).toBeLessThan(-(def.d * 4) / 2 + 4);
     expect(STATION_GATES.exit[1]).toBeGreaterThan(-(def.d * 4) / 2);
+  });
+});
+
+// Batch B fix round 1: today's look and the realistic look show the same pose at the same frame. Today's look draws in
+// map (u, v, up); the bake model's (x, y up, z) is map (x = u, z = v) at view turn 0 (placeOnFootprint), and a three.js
+// rotation.y > 0 turns +x towards -z. The bake's pose statements are read from its module and replayed on three.js
+// groups, then compared with today's exported frame functions at sample slots.
+describe('new rides batch B: both looks agree on heading, lean and spin', () => {
+  const THREE_URL = new URL('vendor/three-0.160.0.module.min.js', dir).href;
+  const SLOTS = [2, 4, 6, 10, 14, 18, 22, 26, 30];
+
+  it('chair_swing_twist: the top\'s axis leans the same way and every chair is at the same heading', async () => {
+    const THREE = await import(/* @vite-ignore */ THREE_URL);
+    const src = readFileSync(new URL('items/chair_swing_twist.js', dir), 'utf8');
+    for (const line of ['head.rotation.y = p.heading;', 'lean.rotation.z = -p.tilt;', 'unhead.rotation.y = -p.heading;', 'spin.rotation.y = p.spin;', 'mark.position.set(Math.cos(a) * RIM, -0.3, Math.sin(a) * RIM);']) expect(src).toContain(line);
+    const { twistPose, TWIST } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    const head = new THREE.Group(); const lean = new THREE.Group(); const unhead = new THREE.Group(); const spin = new THREE.Group();
+    head.add(lean); lean.add(unhead); unhead.add(spin);
+    const marks = Array.from({ length: TWIST.chairs }, (_, i) => { const m = new THREE.Object3D(); const a = (i / TWIST.chairs) * Math.PI * 2; m.position.set(Math.cos(a) * 2.6, -0.3, Math.sin(a) * 2.6); spin.add(m); return m; });
+    for (const slot of SLOTS) {
+      const p = twistPose(slot);
+      head.rotation.y = p.heading; lean.rotation.z = -p.tilt; unhead.rotation.y = -p.heading; spin.rotation.y = p.spin;
+      head.updateMatrixWorld(true);
+      const f = today.twistFrame(slot / 32);
+      // the axis: the spin group's +y in the world, against today's n
+      const axis = new THREE.Vector3(0, 1, 0).transformDirection(spin.matrixWorld);
+      expect(axis.x, `slot ${slot} axis u`).toBeCloseTo(f.n[0], 6);
+      expect(axis.z, `slot ${slot} axis v`).toBeCloseTo(f.n[1], 6);
+      expect(axis.y, `slot ${slot} axis up`).toBeCloseTo(f.n[2], 6);
+      for (let i = 0; i < TWIST.chairs; i++) {
+        const w = marks[i].getWorldPosition(new THREE.Vector3());
+        const th = today.twistChairAngle(i, slot / 32);
+        // today's point on the top's plane at the bake's chain point: 2.6 m out, 0.3 m under the plane (along -n)
+        const d = [0, 1, 2].map((k) => (Math.cos(th) * f.e1[k as 0] + Math.sin(th) * f.e2[k as 0]) * 2.6 - 0.3 * f.n[k as 0]);
+        expect(w.x, `slot ${slot} chair ${i} u`).toBeCloseTo(d[0]!, 6);
+        expect(w.z, `slot ${slot} chair ${i} v`).toBeCloseTo(d[1]!, 6);
+        expect(w.y, `slot ${slot} chair ${i} up`).toBeCloseTo(d[2]!, 6);
+      }
+    }
+  });
+
+  it('spin_wheel_drop: the wheel rises on the same side and every seat is in the same place on it', async () => {
+    const THREE = await import(/* @vite-ignore */ THREE_URL);
+    const src = readFileSync(new URL('items/spin_wheel_drop.js', dir), 'utf8');
+    for (const line of ['turret.rotation.y = p.heading;', 'lean.rotation.z = p.tilt;', 'wheel.rotation.y = p.spin;', 's.position.set(Math.cos(a) * (R - 0.45), 0, Math.sin(a) * (R - 0.45));']) expect(src).toContain(line);
+    const { wheelPose, WHEEL } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    const turret = new THREE.Group(); const lean = new THREE.Group(); const wheel = new THREE.Group();
+    turret.add(lean); lean.add(wheel);
+    const seats = Array.from({ length: WHEEL.seats }, (_, i) => { const m = new THREE.Object3D(); const a = (i / WHEEL.seats) * Math.PI * 2; m.position.set(Math.cos(a), 0, Math.sin(a)); wheel.add(m); return m; });
+    for (const slot of SLOTS) {
+      const p = wheelPose(slot);
+      turret.rotation.y = p.heading; lean.rotation.z = p.tilt; wheel.rotation.y = p.spin;
+      turret.updateMatrixWorld(true);
+      const f = today.wheelFrame(slot / 32);
+      for (let i = 0; i < WHEEL.seats; i++) {
+        const w = seats[i].getWorldPosition(new THREE.Vector3());
+        const th = today.wheelSeatAngle(i, slot / 32);
+        const d = [0, 1, 2].map((k) => Math.cos(th) * f.e1[k as 0] + Math.sin(th) * f.e2[k as 0]);
+        expect(w.x, `slot ${slot} seat ${i} u`).toBeCloseTo(d[0]!, 6);
+        expect(w.z, `slot ${slot} seat ${i} v`).toBeCloseTo(d[1]!, 6);
+        expect(w.y, `slot ${slot} seat ${i} up`).toBeCloseTo(d[2]!, 6);
+      }
+    }
+  });
+
+  it('carousel_deluxe: both looks turn the same way (each picture is today\'s angle within the 60 degree repeat)', async () => {
+    const src = readFileSync(new URL('items/carousel_deluxe.js', dir), 'utf8');
+    expect(src).toContain('const th = step * DELUXE.step;');
+    expect(src).toContain('spin.rotation.y = th;');
+    const { deluxeStep, DELUXE } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    for (let slot = 0; slot < 32; slot += 2) {
+      // three.js rotation.y = th moves a horse at heading h (from +u towards +v) to h - th; today's moves it by its spin
+      const bake = -deluxeStep(slot) * DELUXE.step;
+      const now = today.deluxeSpin(slot / 32);
+      const d = (((bake - now) % DELUXE.period) + DELUXE.period) % DELUXE.period;
+      expect(Math.min(d, DELUXE.period - d), `slot ${slot}`).toBeLessThan(1e-9);
+    }
+  });
+
+  it('the seats both looks draw match the catalogue capacity, and the wheel\'s rider looks repeat with its spin', async () => {
+    const { TWIST, WHEEL } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    expect(TWIST.chairs * 2).toBe(getFlatRideDef('chair_swing_twist')!.capacity);
+    expect(WHEEL.seats).toBe(getFlatRideDef('spin_wheel_drop')!.capacity);
+    expect(16).toBe(getFlatRideDef('loop_swing')!.capacity);
+    expect(today.DELUXE_SEATS).toBe(getFlatRideDef('carousel_deluxe')!.capacity);
+    // 2.5 spins a turn move each seat on by 8 seats: with 8 rider looks, seat i and seat i + 8 look alike, so a turn
+    // ends on the picture it began with
+    expect(((WHEEL.spin * WHEEL.seats) % WHEEL.seats + WHEEL.seats) % 8).toBe(0);
+    expect(readFileSync(new URL('items/spin_wheel_drop.js', dir), 'utf8')).toContain('rider(K, 1900 + (i % 8),');
+    expect(readFileSync(new URL('../../src/render/sprites/content/batchBRides.ts', dir), 'utf8')).toContain('rider(ctx, p[0], p[1] - 7, i % 8)');
   });
 });

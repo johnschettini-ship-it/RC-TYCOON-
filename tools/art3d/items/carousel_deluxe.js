@@ -1,5 +1,5 @@
 // Carousel Deluxe (chill flat ride, 4 x 4 tiles = 16 x 16 m, 14 m): a two-level carousel. On the lower deck an outer
-// ring of 6 horses and 6 gilded two-seat carriages in turn and an inner ring of 6 horses; a mirrored drum (with the
+// ring of 6 horses and 6 gilded two-seat carriages (36 riders in all, the catalogue's capacity) in turn and an inner ring of 6 horses; a mirrored drum (with the
 // stair inside) carries the upper deck at 4.6 m, gilt-edged and railed, with 12 horses in two coats; brass poles
 // everywhere, bulb rings under both eaves, a royal-blue and cream striped canopy with a scalloped valance, a gilded
 // cupola and a finial. Every ring, stripe, rail and bulb count repeats every 60 degrees and the horses rise and fall
