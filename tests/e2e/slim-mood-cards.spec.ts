@@ -195,7 +195,8 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
         return { name: name.textContent ?? '', lines, picture: (c.querySelector('.card-preview') as HTMLElement).getBoundingClientRect().height };
       }),
     );
-    const twoLines = ['Observation Tower', 'Spinning Mouse', 'Wooden Coaster', 'Haunted Manor'];
+    // New rides batch A (2026-11-17): the Mini Pirate Ship's name takes two lines too.
+    const twoLines = ['Observation Tower', 'Spinning Mouse', 'Wooden Coaster', 'Haunted Manor', 'Mini Pirate Ship'];
     for (const p of parts) {
       expect(p.lines, `${p.name} lines`).toBe(twoLines.includes(p.name.replace(/,$/, '')) ? 2 : 1);
       expect(p.picture, `${p.name} picture`).toBeGreaterThanOrEqual(45.6 - 0.5);
