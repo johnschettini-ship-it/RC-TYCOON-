@@ -84,7 +84,7 @@ export const ITEM_LIST = [
 // New rides batch B (docs/superpowers/specs/2026-11-17-new-rides-design.md): one bake module each, their motion and
 // frame keys in items/ridesB.js; each has its own card picture.
 const RIDES_B_DEPS = [...RIDE_DEPS, 'items/ridesB.js'];
-for (const id of ['chair_swing_twist', 'spin_wheel_drop']) {
+for (const id of ['chair_swing_twist', 'spin_wheel_drop', 'loop_swing']) {
   ITEM_LIST.push({ id, file: `items/${id}.js`, catalog: ['ride', id], deps: RIDES_B_DEPS });
   CARD_ITEMS.push({ id, kind: 'ride' });
 }

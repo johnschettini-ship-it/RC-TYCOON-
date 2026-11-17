@@ -8,8 +8,8 @@
  */
 import { shade } from '../../palette';
 import type { RideArtState } from '../rides';
-import { circlePt, cylinder, disc, line3, sx, sy, type Ctx } from '../shapes';
-import { TAU, dot, drawSorted, line2, platform, rider, seatsFilled, type Item } from './kit';
+import { box, circlePt, cylinder, disc, line3, nearness, poly3, sx, sy, type Ctx } from '../shapes';
+import { TAU, axes, dot, dot3, drawSorted, line2, platform, rider, seatsFilled, type Item } from './kit';
 
 type V3 = [number, number, number];
 
@@ -227,4 +227,95 @@ export function drawSpinWheelDrop(ctx: Ctx, ex: number, ey: number, st: RideArtS
   ring(true, ringCol, 5, WHEEL_R);
   ring(true, '#fff3b0', 1.2, WHEEL_R - 4);
   drawSorted(seats.filter((s) => s.n >= 0));
+}
+
+// ------------------------------------------------------------------ Loop Swing (3×4, thrill, tall)
+
+/**
+ * The arm's angle (degrees from hanging down, + towards the front of the long axis) at each of the 16 time steps of a
+ * turn: three swings, each higher than the last (the -90 of step 7 is the 270 of step 15, one picture in the bake),
+ * then all the way over the top.
+ */
+export const LOOP_STEPS: readonly number[] = [0, 30, 0, -50, 0, 70, 0, -90, 0, 115, 0, -140, 0, 90, 180, 270];
+/** Axle height and arm length (world px). */
+const LOOP_AXLE = 66;
+const LOOP_ARM = 48;
+
+/** Arm angle (radians) at turn fraction `a`: the step table, eased between steps (each step is 1/16 of a turn). */
+export function loopTheta(a: number): number {
+  const t = (a - Math.floor(a)) * 16;
+  const k = Math.floor(t);
+  const f = t - k;
+  const e = f * f * (3 - 2 * f);
+  const a0 = LOOP_STEPS[k] as number;
+  const a1 = k === 15 ? 360 : (LOOP_STEPS[k + 1] as number);
+  return ((a0 + (a1 - a0) * e) * Math.PI) / 180;
+}
+
+export function drawLoopSwing(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
+  const ax = axes(ex, ey, st.rotation);
+  const cu = ex / 2;
+  const cv = ey / 2;
+  /** Map point `l` tiles along the long axis and `c` across it. */
+  const at = (l: number, c: number): { u: number; v: number } => ({ u: cu + ax.au * l + ax.cu * c, v: cv + ax.av * l + ax.cv * c });
+  platform(ctx, ex, ey, '#efe1cf', '#7a2f22');
+  const d0 = at(-0.7, -0.75);
+  const d1 = at(0.7, 0.75);
+  box(ctx, Math.min(d0.u, d1.u), Math.min(d0.v, d1.v), Math.max(d0.u, d1.u), Math.max(d0.v, d1.v), 3, 9, '#cdbfae', '#9c8a76', '#86745f');
+  const th = loopTheta(st.angle);
+  const g = (l: number, h: number, c: number): { u: number; v: number; h: number } => {
+    // a point of the arm frame: `l` tiles along the arm from the axle (towards the gondola), `h` px off it
+    const r = l * 32;
+    const x = r * Math.sin(th) + h * Math.cos(th);
+    const z = -r * Math.cos(th) + h * Math.sin(th);
+    const p = at(x / 32, c);
+    return { u: p.u, v: p.v, h: LOOP_AXLE + z };
+  };
+  const frame = (c: number, colour: string): void => {
+    const top = at(0, c);
+    for (const l of [-1.35, 1.35]) {
+      const b = at(l, c * 1.15);
+      line3(ctx, b.u, b.v, 9, top.u, top.v, LOOP_AXLE, colour, 5);
+    }
+  };
+  // Which side of the gondola faces the viewer decides the draw order of the far frame, the arm and the near frame.
+  const near = nearness(at(0, 1).u, at(0, 1).v) > nearness(at(0, -1).u, at(0, -1).v) ? 1 : -1;
+  frame(-near * 1.05, '#8a3a2a');
+  // The arm: the long beam to the gondola and the counterweight on the short end.
+  const end = g(LOOP_ARM / 32, 0, 0);
+  const cw = g(-0.75, 0, 0);
+  line3(ctx, cw.u, cw.v, cw.h, end.u, end.v, end.h, '#3a3f45', 5);
+  dot3(ctx, cw.u, cw.v, cw.h, 7, '#f5c518');
+  // The gondola is the colour part: a shell across the arm's end, riders in two rows back to back.
+  const shell = st.colour ?? '#e2582c';
+  const c0 = g(LOOP_ARM / 32, -9, -0.7);
+  const c1 = g(LOOP_ARM / 32, -9, 0.7);
+  const c2 = g(LOOP_ARM / 32, 9, 0.7);
+  const c3 = g(LOOP_ARM / 32, 9, -0.7);
+  poly3(ctx, [c0.u, c0.v, c0.h, c1.u, c1.v, c1.h, c2.u, c2.v, c2.h, c3.u, c3.v, c3.h], shade(shell, 0.8));
+  const filled = seatsFilled(16, st.occupancy);
+  for (let k = 0; k < 8; k++) {
+    for (const side of [-1, 1]) {
+      const c = -0.6 + (1.2 * k) / 7;
+      const p = g(LOOP_ARM / 32 - 0.08, side * 6, c);
+      const x = sx(p.u, p.v);
+      const y = sy(p.u, p.v, p.h);
+      ctx.fillStyle = '#2a2624';
+      ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
+      const i = k * 2 + (side > 0 ? 1 : 0);
+      if (i < filled) rider(ctx, x, y - 3, i);
+    }
+  }
+  const b0 = g(LOOP_ARM / 32 + 0.12, -9, -0.72);
+  const b1 = g(LOOP_ARM / 32 + 0.12, -9, 0.72);
+  const b2 = g(LOOP_ARM / 32 + 0.12, 9, 0.72);
+  const b3 = g(LOOP_ARM / 32 + 0.12, 9, -0.72);
+  line3(ctx, b0.u, b0.v, b0.h, b1.u, b1.v, b1.h, shell, 4);
+  line3(ctx, b2.u, b2.v, b2.h, b3.u, b3.v, b3.h, shell, 4);
+  const axle0 = at(0, -1.05);
+  const axle1 = at(0, 1.05);
+  line3(ctx, axle0.u, axle0.v, LOOP_AXLE, axle1.u, axle1.v, LOOP_AXLE, '#5b4636', 4);
+  frame(near * 1.05, '#c4552c');
+  const hub = at(0, near * 1.05);
+  dot3(ctx, hub.u, hub.v, LOOP_AXLE, 4, '#f5c518');
 }

@@ -466,6 +466,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     const rb = await load('items/ridesB.js');
     out.chair_swing_twist = rb.twistKeys();
     out.spin_wheel_drop = rb.wheelKeys();
+    out.loop_swing = rb.loopKeys();
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }
@@ -483,6 +484,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
     // New rides batch B (2026-11-17).
     chair_swing_twist: { step: 2, d4: 17, d2: 17 }, spin_wheel_drop: { step: 2, d4: 17, d2: 17 },
+    loop_swing: { step: 2, d4: 10, d2: 10 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -720,5 +722,34 @@ describe('new rides batch B frames', () => {
     expect(wheelShare(0.5)).toBe(1);
     expect(wheelShare(31 / 32)).toBe(0);
     expect((WHEEL.spin * 360) % (360 / (WHEEL.seats / 2))).toBe(0);
+  });
+
+  it('loop_swing: 16 time steps per turn, one picture per arm angle (9 full, one at rest); today\'s angles; the gates on the sim\'s gate tiles', async () => {
+    const { loopKeys, loopAngle, LOOP_STEPS, LOOP_GATES } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    expect(LOOP_STEPS).toEqual(today.LOOP_STEPS);
+    const m: Keys = loopKeys();
+    expect(m.size).toBe(9 + 1);
+    for (let a = 0; a < 32; a++) {
+      expect(pictureOf(m, keyAt('loop_swing', a, false)), `slot ${a}`).toBe('rest');
+      const id = pictureOf(m, keyAt('loop_swing', a, true))!;
+      // the picture's arm angle is today's at the even slot (mod a whole turn)
+      const deg = (today.loopTheta((a & ~1) / 32) * 180) / Math.PI;
+      expect((((Number(id.slice(1)) - deg) % 360) + 360) % 360, `slot ${a}`).toBeCloseTo(0, 6);
+    }
+    expect(loopAngle(0)).toBe(0);
+    expect(loopAngle(7)).toBe(loopAngle(15)); // -90 is 270
+    expect(Math.max(...LOOP_STEPS)).toBeGreaterThanOrEqual(180); // over the top
+    // swings grow: the peaks of the swings before the loop rise
+    const peaks = LOOP_STEPS.slice(0, 12).filter((_: number, i: number) => i % 2 === 1).map(Math.abs);
+    expect(peaks).toEqual([...peaks].sort((x, y) => x - y));
+    const def = getFlatRideDef('loop_swing')!;
+    const colX = (gateIndex(def.w) + 0.5) * 4 - (def.w * 4) / 2;
+    expect(LOOP_GATES.entrance[0]).toBe(colX);
+    expect(LOOP_GATES.exit[0]).toBe(colX);
+    expect(LOOP_GATES.entrance[1]).toBeGreaterThan((def.d * 4) / 2 - 4);
+    expect(LOOP_GATES.entrance[1]).toBeLessThan((def.d * 4) / 2);
+    expect(LOOP_GATES.exit[1]).toBeLessThan(-(def.d * 4) / 2 + 4);
+    expect(LOOP_GATES.exit[1]).toBeGreaterThan(-(def.d * 4) / 2);
   });
 });

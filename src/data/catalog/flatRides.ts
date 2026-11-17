@@ -39,6 +39,7 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   // New rides batch B (2026-11-17 new rides design): flat thrill and chill rides, unlocked by research.
   ride('chair_swing_twist', 'Chair Swing Twist', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 5.6, 5.0, 3.0, 24, 30, 3800, 100, 3),
   ride('spin_wheel_drop', 'Spinning Wheel Drop', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 6.8, 8.0, 6.8, 20, 30, 5600, 150, 4),
+  ride('loop_swing', 'Loop Swing', 6, 'thrill', 'thrill', F(false, false, true), 3, 4, 7.5, 9.0, 7.0, 16, 30, 6500, 170, 5),
 ]);
 
 /**

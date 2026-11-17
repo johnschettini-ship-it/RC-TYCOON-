@@ -41,4 +41,5 @@ export const RIDES_EXTRA = { defId: 'carousel', cell: [1, 2] as const, colour: 4
 export const RIDES_CELLS_B: Readonly<Record<string, readonly [number, number]>> = {
   chair_swing_twist: [-4, -3],
   spin_wheel_drop: [-3, -3],
+  loop_swing: [-4, -2],
 };

@@ -6,7 +6,7 @@
 // ending at rest (slot 0) as today's look (src/render/sprites/content/batchBRides.ts) does.
 // An empty flat ride never runs in the game (src/sim/rides/flat/update.ts starts a run only with riders aboard), so the
 // empty frames show one rest picture and the size budget goes to the running, full ones (as items/towerMotion.js).
-import { cycleD2, cycleKeys } from './flatRides.js';
+import { cycleD2, cycleKeys, timeD2, timeKeys } from './flatRides.js';
 
 const TAU = Math.PI * 2;
 
@@ -80,3 +80,33 @@ export function wheelKeys() {
   const pick = fullOrRest((a) => `a${a}`);
   return cycleD2('spin_wheel_drop', cycleKeys('spin_wheel_drop', opts, pick), opts, pick, 2);
 }
+
+// ------------------------------------------------------------------ Loop Swing
+
+/**
+ * Loop Swing (today's drawLoopSwing, LOOP_STEPS): the arm's angle in degrees at each of the 16 time steps of a turn
+ * (the even angle slots): three swings, each higher than the last, then all the way over the top.
+ */
+export const LOOP_STEPS = [0, 30, 0, -50, 0, 70, 0, -90, 0, 115, 0, -140, 0, 90, 180, 270];
+
+/** The arm angle (degrees, folded into -180..180) of a time step: a picture shows one angle. */
+export const loopAngle = (step) => {
+  const d = ((LOOP_STEPS[step] % 360) + 540) % 360 - 180;
+  return d === -180 ? 180 : d;
+};
+
+/**
+ * Loop Swing frame keys: 16 time steps per turn (timeKeys); steps at the same arm angle share a picture: the arm hangs
+ * down at 7 steps, and -90 (a swing's peak) is 270 (on the way over): 9 pictures full, one at rest. Density 2 keeps
+ * every full picture (step 1): the motion is a swing, and every other step would show only the arm hanging down.
+ */
+export function loopKeys() {
+  const pick = (t, full) => (full ? `d${loopAngle(t)}` : 'rest');
+  return timeD2('loop_swing', timeKeys('loop_swing', {}, pick), pick, 1);
+}
+
+/**
+ * Loop Swing entrance and exit in the model frame ([x, z] metres, footprint centred, front at +z): the sim's gate
+ * column floor((w - 1) / 2) = 1 for w = 3 is x = 0, on the front and back rows (d = 4: z in (4, 8) and (-8, -4)).
+ */
+export const LOOP_GATES = { entrance: [0, 7.3], exit: [0, -7.3] };

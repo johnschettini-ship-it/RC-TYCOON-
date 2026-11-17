@@ -10,6 +10,8 @@ import { frameKey } from '../../../src/render/real/indexFormat';
  * must turn that plane (today's drawFlipArm turns it with st.rotation).
  */
 export const NON_ROUND = ['bumper_cars', 'pendulum_ship', 'magic_carpet', 'big_wheel', 'haunted_manor', 'mirror_maze', 'thunder_disc', 'drop_tower', 'observation_tower', 'spiral_slide', 'merry_mill', 'flip_arm'];
+// New rides batch B (2026-11-17): the loop swing's arm turns in one plane between its towers.
+NON_ROUND.push('loop_swing');
 
 /**
  * Frame keys for a rotating ride whose pictures repeat every `period` angle slots (even, 2..32, dividing 32).

@@ -63,6 +63,7 @@ export const RESEARCH_ORDER: readonly ResearchItem[] = Object.freeze([
   { id: 'fireworks_launcher', category: 'scenery', cost: 350 },
   { id: 'monorail', category: 'gentle', cost: 450 },
   { id: 'inverted_coaster', category: 'coasters', cost: 650 },
+  { id: 'loop_swing', category: 'thrill', cost: 650 }, // new rides batch B: late
 ]);
 
 export function getResearchItem(id: string): ResearchItem | undefined {
