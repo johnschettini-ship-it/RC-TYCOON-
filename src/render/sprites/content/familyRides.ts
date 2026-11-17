@@ -201,3 +201,76 @@ export function drawMiniPirateShip(ctx: Ctx, ex: number, ey: number, st: RideArt
   const hub = at(0, 0.8);
   dot3(ctx, hub.u, hub.v, MINI_PIVOT, 3, '#ffd166');
 }
+
+// ------------------------------------------------------------------ Balloon Wheel (2×2, family)
+
+const BALLOON_COLOURS = ['#e8503a', '#f5d03b', '#3d9be0', '#2fb39a'];
+const WHEEL_HUB = 50;
+const WHEEL_R = 0.68;
+
+export function drawBalloonWheel(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
+  const cu = ex / 2;
+  const cv = ey / 2;
+  const alongX = st.rotation % 2 === 0;
+  const au = alongX ? 1 : 0;
+  const av = alongX ? 0 : 1;
+  const pu = av;
+  const pv = au;
+  platform(ctx, ex, ey, '#e3f1d6', '#3f8f3a');
+  box(ctx, cu - 0.75 * au - 0.3 * pu, cv - 0.75 * av - 0.3 * pv, cu + 0.75 * au + 0.3 * pu, cv + 0.75 * av + 0.3 * pv, 3, 6, '#cfe6c2', '#7fae6c', '#6a9659');
+  const leg = (sd: number, colour: string): void => {
+    const ou = pu * 0.3 * sd;
+    const ov = pv * 0.3 * sd;
+    const hu = pu * 0.1 * sd;
+    const hv = pv * 0.1 * sd;
+    line3(ctx, cu - au * 0.7 + ou, cv - av * 0.7 + ov, 3, cu + hu, cv + hv, WHEEL_HUB, colour, 3.5);
+    line3(ctx, cu + au * 0.7 + ou, cv + av * 0.7 + ov, 3, cu + hu, cv + hv, WHEEL_HUB, colour, 3.5);
+  };
+  leg(-1, '#2a7c3c');
+  const rimPt = (phi: number, r = WHEEL_R): { u: number; v: number; h: number } => {
+    const c = Math.cos(phi);
+    return { u: cu + au * r * c, v: cv + av * r * c, h: WHEEL_HUB + r * 32 * Math.sin(phi) };
+  };
+  const hubX = sx(cu, cv);
+  const hubY = sy(cu, cv, WHEEL_HUB);
+  for (let k = 0; k < BALLOON_CARS; k++) {
+    const p = rimPt(TAU * (k / BALLOON_CARS + st.angle));
+    line3(ctx, cu, cv, WHEEL_HUB, p.u, p.v, p.h, '#f4f4f4', 1.2);
+  }
+  ctx.beginPath();
+  for (let k = 0; k <= 40; k++) {
+    const p = rimPt((k / 40) * TAU);
+    const x = sx(p.u, p.v);
+    const y = sy(p.u, p.v, p.h);
+    if (k === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.strokeStyle = '#f5d03b';
+  ctx.lineWidth = 2.6;
+  ctx.stroke();
+  // Each car hangs level from its rim pin: a balloon over a wicker basket on four cords.
+  const filled = seatsFilled(BALLOON_CARS * 2, st.occupancy);
+  for (let i = 0; i < BALLOON_CARS; i++) {
+    const p = rimPt(TAU * (i / BALLOON_CARS + st.angle));
+    const c = st.colour ?? (BALLOON_COLOURS[i % BALLOON_COLOURS.length] as string);
+    const x = sx(p.u, p.v);
+    const y = sy(p.u, p.v, p.h);
+    ctx.fillStyle = '#5b4636';
+    ctx.fillRect(x - 0.6, y, 1.2, 2);
+    oval(ctx, x, y + 8, 6.5, 7, c);
+    oval(ctx, x - 2, y + 6, 2, 3, shade(c, 1.25));
+    poly2(ctx, [x - 3.5, y + 13.5, x + 3.5, y + 13.5, x + 2, y + 16, x - 2, y + 16], shade(c, 0.7));
+    line3(ctx, p.u, p.v, p.h - 16, p.u, p.v, p.h - 19, '#5b4636', 0.8);
+    if (i * 2 < filled) rider(ctx, x - 2, y + 19, i * 2);
+    if (i * 2 + 1 < filled) rider(ctx, x + 2, y + 19, i * 2 + 1);
+    ctx.fillStyle = '#b07a3e';
+    ctx.beginPath();
+    rrect(ctx, x - 4, y + 19, 8, 5, 1, 1.5);
+    ctx.fill();
+    ctx.fillStyle = '#8a5a2a';
+    ctx.fillRect(x - 4, y + 19, 8, 1.2);
+  }
+  dot(ctx, hubX, hubY, 3.8, '#f4f4f4');
+  dot(ctx, hubX, hubY, 1.8, '#e8503a');
+  leg(1, '#3aa552');
+}

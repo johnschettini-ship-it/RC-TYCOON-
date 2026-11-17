@@ -67,7 +67,7 @@ export function frogKeys() {
  * and the tower have their gates on one column, the wheel stands in one plane. Kept here, not added to flatRides.js
  * NON_ROUND: every flat ride's cache key hashes flatRides.js, and an edit there re-bakes all 18 batch 1 rides.
  */
-export const FAMILY_NON_ROUND = ['dodgem_boats', 'mini_pirate_ship'];
+export const FAMILY_NON_ROUND = ['dodgem_boats', 'mini_pirate_ship', 'balloon_wheel'];
 
 /**
  * Entrances and exits in the model frame ([x, z] metres, footprint centred, front at +z): the sim's gate column

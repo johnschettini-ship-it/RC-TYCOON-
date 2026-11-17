@@ -44,6 +44,7 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   // New rides batch A (2026-11-17), by the same rule.
   dodgem_boats: 6.5, // the lighthouse cap
   mini_pirate_ship: 7, // realistic: 6.25 m axle and its bearings (today's px count the 3x4 floor depth)
+  balloon_wheel: 9, // the top balloon's pin
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,

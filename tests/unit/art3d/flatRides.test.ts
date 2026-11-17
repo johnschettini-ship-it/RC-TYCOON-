@@ -484,7 +484,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
     // New rides batch A.
-    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 },
+    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 }, balloon_wheel: { step: 2, d4: 5, d2: 5 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -678,7 +678,7 @@ describe('ride colour part', () => {
 // game frame shows the realistic picture of today's pose at that frame, that slot 32 wraps to slot 0, and that a
 // whole run ends on its start picture.
 describe('new rides batch A', () => {
-  const IDS = ['dodgem_boats', 'mini_pirate_ship'];
+  const IDS = ['dodgem_boats', 'mini_pirate_ship', 'balloon_wheel'];
   async function maps(): Promise<Record<string, Keys>> {
     const fam = await load('items/familyKeys.js');
     return { dodgem_boats: fam.dodgemKeys(), mini_pirate_ship: fam.miniShipKeys(), balloon_wheel: fam.balloonKeys(), frog_hopper: fam.frogKeys() };
@@ -722,6 +722,17 @@ describe('new rides batch A', () => {
     }
     const src = readFileSync(new URL('items/mini_pirate_ship.js', dir), 'utf8');
     expect(src).toContain('swing.rotation.x = -theta;');
+  });
+
+  it('balloon_wheel: the wheel repeats every quarter turn (4 balloon colours, riders of car i from car i % 4)', async () => {
+    const fam = await load('items/familyKeys.js');
+    const { BALLOON_CARS } = await import('../../../src/render/sprites/content/familyMotion');
+    expect(BALLOON_CARS % 4).toBe(0);
+    expect(fam.BALLOON_PERIOD).toBe(32 / 4);
+    const m = (await maps()).balloon_wheel!;
+    periodOk(m, 'balloon_wheel', fam.BALLOON_PERIOD, true);
+    const src = readFileSync(new URL('items/balloon_wheel.js', dir), 'utf8');
+    expect(src).toContain('BALLOON_COLOURS[i % 4], 720 + (i % 4) * 2');
   });
 
   it('each model\'s entrance and exit sit on the sim\'s gate column (gateIndex), front row and back row', async () => {
