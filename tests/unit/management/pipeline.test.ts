@@ -55,7 +55,8 @@ describe('management in the tick pipeline (Phase 3 §4.17)', () => {
   it('research, campaigns, park value, and weather all advance', () => {
     const { w } = scriptedGame(2024);
     const m = w.state.management;
-    expect(m.research.unlocked).toEqual(RESEARCH_ORDER.slice(0, 6).map((i) => i.id));
+    // Starting roster (owner, 2026-11-17): the first 6 items cost 1,280 points now, past this run's points (6 before).
+    expect(m.research.unlocked).toEqual(RESEARCH_ORDER.slice(0, 5).map((i) => i.id));
     expect(m.campaigns).toEqual([]);
     expect(m.messages.some((msg) => msg.textId === 'msg.marketing.ended')).toBe(true);
     expect(m.parkValue).toBeGreaterThan(0);

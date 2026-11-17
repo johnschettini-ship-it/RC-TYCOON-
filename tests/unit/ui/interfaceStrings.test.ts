@@ -4,7 +4,7 @@ import { text } from '../../../src/data/strings/en';
 
 describe('interface strings (Phase 7 §9)', () => {
   it('every key starts with ui. and no text ends with a period', () => {
-    expect(Object.keys(interfaceStrings)).toHaveLength(39);
+    expect(Object.keys(interfaceStrings)).toHaveLength(42); // 3 locked-card strings (owner, 2026-11-17)
     for (const [k, v] of Object.entries(interfaceStrings)) {
       expect(k.startsWith('ui.'), k).toBe(true);
       expect(/\.$/.test(v), `${k}: "${v}"`).toBe(false);

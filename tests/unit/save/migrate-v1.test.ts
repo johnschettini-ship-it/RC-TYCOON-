@@ -100,6 +100,9 @@ describe('migration 1 → 2 on the Build 1 fixtures', () => {
           delete g.thoughtCooldowns.frostCute;
         }
         expect(JSON.stringify(after)).not.toMatch(/sparkAwesome|frostCute|"costume":"(spark|frost)"/);
+        // The starting roster (owner, 2026-11-17, `migrations/startRoster.ts`): research on a ride that now starts
+        // unlocked moves on to the next item, with its points.
+        if (before.management.research.current === 'spiral_slide') before.management.research.current = 'ice_cream_cart';
         // Drop exactly the fields the migration adds; the rest must be equal, typed arrays included.
         const stripped = { ...after, schemaVersion: 1 };
         for (const k of NEW_TOP) delete stripped[k];

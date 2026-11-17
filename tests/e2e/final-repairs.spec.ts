@@ -319,16 +319,16 @@ test.describe('in the park', () => {
     test.skip(isPhone(info), 'keyboard check');
     const shows = page.getByTestId('tool-shows');
     await tabTo(page, shows);
-    await page.evaluate(() => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push('drop_tower'));
-    await expect(page.getByTestId('card-drop_tower')).toHaveCount(1, { timeout: 4000 });
+    await page.evaluate(() => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push('flip_arm'));
+    await expect(page.getByTestId('card-flip_arm')).toHaveCount(1, { timeout: 4000 });
     await expect(shows).toBeFocused();
     // Put back of a held card keeps the focus too.
     await page.getByTestId('card-carousel').click();
     const back = page.locator('.card-wrap:has([data-testid="card-carousel"]) [data-testid="card-put-back"]');
     await expect(back).toBeVisible();
     await tabTo(page, back);
-    await page.evaluate(() => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push('pendulum_ship'));
-    await expect(page.getByTestId('card-pendulum_ship')).toHaveCount(1, { timeout: 4000 });
+    await page.evaluate(() => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push('thunder_disc'));
+    await expect(page.getByTestId('card-thunder_disc')).toHaveCount(1, { timeout: 4000 });
     await expect(page.locator('.card-wrap:has([data-testid="card-carousel"]) [data-testid="card-put-back"]')).toBeFocused();
   });
 

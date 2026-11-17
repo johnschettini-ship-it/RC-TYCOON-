@@ -6,7 +6,7 @@ import { defaultToolState } from '../../../src/render/types';
 import { trackToolOf } from '../../../src/render/track/toolState';
 import type { PanelKind, UiContext } from '../../../src/ui/context';
 import {
-  DECK_ORDER, OLD_TOOL_IDS, RIDE_ZONES, STALL_ZONES, TOOL_PLACE, handSignature, heldCardId, orderToolCards, rideCards, sortCards,
+  DECK_ORDER, OLD_TOOL_IDS, RIDE_ZONES, STALL_ZONES, TOOL_PLACE, handSignature, heldCardId, lockedCards, orderToolCards, rideCards, sortCards,
   stallCards, zonesPresent, type CardSpec, type OldToolId,
 } from '../../../src/ui/decks/model';
 import { holdCard } from '../../../src/ui/decks/toolCards';
@@ -53,7 +53,9 @@ describe('deck model (Phase 7 §4.4, §4.5)', () => {
     const stalls = stallCards(w);
     expect(stalls).toEqual(sortCards(stalls, STALL_ZONES));
     expect(stalls.every((c) => c.kind === 'stall')).toBe(true);
-    expect(handSignature(w)).toBe([...rides, ...stalls].map((c) => c.id).join(','));
+    // Then the locked preview cards (owner, 2026-11-17), the current research item marked.
+    const locked = [...lockedCards(w, 'rides'), ...lockedCards(w, 'stalls')].map((c) => (c.current ? `${c.id}*` : c.id));
+    expect(handSignature(w)).toBe(`${[...rides, ...stalls].map((c) => c.id).join(',')}|${locked.join(',')}`);
   });
   it('the held card comes from the tool state', () => {
     const t = defaultToolState();

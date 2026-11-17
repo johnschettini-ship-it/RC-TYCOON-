@@ -4,7 +4,7 @@ import { isUnlocked, researchStatus } from '../../../src/sim/research/api';
 import { executeCommand } from '../../../src/sim/commands';
 import { currentLedger } from '../../../src/sim/economy/ledger';
 import { createManagementSlice, type ResearchLevel } from '../../../src/sim/management/types';
-import { RESEARCH_ORDER } from '../../../src/data/research';
+import { FORMER_RESEARCH_IDS, RESEARCH_ORDER } from '../../../src/data/research';
 import { RESEARCH_BUDGET_MONTHLY, RESEARCH_POINTS_PER_HOUR } from '../../../src/data/tuning/management';
 import { MSG } from '../../../src/data/strings/management';
 import { FLAT_RIDES, PATH_ITEMS, STALLS, TRACK_RIDES } from '../../../src/data/catalog';
@@ -25,25 +25,32 @@ function researchLine(w: World, monthIndex: number): number {
 }
 
 describe('research order (Phase 3 §4.6, catalog §9)', () => {
-  it('lists all 21 Build 1 items with the spec costs (6,460 points)', () => {
+  it('lists the 12 Build 1 items with the spec costs (3,510 points): the 21 of the spec less the 9 start rides', () => {
     // Build 2 (W3-D) appends the Phase 4 items after these (tests/unit/scenery/research.test.ts).
-    const build1 = RESEARCH_ORDER.slice(0, 21);
-    expect(build1).toHaveLength(21);
-    expect(build1.reduce((a, r) => a + r.cost, 0)).toBe(6460);
-    expect(RESEARCH_ORDER.slice(0, 7).map((r) => [r.id, r.cost])).toEqual([
-      ['spiral_slide', 150],
+    const build1 = RESEARCH_ORDER.slice(0, 12);
+    expect(build1).toHaveLength(12);
+    // Spiral Slide 150, Rocket Rounds 200, Pendulum Ship 250, Bumper Cars 250, Mirror Maze 250, Spinning Mouse 450,
+    // Observation Tower 350, Drop Tower 450, Wooden Coaster 600 start unlocked now.
+    expect(build1.reduce((a, r) => a + r.cost, 0)).toBe(6460 - (150 + 200 + 250 + 250 + 250 + 450 + 350 + 450 + 600));
+    expect(build1.map((r) => [r.id, r.cost])).toEqual([
       ['ice_cream_cart', 150],
       ['umbrella_stand', 180],
-      ['rocket_rounds', 200],
-      ['pendulum_ship', 250],
       ['first_aid', 200],
-      ['bumper_cars', 250],
+      ['cocoa_hut', 180],
+      ['pizza_slice', 220],
+      ['thunder_disc', 350],
+      ['balloon_stand', 180],
+      ['go_karts', 400],
+      ['ghost_train', 400],
+      ['cash_machine', 250],
+      ['haunted_manor', 450],
+      ['flip_arm', 550],
     ]);
   });
 
   it('covers exactly the Phase 3 research items of the catalog, each in its catalog category', () => {
     const catalog = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS].filter((d) => d.phase === 3 && d.unlock !== 'start');
-    const build1 = RESEARCH_ORDER.slice(0, 21);
+    const build1 = RESEARCH_ORDER.slice(0, 12);
     expect(new Set(build1.map((r) => r.id))).toEqual(new Set(catalog.map((d) => d.id)));
     for (const item of build1) expect(catalog.find((d) => d.id === item.id)?.unlock).toBe(item.category);
   });
@@ -51,8 +58,44 @@ describe('research order (Phase 3 §4.6, catalog §9)', () => {
   it('a new game starts at medium with the first item in progress', () => {
     const m = createManagementSlice();
     expect(m.research.level).toBe('medium');
-    expect(m.research.current).toBe('spiral_slide');
+    expect(m.research.current).toBe('ice_cream_cart');
     expect(m.research.progress).toBe(0);
+  });
+});
+
+describe('starting roster (owner, 2026-11-17)', () => {
+  it('the research order no longer holds the 11 rides that start unlocked; their catalogue unlock is start', () => {
+    expect([...FORMER_RESEARCH_IDS].sort()).toEqual(
+      ['spiral_slide', 'rocket_rounds', 'pendulum_ship', 'bumper_cars', 'kiddie_cars', 'mirror_maze', 'observation_tower', 'drop_tower', 'wooden_coaster', 'spinning_mouse', 'log_flume'].sort(),
+    );
+    for (const id of FORMER_RESEARCH_IDS) {
+      expect(RESEARCH_ORDER.some((r) => r.id === id), id).toBe(false);
+      expect([...FLAT_RIDES, ...TRACK_RIDES].find((d) => d.id === id)?.unlock, id).toBe('start');
+    }
+  });
+
+  it('a new free play park offers 18 rides at the start (12 flat, 6 track); 12 rides wait for research', () => {
+    const w = makeTestWorld();
+    const flat = FLAT_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
+    const track = TRACK_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
+    expect(flat.sort()).toEqual(
+      ['carousel', 'big_wheel', 'swing_tower', 'teacup_twirl', 'spiral_slide', 'rocket_rounds', 'pendulum_ship', 'bumper_cars', 'kiddie_cars', 'mirror_maze', 'observation_tower', 'drop_tower'].sort(),
+    );
+    expect(track.sort()).toEqual(['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume'].sort());
+    const researched = RESEARCH_ORDER.filter((r) => FLAT_RIDES.some((d) => d.id === r.id) || TRACK_RIDES.some((d) => d.id === r.id)).map((r) => r.id);
+    // The research rides keep their relative order.
+    expect(researched).toEqual(['thunder_disc', 'go_karts', 'ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft', 'magic_carpet', 'merry_mill', 'bobsled_run', 'gyro_globe', 'monorail', 'inverted_coaster']);
+    for (const id of researched) expect(isUnlocked(w, id), id).toBe(false);
+  });
+
+  it('research never picks or announces a start ride', () => {
+    const w = makeTestWorld();
+    w.state.management.research.level = 'high';
+    runHours(w, TICKS_PER_MONTH, 24 * 60);
+    const r = w.state.management.research;
+    for (const id of FORMER_RESEARCH_IDS) expect(r.unlocked, id).not.toContain(id);
+    const announced = w.state.management.messages.map((m) => String(m.params?.itemId ?? ''));
+    for (const id of FORMER_RESEARCH_IDS) expect(announced, id).not.toContain(id);
   });
 });
 
@@ -75,14 +118,15 @@ describe('research points', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    r.progress = 148;
+    r.current = 'thunder_disc';
+    r.progress = 348;
     runHours(w, TICKS_PER_MONTH, 1);
-    expect(r.unlocked).toEqual(['spiral_slide']);
+    expect(r.unlocked).toEqual(['thunder_disc']);
     expect(r.current).toBe('ice_cream_cart');
     expect(r.progress).toBe(2);
-    expect(w.events).toContainEqual({ type: 'researchUnlocked', itemId: 'spiral_slide' });
+    expect(w.events).toContainEqual({ type: 'researchUnlocked', itemId: 'thunder_disc' });
     expect(w.state.management.messages).toEqual([
-      expect.objectContaining({ category: 'research', textId: MSG.researchRide, params: { itemId: 'spiral_slide', name: 'Spiral Slide' }, entityId: -1, tile: -1 }),
+      expect.objectContaining({ category: 'research', textId: MSG.researchRide, params: { itemId: 'thunder_disc', name: 'Thunder Disc' }, entityId: -1, tile: -1 }),
     ]);
     // Stall and track ride messages use their own texts.
     r.progress = 149;
@@ -117,9 +161,9 @@ describe('research points', () => {
   it('unlocks several items in one hour when the surplus covers them', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
-    r.progress = 150 + 150 + 180 - 3 + 1;
+    r.progress = 150 + 180 + 200 - 3 + 1;
     runHours(w, TICKS_PER_MONTH, 1);
-    expect(r.unlocked).toEqual(['spiral_slide', 'ice_cream_cart', 'umbrella_stand']);
+    expect(r.unlocked).toEqual(['ice_cream_cart', 'umbrella_stand', 'first_aid']);
     expect(r.progress).toBe(1);
   });
 });
@@ -129,16 +173,16 @@ describe('research item choice and focus', () => {
     const m = createManagementSlice();
     const r = m.research;
     for (const k of Object.keys(r.focus) as (keyof typeof r.focus)[]) r.focus[k] = false;
-    expect(pickNextResearch(r)).toBe('spiral_slide');
+    expect(pickNextResearch(r)).toBe('ice_cream_cart');
     r.focus.thrill = true;
-    expect(pickNextResearch(r)).toBe('pendulum_ship');
+    expect(pickNextResearch(r)).toBe('thunder_disc');
     r.focus.coasters = true;
-    expect(pickNextResearch(r)).toBe('pendulum_ship');
+    expect(pickNextResearch(r)).toBe('thunder_disc');
     r.focus.thrill = false;
-    expect(pickNextResearch(r)).toBe('spinning_mouse');
-    // Build 3 (W4-D, BUILD_MAX_PHASE 6) adds the Bobsled Run and the Inverted Coaster to the Coasters category.
-    r.unlocked.push('spinning_mouse', 'wooden_coaster', 'bobsled_run', 'inverted_coaster');
-    expect(pickNextResearch(r)).toBe('spiral_slide');
+    // The Wooden Coaster and Spinning Mouse start unlocked: Build 3's Bobsled Run is the first Coasters item.
+    expect(pickNextResearch(r)).toBe('bobsled_run');
+    r.unlocked.push('bobsled_run', 'inverted_coaster');
+    expect(pickNextResearch(r)).toBe('ice_cream_cart');
   });
 
   it('focus decides the next item after an unlock but never resets the current one', () => {
@@ -148,12 +192,12 @@ describe('research item choice and focus', () => {
     expect(executeCommand(w, { type: 'setResearchFocus', category: 'shops', on: false }).ok).toBe(true);
     expect(executeCommand(w, { type: 'setResearchFocus', category: 'coasters', on: false }).ok).toBe(true);
     r.progress = 100;
-    expect(r.current).toBe('spiral_slide');
+    expect(r.current).toBe('ice_cream_cart');
     expect(r.progress).toBe(100);
     r.progress = 147;
     runHours(w, TICKS_PER_MONTH, 1);
-    expect(r.unlocked).toEqual(['spiral_slide']);
-    expect(r.current).toBe('pendulum_ship');
+    expect(r.unlocked).toEqual(['ice_cream_cart']);
+    expect(r.current).toBe('thunder_disc');
   });
 
   it('rejects an unknown category', () => {
@@ -231,13 +275,14 @@ describe('research completion', () => {
 });
 
 describe('six months at medium (Phase 3 §9.2)', () => {
+  // The starting roster (owner, 2026-11-17) changed the first 6 items: 1,280 points now (1,130 before).
   it('6 × 216 = 1,296 points unlock exactly items 1–6', () => {
     const w = makeTestWorld();
     runTicks(w, 6 * TICKS_PER_MONTH);
     const r = w.state.management.research;
     expect(r.unlocked).toEqual(RESEARCH_ORDER.slice(0, 6).map((i) => i.id));
-    expect(r.current).toBe('bumper_cars');
-    expect(r.progress).toBe(1296 - 1130);
+    expect(r.current).toBe('balloon_stand');
+    expect(r.progress).toBe(1296 - 1280);
     expect(currentLedger(w).monthIndex).toBe(6);
   });
 });
@@ -251,11 +296,13 @@ describe('isUnlocked', () => {
     for (const id of ['groundskeeper', 'mechanic', 'security', 'performer']) expect(isUnlocked(w, id)).toBe(true);
     for (const item of RESEARCH_ORDER) expect(isUnlocked(w, item.id)).toBe(false);
     // Build 2 raises BUILD_MAX_PHASE to 4: the lamp starts unlocked, water rides wait for research.
-    for (const id of ['log_flume', 'rapids_raft', 'no_such_thing']) expect(isUnlocked(w, id)).toBe(false);
+    for (const id of ['rapids_raft', 'no_such_thing']) expect(isUnlocked(w, id)).toBe(false);
+    // The starting roster (owner, 2026-11-17): the Log Flume starts unlocked.
+    expect(isUnlocked(w, 'log_flume')).toBe(true);
     expect(PATH_ITEMS.find((p) => p.id === 'lamp')?.phase).toBe(4);
     expect(isUnlocked(w, 'lamp')).toBe(true);
-    w.state.management.research.unlocked.push('drop_tower', 'ghost_train', 'cocoa_hut');
-    expect(isUnlocked(w, 'drop_tower')).toBe(true);
+    w.state.management.research.unlocked.push('thunder_disc', 'ghost_train', 'cocoa_hut');
+    expect(isUnlocked(w, 'thunder_disc')).toBe(true);
     expect(isUnlocked(w, 'ghost_train')).toBe(true);
     expect(isUnlocked(w, 'cocoa_hut')).toBe(true);
     expect(isUnlocked(w, 'flip_arm')).toBe(false);
@@ -266,7 +313,7 @@ describe('researchStatus (Office panel)', () => {
   it('reports the current item, progress, cost, and hours left', () => {
     const w = makeTestWorld();
     w.state.management.research.progress = 30;
-    expect(researchStatus(w)).toEqual({ current: 'spiral_slide', name: 'Spiral Slide', category: 'gentle', progress: 30, cost: 150, pointsPerHour: 3, hoursLeft: 40 });
+    expect(researchStatus(w)).toEqual({ current: 'ice_cream_cart', name: 'Ice Cream Cart', category: 'shops', progress: 30, cost: 150, pointsPerHour: 3, hoursLeft: 40 });
     w.state.management.research.level = 'none';
     expect(researchStatus(w).hoursLeft).toBeNull();
   });

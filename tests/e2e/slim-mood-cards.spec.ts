@@ -173,9 +173,12 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
   await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', 'rides');
   const ride = await boxOf(page, '.card.content-card');
   expect(ride.width).toBeLessThanOrEqual(phone ? 92 : 112);
-  expect(ride.height).toBeLessThanOrEqual(phone ? 124 : 152);
+  // Starting roster (owner, 2026-11-17): every card holds two name lines, so names and prices line up across the hand
+  // whether a name takes one line or two (Observation Tower). The owner accepted the taller hand: desktop cards
+  // 152 → 165 px (hand 219 → 232), phone cards 124 → 139 px.
+  expect(ride.height).toBeLessThanOrEqual(phone ? 139 : 165);
   const hand = await boxOf(page, '[data-testid="hand"]');
-  expect(hand.height, 'hand height').toBeLessThanOrEqual(phone ? 184 : 219);
+  expect(hand.height, 'hand height').toBeLessThanOrEqual(phone ? 199 : 232);
   // All ride cards of the deck keep one height.
   const heights = await page.evaluate(() => [...new Set([...document.querySelectorAll('.card.content-card')].map((c) => c.getBoundingClientRect().height))]);
   expect(heights).toHaveLength(1);
@@ -185,11 +188,16 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
     const parts = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('.card.content-card')].map((c) => {
         const name = c.querySelector('.card-name') as HTMLElement;
-        return { name: name.textContent ?? '', lines: Math.round(name.getBoundingClientRect().height / parseFloat(getComputedStyle(name).lineHeight)), picture: (c.querySelector('.card-preview') as HTMLElement).getBoundingClientRect().height };
+        // Lines of text (the box always holds two): the distinct tops of the text's line boxes.
+        const range = document.createRange();
+        range.selectNodeContents(name);
+        const lines = new Set([...range.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top))).size;
+        return { name: name.textContent ?? '', lines, picture: (c.querySelector('.card-preview') as HTMLElement).getBoundingClientRect().height };
       }),
     );
+    const twoLines = ['Observation Tower', 'Spinning Mouse', 'Wooden Coaster', 'Haunted Manor'];
     for (const p of parts) {
-      expect(p.lines, `${p.name} lines`).toBe(1);
+      expect(p.lines, `${p.name} lines`).toBe(twoLines.includes(p.name.replace(/,$/, '')) ? 2 : 1);
       expect(p.picture, `${p.name} picture`).toBeGreaterThanOrEqual(45.6 - 0.5);
     }
   }

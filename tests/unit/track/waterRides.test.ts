@@ -75,9 +75,10 @@ describe('placeStation accepts the water types', () => {
     }
   });
 
-  it('water rides are research content: "This ride type is not available yet" outside setup mode', () => {
+  // Starting roster (owner, 2026-11-17): the Log Flume starts unlocked; the Rapids Raft is still research content.
+  it('the Rapids Raft is research content: "This ride type is not available yet" outside setup mode', () => {
     const w = makeTestWorld();
-    const r = executeCommand(w, { type: 'placeStation', typeId: 'log_flume', x: 10, y: 10, dir: EAST });
+    const r = executeCommand(w, { type: 'placeStation', typeId: 'rapids_raft', x: 10, y: 10, dir: EAST });
     expect(r).toEqual({ ok: false, reason: TRACK_ERR.notResearched });
   });
 

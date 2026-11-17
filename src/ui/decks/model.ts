@@ -2,12 +2,17 @@
  * Deck model (Phase 7 §4.4, §4.5): where each old toolbar tool goes, how tool cards are ordered, and how ride and
  * stall cards are listed and sorted. Pure: no DOM access, so it runs in Node.
  */
-import { FLAT_RIDES, STALLS, getTrackRideDef } from '../../data/catalog';
+import { FLAT_RIDES, STALLS, getFlatRideDef, getStallDef, getTrackRideDef } from '../../data/catalog';
+import type { ResearchCategory } from '../../data/catalog/types';
+import { getResearchItem } from '../../data/research';
+import { text } from '../../data/strings/en';
 import type { ToolState } from '../../render/types';
 import { trackToolOf } from '../../render/track/toolState';
-import { isUnlocked } from '../../sim/research/api';
+import { contentInfo, isUnlocked } from '../../sim/research/api';
+import { pickNextResearch, scenarioResearchSkip } from '../../sim/research/update';
 import type { World } from '../../sim/types';
 import { contentName } from '../contentName';
+import { progressPercent } from '../management/research';
 import { minStationTiles, pickableTrackTypes, stationCost } from '../track/builder';
 
 export type DeckId = 'rides' | 'stalls' | 'paths' | 'scenery' | 'manage';
@@ -120,9 +125,81 @@ export function stallCards(world: World): CardSpec[] {
   );
 }
 
-/** The ids of the ride and stall cards, joined: changes when a card appears or goes. */
+/** Locked preview cards (owner, 2026-11-17): at most this many per deck, so the hand stays short. */
+export const LOCKED_CARDS_MAX = 6;
+
+/** A ride or stall that research has not unlocked yet, shown greyed after the unlocked cards. */
+export interface LockedCardSpec extends CardSpec {
+  category: ResearchCategory;
+  /** Research is working on this item now. */
+  current: boolean;
+  /** Whole percent of the current item's progress (0 for the others). */
+  percent: number;
+}
+
+/**
+ * The research items in the order research will unlock them: the item in progress, then each next pick
+ * (`pickNextResearch`: focused categories first, then the default order). Items the scenario hides or unlocked at start
+ * are left out, so a run where research unlocks nothing (sandbox "All items unlocked", a scenario that allows no
+ * research) gives none.
+ */
+export function researchQueue(world: World): string[] {
+  const r = world.state.management.research;
+  const skip = scenarioResearchSkip(world);
+  const done = [...r.unlocked];
+  const out: string[] = [];
+  if (r.current !== null && getResearchItem(r.current) && !done.includes(r.current) && !skip(r.current)) {
+    out.push(r.current);
+    done.push(r.current);
+  }
+  const sim = { ...r, unlocked: done };
+  for (let next = pickNextResearch(sim, skip); next !== null; next = pickNextResearch(sim, skip)) {
+    out.push(next);
+    done.push(next);
+  }
+  return out;
+}
+
+/** The card of a locked research item, or null for an item no ride or stall card shows (scenery, show sites). */
+function lockedSpec(world: World, id: string): LockedCardSpec | null {
+  const item = getResearchItem(id);
+  const kind = contentInfo(id)?.kind;
+  if (!item || isUnlocked(world, id)) return null;
+  const r = world.state.management.research;
+  const current = r.current === id;
+  const percent = current ? progressPercent(r.progress, item.cost) : 0;
+  const base = { category: item.category, current, percent, cost: 0, name: contentName(id) };
+  if (kind === 'flatRide') return { ...base, id, kind: 'flat', zone: getFlatRideDef(id)?.tag ?? 'thrill' };
+  if (kind === 'trackRide') return { ...base, id, kind: 'track', zone: getTrackRideDef(id)?.tag ?? 'thrill' };
+  if (kind === 'stall') return { ...base, id, kind: 'stall', zone: getStallDef(id)?.kind ?? 'food' };
+  return null;
+}
+
+/** The next `LOCKED_CARDS_MAX` locked rides (Rides deck) or stalls (Stalls deck), in research order; none elsewhere. */
+export function lockedCards(world: World, deck: DeckId): LockedCardSpec[] {
+  if (deck !== 'rides' && deck !== 'stalls') return [];
+  const out: LockedCardSpec[] = [];
+  for (const id of researchQueue(world)) {
+    const spec = lockedSpec(world, id);
+    if (!spec || (deck === 'stalls') !== (spec.kind === 'stall')) continue;
+    out.push(spec);
+    if (out.length === LOCKED_CARDS_MAX) break;
+  }
+  return out;
+}
+
+/** The accessible name of a locked card: "<name>, locked, unlocks with research". */
+export function lockedCardLabel(name: string): string {
+  return text('ui.card.locked', { name });
+}
+
+/**
+ * The ids of the ride and stall cards, then of the locked cards (the current one marked), joined: changes when a card
+ * appears or goes, or research moves to another item. Progress alone does not change it (the hand updates the bar).
+ */
 export function handSignature(world: World): string {
-  return [...rideCards(world), ...stallCards(world)].map((c) => c.id).join(',');
+  const locked = [...lockedCards(world, 'rides'), ...lockedCards(world, 'stalls')].map((c) => (c.current ? `${c.id}*` : c.id));
+  return `${[...rideCards(world), ...stallCards(world)].map((c) => c.id).join(',')}|${locked.join(',')}`;
 }
 
 /** The card the tool holds: a ride or stall def, or the track type while the track tool places its station. */

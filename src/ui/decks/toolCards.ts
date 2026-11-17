@@ -11,7 +11,7 @@ import { startStation } from '../track/builder';
 import { toolbarEntries } from '../extensions';
 import { icon } from '../icons';
 import { mgmtIcon } from '../management/icons';
-import { orderToolCards, type CardSpec, type DeckId } from './model';
+import { orderToolCards, type CardSpec, type DeckId, type LockedCardSpec } from './model';
 
 export interface ToolCardDef {
   /** `data-tool` and `data-testid="tool-<id>"`: the id of the toolbar button the card replaces. */
@@ -145,4 +145,15 @@ export function putBack(ctx: UiContext, def: ToolCardDef): void {
     return;
   }
   selectTool(ctx, 'inspect');
+}
+
+/**
+ * A press on a locked preview card (owner, 2026-11-17) never holds it for building: it opens the Research panel (or
+ * keeps it open) and moves the focus to the focus toggle of the item's category, so the player can aim research at it.
+ */
+export function pressLockedCard(ctx: UiContext, spec: LockedCardSpec): void {
+  if (!panelIs(ctx, 'research')) ctx.openPanel('research');
+  const toggle = ctx.root.querySelector<HTMLElement>(`[data-testid="research-focus-${spec.category}"]`);
+  toggle?.focus({ preventScroll: true });
+  toggle?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }

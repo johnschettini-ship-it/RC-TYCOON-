@@ -12,9 +12,10 @@ import type { UiContext } from '../context';
 import { h, setAttr, toggleClass } from '../dom';
 import { formatMoney } from '../format';
 import { attachCardDrag } from './drag';
-import { heldCardId, type CardSpec } from './model';
+import { icon } from '../icons';
+import { heldCardId, lockedCardLabel, type CardSpec, type LockedCardSpec } from './model';
 import { trackCost } from './realAfford';
-import { holdCard, putBack, selectTool, type ToolCardDef } from './toolCards';
+import { holdCard, pressLockedCard, putBack, selectTool, type ToolCardDef } from './toolCards';
 
 export interface ToolCardView {
   def: ToolCardDef;
@@ -191,4 +192,48 @@ export function contentCard(ctx: UiContext, spec: CardSpec): HTMLElement {
   // Put back on a held ride or stall card selects Inspect.
   putBackButton(wrap, () => selectTool(ctx, 'inspect'));
   return wrap;
+}
+
+/**
+ * A locked preview card (owner, 2026-11-17): the zone band, the picture dimmed, the name, and a lock with "Research"
+ * in place of the price. The item research is on now shows a small progress bar (`setLockedProgress`). Its accessible
+ * name is "<name>, locked, unlocks with research". A press opens the Research panel (`pressLockedCard`); it is never
+ * held, dragged, or priced (`markAfford` skips it).
+ */
+export function lockedCard(ctx: UiContext, spec: LockedCardSpec): HTMLElement {
+  const card = h(
+    'button',
+    {
+      type: 'button',
+      class: 'card content-card locked-card',
+      'data-def': spec.id,
+      'data-kind': spec.kind,
+      'data-zone': spec.zone,
+      'data-locked': 'true',
+      'data-testid': `locked-${spec.id}`,
+      onclick: () => pressLockedCard(ctx, spec),
+    },
+    // The name comes from the hidden sentence; the visible parts are hidden from screen readers, so the name holds no
+    // text that is not on the card (no `aria-label` that would differ from the visible text).
+    h('span', { class: 'sr-only', text: lockedCardLabel(spec.name) }),
+    h('span', { class: 'card-band', 'aria-hidden': 'true' }, zoneName(spec.kind, spec.zone)),
+    previewCanvas(spec),
+    h('span', { class: 'card-name', 'aria-hidden': 'true', text: spec.name }),
+    h('span', { class: 'card-price-row', 'aria-hidden': 'true' }, h('span', { class: 'card-research' }, icon('lock', 'icon card-lock'), h('span', { text: text('ui.card.research') }))),
+  );
+  if (spec.current) {
+    card.classList.add('researching');
+    card.append(h('span', { class: 'card-progress', 'aria-hidden': 'true' }, h('span', { class: 'card-progress-fill' })));
+    setLockedProgress(card, spec.percent);
+  }
+  return h('div', { class: 'card-wrap' }, card);
+}
+
+/** Sets the progress bar of the locked card research is on (0–100), and its accessible description. */
+export function setLockedProgress(card: HTMLElement, percent: number): void {
+  const fill = card.querySelector<HTMLElement>('.card-progress-fill');
+  if (!fill) return;
+  const width = `${percent}%`;
+  if (fill.style.width !== width) fill.style.width = width;
+  setAttr(card, 'aria-description', text('ui.card.researching', { percent }));
 }

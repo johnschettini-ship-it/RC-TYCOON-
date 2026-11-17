@@ -11,6 +11,10 @@ export const interfaceStrings: Record<string, string> = {
   'ui.card.track': 'Track',
   'ui.card.putBack': 'Put back',
   'ui.card.details': 'Details',
+  // Locked preview cards (owner, 2026-11-17): the next items research unlocks, greyed, after the unlocked cards.
+  'ui.card.locked': '{name}, locked, unlocks with research',
+  'ui.card.research': 'Research',
+  'ui.card.researching': 'Researching now, {percent}%',
   'ui.hand.prev': 'Earlier cards',
   'ui.hand.next': 'More cards',
   'ui.mood.none': 'No guests yet',

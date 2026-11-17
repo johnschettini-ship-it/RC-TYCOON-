@@ -116,7 +116,7 @@ describe('research progress (Phase 3 §4.6)', () => {
     r.progress = 75;
     const v = researchView(world);
     expect(v.current).toBe(RESEARCH_ORDER[0]!.id);
-    expect(v.name).toBe('Spiral Slide');
+    expect(v.name).toBe('Ice Cream Cart');
     expect(v.percent).toBe(50);
     // 75 points left at 3 points an hour = 25 hours = 1,250 ticks after now.
     expect(researchEta(world)).toBe(world.state.tick + 1250);

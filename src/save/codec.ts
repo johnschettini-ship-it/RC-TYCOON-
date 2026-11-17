@@ -5,6 +5,7 @@ import { damaged, NOTICE_COLOURS_RESET, ERR_NEWER, ERR_NOT_A_SAVE, ERR_TOO_OLD, 
 import { MigrationError, type Migrations } from './migrations';
 import { retireMascots } from './migrations/retired';
 import { resetBadRideColours } from './migrations/rideColours';
+import { settleStartRoster } from './migrations/startRoster';
 import { checkStructure, isRecord } from './schema';
 import { decodeTypedArrays, encodeTypedArray } from './typedArrays';
 import { STATE_SCHEMA_VERSION } from '../sim/types';
@@ -112,6 +113,8 @@ export function deserializeWith(json: string, opts: DecodeOptions): LoadResult {
       if (problem) return fail(damaged(problem));
     }
     const world: World = { state: state as GameState, events: [] };
+    // The starting roster (owner, 2026-11-17): research on a ride that now starts unlocked moves on to the next item.
+    settleStartRoster(world);
     return notices.length > 0 ? { ok: true, world, notices } : { ok: true, world };
   } catch {
     return fail(ERR_UNREADABLE);
