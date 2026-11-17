@@ -23,8 +23,10 @@ export interface RealSetEntry {
   /**
    * `mask`: the sheet's tint mask (same size; red channel = how much of the colour each pixel takes). Every ride sheet
    * has one: its colour part (ride colour choice), white on the part, black elsewhere, soft only at edges.
+   * `tint: 'alpha'` (track rails that take the track colour everywhere, batch 5): the sheet has no mask file; its own
+   * alpha is the mask, so it tints like a full-white mask clipped to the picture.
    */
-  sheets: { file: string; w: number; h: number; mask?: string }[];
+  sheets: { file: string; w: number; h: number; mask?: string; tint?: 'alpha' }[];
   frames: Record<string, RealFrame>;
   /**
    * Rides: the designed colour (`#rrggbb`) of the ride's colour part, the part its masks cover. A chosen colour maps

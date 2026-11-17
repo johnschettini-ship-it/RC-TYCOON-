@@ -5,6 +5,9 @@
  */
 import type { RealIndex, RealKind } from '../../src/render/real/indexFormat';
 import { checkCoverFolder, checkTitleIndex, type TitleFiles } from './titleIndex';
+import { reachedPoses } from './poses';
+import { railTileRanges, typePieces } from './sizeReport';
+import { STAGE1_TRACK, trackTypeOfItem } from './trackBudget';
 
 const MAX_SHEET = 2048;
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
@@ -137,6 +140,46 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
     const extra = low.filter((k) => !up.has(k));
     if (missing.length) problems.push(`${set.key}: ${missing.length} frame keys of density 4 missing at density 2 (${missing.slice(0, 3).join(', ')})`);
     if (extra.length) problems.push(`${set.key}: ${extra.length} frame keys not at density 4 (${extra.slice(0, 3).join(', ')})`);
+  }
+  problems.push(...trackComplete(index));
+  return problems;
+}
+
+/**
+ * TRACK_COMPLETE (batch 5 Task 1): a baked track type has a rail frame for every (piece, rail tile, heading, density)
+ * and a car frame for every reached pose, full and empty, at every density, in whichever of its sets (stage 1
+ * `rail:<type>` or the class sets `rail:<type>~<class>`). The pieces are every piece the type builds, or the stage 1
+ * list of a type declared in `STAGE1_TRACK`. Spin yaws and front-car variants are checked from Task 3, which bakes them.
+ */
+export function trackComplete(index: RealIndex): string[] {
+  const problems: string[] = [];
+  const types = new Set(index.sets.filter((s) => s.kind === 'rail' || s.kind === 'car').map((s) => trackTypeOfItem(s.item)));
+  for (const type of [...types].sort()) {
+    let pieces: readonly string[];
+    try {
+      pieces = STAGE1_TRACK[type]?.pieces ?? typePieces(type);
+    } catch {
+      problems.push(`TRACK_COMPLETE ${type}: not a track type`);
+      continue;
+    }
+    const frames = (kind: RealKind, density: number, rot: number | 'all'): Set<string> => {
+      const out = new Set<string>();
+      for (const s of index.sets) if (s.kind === kind && s.density === density && s.rot === rot && trackTypeOfItem(s.item) === type) for (const k of Object.keys(s.frames)) out.add(k);
+      return out;
+    };
+    const poses = reachedPoses(type, [...pieces]);
+    for (const d of index.densities) {
+      for (const h of [0, 1, 2, 3] as const) {
+        const have = frames('rail', d, h);
+        const lack: string[] = [];
+        for (const pc of pieces) railTileRanges(pc, h).forEach((_, ti) => { if (!have.has(`${pc}:t${ti}`)) lack.push(`${pc}:t${ti}`); });
+        if (lack.length) problems.push(`TRACK_COMPLETE rail:${type} d${d} r${h}: ${lack.length} rail frame(s) missing (${lack.slice(0, 4).join(', ')})`);
+      }
+      const have = frames('car', d, 'all');
+      const lack: string[] = [];
+      for (const p of poses) for (const occ of ['full', 'empty']) { const k = `y${p.yaw}:p${p.pitch}:r${p.roll}:${occ}`; if (!have.has(k)) lack.push(k); }
+      if (lack.length) problems.push(`TRACK_COMPLETE car:${type} d${d}: ${lack.length} car frame(s) missing (${lack.slice(0, 4).join(', ')})`);
+    }
   }
   return problems;
 }

@@ -4,7 +4,7 @@
  * can be built facing any way, and the view turns add quarter turns too), quantised by the game reader's own
  * `quantisePose` (src/render/real/pose.ts): yaw in 32 steps, pitch and roll in 15° steps (24 per turn).
  */
-import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
+import { getTrackPieceDef, getTrackTypeDef, typeBuildsPiece } from '../../src/data/track';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS, quantisePose } from '../../src/render/real/pose';
 
@@ -21,7 +21,7 @@ export function reachedPoses(trackType: string, pieceIds: string[]): CarPose[] {
   const seen = new Map<number, CarPose>();
   for (const id of pieceIds) {
     const def = getTrackPieceDef(id);
-    if (!def || def.set !== type.pieceSet || type.excludePieces.includes(id)) throw new Error(`reachedPoses: '${trackType}' has no piece '${id}'`);
+    if (!def || !typeBuildsPiece(type, def)) throw new Error(`reachedPoses: '${trackType}' has no piece '${id}'`);
     for (let dir = 0; dir < 4; dir++) {
       const s = pieceWorldSamples({ defId: id, x: 0, y: 0, z: 0, dir: dir as 0 | 1 | 2 | 3, chain: false, brakeSpeed: null, cost: 0 });
       for (let k = 0; k < s.n; k++) {
