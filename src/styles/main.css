@@ -446,6 +446,7 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .card-track { font-size: calc(11px * var(--ts, 1)); padding: 0 5px; }
 /* A cost that wraps (large text) keeps round corners that suit two lines. */
 #ui:not([data-text-scale='100']) .card-cost { border-radius: var(--radius); }
+#ui:not([data-text-scale='100']) .card-research { border-radius: var(--radius); }
 /* Zone strip (§4.5): one coloured part behind the cards of each zone, with the zone name in its own lane at the top.
    The lane lies above the rise of a held card, so the name stays readable while a card of the zone is held. A hand with
    zone groups needs no rise room above them (the groups hold it), so the bars above the hand stay where they were. */
@@ -478,6 +479,22 @@ button { font: inherit; color: inherit; }
   white-space: nowrap;
 }
 .hand-cards > .muted { margin: 0; padding: 12px 8px; }
+/* Locked preview cards (owner, 2026-11-17): the next items research unlocks, greyed, in one group at the end of the
+   Rides and Stalls hands. The picture is dimmed and grey, the zone band grey; a lock and "Research" stand in place of the
+   price. Text keeps the ink colour (contrast as on the other cards). The item research is on shows a small bar. */
+.hand-group.hand-locked { background: var(--surface-3); }
+.card.content-card.locked-card,
+.card.content-card.locked-card:hover { background: var(--surface-2); border-style: dashed; box-shadow: none; }
+.locked-card .card-band,
+.content-card.locked-card[data-zone] .card-band { background: var(--surface-3); }
+.locked-card .card-preview { filter: grayscale(1) opacity(0.5); }
+.card-research { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; font-size: calc(13px * var(--ts, 1)); line-height: 1.3; color: var(--ink); border: var(--control-outline); border-radius: 999px; padding: 0 7px 0 5px; }
+.card-research { max-width: 100%; box-sizing: border-box; }
+.card-research > span { min-width: 0; overflow-wrap: anywhere; }
+.card-research .card-lock { width: 1em; height: 1em; flex: none; }
+#ui[data-layout='bottom'] .card-research { font-size: calc(12px * var(--ts, 1)); padding: 0 5px 0 4px; }
+.card-progress { flex: none; display: block; height: 6px; margin: 0 8px; border: 1px solid var(--ink); border-radius: 999px; background: var(--surface); overflow: hidden; }
+.card-progress-fill { display: block; height: 100%; width: 0; background: var(--ok); }
 /* Put back sits on the picture of the held card (above its middle), so the label stays readable and a press on the
    middle of the card still reaches the card: it ends 2 px above the middle, whatever the height of the card or of its
    label (Task 18: the phone tool card is 96 px high). */

@@ -192,7 +192,8 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     const rows = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLElement>('.hand .content-card')].map((c) => ({
         id: c.getAttribute('data-def'),
-        price: Math.round((c.querySelector('.card-cost') as HTMLElement).getBoundingClientRect().top),
+        // A locked preview card (owner, 2026-11-17) has its lock and "Research" on the price line.
+        price: Math.round((c.querySelector('.card-cost, .card-research') as HTMLElement).getBoundingClientRect().top),
         track: (() => { const t = c.querySelector<HTMLElement>('.card-track'); if (!t) return null; const r = t.getBoundingClientRect(); const pic = (c.querySelector('.card-name') as HTMLElement).getBoundingClientRect(); return { bottom: r.bottom, nameTop: pic.top }; })(),
       })),
     );
@@ -398,7 +399,7 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
               const id = card.dataset.testid ?? '';
               const stripe = card.querySelector('.card-band');
               const stripeBottom = stripe ? stripe.getBoundingClientRect().bottom : c.top + parseFloat(getComputedStyle(card, '::before').height || '0');
-              for (const part of card.querySelectorAll<HTMLElement>('.card-name, .card-cost, .card-track, .tool-card-label, .card-preview, .tool-card-art')) {
+              for (const part of card.querySelectorAll<HTMLElement>('.card-name, .card-cost, .card-research, .card-track, .tool-card-label, .card-preview, .tool-card-art')) {
                 const r = part.getBoundingClientRect();
                 if (r.left < c.left - 0.5 || r.right > c.right + 0.5 || r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5) out.push(`${id}: ${part.className} outside the card`);
                 if (part.tagName === 'CANVAS' || part.classList.contains('tool-card-art')) {

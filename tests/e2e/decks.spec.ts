@@ -86,9 +86,9 @@ test('Put back on the held Carousel card selects Inspect', async ({ page }) => {
   await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'false');
 });
 
-/** Unlocks Spiral Slide (a flat ride that research unlocks) through the research state that `isUnlocked` reads. */
+/** Unlocks the Thunder Disc (a flat ride that research unlocks) through the research state that `isUnlocked` reads. */
 async function unlockOneFlatRide(page: Page): Promise<string> {
-  const id = 'spiral_slide';
+  const id = 'thunder_disc';
   await expect(page.getByTestId(`card-${id}`)).toHaveCount(0);
   await page.evaluate((i) => (window as unknown as { __tc: { world: { state: { management: { research: { unlocked: string[] } } } } } }).__tc.world.state.management.research.unlocked.push(i), id);
   return id;
@@ -660,4 +660,85 @@ test('phone: a touch drag from a card to the map holds no card and builds nothin
   expect(await tc<number>(page, 'g.world.state.rides.length')).toBe(0);
   await expect(page.getByTestId('card-carousel')).toHaveAttribute('aria-pressed', 'false');
   await expect(page.getByTestId('hand')).toBeVisible();
+});
+
+// Starting roster and locked preview cards (owner, 2026-11-17): 18 ride cards at the start, then the next 6 rides
+// research unlocks as greyed cards in research order. A press opens the Research panel; it never holds the card.
+const LOCKED_RIDES = ['thunder_disc', 'go_karts', 'ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft'];
+const LOCKED_NAMES = ['Thunder Disc', 'Go-Kart Track', 'Ghost Train', 'Haunted Manor', 'Flip Arm', 'Rapids Raft'];
+for (const size of [{ w: 1366, h: 768, project: 'desktop' }, { w: 390, h: 844, project: 'phone' }]) {
+  test.describe(`${size.w} × ${size.h}: the Rides deck`, () => {
+    test.use({ viewport: { width: size.w, height: size.h } });
+    test('shows 18 unlocked ride cards, then the next 6 locked rides in research order', async ({ page }, info) => {
+      test.skip(info.project.name !== size.project, `${size.project} size`);
+      const hand = page.getByTestId('hand');
+      await expect(hand).toHaveAttribute('data-deck', 'rides');
+      const order = await hand.locator('.content-card').evaluateAll((els) => els.map((e) => ((e as HTMLElement).dataset.locked ? `L:${(e as HTMLElement).dataset.def}` : (e as HTMLElement).dataset.def)));
+      const firstLocked = order.findIndex((d) => d?.startsWith('L:'));
+      expect(firstLocked).toBe(18);
+      expect(order.slice(18)).toEqual(LOCKED_RIDES.map((id) => `L:${id}`));
+      for (const [i, id] of LOCKED_RIDES.entries()) {
+        const card = page.getByTestId(`locked-${id}`);
+        await expect(card).toHaveAccessibleName(`${LOCKED_NAMES[i]}, locked, unlocks with research`);
+        await expect(card).not.toHaveAttribute('aria-pressed', /./);
+        await expect(card.locator('.card-research')).toHaveText('Research');
+        await expect(card.locator('.card-cost')).toHaveCount(0);
+      }
+      // The locked cards come after the Shows tool card, in their own group.
+      await expect(hand.locator('.hand-locked .content-card')).toHaveCount(6);
+      expect(await hand.locator('.hand-cards > *').last().getAttribute('data-testid')).toBe('hand-locked');
+    });
+  });
+}
+
+test('a press on a locked card opens Research with its category in focus, and holds nothing', async ({ page }, info) => {
+  const card = page.getByTestId('locked-go_karts');
+  await card.scrollIntoViewIfNeeded();
+  if (isPhone(info)) await card.tap();
+  else await card.click();
+  await expect(page.locator('.panel-title')).toHaveText(/Research/);
+  await expect(page.getByTestId('research-focus-thrill')).toBeFocused();
+  expect(await toolNow(page)).toBe('inspect');
+  expect(await tc<string | null>(page, 'g.tool.defId')).toBeNull();
+  expect(await tc<number>(page, 'g.world.state.rides.length')).toBe(0);
+  await expect(page.locator('[data-testid="hand"] [aria-pressed="true"].content-card')).toHaveCount(0);
+});
+
+test('a mouse drag from a locked card to the map builds nothing', async ({ page }, info) => {
+  test.skip(isPhone(info), 'mouse');
+  await setSpeed(page, 'Pause');
+  const card = page.getByTestId('locked-thunder_disc');
+  await card.scrollIntoViewIfNeeded();
+  const box = (await card.boundingBox())!;
+  await centerOn(page, 31, 56);
+  const pt = await tilePoint(page, 31, 56);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pt.x, pt.y, { steps: 8 });
+  await page.mouse.up();
+  expect(await tc<number>(page, 'g.world.state.rides.length')).toBe(0);
+  expect(await toolNow(page)).toBe('inspect');
+});
+
+test('the locked card research is on shows a progress bar; the Stalls deck shows its locked stalls', async ({ page }) => {
+  await setSpeed(page, 'Pause');
+  await page.evaluate(() => {
+    const r = (window as unknown as { __tc: { world: { state: { management: { research: { current: string; progress: number } } } } } }).__tc.world.state.management.research;
+    r.current = 'ghost_train';
+    r.progress = 100;
+  });
+  const card = page.getByTestId('locked-ghost_train');
+  // Research moved to another item: the hand rebuilds with the Ghost Train first, with its bar at 25 %.
+  await expect(page.locator('[data-testid="hand"] .locked-card').first()).toHaveAttribute('data-def', 'ghost_train', { timeout: 4000 });
+  await expect(card.locator('.card-progress-fill')).toHaveAttribute('style', /width: 25%/);
+  await expect(card).toHaveAttribute('aria-description', 'Researching now, 25%');
+  await expect(page.locator('[data-testid="hand"] .card-progress')).toHaveCount(1);
+  await page.evaluate(() => {
+    (window as unknown as { __tc: { world: { state: { management: { research: { progress: number } } } } } }).__tc.world.state.management.research.progress = 300;
+  });
+  await expect(card.locator('.card-progress-fill')).toHaveAttribute('style', /width: 75%/, { timeout: 4000 });
+  await openTool(page, 'stalls');
+  await expect(page.locator('[data-testid="hand"] .locked-card')).toHaveCount(6);
+  await expect(page.getByTestId('locked-ice_cream_cart')).toHaveAccessibleName('Ice Cream Cart, locked, unlocks with research');
+  await expect(page.locator('[data-testid="hand"] .card-progress')).toHaveCount(0);
 });

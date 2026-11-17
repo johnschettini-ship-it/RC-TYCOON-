@@ -5,7 +5,8 @@
  * move the focus between the cards.
  *
  * The Rides and Stalls decks hold the ride and stall cards in zone groups, each on its part of the zone strip, then
- * their tool cards. Every `HAND_REFRESH_MS` the hand compares `handSignature` with the last value and builds the
+ * their tool cards, then (owner, 2026-11-17) the next items research unlocks as greyed locked cards in one group at the
+ * end (`lockedCards`; a press opens the Research panel). Every `HAND_REFRESH_MS` the hand compares `handSignature` with the last value and builds the
  * content cards again only on a change; a new world builds them again at once.
  */
 import { text } from '../../data/strings/en';
@@ -14,8 +15,10 @@ import { displayPrefs } from '../../a11y/prefs';
 import { cardArtGeneration } from '../../render/cardArt';
 import type { UiContext } from '../context';
 import { h, newId, setAttr } from '../dom';
-import { contentCard, createToolCard, setHeld, zoneName, type ToolCardView } from './card';
-import { RIDE_ZONES, STALL_ZONES, handSignature, heldCardId, rideCards, stallCards, zonesPresent, type CardSpec, type DeckId } from './model';
+import { getResearchItem } from '../../data/research';
+import { progressPercent } from '../management/research';
+import { contentCard, createToolCard, lockedCard, setHeld, setLockedProgress, zoneName, type ToolCardView } from './card';
+import { RIDE_ZONES, STALL_ZONES, handSignature, heldCardId, lockedCards, rideCards, stallCards, zonesPresent, type CardSpec, type DeckId } from './model';
 import { markAfford } from './realAfford';
 import { cardsOfDeck, type ToolCardDef } from './toolCards';
 
@@ -46,7 +49,7 @@ interface Slot {
 /** The cards of one deck. The content part is null until built, and again when it is out of date. */
 interface DeckCards {
   tools: ToolCardView[];
-  content: { nodes: HTMLElement[]; slots: Slot[]; wraps: Map<string, HTMLElement> } | null;
+  content: { nodes: HTMLElement[]; slots: Slot[]; wraps: Map<string, HTMLElement>; locked: { nodes: HTMLElement[]; slots: Slot[] } } | null;
 }
 
 const CONTENT_ZONES: Partial<Record<DeckId, readonly string[]>> = { rides: RIDE_ZONES, stalls: STALL_ZONES };
@@ -214,7 +217,23 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
       }
       nodes.push(group);
     }
-    return { nodes, slots, wraps };
+    // Locked preview cards: after the unlocked cards and the tool cards, in one greyed group (none in a run where
+    // research unlocks nothing).
+    const locked: { nodes: HTMLElement[]; slots: Slot[] } = { nodes: [], slots: [] };
+    const next = lockedCards(ctx.game.world, deck);
+    if (next.length > 0) {
+      const group = h('div', { class: 'hand-group hand-locked', 'data-zone': 'locked', 'data-testid': 'hand-locked' });
+      group.append(h('span', { class: 'hand-zone', 'aria-hidden': 'true', text: text('ui.card.research') }));
+      for (const spec of next) {
+        const wrap = lockedCard(ctx, spec);
+        group.append(wrap);
+        locked.slots.push({ wrap, card: wrap.firstElementChild as HTMLElement });
+        // The focus comes back to a rebuilt locked card too (a locked id is never held, so `syncHeld` never finds it).
+        wraps.set(spec.id, wrap);
+      }
+      locked.nodes.push(group);
+    }
+    return { nodes, slots, wraps, locked };
   };
 
   const cardsOf = (deck: DeckId): DeckCards => {
@@ -239,8 +258,8 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
     const prevDef = prev?.closest('.card-wrap')?.querySelector<HTMLElement>('.content-card')?.dataset.def;
     const prevBack = prev?.classList.contains('card-put-back') ?? false;
     shownTools = d.tools;
-    shown = [...(d.content?.slots ?? []), ...d.tools.map((v) => ({ wrap: v.wrap, card: v.card }))];
-    const nodes = [...(d.content?.nodes ?? []), ...d.tools.map((v) => v.wrap)];
+    shown = [...(d.content?.slots ?? []), ...d.tools.map((v) => ({ wrap: v.wrap, card: v.card })), ...(d.content?.locked.slots ?? [])];
+    const nodes = [...(d.content?.nodes ?? []), ...d.tools.map((v) => v.wrap), ...(d.content?.locked.nodes ?? [])];
     // The Rides and Stalls decks always hold their start content, so this text cannot show today.
     if (nodes.length === 0) nodes.push(h('p', { class: 'muted', text: text('ui.picker.empty') }));
     cards.replaceChildren(...nodes);
@@ -258,6 +277,15 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
     const target = (prevBack ? wrap?.querySelector<HTMLElement>('.card-put-back') : null) ?? (wrap?.firstElementChild as HTMLElement | null | undefined);
     target?.focus({ preventScroll: true });
   };
+
+  /** The progress bar of the locked card research is on (the item and the order come from `handSignature`). */
+  function updateLockedProgress(): void {
+    const card = cards.querySelector<HTMLElement>('.locked-card.researching');
+    if (!card) return;
+    const r = ctx.game.world.state.management.research;
+    const item = getResearchItem(card.dataset.def ?? '');
+    if (item && r.current === item.id) setLockedProgress(card, progressPercent(r.progress, item.cost));
+  }
 
   /** Shows the held ride or stall card of the open deck as held (only on a change). */
   function syncHeld(): void {
@@ -342,6 +370,7 @@ export function createHand(ctx: UiContext, defs: readonly ToolCardDef[]): HandVi
             refresh(false);
           }
         }
+        if (open !== null) updateLockedProgress();
         // The realistic build dims the ride and stall cards the park cannot pay for (`realAfford.ts`).
         if (import.meta.env.VITE_ART === 'real' && open !== null) markAfford(cards, ctx.game.world);
       }

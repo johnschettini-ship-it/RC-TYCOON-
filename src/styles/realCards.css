@@ -128,6 +128,32 @@
 .hand .card.content-card[data-afford='no']:hover { background: linear-gradient(180deg, #b9c3cb 0%, #d3d8db 48%, #dadcd6 100%); }
 .hand .content-card[data-afford='no'] .card-cost { color: var(--rc-price-short); }
 
+/* Locked preview cards (owner, 2026-11-17; `src/ui/decks/card.ts lockedCard`): the same frame, the picture grey and
+   dimmed on a grey sky, a grey stripe, the lock and "Research" in white on the band in place of the gold price. The item
+   research is on now shows a thin bar along the top of the band. */
+.hand .card.content-card.locked-card,
+.hand .card.content-card.locked-card:hover { background: linear-gradient(180deg, #aeb6be 0%, #c9ced2 48%, #d2d4cf 100%); box-shadow: var(--shadow); }
+.hand .content-card.locked-card .card-band,
+.hand .content-card.locked-card[data-zone] .card-band { background: #8a9099; }
+.hand .content-card.locked-card .card-preview { filter: grayscale(1) brightness(0.85) opacity(0.6); }
+.hand .content-card.locked-card .card-research { padding: 0; border: 0; color: var(--rc-text); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45); }
+#ui[data-layout='bottom'] .hand .content-card.locked-card .card-research { padding: 0; }
+.hand .content-card.locked-card .card-progress {
+  position: absolute;
+  grid-row: 3;
+  grid-column: 1;
+  align-self: start;
+  z-index: 3;
+  left: 6px;
+  right: 6px;
+  height: 4px;
+  margin: 0;
+  border: 0;
+  background: rgba(255, 255, 255, 0.35);
+}
+.hand .content-card.locked-card .card-progress-fill { background: var(--rc-price); }
+.hand-group.hand-locked { background: color-mix(in srgb, #8a9099 35%, var(--surface)); }
+
 /* Tool cards: stripe (::before), the picture area with the icon centred in it, the name on the band. A baked picture
    (a canvas or image in the picture area) fills the card under the stripe, the band over its bottom. */
 .hand .card.tool-card { grid-template-rows: var(--rc-stripe) minmax(calc(var(--card-h) * 0.4), 1fr) auto; }
