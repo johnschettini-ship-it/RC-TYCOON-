@@ -169,6 +169,15 @@ export const HELIX_LEAD_M = 6;
 export const HELIX_RISE_M = 4;
 
 /**
+ * Launch pieces (new rides batch C, the Launch Coaster): while any car of a gravity train is on a launch piece, the
+ * linear motors drive it toward the type's launch speed at LAUNCH_ACCEL (about 1.2 g, a firm launch; it never slows a
+ * faster train). Not in any spec (a starting value): at 12 m/s² five 4 m launch pieces take a train from the station
+ * speed to 22 m/s. Cost: as many straights as the block brake costs dollars over one (catalog §8 style multiple).
+ */
+export const LAUNCH_ACCEL = 12;
+export const LAUNCH_COST_MULTIPLE = 4;
+
+/**
  * Monorail stops (Phase 6 §4.5, master R26): a train dwells this long at each extra station; nobody boards or leaves
  * there (guests board and leave at the first station).
  */

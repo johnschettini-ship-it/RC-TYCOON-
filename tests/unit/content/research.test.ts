@@ -13,6 +13,7 @@ import { contentInfo, isUnlocked } from '../../../src/sim/research/api';
 import { hourlyResearch, pickNextResearch } from '../../../src/sim/research/update';
 import { makeTestWorld } from '../../helpers/world';
 import { RIDES_B, RIDES_B_IDS } from '../../helpers/ridesB';
+import { RIDES_C, RIDES_C_IDS } from '../../helpers/ridesC';
 
 /** Card W4-D (open question 1, master R25): provisional costs by category. */
 const BUILD3: Record<string, [string, number]> = {
@@ -37,8 +38,8 @@ describe('Build 3 research entries (catalog §9, master R25)', () => {
   });
 
   it('appends the 11 Phase 6 research items after the 18 Build 1 and Build 2 items: 4,050 points (and the new rides of batch B among them)', () => {
-    expect(RESEARCH_ORDER).toHaveLength(18 + 11 + RIDES_B_IDS.length);
-    const build3 = RESEARCH_ORDER.slice(18).filter((r) => !RIDES_B[r.id]);
+    expect(RESEARCH_ORDER).toHaveLength(18 + 11 + RIDES_B_IDS.length + RIDES_C_IDS.length);
+    const build3 = RESEARCH_ORDER.slice(18).filter((r) => !RIDES_B[r.id] && !RIDES_C[r.id]);
     expect(new Set(build3.map((r) => r.id))).toEqual(new Set(Object.keys(BUILD3)));
     for (const r of build3) expect([r.category, r.cost], r.id).toEqual(BUILD3[r.id]);
     expect(build3.reduce((a, r) => a + r.cost, 0)).toBe(4200 - 150);
@@ -47,7 +48,7 @@ describe('Build 3 research entries (catalog §9, master R25)', () => {
   });
 
   it('covers every Phase 6 catalog item, each in its catalog category', () => {
-    expect(PHASE6).toHaveLength(11 + RIDES_B_IDS.length);
+    expect(PHASE6).toHaveLength(11 + RIDES_B_IDS.length + RIDES_C_IDS.length);
     expect(getResearchItem('kiddie_cars')).toBeUndefined();
     for (const d of PHASE6) {
       const item = getResearchItem(d.id);

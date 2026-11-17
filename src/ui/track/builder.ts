@@ -62,7 +62,7 @@ export const PALETTE_GROUPS: readonly PaletteGroupDef[] = Object.freeze([
   { id: 'slopes', groups: ['G', 'X'] },
   { id: 'turns', groups: ['Ts', 'Tm', 'Hx'] },
   { id: 'banking', groups: ['B'] },
-  { id: 'special', groups: ['Br', 'BB', 'L', 'Sp', 'W', 'Cs'] },
+  { id: 'special', groups: ['Br', 'BB', 'L', 'Sp', 'W', 'Cs', 'Ln'] },
 ]);
 
 export function paletteGroupOf(group: PieceGroup): PaletteGroupId {

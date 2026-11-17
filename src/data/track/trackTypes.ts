@@ -5,7 +5,7 @@
  */
 import { getTrackRideDef } from '../catalog/trackRides';
 import { FLUME_K, FLUME_V_CURRENT, RAPIDS_K, RAPIDS_V_CURRENT } from '../tuning/track';
-import type { PieceGroup, RatingExtra, TrackDriveMode, TrackTypeDef } from './types';
+import type { PieceGroup, RatingExtra, TrackDriveMode, TrackPieceDef, TrackTypeDef } from './types';
 
 interface Extra {
   id: string;
@@ -19,6 +19,10 @@ interface Extra {
   spins?: boolean;
   /** Pieces of the groups the type still cannot build (default none). */
   excludePieces?: string[];
+  /** Pieces of another set the type builds as well (default none; new rides batch C). */
+  alsoPieces?: string[];
+  /** Launch speed (mm/s) of the type's launch pieces (default 0: no launch; new rides batch C). */
+  launchSpeedMms?: number;
   /** Station runs on the circuit (default 1). */
   maxStations?: number;
   ratings: { e: number; i: number; n: number; kAir: number; extra: RatingExtra };
@@ -91,9 +95,10 @@ function build(e: Extra): TrackTypeDef {
     stationPiece: 'station',
     groups: Object.freeze([...e.groups]),
     excludePieces: Object.freeze([...(e.excludePieces ?? [])]),
+    alsoPieces: Object.freeze([...(e.alsoPieces ?? [])]),
     chain: e.chain,
     maxStations: e.maxStations ?? 1,
-    physics: { mu: e.mu, cd: e.cd, chainSpeedMms: e.chainSpeedMms, driveSpeedMms: cat.driveSpeedMms ?? 0 },
+    physics: { mu: e.mu, cd: e.cd, chainSpeedMms: e.chainSpeedMms, driveSpeedMms: cat.driveSpeedMms ?? 0, launchSpeedMms: e.launchSpeedMms ?? 0 },
     water: null,
     vehicle: {
       seatsPerCar: cat.seatsPerCar,
@@ -202,9 +207,10 @@ function buildWater(e: WaterExtra): TrackTypeDef {
     stationPiece: `${e.pieceSet}_station`,
     groups: Object.freeze(['S', 'St', 'G', 'X', 'Ts', 'Tm', 'W'] as PieceGroup[]),
     excludePieces: Object.freeze([]),
+    alsoPieces: Object.freeze([]),
     chain: false,
     maxStations: 1,
-    physics: { mu: WATER_MU, cd: WATER_CD, chainSpeedMms: 0, driveSpeedMms: 0 },
+    physics: { mu: WATER_MU, cd: WATER_CD, chainSpeedMms: 0, driveSpeedMms: 0, launchSpeedMms: 0 },
     water: { currentMms: e.currentMms, k: e.k },
     vehicle: {
       seatsPerCar: cat.seatsPerCar,
@@ -231,11 +237,31 @@ function buildWater(e: WaterExtra): TrackTypeDef {
 /** The 2 Build 2 water types: Log Flume and Rapids Raft. */
 export const WATER_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(WATER_EXTRAS.map(buildWater));
 
-/** Every track type: Build 1 rail, Build 2 water, then Build 3 rail. */
-export const ALL_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze([...TRACK_TYPES, ...WATER_TRACK_TYPES, ...EXTRA_TRACK_TYPES]);
+/**
+ * New rides batch C (docs/superpowers/specs/2026-11-17-new-rides-design.md): five track types on the rail medium. Not in
+ * any spec (tuning starting values, set beside the nearest existing type): the rating terms, costs, friction, chain and
+ * launch speeds, and car lengths. Each row says what it sits beside.
+ */
+const RIDES_C_EXTRAS: Extra[] = [];
+
+/** The batch C track types (rail medium). */
+export const RIDES_C_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(RIDES_C_EXTRAS.map(build));
+
+/** Every track type: Build 1 rail, Build 2 water, Build 3 rail, then the new rides batch C types. */
+export const ALL_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze([...TRACK_TYPES, ...WATER_TRACK_TYPES, ...EXTRA_TRACK_TYPES, ...RIDES_C_TRACK_TYPES]);
 
 const BY_ID: ReadonlyMap<string, TrackTypeDef> = new Map(ALL_TRACK_TYPES.map((t) => [t.id, t]));
 
 export function getTrackTypeDef(id: string): TrackTypeDef | undefined {
   return BY_ID.get(id);
+}
+
+/**
+ * A type builds a piece of its own set in its groups (Phase 4 §4.4: rail, flume or rapids), less its excluded pieces,
+ * and any piece it names in `alsoPieces` (new rides batch C: the Water Coaster's splashdown). The one rule the build
+ * check, the palette, Auto-finish's plain pieces and the load check share.
+ */
+export function typeBuildsPiece(type: TrackTypeDef, def: TrackPieceDef): boolean {
+  if (type.alsoPieces.includes(def.id)) return true;
+  return def.set === type.pieceSet && type.groups.includes(def.group) && !type.excludePieces.includes(def.id);
 }

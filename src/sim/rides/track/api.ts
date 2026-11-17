@@ -239,8 +239,8 @@ export function checkTrackRideForLoad(data: TrackRideData, state?: GameState): s
   for (const p of data.pieces) {
     const def = getTrackPieceDef(p.defId);
     if (!def) return 'Unknown track piece';
-    // Phase 4 §4.4: a type builds only pieces of its own set (rail, flume, or rapids).
-    if (def.set !== type.pieceSet) return 'Track piece does not belong to this ride type';
+    // Phase 4 §4.4: a type builds only pieces of its own set (rail, flume, or rapids), and its `alsoPieces` (batch C).
+    if (def.set !== type.pieceSet && !type.alsoPieces.includes(def.id)) return 'Track piece does not belong to this ride type';
   }
   if (getTrackPieceDef((data.pieces[0] as { defId: string }).defId)?.special !== 'station') return 'Track does not start with a station';
   for (let i = 1; i < data.pieces.length; i++) {

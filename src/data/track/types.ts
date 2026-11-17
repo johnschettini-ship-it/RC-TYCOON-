@@ -8,9 +8,10 @@ export type TrackSlope = 'F' | 'G+' | 'G-' | 'X+' | 'X-';
 export type TrackBank = 'none' | 'left' | 'right';
 /**
  * S station, St straight, G gentle, X steep, Ts small turn, Tm medium turn, B banking, Br brakes, BB block brake, L loop,
- * Sp spooky tunnel, W water feature (splashdown, rough water, whirlpool; Phase 4), Cs corkscrew, Hx helix (Phase 6).
+ * Sp spooky tunnel, W water feature (splashdown, rough water, whirlpool; Phase 4), Cs corkscrew, Hx helix (Phase 6),
+ * Ln launch (new rides batch C: a straight that drives the train up to its type's launch speed).
  */
-export type PieceGroup = 'S' | 'St' | 'G' | 'X' | 'Ts' | 'Tm' | 'B' | 'Br' | 'BB' | 'L' | 'Sp' | 'W' | 'Cs' | 'Hx';
+export type PieceGroup = 'S' | 'St' | 'G' | 'X' | 'Ts' | 'Tm' | 'B' | 'Br' | 'BB' | 'L' | 'Sp' | 'W' | 'Cs' | 'Hx' | 'Ln';
 
 /** Piece set: rail pieces (Phase 2) or one of the water sets (Phase 4 §4.4). A type builds only pieces of its set. */
 export type PieceSet = 'rail' | 'flume' | 'rapids';
@@ -53,7 +54,7 @@ export type PieceGeometry =
    */
   | { kind: 'helix'; side: 'left' | 'right'; radiusM: number };
 
-export type PieceSpecial = 'station' | 'brakes' | 'blockBrake' | 'spooky' | 'splashdown' | 'waterfall' | 'rough' | 'whirlpool' | null;
+export type PieceSpecial = 'station' | 'brakes' | 'blockBrake' | 'spooky' | 'splashdown' | 'waterfall' | 'rough' | 'whirlpool' | 'launch' | null;
 
 /** Water behaviour of a piece (null on rail pieces). */
 export interface WaterPieceInfo {
@@ -118,6 +119,11 @@ export interface TrackTypeDef {
   groups: readonly PieceGroup[];
   /** Pieces of the type's groups this type still cannot build (Bobsled Run: no steep climbs). */
   excludePieces: readonly string[];
+  /**
+   * New rides batch C: pieces of another set this type builds as well, by id, whatever their group (the Water Coaster:
+   * the Log Flume's splashdown and channel straight). Every other type: none. See `typeBuildsPiece`.
+   */
+  alsoPieces: readonly string[];
   /** Chain lift option allowed. */
   chain: boolean;
   /**
@@ -133,6 +139,8 @@ export interface TrackTypeDef {
     chainSpeedMms: number;
     /** Powered target speed, or the top kart speed (guest-driven). */
     driveSpeedMms: number;
+    /** New rides batch C: the speed a launch piece drives a gravity train up to (mm/s); 0 for types without launches. */
+    launchSpeedMms: number;
   };
   /** Water current (Phase 4 §4.4, §8): current speed and the coefficient k (1/s). Null for rail types. */
   water: { currentMms: number; k: number } | null;
@@ -153,11 +161,20 @@ export interface TrackTypeDef {
   /** R2 (owner 2026-11-12): the climb above the station (m) where the intensity step starts (the limit before 2026-11-12). */
   intensityHeightM: number;
   render: {
-    /** Phase 6: `inverted` (rail above the hanging cars), `bobsled` (ice trough), `beam` (monorail beam). */
-    rail: 'steel' | 'wood' | 'narrow' | 'kart' | 'tunnel' | 'flume' | 'rapids' | 'inverted' | 'bobsled' | 'beam';
-    /** Phase 6: `arm` (a post beside the track with an arm over it, for hanging cars). */
-    supports: 'round' | 'lattice' | 'pillar' | 'arm';
-    car: 'coaster' | 'junior' | 'loco' | 'mouse' | 'ghost' | 'kart' | 'log' | 'raft' | 'inverted' | 'bobsled' | 'monorail';
+    /**
+     * Phase 6: `inverted` (rail above the hanging cars), `bobsled` (ice trough), `beam` (monorail beam). New rides batch
+     * C: `cable` (a haul rope high above the hanging gondolas).
+     */
+    rail: 'steel' | 'wood' | 'narrow' | 'kart' | 'tunnel' | 'flume' | 'rapids' | 'inverted' | 'bobsled' | 'beam' | 'cable';
+    /**
+     * Phase 6: `arm` (a post beside the track with an arm over it, for hanging cars). New rides batch C: `tower` (a tall
+     * lattice pylon with a cross arm that carries the cable, on every third tile).
+     */
+    supports: 'round' | 'lattice' | 'pillar' | 'arm' | 'tower';
+    /** New rides batch C: `launch` (sleek low cars), `ore` (ore carts), `boat`, `flying` (prone), `gondola`. */
+    car:
+      | 'coaster' | 'junior' | 'loco' | 'mouse' | 'ghost' | 'kart' | 'log' | 'raft' | 'inverted' | 'bobsled' | 'monorail'
+      | 'launch' | 'ore' | 'boat' | 'flying' | 'gondola';
     colours: { track: number; supports: number; cars: number };
   };
 }

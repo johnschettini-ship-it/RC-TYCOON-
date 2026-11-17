@@ -51,8 +51,9 @@ describe('water piece table (Phase 4 §4.4)', () => {
     const ids = TABLE.flatMap((r) => r.ids);
     expect(WATER_PIECES.map((p) => p.id)).toEqual(ids);
     expect(TRACK_PIECES).toHaveLength(29);
-    // Build 3 (W4-D) appends the 6 Phase 6 pieces after the water pieces (tests/unit/track/phase6Pieces.test.ts).
-    expect(ALL_TRACK_PIECES).toHaveLength(29 + 21 + 6);
+    // Build 3 (W4-D) appends the 6 Phase 6 pieces after the water pieces (tests/unit/track/phase6Pieces.test.ts), and
+    // new rides batch C the launch.
+    expect(ALL_TRACK_PIECES).toHaveLength(29 + 21 + 7);
     expect(ALL_TRACK_PIECES.slice(29, 50)).toEqual(WATER_PIECES);
     WATER_PIECES.forEach((p, i) => expect(p.num).toBe(30 + i));
     for (const id of ids) expect(getTrackPieceDef(id)?.id).toBe(id);

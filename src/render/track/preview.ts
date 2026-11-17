@@ -10,7 +10,7 @@ import type { TrackPieceInstance } from '../../sim/rides/track/types';
 import type { Ctx } from '../sprites/shapes';
 import { drawCardArt } from '../cardArt';
 import { paletteColour } from './colours';
-import { lookFor, paintCar, paintRun, paintSupport, Projector, type TrackColours } from './paint';
+import { lookFor, lookForPiece, paintCar, paintRun, paintSupport, Projector, type TrackColours } from './paint';
 import { trackFrame, viewFrame } from './project';
 
 function piece(defId: string, x: number, y: number, z: number, dir: 0 | 1 | 2 | 3): TrackPieceInstance {
@@ -103,9 +103,10 @@ export function drawTrackPreview(ctx: CanvasRenderingContext2D, typeId: string, 
   samples.forEach((s, i) => {
     const p = pieces[i] as TrackPieceInstance;
     const mid = Math.floor(s.n / 2);
-    if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) - look.drop);
     const def = getTrackPieceDef(p.defId);
-    paintRun(c, P, look, col, s, 0, s.n - 1, { special: def?.special ?? null, chain: false, conveyor: def?.water?.drive === 'conveyor' && def.special !== 'station' });
+    const pl = lookForPiece(type, def);
+    if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) - pl.drop);
+    paintRun(c, P, pl, col, s, 0, s.n - 1, { special: def?.special ?? null, chain: false, conveyor: def?.water?.drive === 'conveyor' && def.special !== 'station' });
   });
   // Two cars in the station (one boat on a water ride).
   const st = samples[1];
