@@ -14,9 +14,11 @@
  * 5. The title screen's park release (`./titleHold.ts`, realistic title Task 2): every set but the card pictures, every
  *    ground chunk and every tint-atlas page, freed before the title decodes its own pictures.
  * 5b. The realistic card frames (`src/styles/realCards.css`) come with this module, so only the realistic look has them.
+ * 5c. The title-to-play bridge's style (`src/styles/realBridge.css`: the poster tokens, the glow and the welcome card), likewise.
  * 6. When the page runs the bench (`benchMode`: `?bench=1`, `quick` or `scale`), the index gets the scale park's alias sets (`./aliases.ts`, round 3 item 7).
  */
 import '../../styles/realCards.css';
+import '../../styles/realBridge.css';
 import { t } from '../../data/strings';
 import { perfProbe } from '../../perf/stats';
 import { REAL_STEP_PX } from '../artStyle';

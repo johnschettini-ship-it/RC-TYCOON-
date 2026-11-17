@@ -20,6 +20,7 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { deflateSync, inflateSync } from 'node:zlib';
+import { copyCover, report as reportCover } from './cover.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -90,7 +91,8 @@ const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 
   mkdirSync(cacheDir, { recursive: true });
   const N = await bundle(buildDir);
   const { ITEM_LIST, SHARED } = await import(pathToFileURL(join(HERE, 'items/registry.js')).href);
-  const list = ITEM_LIST;
+  // Items marked `explicit` (the earlier title panorama) are baked only when named in --only.
+  const list = ITEM_LIST.filter((it) => !it.explicit || (o.only && o.only.includes(it.id)));
   const chosen = (id) => !o.only || o.only.includes(id);
   if (o.only) for (const id of o.only) if (!ITEM_LIST.some((it) => it.id === id)) throw new Error(`unknown item ${id}`);
 
@@ -206,12 +208,13 @@ const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 
   const json = JSON.stringify(index);
   writeFileSync(join(outDir, 'index.json'), json);
 
-  // the title pictures (items/title.js): their own folder and index (tools/art3d/titleIndex.ts), outside the sets
-  let title;
-  const tr = report.find((r) => r.out === 'title');
+  // the earlier title panorama (items/title.js, only with --only title): its own folder and index
+  // (tools/art3d/titleIndex.ts checkTitleIndex), outside the sets; the game shows the poster cover instead
+  let panorama;
+  const tr = report.find((r) => r.out === 'title-panorama');
   if (tr) {
     if (!tr.meta) throw new Error('title: the bake gave no title index');
-    const tdir = join(outDir, 'title');
+    const tdir = join(outDir, 'title-panorama');
     mkdirSync(tdir, { recursive: true });
     const tfiles = new Map();
     for (const name of tr.files) {
@@ -223,11 +226,13 @@ const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 
     const tindex = { ...tr.meta };
     tindex.bytes = { compressed: [...tfiles.values()].reduce((a, f) => a + f.bytes, 0), decoded: N.titleDecoded(tindex) };
     writeFileSync(join(tdir, 'index.json'), JSON.stringify(tindex, null, 1));
-    title = { index: tindex, files: tfiles };
-    console.log(`title: ${tfiles.size} files, ${mb(tindex.bytes.compressed)} MB compressed; decoded ${mb(tindex.bytes.decoded.wide)} MB wide, ${mb(tindex.bytes.decoded.tall)} MB tall`);
-    for (const [n, f] of tfiles) console.log(`  ${n.padEnd(22)} ${String(f.w).padStart(5)} x ${String(f.h).padEnd(5)} ${(f.bytes / 1e3).toFixed(0).padStart(6)} KB`);
+    panorama = { index: tindex, files: tfiles };
+    console.log(`title panorama: ${tfiles.size} files, ${mb(tindex.bytes.compressed)} MB compressed; decoded ${mb(tindex.bytes.decoded.wide)} MB wide, ${mb(tindex.bytes.decoded.tall)} MB tall`);
   }
-  const problems = N.checkIndex(index, new Set(readdirSync(outDir)), title);
+  // the title cover (the owner's poster, art-src/title/, tools/art3d/cover.mjs): copied into title/
+  const cover = copyCover(outDir, N.checkCoverFolder, N.coverDecoded);
+  reportCover(cover);
+  const problems = N.checkIndex(index, new Set(readdirSync(outDir)), cover, panorama);
   for (const p of problems) console.log(`[index] ${p}`);
 
   console.log('\nkind      sets  pictures  frame keys  sheets  compressed MB  decoded MB d2  decoded MB d4');

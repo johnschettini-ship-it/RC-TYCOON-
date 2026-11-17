@@ -24,6 +24,7 @@ import { formatMoney } from '../format';
 import { chipGroup } from './controls';
 import { deadlineText, endFacts, goalText, scenarioCards, startConditions, type ScenarioCard } from './model';
 import { downloadText, openTitle, progressStore, randomSeed, settings } from './shared';
+import { markNewPark } from '../bridge/arrival';
 
 export interface ScenarioFlow {
   /** Tutorial, Scenarios, Sandbox (and the free-play New Park form). */
@@ -80,6 +81,8 @@ export function createScenarioFlow(ctx: UiContext, host: FlowHost): ScenarioFlow
 
   const start = (world: World): void => {
     closeDetail();
+    // Title-to-play bridge (VITE_ART=real): a new park; the welcome card follows a sandbox one (`../bridge/arrival.ts`).
+    if (import.meta.env.VITE_ART === 'real') markNewPark();
     game.setWorld(world);
     host.close();
     game.setSpeed(1);

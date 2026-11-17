@@ -51,13 +51,39 @@ export function allowedFont(path: string, bytes: number | undefined): boolean {
   return FONTS_ALLOWED.some((f) => bytes === f.bytes && (path === `src/assets/fonts/fredoka/${f.name}.woff2` || new RegExp(`^assets/${f.name}-[A-Za-z0-9_-]{6,}\\.woff2$`).test(path)));
 }
 
-/** Problems in the tracked files: third-party names in text, and media the project did not make. */
-export function originalityProblems(files: ReadonlyArray<{ path: string; text: string | null; bytes?: number }>): string[] {
+/** The asset log: files the project did not make, each chosen by the owner, with its source and licence. */
+export const ASSET_LOG = 'docs/superpowers/specs/thrills-and-chills/asset-log.md';
+export interface LoggedAsset {
+  path: string;
+  source: string;
+  licence: string;
+}
+/** The rows of the asset log's table (`| \`file\` | source | tool | licence | date | used by |`). */
+export function assetLogRows(text: string): LoggedAsset[] {
+  const out: LoggedAsset[] = [];
+  for (const raw of text.split('\n')) {
+    const cells = raw.trim().split('|').map((c) => c.trim());
+    const m = /^`([^`]+)`$/.exec(cells[1] ?? '');
+    if (!m || cells.length < 7) continue;
+    out.push({ path: m[1] as string, source: cells[2] ?? '', licence: cells[4] ?? '' });
+  }
+  return out;
+}
+/** Owner items of the asset log: each file whose licence is not confirmed yet. */
+export function assetOwnerItems(rows: readonly LoggedAsset[]): string[] {
+  return rows.filter((r) => /pending/i.test(r.licence) || r.licence === '').map((r) => `Owner: confirm the licence of ${r.path} (${r.source}; licence ${r.licence || 'missing'})`);
+}
+
+/**
+ * Problems in the tracked files: third-party names in text, and media the project did not make. A raster file listed
+ * in the asset log (`logged`) is allowed: the owner chose it, and its licence is an owner item (assetOwnerItems).
+ */
+export function originalityProblems(files: ReadonlyArray<{ path: string; text: string | null; bytes?: number }>, logged: ReadonlySet<string> = new Set()): string[] {
   const out: string[] = [];
   for (const f of files) {
     if (AUDIO.test(f.path)) out.push(`${f.path}: audio file (all audio is generated in code)`);
     else if (FONT.test(f.path) && !allowedFont(f.path, f.bytes)) out.push(`${f.path}: font file`);
-    else if (RASTER.test(f.path) && !RASTER_ALLOWED.test(f.path)) out.push(`${f.path}: image not made by the project`);
+    else if (RASTER.test(f.path) && !RASTER_ALLOWED.test(f.path) && !logged.has(f.path)) out.push(`${f.path}: image not made by the project`);
     if (f.text !== null && f.path !== 'scripts/check-release.ts') {
       const m = THIRD_PARTY.exec(f.text);
       if (m) out.push(`${f.path}: names "${m[0]}"`);
@@ -256,8 +282,10 @@ export function checkRelease(root: string, opts: { build: boolean; tests: boolea
       .split('\n')
       .filter((p) => p !== '' && p !== 'package-lock.json' && existsSync(join(root, p)))
       .map((path) => ({ path, text: /\.(ts|js|json|md|html|css|svg|webmanifest|yml|yaml|txt)$/.test(path) ? readFileSync(join(root, path), 'utf8') : null, bytes: statSync(join(root, path)).size }));
-    const op = originalityProblems(files);
-    add(7, 'Originality: no third-party names, art, audio, or data', op.length === 0 ? 'pass' : 'fail', op.length === 0 ? `${files.length} tracked files scanned; also review by hand` : op.join('; '));
+    const log = assetLogRows(read(ASSET_LOG) ?? '');
+    const op = originalityProblems(files, new Set(log.map((r) => r.path)));
+    add(7, 'Originality: no third-party names, art, audio, or data', op.length === 0 ? 'pass' : 'fail', op.length === 0 ? `${files.length} tracked files scanned (${log.length} owner-supplied in ${ASSET_LOG}); also review by hand` : op.join('; '));
+    for (const o of assetOwnerItems(log)) add(7, o, 'owner', ASSET_LOG);
   }
 
   // 8. Version, changelog, readme, license.

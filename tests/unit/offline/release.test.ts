@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { auditOwnerItems, auditRows, distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems, RELEASE_VERSION } from '../../../scripts/check-release';
+import { assetLogRows, assetOwnerItems, auditOwnerItems, auditRows, distProblems, doneWhenProblems, formatResults, initialLoadBytes, originalityProblems, RELEASE_VERSION } from '../../../scripts/check-release';
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -49,6 +49,28 @@ describe('originality scan (checklist item 7)', () => {
       { path: 'docs/screenshots/wave1-park.png', text: null },
     ]);
     expect(problems).toEqual([`src/a.ts: names "${other}"`, 'public/sounds/pop.wav: audio file (all audio is generated in code)', 'public/fonts/x.woff2: font file', 'public/art/ride.png: image not made by the project']);
+  });
+});
+
+describe('the asset log (owner-supplied files)', () => {
+  const log = [
+    '| File | Source | Tool | Licence | Date | Used by |',
+    '|---|---|---|---|---|---|',
+    '| `art-src/title/poster-wide.webp` | supplied by owner | pending owner confirmation | pending owner confirmation | 2026-11-17 | title |',
+    '| `art-src/x.webp` | supplied by owner | a tool | CC BY 4.0 | 2026-11-18 | x |',
+  ].join('\n');
+  it('allows a logged raster file and no other', () => {
+    const rows = assetLogRows(log);
+    expect(rows.map((r) => r.path)).toEqual(['art-src/title/poster-wide.webp', 'art-src/x.webp']);
+    const logged = new Set(rows.map((r) => r.path));
+    expect(originalityProblems([{ path: 'art-src/title/poster-wide.webp', text: null }, { path: 'art-src/title/other.webp', text: null }], logged)).toEqual(['art-src/title/other.webp: image not made by the project']);
+  });
+  it('lists each file whose licence is pending as an owner item, never as passed', () => {
+    expect(assetOwnerItems(assetLogRows(log))).toEqual(['Owner: confirm the licence of art-src/title/poster-wide.webp (supplied by owner; licence pending owner confirmation)']);
+  });
+  it('the real asset log lists the poster with its licence pending', () => {
+    const rows = assetLogRows(readFileSync(new URL('../../../docs/superpowers/specs/thrills-and-chills/asset-log.md', import.meta.url), 'utf8'));
+    expect(rows.find((r) => r.path === 'art-src/title/poster-wide.webp')).toMatchObject({ source: 'supplied by owner', licence: 'pending owner confirmation' });
   });
 });
 

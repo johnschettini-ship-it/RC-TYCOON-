@@ -1,6 +1,13 @@
 /**
- * The baked title pictures (tools/art3d/items/title.js, written by bake.mjs to dist-art/real/title/): the index
- * format and its pure validator (no node: imports; checkIndex.ts and checkIndexCli.ts call it).
+ * The title folders and their pure validators (no node: imports; checkIndex.ts and checkIndexCli.ts call them).
+ *
+ * `title/` is the poster cover the game shows (owner's choice, 2026-11-17): `art-src/title/` copied by cover.ts (the
+ * bake does it too), validated by `checkCoverFolder` against the game's own index check (`checkCoverIndex` in
+ * src/ui/titleScreen/real/layout.ts) plus the files: present at the size the index says, nothing stray, 3 MB
+ * compressed, 24 MB decoded per framing.
+ *
+ * `title-panorama/` is the earlier baked panorama (tools/art3d/items/title.js), baked only on request
+ * (`--only title`) and not shown by the game any more; `checkTitleIndex` below is its format:
  *
  * Two framings, `wide` (desktop) and `tall` (phone), each three layers of the framing's size drawn back to front
  * (sky, park, front: the foreground trees and the lake), and the big wheel as an 8-frame strip (frames side by side,
@@ -8,6 +15,10 @@
  * layer px (the name sits above it); `menuAnchorX` is the wheel's left edge in layer px (the menu must not cover it).
  * Two name signs: `line` (one line) and `stack` ("Thrills", "&", "Chills"). File names are relative to title/.
  */
+
+import { COVER_COMPRESSED_MAX, checkCoverIndex, coverDecoded } from '../../src/ui/titleScreen/real/layout';
+
+export { coverDecoded };
 
 export interface TitleWheel { file: string; frames: 8; fw: number; fh: number; x: number; y: number }
 export interface TitleFraming {
@@ -116,4 +127,28 @@ export function webpSize(buf: Uint8Array): [number, number] {
   if (fourcc === 'VP8 ') return [dv.getUint16(26, true) & 0x3fff, dv.getUint16(28, true) & 0x3fff];
   if (fourcc === 'VP8L') { const b = dv.getUint32(21, true); return [1 + (b & 0x3fff), 1 + ((b >> 14) & 0x3fff)]; }
   throw new Error('not a WebP file');
+}
+
+/** Returns a list of problems of the cover folder (`title/`); empty means its index and files agree and keep the limits. */
+export function checkCoverFolder(raw: unknown, files: TitleFiles): string[] {
+  const idx = checkCoverIndex(raw);
+  if (idx instanceof Error) return [idx.message];
+  const problems: string[] = [];
+  // The title-to-play bridge reads these (the push zooms about the arch); the reader treats them as optional.
+  if (!idx.arch) problems.push('no arch point (the push through the arch zooms about it)');
+  const named = new Set<string>();
+  for (const k of ['wide', 'tall'] as const) {
+    const F = idx[k];
+    named.add(F.file);
+    const f = files.get(F.file);
+    if (!f) problems.push(`${k}: missing file ${F.file}`);
+    else if (f.w !== F.w || f.h !== F.h) problems.push(`${k}: ${F.file} is ${f.w}x${f.h}, the index says ${F.w}x${F.h}`);
+  }
+  for (const n of files.keys()) if (!named.has(n)) problems.push(`file not in the cover index: ${n}`);
+  let bytes = 0;
+  for (const f of files.values()) bytes += f.bytes;
+  if (bytes > COVER_COMPRESSED_MAX) problems.push(`compressed ${bytes} bytes, over ${COVER_COMPRESSED_MAX}`);
+  const d = coverDecoded(idx);
+  for (const k of ['wide', 'tall'] as const) if (d[k] > TITLE_DECODED_MAX) problems.push(`${k}: decoded ${d[k]} bytes, over ${TITLE_DECODED_MAX}`);
+  return problems;
 }

@@ -1,63 +1,88 @@
 /**
- * Layout of the realistic title screen (VITE_ART=real build only; spec `2026-11-16-realistic-title-and-cards-design.md`,
- * builder-check answer 1): where the baked panorama, its big-wheel sprite and the name sign go, from the window size,
- * the measured menu height and the title index (`art/real/title/index.json`, baked by `tools/art3d`). Pure, no DOM.
+ * Layout of the realistic title screen's poster cover (VITE_ART=real build only): where the owner's poster, the name
+ * and the menu go, from the window size, the measured menu height and the cover index (`art/real/title/index.json`,
+ * copied from `art-src/title/` by `tools/art3d/cover.ts`). Pure, no DOM.
  *
- * It keeps design E's intent (`../layout.ts`, rules G1–G15 of `phase-7-title-screen.md`), re-derived for a picture
- * that scales smoothly (any scale, not whole numbers):
+ * The poster replaced the baked panorama (owner's choice, 2026-11-17; mocks variant-10 and variant-11). The rules:
  * - The menu is design E's menu: `base` is `titleLayout` of the same input, used as is for the menu, plate and sheet.
- * - Framing: tall when the window is taller than wide, else wide.
- * - The picture fits the window's width (plus the drift on each side), so the whole park shows (the wheel, the lake);
- *   it ends at the window bottom on the desktop, and just under the menu's top edge on phones and low windows.
- *   Above it the sky's top row and below it the lawn's bottom row are stretched to the window's edges (`view.ts`), so
- *   there is no seam. The whole wheel stays inside the window. On the desktop only, the wheel (`menuAnchorX`, its left edge) stays right of the menu block, drift included:
- *   phones and low windows have the menu across the bottom, under the picture's bottom edge (it covers at most the
- *   24 px the picture runs under it), so there is no side to keep clear.
- * - The name sign sits in the sky above the ride tops (the higher of `nameRow` and the wheel's top) and inside the safe area: if it does
- *   not fit, the picture moves down (a little), then the sign gets smaller (to half), then the picture moves on down.
+ * - Framing: tall when the window is taller than wide, else wide. Each framing names its file (the tall one may be the
+ *   wide file with a narrower crop until a tall poster exists), the part of the file that may show (`crop`), the part
+ *   that must stay visible (`focus`: the wheel and the arch), the wheel, and the title anchor (`title`: the sky where
+ *   the name sits).
+ * - Fit: object-fit cover of the crop (with the drift to spare on every side), centred on the focus box, but never
+ *   so large that the focus box leaves the window (phones: the room above the menu). When that limit wins, the crop no
+ *   longer covers the window and its edge rows and columns are stretched to the edges (`view.ts`). Phones hug the top
+ *   (the name over the sky) and keep the focus box above the menu.
+ * - Desktop: the menu block (bottom left) never covers the wheel, drift included.
+ * - The name: real text (Fredoka), one line on the wide framing while it keeps a readable size, else stacked. Centred on
+ *   the title anchor, inside the safe area, and above the wheel's hub.
  * - Reduced motion: no drift.
  */
 import { titleLayout, type SafeInsets, type TitleLayout, type TitleLayoutInput } from '../layout';
 
 export type Framing = 'wide' | 'tall';
-export type SignKind = 'line' | 'stack';
+export type TitleKind = 'line' | 'stack';
 
-/** The big wheel: an 8-frame sprite (one row of frames, or one column) placed on the park layer, layer px. */
-export interface TitleWheel {
-  file: string;
-  frames: number;
-  fw: number;
-  fh: number;
+export interface Rect {
   x: number;
   y: number;
-}
-/** One framing of the panorama: three layers of w × h layer px. */
-export interface FramingIndex {
   w: number;
   h: number;
-  layers: { sky: string; park: string; front: string };
-  wheel: TitleWheel;
-  /** The top of the tallest ride, layer px: the name sits above it. */
-  nameRow: number;
-  /** The x the desktop menu must not cover (the wheel's left edge), layer px. Desktop only (see the file comment). */
-  menuAnchorX: number;
 }
-export interface SignPicture {
+/** One framing of the cover, in the file's px. */
+export interface CoverFraming {
+  /** File name relative to `title/`. */
   file: string;
+  /** The file's size, px. */
   w: number;
   h: number;
+  /** The part of the file that may show (the tall framing of the wide poster: inside its frame). */
+  crop: Rect;
+  /** What must stay visible: the wheel and the arch. */
+  focus: Rect;
+  /** The big wheel (the desktop menu never covers it; the name stays above its hub). */
+  wheel: Rect;
+  /** The title anchor: the sky where the name sits. */
+  title: Rect;
+  /** Where the twinkling bulbs are looked for (inside the painted area). */
+  lights: Rect;
 }
-/** `art/real/title/index.json` (file names relative to `title/`). */
-export interface TitleIndex {
-  wide: FramingIndex;
-  tall: FramingIndex;
-  sign: { line: SignPicture; stack: SignPicture };
+/** `art/real/title/index.json`. */
+export interface CoverIndex {
+  format: 'cover/1';
+  wide: CoverFraming;
+  tall: CoverFraming;
+  /**
+   * The lit arch's centre in the wide file's px (the push through the arch zooms about it; title-to-play bridge §1).
+   * The tall framing crops the same file. Optional for the reader (an older index pushes about the focus box's centre);
+   * the art check (`tools/art3d/titleIndex.ts` `checkCoverFolder`) requires it.
+   */
+  arch?: { x: number; y: number };
+  /** Written by the copy step for the record; not needed by the reader. */
+  bytes?: { compressed: number; decoded: { wide: number; tall: number } };
 }
 
-/** The wheel turns in this many baked pictures (spec §Title). */
-export const WHEEL_FRAMES = 8;
-/** Largest layers the title may ship (spec §Sizes). */
-export const TITLE_LAYER_MAX: Readonly<Record<Framing, { w: number; h: number }>> = { wide: { w: 1920, h: 800 }, tall: { w: 900, h: 1300 } };
+/** Largest file per framing, px (the owner's later posters: about 2560 wide, about 1440 x 2080 tall). */
+export const COVER_MAX: Readonly<Record<Framing, { w: number; h: number }>> = { wide: { w: 2560, h: 1600 }, tall: { w: 1600, h: 2400 } };
+/** Decoded RGBA bytes of one framing (spec §Sizes). */
+export const COVER_DECODED_MAX = 24_000_000;
+/** All files together, compressed (spec §Sizes). */
+export const COVER_COMPRESSED_MAX = 3_000_000;
+
+/** The name's box per font px (Fredoka 600, measured in Chromium, with room for the outline and glow). */
+export const TITLE_EM: Readonly<Record<TitleKind, { w: number; h: number }>> = { line: { w: 6.95, h: 1.12 }, stack: { w: 3.2, h: 2.66 } };
+/** The one-line name is used on the wide framing while its font keeps at least this size, CSS px. */
+const LINE_MIN_FONT = 30;
+/** The name: at least 12 px from the safe top, 16 px from the safe sides, 8 px above the wheel's hub. */
+const NAME_TOP = 12;
+const NAME_SIDE = 16;
+const HUB_GAP = 8;
+/** Desktop: free space between the menu block's right edge and the wheel. */
+const MENU_CLEAR = 16;
+/** Phones: free space between the focus box and the menu's top edge. */
+const MENU_GAP = 8;
+/** Drift amplitude, CSS px (a few px; none with reduced motion). */
+export const DRIFT = 3;
 
 export interface RealTitleInput extends TitleLayoutInput {
   /** No drift (prefers-reduced-motion or the setting). */
@@ -65,143 +90,138 @@ export interface RealTitleInput extends TitleLayoutInput {
   /** Lay out this framing whatever the window's shape (the other framing still decoding: no blank frame). */
   framing?: Framing;
 }
-export interface Rect {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-export interface RealTitleLayout {
+export interface CoverLayout {
   /** Design E's layout of the same input: the menu, the plate and the sheet. */
   base: TitleLayout;
   framing: Framing;
-  /** CSS px per layer px (any number). */
+  /** CSS px per file px. */
   s: number;
-  /** The picture's box, CSS px (layers at rest). */
-  picture: Rect;
-  /** The fill from the picture's bottom edge to the window bottom (the lawn's bottom row continued; h 0 when none). */
-  fill: Rect;
-  /** The fill from the window top to the picture's top edge (the sky's top row continued; h 0 when none). */
-  fillAbove: Rect;
-  sign: SignKind;
-  signS: number;
-  signBox: Rect;
-  /** One wheel frame's box at rest (it drifts with the park layer). */
+  /** Where the file's (0, 0) lands, CSS px, at rest. */
+  ox: number;
+  oy: number;
+  /** The crop on screen at rest, CSS px. */
+  shown: Rect;
+  /** The focus box and the wheel on screen at rest, CSS px. */
+  focus: Rect;
   wheel: Rect;
-  /** Drift amplitude of each layer, CSS px (0 with reduced motion). */
-  drift: { sky: number; park: number; front: number };
+  /** The name: its form, font size (CSS px) and box. */
+  title: { kind: TitleKind; font: number } & Rect;
+  /** Drift amplitude, CSS px (0 with reduced motion). */
+  drift: number;
 }
 
 const NO_INSETS: SafeInsets = { top: 0, right: 0, bottom: 0, left: 0 };
-/** The name: at least 12 px from the safe top, 8 px above the ride tops, 16 px from the safe sides. */
-const NAME_TOP = 12;
-const NAME_GAP = 8;
-const NAME_SIDE = 16;
-/** The one-line sign is used while it keeps at least this share of the picture's scale; else the stacked one. */
-const LINE_MIN_SHARE = 0.6;
-/** The sign may shrink to this share of its first scale before the picture moves further down. */
-const SIGN_MIN_SHARE = 0.5;
-/** How far the picture may move down for the name before the sign shrinks, as a share of its height. */
-const MOVE_SHARE = 0.15;
-/** Phones and low windows: the picture runs this far under the menu's top edge. */
-const UNDER_MENU = 24;
-/** Desktop: free space between the menu block's right edge and the wheel. */
-const MENU_CLEAR = 16;
-/** Drift amplitudes, CSS px: the sky least, the foreground most (parallax). */
-export const DRIFT = { sky: 2, park: 4, front: 8 } as const;
+const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v));
 
-export function realTitleLayout(input: RealTitleInput, idx: TitleIndex): RealTitleLayout {
+export function coverLayout(input: RealTitleInput, idx: CoverIndex): CoverLayout {
   const { w, h, menuH } = input;
   const safe = input.safe ?? NO_INSETS;
-  const sw = w - safe.left - safe.right;
   const base = titleLayout(input);
   const framing: Framing = input.framing ?? (h > w ? 'tall' : 'wide');
   const F = idx[framing];
-  const drift = input.reducedMotion ? { sky: 0, park: 0, front: 0 } : { ...DRIFT };
-  const d = Math.max(drift.sky, drift.park, drift.front);
+  const C = F.crop;
+  const Fo = F.focus;
+  const Wh = F.wheel;
+  const T = F.title;
+  const d = input.reducedMotion ? 0 : DRIFT;
 
-  // The picture fits the window's width (plus the drift on each side): the whole park shows, wheel and lake included;
-  // above it the sky's top row continues, below it the lawn's bottom row (`view.ts`).
-  // Its bottom edge: the window bottom on the desktop (the wide picture's bottom row is the lake, which does not
-  // continue well, so all the room is sky above), a little under the menu's top edge elsewhere (the menu stands on
-  // the continued lawn).
-  const bottomLimit = base.kind === 'desktop' ? h : Math.min(h, h - base.mb - menuH + UNDER_MENU);
-  let s = (w + 2 * d) / F.w;
-  let x = (w - F.w * s) / 2;
-  if (base.kind === 'desktop' && base.menuBox && F.menuAnchorX > 0 && F.menuAnchorX < F.w) {
-    // The wheel's left edge (drifting left by the park's drift) stays right of the menu block. Only when the fitted
-    // picture fails that: it moves right and grows until it still covers both sides of the window.
-    const right = base.menuBox.left + base.menuBox.width + MENU_CLEAR + drift.park;
-    if (x + F.menuAnchorX * s < right) {
-      s = Math.max(s, (right + d) / F.menuAnchorX, (w + d - right) / (F.w - F.menuAnchorX));
-      x = Math.max((w - F.w * s) / 2, right - F.menuAnchorX * s);
+  // The band the focus box must stay in: the safe window; on phones, above the menu.
+  const top = safe.top;
+  const bottom = base.kind === 'phone' ? h - base.mb - menuH - MENU_GAP : h - safe.bottom;
+  const sCover = Math.max((w + 2 * d) / C.w, (h + 2 * d) / C.h);
+  const sFocus = Math.min((w - safe.left - safe.right - 2 * d) / Fo.w, Math.max(1, bottom - top - 2 * d) / Fo.h);
+  let s = Math.min(sCover, sFocus);
+
+  // Across: cover centred on the focus box, or (narrower than the window) the crop centred.
+  const placeX = (sc: number): number => {
+    if (C.w * sc >= w + 2 * d) return clamp(w / 2 - (Fo.x + Fo.w / 2) * sc, w + d - (C.x + C.w) * sc, -d - C.x * sc);
+    return (w - C.w * sc) / 2 - C.x * sc;
+  };
+  let ox = placeX(s);
+  if (base.kind === 'desktop' && base.menuBox) {
+    // The wheel's left edge (drifting left by d) right of the menu block.
+    const right = base.menuBox.left + base.menuBox.width + MENU_CLEAR + d;
+    if (ox + Wh.x * s < right) {
+      // Larger, while the focus box still fits, so the crop still reaches the window's right edge.
+      const sRight = (w + d - right) / (C.x + C.w - Wh.x);
+      if (sRight > s) s = Math.min(sRight, sFocus);
+      ox = right - Wh.x * s;
     }
   }
-  // The whole wheel inside the window, drift included (the picture still covers both sides).
-  const wheelL = F.wheel.x * s;
-  const wheelR = (F.wheel.x + F.wheel.fw) * s;
-  if (x + wheelR + drift.park > w) x = Math.max(w + d - F.w * s, w - drift.park - wheelR);
-  if (x + wheelL - drift.park < 0) x = Math.min(-d, drift.park - wheelL);
-  const H = F.h * s;
-  let y = bottomLimit - H;
 
-  // The sign: the one-line board on wide framings while it keeps its size, else the stacked board; never wider than
-  // the safe width less its sides, never larger than the picture's own scale (same bake density).
-  const fit = (k: SignKind): number => Math.min(s, (sw - 2 * NAME_SIDE) / idx.sign[k].w);
-  const sign: SignKind = framing === 'wide' && fit('line') >= LINE_MIN_SHARE * s ? 'line' : 'stack';
-  const S = idx.sign[sign];
-  let signS = Math.max(0, fit(sign));
-  const nameTop = NAME_TOP + safe.top;
-  // The ride tops: `nameRow`, or the wheel's top when it stands higher (the sign never covers the wheel).
-  const rideTop = (): number => y + Math.min(F.nameRow, F.wheel.y) * s;
-  const missing = (): number => nameTop + S.h * signS + NAME_GAP - rideTop();
-  // Down for the name: freely while the picture's bottom stays above its limit, then up to MOVE_SHARE of its height.
-  if (missing() > 0) y += Math.min(missing(), Math.max(0, bottomLimit - (y + H)) + MOVE_SHARE * H);
-  if (missing() > 0) signS = Math.max(signS * SIGN_MIN_SHARE, (rideTop() - NAME_GAP - nameTop) / S.h);
-  if (missing() > 0) y += missing();
-  const signW = S.w * signS;
-  const signH = S.h * signS;
-  const signBox: Rect = { x: safe.left + (sw - signW) / 2, y: Math.max(nameTop, (rideTop() - signH) / 2), w: signW, h: signH };
+  // Down: cover centred on the focus box in the band (or, shorter than the window, the crop's top at the window's
+  // top); then the focus box inside the band, which wins over the cover (phones: a fill shows under the menu or, on
+  // a short band, over the top).
+  const hug = -d - C.y * s;
+  let oy = C.h * s >= h + 2 * d ? clamp((top + bottom) / 2 - (Fo.y + Fo.h / 2) * s, h + d - (C.y + C.h) * s, hug) : hug;
+  oy = Math.max(top + d / 2 - Fo.y * s, Math.min(oy, bottom - d / 2 - (Fo.y + Fo.h) * s));
 
-  const picture: Rect = { x, y, w: F.w * s, h: F.h * s };
-  const fillTop = picture.y + picture.h;
-  return {
-    base,
-    framing,
-    s,
-    picture,
-    fill: { x: 0, y: fillTop, w, h: Math.max(0, h - fillTop) },
-    fillAbove: { x: 0, y: 0, w, h: Math.max(0, picture.y) },
-    sign,
-    signS,
-    signBox,
-    wheel: { x: x + F.wheel.x * s, y: y + F.wheel.y * s, w: F.wheel.fw * s, h: F.wheel.fh * s },
-    drift,
-  };
+  // The name: one line on the wide framing while it keeps a readable size, else stacked.
+  const fitW = w - safe.left - safe.right - 2 * NAME_SIDE;
+  const font = (k: TitleKind): number => Math.max(0, Math.min((T.h * s) / TITLE_EM[k].h, Math.min(fitW, T.w * s) / TITLE_EM[k].w));
+  const kind: TitleKind = framing === 'wide' && font('line') >= LINE_MIN_FONT ? 'line' : 'stack';
+  let f = font(kind);
+  const nameTop = safe.top + NAME_TOP;
+  const hub = oy + (Wh.y + Wh.h / 2) * s - d / 2;
+  let ty = Math.max(nameTop, oy + (T.y + T.h / 2) * s - (f * TITLE_EM[kind].h) / 2);
+  // Above the wheel's hub: smaller when it would reach it.
+  if (ty + f * TITLE_EM[kind].h > hub - HUB_GAP) {
+    f = Math.max(0, Math.min(f, (hub - HUB_GAP - ty) / TITLE_EM[kind].h));
+    ty = Math.max(nameTop, Math.min(ty, hub - HUB_GAP - f * TITLE_EM[kind].h));
+  }
+  const tw = f * TITLE_EM[kind].w;
+  const th = f * TITLE_EM[kind].h;
+  const left = safe.left + NAME_SIDE;
+  const tx = clamp(ox + (T.x + T.w / 2) * s - tw / 2, left, Math.max(left, w - safe.right - NAME_SIDE - tw));
+
+  const at = (r: Rect): Rect => ({ x: ox + r.x * s, y: oy + r.y * s, w: r.w * s, h: r.h * s });
+  return { base, framing, s, ox, oy, shown: at(C), focus: at(Fo), wheel: at(Wh), title: { kind, font: f, x: tx, y: ty, w: tw, h: th }, drift: d };
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
-const isFile = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && !v.includes('..') && !v.startsWith('/');
+const isFile = (v: unknown): v is string => typeof v === 'string' && /^[\w.-]+$/.test(v) && !v.startsWith('.');
+const isRect = (r: unknown): r is Rect => {
+  const o = r as Partial<Rect> | null;
+  return !!o && typeof o === 'object' && isNum(o.x) && isNum(o.y) && isNum(o.w) && isNum(o.h) && o.w > 0 && o.h > 0;
+};
+const inside = (a: Rect, b: Rect): boolean => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+
+/** Decoded RGBA bytes per framing (its one file). */
+export function coverDecoded(idx: CoverIndex): { wide: number; tall: number } {
+  return { wide: idx.wide.w * idx.wide.h * 4, tall: idx.tall.w * idx.tall.h * 4 };
+}
 
 /** The index read from `title/index.json`, or an Error naming what is wrong (sizes over the caps included). */
-export function checkTitleIndex(raw: unknown): TitleIndex | Error {
-  const o = raw as Partial<TitleIndex> | null;
-  if (!o || typeof o !== 'object') return new Error('title index: not an object');
+export function checkCoverIndex(raw: unknown): CoverIndex | Error {
+  const o = raw as Partial<CoverIndex> | null;
+  if (!o || typeof o !== 'object') return new Error('cover index: not an object');
+  if (o.format !== 'cover/1') return new Error(`cover index: format ${String(o.format)} is not cover/1`);
   for (const f of ['wide', 'tall'] as const) {
-    const F = o[f] as Partial<FramingIndex> | undefined;
-    const cap = TITLE_LAYER_MAX[f];
-    if (!F || !isNum(F.w) || !isNum(F.h) || F.w <= 0 || F.h <= 0) return new Error(`title index: ${f} has no size`);
-    if (F.w > cap.w || F.h > cap.h) return new Error(`title index: ${f} is ${F.w}x${F.h}, over ${cap.w}x${cap.h}`);
-    const L = F.layers;
-    if (!L || !isFile(L.sky) || !isFile(L.park) || !isFile(L.front)) return new Error(`title index: ${f} layers`);
-    const W = F.wheel;
-    if (!W || !isFile(W.file) || W.frames !== WHEEL_FRAMES || !isNum(W.fw) || !isNum(W.fh) || !isNum(W.x) || !isNum(W.y) || W.fw <= 0 || W.fh <= 0) return new Error(`title index: ${f} wheel`);
-    if (!isNum(F.nameRow) || F.nameRow < 0 || F.nameRow > F.h) return new Error(`title index: ${f} nameRow`);
-    if (!isNum(F.menuAnchorX) || F.menuAnchorX < 0 || F.menuAnchorX > F.w) return new Error(`title index: ${f} menuAnchorX`);
+    const F = o[f] as Partial<CoverFraming> | undefined;
+    if (!F || typeof F !== 'object') return new Error(`cover index: ${f} missing`);
+    if (!isFile(F.file)) return new Error(`cover index: ${f} file name`);
+    if (!isNum(F.w) || !isNum(F.h) || !Number.isInteger(F.w) || !Number.isInteger(F.h) || F.w <= 0 || F.h <= 0) return new Error(`cover index: ${f} has no size`);
+    const cap = COVER_MAX[f];
+    // The tall framing may use the wide file (cropped) until a tall poster exists: either cap holds.
+    const fits = (c: { w: number; h: number }): boolean => (F.w as number) <= c.w && (F.h as number) <= c.h;
+    if (!fits(cap) && !(f === 'tall' && fits(COVER_MAX.wide))) return new Error(`cover index: ${f} is ${F.w}x${F.h}, over ${cap.w}x${cap.h}`);
+    if (F.w * F.h * 4 > COVER_DECODED_MAX) return new Error(`cover index: ${f} decodes to ${F.w * F.h * 4} bytes, over ${COVER_DECODED_MAX}`);
+    const file: Rect = { x: 0, y: 0, w: F.w, h: F.h };
+    for (const k of ['crop', 'focus', 'wheel', 'title', 'lights'] as const) if (!isRect(F[k])) return new Error(`cover index: ${f} ${k} is not a box`);
+    const { crop, focus, wheel, title, lights } = F as CoverFraming;
+    if (!inside(crop, file)) return new Error(`cover index: ${f} crop outside the file`);
+    if (!inside(focus, crop)) return new Error(`cover index: ${f} focus outside the crop`);
+    if (!inside(wheel, focus)) return new Error(`cover index: ${f} wheel outside the focus box`);
+    if (!inside(title, crop)) return new Error(`cover index: ${f} title anchor outside the crop`);
+    if (!inside(lights, file)) return new Error(`cover index: ${f} lights outside the file`);
+    if (title.y + title.h > wheel.y + wheel.h / 2) return new Error(`cover index: ${f} title anchor reaches below the wheel's hub`);
+    if (f === 'wide' && crop.w <= crop.h) return new Error('cover index: wide crop is not wider than tall');
   }
-  for (const k of ['line', 'stack'] as const) {
-    const S = o.sign?.[k];
-    if (!S || !isFile(S.file) || !isNum(S.w) || !isNum(S.h) || S.w <= 0 || S.h <= 0) return new Error(`title index: sign ${k}`);
+  if (o.arch !== undefined) {
+    const a = o.arch as Partial<{ x: number; y: number }> | null;
+    const W = o.wide as CoverFraming;
+    if (!a || typeof a !== 'object' || !isNum(a.x) || !isNum(a.y)) return new Error('cover index: arch is not a point');
+    if (a.x < 0 || a.y < 0 || a.x > W.w || a.y > W.h) return new Error('cover index: arch outside the wide file');
   }
-  return o as TitleIndex;
+  return o as CoverIndex;
 }

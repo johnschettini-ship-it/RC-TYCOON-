@@ -4,7 +4,7 @@
  *   npx tsx tools/art3d/checkIndex.ts <dir>
  */
 import type { RealIndex, RealKind } from '../../src/render/real/indexFormat';
-import { checkTitleIndex, type TitleFiles } from './titleIndex';
+import { checkCoverFolder, checkTitleIndex, type TitleFiles } from './titleIndex';
 
 const MAX_SHEET = 2048;
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
@@ -19,13 +19,18 @@ export interface TitleFolder { index: unknown; files: TitleFiles }
 
 /**
  * Returns a list of problems; empty means the index and the files agree. `files` lists the folder's entries; a
- * `title` entry is the title pictures' folder, checked by checkTitleIndex when `title` is given (a problem when not).
+ * `title` entry is the title cover's folder, checked by checkCoverFolder when `title` is given (a problem when not);
+ * a `title-panorama` entry is the earlier baked panorama (only baked on request), checked by checkTitleIndex.
  */
-export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFolder): string[] {
+export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFolder, panorama?: TitleFolder): string[] {
   const problems: string[] = [];
   if (files.has('title')) {
-    if (!title) problems.push('title: the title folder was not checked (no title index given)');
-    else for (const p of checkTitleIndex(title.index, title.files)) problems.push(`title: ${p}`);
+    if (!title) problems.push('title: the title folder was not checked (no cover index given)');
+    else for (const p of checkCoverFolder(title.index, title.files)) problems.push(`title: ${p}`);
+  }
+  if (files.has('title-panorama')) {
+    if (!panorama) problems.push('title-panorama: the panorama folder was not checked (no title index given)');
+    else for (const p of checkTitleIndex(panorama.index, panorama.files)) problems.push(`title-panorama: ${p}`);
   }
   const referenced = new Set<string>();
   for (const set of index.sets) {
@@ -53,7 +58,7 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
       if (!Number.isFinite(f.ox) || !Number.isFinite(f.oy)) problems.push(`${set.key}: frame ${k} has non-finite ox/oy`);
     }
   }
-  for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && f !== 'title' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
+  for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && f !== 'title' && f !== 'title-panorama' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
 
   // Ride colour choice: every ride sheet has a tint mask of the ride's colour part, and the ride records the part's
   // designed base colour, the same in every set (turns and densities), so a chosen colour can recolour it at load.

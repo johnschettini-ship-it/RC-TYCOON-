@@ -1,0 +1,71 @@
+/*
+ * The title-to-play bridge (VITE_ART=real build with the realistic look only; `src/render/real/boot.ts` imports it, so
+ * the website build never has it): the poster's shared style tokens, the arrival glow and the welcome card. Spec: docs/superpowers/specs/2026-11-17-title-to-play-bridge-design.md §5.
+ * The game's existing panels and blue main button are unchanged.
+ */
+:root {
+  /* The poster's paper and frame, and the title name's letter colours. */
+  --tc-cream: #f6ecd8;
+  --tc-coral: #d9614a;
+  --tc-title-y: #ffd970;
+  --tc-title-c: #ff9f7a;
+  --tc-title-b: #9fe0ea;
+  /* Text on cream (8:1 and more) and the name's outline. */
+  --tc-brown: #6b3a28;
+  --tc-outline: #4a230c;
+  /* The welcome card's button: the game's main blue, ink text on it (6:1). */
+  --tc-go: #3fa9e6;
+}
+
+/* The arrival glow: over the game canvas, under the UI; no pointer events. */
+.tc-arrival-glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: #ff9a4a;
+  mix-blend-mode: soft-light;
+}
+
+/* The welcome card (a new park): the poster's paper and double coral frame. */
+.tc-welcome-backdrop { background: rgba(42, 32, 41, 0.35); }
+.tc-welcome {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 26px 24px 22px;
+  text-align: center;
+  color: var(--tc-brown);
+  background: var(--tc-cream);
+  border: 5px solid var(--tc-coral);
+  border-radius: 20px;
+  /* The poster's double frame: a cream gap, then a thin coral line, inside the thick one; a soft shadow under it. */
+  box-shadow: inset 0 0 0 5px var(--tc-cream), inset 0 0 0 7px var(--tc-coral), 0 12px 32px rgba(42, 32, 41, 0.45);
+}
+.tc-welcome-title { margin: 0 0 12px; line-height: 1.1; font-weight: 600; }
+.tc-welcome-to { display: block; font-size: calc(17px * var(--ts, 1)); color: var(--tc-brown); margin-bottom: 6px; }
+.tc-welcome-name {
+  display: block;
+  font-family: 'Fredoka', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: calc(34px * var(--ts, 1));
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  overflow-wrap: break-word;
+  text-shadow: 0.060em 0.000em 0 var(--tc-outline), 0.055em 0.023em 0 var(--tc-outline), 0.042em 0.042em 0 var(--tc-outline), 0.023em 0.055em 0 var(--tc-outline), 0.000em 0.060em 0 var(--tc-outline), -0.023em 0.055em 0 var(--tc-outline), -0.042em 0.042em 0 var(--tc-outline), -0.055em 0.023em 0 var(--tc-outline), -0.060em 0.000em 0 var(--tc-outline), -0.055em -0.023em 0 var(--tc-outline), -0.042em -0.042em 0 var(--tc-outline), -0.023em -0.055em 0 var(--tc-outline), -0.000em -0.060em 0 var(--tc-outline), 0.023em -0.055em 0 var(--tc-outline), 0.042em -0.042em 0 var(--tc-outline), 0.055em -0.023em 0 var(--tc-outline), 0 0.08em 0 var(--tc-outline);
+}
+.tc-welcome-name .tc-word-y { color: var(--tc-title-y); }
+.tc-welcome-name .tc-word-c { color: var(--tc-title-c); }
+.tc-welcome-name .tc-word-b { color: var(--tc-title-b); }
+.tc-welcome-body { margin: 0 0 18px; font-size: calc(16px * var(--ts, 1)); line-height: 1.35; color: var(--tc-brown); }
+.tc-welcome-go {
+  width: 100%;
+  min-height: 48px;
+  justify-content: center;
+  font-weight: 700;
+  font-size: calc(16px * var(--ts, 1));
+  background: var(--tc-go);
+  color: var(--ink);
+}
+.tc-welcome-go:hover { background: #6cc0ef; }
+

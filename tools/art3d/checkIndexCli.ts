@@ -11,7 +11,7 @@ import { S5_LIMIT_BYTES, formatRideSizeRows, formatSizeReport, rideSizeRows, siz
 const mb = (n: number): string => (n / 1e6).toFixed(2);
 
 /** The title folder's index and files (sizes read from the WebP headers), or undefined when there is none. */
-export function titleFolder(tdir: string): TitleFolder | undefined {
+export function titleFolder(tdir: string, label = 'title'): TitleFolder | undefined {
   if (!existsSync(join(tdir, 'index.json'))) return existsSync(tdir) ? { index: null, files: new Map() } : undefined;
   const files: TitleFiles = new Map();
   for (const n of readdirSync(tdir)) {
@@ -24,7 +24,7 @@ export function titleFolder(tdir: string): TitleFolder | undefined {
   const index: unknown = JSON.parse(readFileSync(join(tdir, 'index.json'), 'utf8'));
   let compressed = 0;
   for (const f of files.values()) compressed += f.bytes;
-  console.log(`title: ${files.size} files, ${mb(compressed)} MB compressed`);
+  console.log(`${label}: ${files.size} files, ${mb(compressed)} MB compressed`);
   return { index, files };
 }
 
@@ -32,7 +32,7 @@ export function titleFolder(tdir: string): TitleFolder | undefined {
 export function run(dir: string | undefined): number {
   if (!dir) { console.error('usage: tsx tools/art3d/checkIndex.ts <dir>'); return 2; }
   const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8')) as RealIndex;
-  const problems = checkIndex(index, new Set(readdirSync(dir)), titleFolder(join(dir, 'title')));
+  const problems = checkIndex(index, new Set(readdirSync(dir)), titleFolder(join(dir, 'title')), titleFolder(join(dir, 'title-panorama'), 'title-panorama'));
   for (const p of problems) console.error(p);
   console.log(problems.length === 0 ? 'index OK' : `${problems.length} problem(s)`);
 
