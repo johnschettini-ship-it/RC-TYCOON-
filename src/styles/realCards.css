@@ -106,7 +106,21 @@
 .hand .content-card .card-cost { color: var(--rc-price); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45); }
 .hand .content-card .card-cost,
 #ui[data-layout='bottom'] .hand .content-card .card-cost { padding: 0; background: none; }
-.hand .content-card .card-track { color: var(--rc-text); border: 1px solid rgba(255, 255, 255, 0.75); }
+/* "Track": a small chip on the picture's top corner, out of the price row, so every card's band holds the same two
+   lines (name, price) and names and prices line up across the hand (owner, 2026-11-17). */
+.hand .content-card .card-track {
+  position: absolute;
+  top: calc(var(--rc-stripe) + 4px);
+  right: 4px;
+  z-index: 2;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--rc-text);
+  background: var(--rc-band);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  font-size: 0.8em;
+  line-height: 1.5;
+}
 
 /* Unaffordable (`data-afford="no"`, `src/ui/decks/realAfford.ts`): dimmed picture, price in the warning colour. */
 .hand .content-card[data-afford='no'] .card-preview { filter: grayscale(0.7) brightness(0.8); }

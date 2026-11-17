@@ -186,6 +186,22 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     watch.expectNoErrors();
   });
 
+  test('every ride card in the hand shows its price on the same line; "Track" is a chip on the picture, not a third band line', async ({ page }) => {
+    await newPark(page, 'Line Park');
+    await expectRealLook(page);
+    const rows = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.hand .content-card')].map((c) => ({
+        id: c.getAttribute('data-def'),
+        price: Math.round((c.querySelector('.card-cost') as HTMLElement).getBoundingClientRect().top),
+        track: (() => { const t = c.querySelector<HTMLElement>('.card-track'); if (!t) return null; const r = t.getBoundingClientRect(); const pic = (c.querySelector('.card-name') as HTMLElement).getBoundingClientRect(); return { bottom: r.bottom, nameTop: pic.top }; })(),
+      })),
+    );
+    expect(rows.length).toBeGreaterThan(2);
+    const prices = new Set(rows.map((r) => r.price));
+    expect([...prices], JSON.stringify(rows)).toHaveLength(1);
+    for (const r of rows) if (r.track) expect(r.track.bottom, `${r.id} track chip above the band`).toBeLessThanOrEqual(r.track.nameTop);
+  });
+
   test('a long name wraps as today (no ellipsis), the band grows and never covers the stripe', async ({ page }) => {
     await newPark(page, 'Long Park');
     await expectRealLook(page);
