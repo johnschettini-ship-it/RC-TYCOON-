@@ -484,7 +484,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
     // New rides batch A: frog_hopper keeps every picture at density 2 (its hops are 4 steps long).
-    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 }, balloon_wheel: { step: 2, d4: 5, d2: 5 }, frog_hopper: { step: 2, d4: 7, d2: 7 },
+    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 }, balloon_wheel: { step: 2, d4: 9, d2: 9 }, frog_hopper: { step: 2, d4: 7, d2: 7 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -724,15 +724,24 @@ describe('new rides batch A', () => {
     expect(src).toContain('swing.rotation.x = -theta;');
   });
 
-  it('balloon_wheel: the wheel repeats every quarter turn (4 balloon colours, riders of car i from car i % 4)', async () => {
+  it('balloon_wheel: every slot shows the true wheel at that slot (car places, colours and riders), so nothing jumps', async () => {
     const fam = await load('items/familyKeys.js');
     const { BALLOON_CARS } = await import('../../../src/render/sprites/content/familyMotion');
-    expect(BALLOON_CARS % 4).toBe(0);
-    expect(fam.BALLOON_PERIOD).toBe(32 / 4);
     const m = (await maps()).balloon_wheel!;
+    /** The wheel at angle slot a (one turn per 32 slots, today's rimPt): each car's angle with the look it carries. */
+    const state = (a: number) => Array.from({ length: BALLOON_CARS }, (_, i) => {
+      const turn = (((i / BALLOON_CARS + a / 32) % 1) + 1) % 1;
+      return `${Math.round(turn * 4 * BALLOON_CARS) % (4 * BALLOON_CARS)}:${fam.balloonLook(i)}`;
+    }).sort().join(' ');
+    for (let a = 0; a < 32; a++) {
+      const id = pictureOf(m, keyAt('balloon_wheel', a, true))!;
+      // the bake poses picture `id` at fam.balloonSlot(id); phones show even slots (odd slots use the even one below)
+      expect(state(fam.balloonSlot(id)), `slot ${a} shows ${id}`).toBe(state(a & ~1));
+    }
     periodOk(m, 'balloon_wheel', fam.BALLOON_PERIOD, true);
     const src = readFileSync(new URL('items/balloon_wheel.js', dir), 'utf8');
-    expect(src).toContain('BALLOON_COLOURS[i % 4], 720 + (i % 4) * 2');
+    expect(src).toContain('BALLOON_COLOURS[balloonLook(i)], 720 + balloonLook(i) * 2');
+    expect(src).toContain('balloonSlot(id)');
   });
 
   it('frog_hopper: each slot shows today\'s seat height within half a level; the hops rise and fall', async () => {
@@ -746,6 +755,20 @@ describe('new rides batch A', () => {
     // four hops: the ring is back at the bottom every quarter turn
     for (const a of [0, 8, 16, 24]) expect(pictureOf(m, keyAt('frog_hopper', a, true))).toBe('h0');
     expect(pictureOf(m, keyAt('frog_hopper', 4, true))).not.toBe('h0');
+  });
+
+  it('frog_hopper: the frog on top turns with each baked view turn so it faces the camera at every turn (today\'s look)', async () => {
+    const { frogYaw } = await load('items/familyKeys.js');
+    // placeOnFootprint (items/common.js) turns the ride by -k * PI / 2 for sprite rotation k; the frog turns back
+    for (const k of [0, 1, 2, 3]) {
+      const world = -k * Math.PI / 2 + frogYaw(k);
+      expect(Math.abs(Math.atan2(Math.sin(world), Math.cos(world))), `turn ${k}`).toBeLessThan(1e-9);
+    }
+    const common = readFileSync(new URL('items/common.js', dir), 'utf8');
+    expect(common).toContain('holder.rotation.set(0, (-k * Math.PI) / 2, 0);');
+    const src = readFileSync(new URL('items/frog_hopper.js', dir), 'utf8');
+    expect(src).toContain('m.frog.rotation.y = frogYaw(k);');
+    expect(src).toMatch(/rots: \[0, 1, 2, 3\]/);
   });
 
   it('each model\'s entrance and exit sit on the sim\'s gate column (gateIndex), front row and back row', async () => {

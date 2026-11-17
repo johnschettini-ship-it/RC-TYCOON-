@@ -4,14 +4,15 @@
 // facing out, legs dangling, lap bars) hops up the stem in four short bounces per turn and settles back: today's
 // `frogShare` (familyMotion.ts), the 16 time steps at 1/FROG_Q of the 2.75 m travel (familyKeys.js frogKeys); the
 // empty ride is one rest picture. A railing round the pond with the entrance on the front row and the exit on the back
-// row of the sim's gate column (familyKeys.js FAMILY_GATES): rots [0, 1, 2, 3].
+// row of the sim's gate column (familyKeys.js FAMILY_GATES): rots [0, 1, 2, 3]. The frog alone turns back by
+// familyKeys.js frogYaw at each view turn, so it faces the camera at every turn, as today's look draws it.
 // Colour part: the seat ring, its orange frame, seat shells and lap bars; base #ee8a24.
 import { THREE, kit, placeOnFootprint, bakeObject, colourMesh, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
 import { M, V, std } from '../kit.js';
 import { rider } from '../rides.js';
 import { paint, tube, boxAt, peakHeight, gate } from './swingParts.js';
-import { frogKeys, frogLevel, FROG_Q, FAMILY_GATES } from './familyKeys.js';
+import { frogKeys, frogLevel, frogYaw, FROG_Q, FAMILY_GATES } from './familyKeys.js';
 
 const G = FAMILY_GATES.frog_hopper;
 const STALK_TOP = 5.6;
@@ -58,7 +59,7 @@ function build() {
   root.add(pad);
   const frog = new THREE.Group();
   frog.position.y = STALK_TOP + 0.16;
-  frog.rotation.y = 0; // facing the front (+z)
+  frog.rotation.y = 0; // facing the front (+z) at sprite rotation 0; the bake turns it per view turn (frogYaw)
   root.add(frog);
   const body = M(new THREE.SphereGeometry(0.75, 28, 18), frogSkin);
   body.scale.set(1, 0.72, 0.95); body.position.y = 0.5;
@@ -132,7 +133,7 @@ function build() {
     ring.position.y = SEAT_REST + TRAVEL * share;
     for (const p of riders) p.visible = full;
   };
-  return { root, pose };
+  return { root, pose, frog };
 }
 
 export default {
@@ -145,6 +146,6 @@ export default {
       return { keys: g.keys, keys2: g.keys2, pose: () => m.pose(share, g.full) };
     });
     B.log(`frog_hopper: ${pictures.length} pictures per rotation (levels ${[...new Set(Array.from({ length: 16 }, (_, t) => frogLevel(t)))].join(',')}), peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
-    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'frog_hopper', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => placeOnFootprint(h, w, d, k), pictures, masked: partMask, baseColour: BASE_COLOUR });
+    bakeObject(d2Api(B, pictures), { kind: 'ride', item: 'frog_hopper', model: m.root, rots: [0, 1, 2, 3], place: (h, k) => { placeOnFootprint(h, w, d, k); m.frog.rotation.y = frogYaw(k); }, pictures, masked: partMask, baseColour: BASE_COLOUR });
   },
 };

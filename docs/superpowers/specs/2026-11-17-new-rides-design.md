@@ -45,6 +45,7 @@ The names are working names. They stay original, and no real ride brand or trade
 - **Today's look:** each ride gets drawing code like the existing rides, with the ride colour main part on flat rides.
 - **Realistic look:** each ride gets a bake module like batch 1, with masks for the ride colours on flat rides. The same size rules apply: ≤ 2.5 MB compressed, and ≤ 32 MiB decoded per turn at density 4.
 - **Cards and strings:** each ride gets a name and description string, a card picture in both looks and the ride colour swatches for flat rides.
+  - *Deviation (batch A, 2026-11-17):* the game has no ride description field: no catalogue entry, string or screen shows a description for any ride. So the rides get a name only (generated into every locale from the catalogue name, `src/data/strings/content.ts`), and no description strings, which nothing would read. A description field, if one is added, is a change of its own for every ride.
 - **Start and research:** rides marked start are unlocked at the start. Research rides are added to the research order, interleaved with the existing items by cost.
 - **Benches and checks:** the rides bench park gains the new flat rides. The content and economy audits run after each batch.
 

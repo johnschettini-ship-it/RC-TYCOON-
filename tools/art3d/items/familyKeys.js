@@ -7,7 +7,7 @@
 // starting and ending at slot 0. A flat ride only runs with riders aboard (src/sim/rides/flat/update.ts), so the empty
 // ride is ONE rest picture for every slot, as the towers and arenas of batch 1 do; the budget goes to the full pictures.
 import { cycleD2, cycleKeys, timeD2, timeKeys } from './flatRides.js';
-import { frogShare, miniShipTheta } from '../../../src/render/sprites/content/familyMotion';
+import { BALLOON_CARS, frogShare, miniShipTheta } from '../../../src/render/sprites/content/familyMotion';
 
 // ------------------------------------------------------------------ Dodgem Boats
 
@@ -43,8 +43,17 @@ export function miniShipKeys() {
 
 // ------------------------------------------------------------------ Balloon Wheel
 
-/** 8 cars in 4 balloon colours, riders of car i copied from car i % 4: the wheel repeats every quarter turn. */
-export const BALLOON_PERIOD = 8;
+/** Car i carries balloon colour and riders number balloonLook(i) (4 looks round the wheel). */
+export const BALLOON_LOOKS = 4;
+export const balloonLook = (i) => i % BALLOON_LOOKS;
+/**
+ * The wheel repeats when it has turned BALLOON_LOOKS cars on: 4 of its 8 cars, half a turn, 16 angle slots (fix round
+ * 1: 8 slots moved it only 2 cars, so the balloons swapped colour four times per turn). 8 full pictures at density 4
+ * and 2; 2 looks a car would repeat every 8 slots in 5 pictures, but four balloon colours read as the ride.
+ */
+export const BALLOON_PERIOD = (32 * BALLOON_LOOKS) / BALLOON_CARS;
+/** The angle slot the bake poses a balloon picture at (the rest picture: slot 0). */
+export const balloonSlot = (id) => (id === 'rest' ? 0 : Number(id.split(':')[0]) % BALLOON_PERIOD);
 export function balloonKeys() {
   const opts = { period: BALLOON_PERIOD };
   const pick = (a, full) => (full ? `${a}:1` : 'rest');
@@ -68,6 +77,12 @@ export function frogKeys() {
  * NON_ROUND: every flat ride's cache key hashes flatRides.js, and an edit there re-bakes all 18 batch 1 rides.
  */
 export const FAMILY_NON_ROUND = ['dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'];
+
+/**
+ * Frog Hopper: the frog's own turn on its pad for sprite rotation k, against the ride's -k * PI / 2 (placeOnFootprint),
+ * so it faces the camera at every view turn as today's look draws it. The ride keeps rots [0, 1, 2, 3] (its gates).
+ */
+export const frogYaw = (k) => (k * Math.PI) / 2;
 
 /**
  * Entrances and exits in the model frame ([x, z] metres, footprint centred, front at +z): the sim's gate column

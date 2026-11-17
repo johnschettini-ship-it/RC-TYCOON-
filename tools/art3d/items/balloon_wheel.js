@@ -1,10 +1,11 @@
 // Balloon Wheel (family flat ride, 2 x 2 tiles = 8 m, 9 m): a small wheel, 5.2 m across on a 6 m hub, on two green
-// A-frames. Each of its 8 cars is a wicker basket for two hanging level under a hot-air balloon envelope (2.2 m from pin to basket floor) in one of
-// four colours, from a pin on the rim. The wheel turns by the game's ride angle, today's direction (familyMotion.ts:
-// today's rimPt, u = model x, so the wheel stands in the model's x-y plane, the axle along z). Balloon i has the
-// colour and the riders of balloon i mod 4, so the wheel repeats every quarter turn: 4 full pictures (familyKeys.js
-// balloonKeys, period 8 slots); the empty ride is one rest picture. A low boarding deck under the wheel, the entrance
-// on the front row and the exit on the back row of the sim's gate column (familyKeys.js FAMILY_GATES): rots [0, 1, 2, 3].
+// A-frames. Each of its 8 cars is a wicker basket for two hanging level under a hot-air balloon envelope (2.2 m from
+// pin to basket floor) in one of four colours, from a pin on the rim. The wheel turns by the game's ride angle, today's
+// direction (familyMotion.ts: today's rimPt, u = model x, so the wheel stands in the model's x-y plane, the axle along
+// z). Car i has the colour and riders of look balloonLook(i) (i mod 4), so the wheel repeats when it has turned 4
+// cars on, every half turn: 8 full pictures (familyKeys.js balloonKeys, period 16 slots); the empty ride is one rest
+// picture. A low boarding deck under the wheel, the entrance on the front row and the exit on the back row of the
+// sim's gate column (familyKeys.js FAMILY_GATES): rots [0, 1, 2, 3].
 // Colour part: the balloon envelopes, all four designed colours; the others become lighter or darker shades of the chosen colour; base #22a38a.
 import { THREE, kit, placeOnFootprint, bakeObject, colourPart, partMask } from './common.js';
 import { d2Api } from './flatRides.js';
@@ -12,7 +13,7 @@ import { M, V, std } from '../kit.js';
 import { rider } from '../rides.js';
 import { gloss } from './arenaKit.js';
 import { paint, tube, boxAt, railing, peakHeight, deckPlate, gate, walkway } from './swingParts.js';
-import { balloonKeys, BALLOON_PERIOD, FAMILY_GATES } from './familyKeys.js';
+import { balloonKeys, balloonLook, balloonSlot, FAMILY_GATES } from './familyKeys.js';
 import { BALLOON_CARS } from '../../../src/render/sprites/content/familyMotion';
 
 const G = FAMILY_GATES.balloon_wheel;
@@ -108,9 +109,9 @@ function build() {
     const a = (i / BALLOON_CARS) * Math.PI * 2;
     wheel.add(tube(V(R * Math.cos(a), R * Math.sin(a), -RIM_Z - 0.05), V(R * Math.cos(a), R * Math.sin(a), RIM_Z + 0.05), 0.045, 0.045, mat.darkSteel, 8));
   }
-  // the cars: riders of car i copied from car i % 4 (the quarter-turn repeat)
+  // the cars: car i has the colour and riders of look balloonLook(i) (the half-turn repeat)
   const cars = [];
-  for (let i = 0; i < BALLOON_CARS; i++) cars.push(car(K, BALLOON_COLOURS[i % 4], 720 + (i % 4) * 2));
+  for (let i = 0; i < BALLOON_CARS; i++) cars.push(car(K, BALLOON_COLOURS[balloonLook(i)], 720 + balloonLook(i) * 2));
   for (const c of cars) root.add(c.g);
   const riders = cars.flatMap((c) => c.riders);
   const pose = (theta, full) => {
@@ -130,7 +131,7 @@ export default {
     const m = build();
     const groups = balloonKeys();
     const pictures = [...groups.entries()].map(([id, g]) => {
-      const slot = id === 'rest' ? 0 : Number(id.split(':')[0]) % BALLOON_PERIOD;
+      const slot = balloonSlot(id);
       return { keys: g.keys, keys2: g.keys2, pose: () => m.pose((slot / 32) * Math.PI * 2, g.full) };
     });
     B.log(`balloon_wheel: ${pictures.length} pictures per rotation, peak ${peakHeight(m.root, pictures).toFixed(2)} m (spec ${B.input.spec.heightM} m)`);
