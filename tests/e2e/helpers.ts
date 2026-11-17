@@ -41,6 +41,17 @@ export async function presetSave(page: Page, file: string, slot: number | 'auto'
   await page.addInitScript(([k, f]) => window.localStorage.setItem(k as string, f as string), [saveKey(slot), file]);
 }
 
+/**
+ * The realistic build (VITE_ART=real) welcomes a new park with a modal card when the push through the arch ends
+ * (title-to-play bridge §3): closed here, so the tests that start a park go on as before. Nothing in the website build.
+ */
+export async function dismissWelcome(page: Page): Promise<void> {
+  if (process.env.VITE_ART !== 'real') return;
+  const go = page.getByTestId('welcome-go');
+  await go.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined);
+  if (await go.isVisible()) await go.click();
+}
+
 /** Start a new park from the title screen. The game starts at 1×. */
 export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
   await page.goto('/');
@@ -50,6 +61,7 @@ export async function newPark(page: Page, name = 'Smoke Park'): Promise<void> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
   // The bundled font arrives after first paint (font-display: swap); boxes are measured with it in place.
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }

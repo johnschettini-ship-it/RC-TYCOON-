@@ -9,9 +9,16 @@
  * Screenshots go to `$SHOT_DIR` (default: the test's output folder), named `bridge-<name>.png`.
  */
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { scan } from './helpers';
 
 const REAL = process.env.VITE_ART === 'real';
 const DESKTOP = { w: 1366, h: 768, dpr: 1, mobile: false };
+const PHONES = [
+  { name: '390x844', w: 390, h: 844, dpr: 3, mobile: true },
+  { name: '360x640', w: 360, h: 640, dpr: 2, mobile: true },
+  { name: '812x375', w: 812, h: 375, dpr: 3, mobile: true },
+] as const;
+const speed = (page: Page): Promise<number> => page.evaluate(() => (window as unknown as { __tc: { speed: number } }).__tc.speed);
 
 /** Counts live ImageBitmaps by size (the poster is the only 1376 x 768 one). */
 const COUNT_BITMAPS = (): void => {
@@ -49,13 +56,22 @@ const shot = async (page: Page, name: string): Promise<void> => {
 
 const posterReady = (page: Page) => page.locator('canvas.title-real-scene[data-ready]');
 
-/** To the New Park form, with the poster on screen. */
-async function toForm(page: Page, name: string): Promise<void> {
+/** To the New Park form, with the poster on screen (and the text scale given). */
+async function toForm(page: Page, name: string, textScale = 100): Promise<void> {
   await page.goto('/');
   await expect(posterReady(page)).toHaveCount(1, { timeout: 10_000 });
+  if (textScale !== 100) await page.evaluate((t) => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('textScale', t), textScale);
   await page.getByTestId('title-new').click();
   await page.getByTestId('title-name').fill(name);
   await page.getByTestId('title-size-64').click();
+}
+
+/** A new park from the title, up to its welcome card. */
+async function toWelcome(page: Page, name: string, textScale = 100): Promise<void> {
+  await toForm(page, name, textScale);
+  await page.getByTestId('title-start').click();
+  await expect(page.getByTestId('welcome-card')).toBeVisible({ timeout: 3000 });
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
 
 /** Closes the welcome card when it shows (a new park). */
@@ -192,4 +208,114 @@ test.describe('title-to-play bridge (VITE_ART=real build)', () => {
     await expect(page.getByTestId('welcome-card')).toHaveCount(0);
     await ctx.close();
   });
+
+  test('welcome card: on New game; focus on Let\'s go; the game paused; the first tip waits; Escape closes it; axe clean', async ({ browser }) => {
+    const { ctx, page, errors } = await open(browser, DESKTOP);
+    await toWelcome(page, 'Welcome Park');
+    const card = page.getByRole('dialog', { name: 'Welcome to Thrills & Chills' });
+    await expect(card).toBeVisible();
+    await expect(page.getByTestId('welcome-go')).toBeFocused();
+    await expect(card).toContainText('Your park is an empty field. Build the park on the poster!');
+    // The game is paused while it is open, and the first tip ("no ride yet") waits.
+    expect(await speed(page)).toBe(0);
+    await page.waitForTimeout(2600);
+    await expect(page.getByTestId('tip')).toBeHidden();
+    // The look: cream paper, a coral frame, the name in Fredoka 700 with the title colours.
+    const look = await card.evaluate((e) => {
+      const cs = getComputedStyle(e);
+      const words = [...e.querySelectorAll('.tc-word')].map((w) => getComputedStyle(w).color);
+      const name = getComputedStyle(e.querySelector('.tc-welcome-name') as Element);
+      return { bg: cs.backgroundColor, border: cs.borderTopColor, words, font: name.fontFamily, weight: name.fontWeight, go: getComputedStyle(e.querySelector('.tc-welcome-go') as Element).backgroundColor };
+    });
+    expect(look).toMatchObject({ bg: 'rgb(246, 236, 216)', border: 'rgb(217, 97, 74)', weight: '700', go: 'rgb(63, 169, 230)' });
+    expect(look.font).toContain('Fredoka');
+    expect(look.words).toEqual(['rgb(255, 217, 112)', 'rgb(255, 159, 122)', 'rgb(159, 224, 234)']);
+    await scan(page, 'welcome card 1366x768');
+    await shot(page, 'welcome-1366x768');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+    // The focus is back on the game (nothing inside a dialog), the game runs again and the tip comes.
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+    expect(await speed(page)).toBe(1);
+    await expect(page.getByTestId('tip')).toBeVisible({ timeout: 4000 });
+    expect(errors).toEqual([]);
+    await ctx.close();
+  });
+
+  test('welcome card: a new sandbox shows it; a scenario, the tutorial and Load do not', async ({ browser }) => {
+    const { ctx, page } = await open(browser, DESKTOP);
+    await page.goto('/');
+    await expect(posterReady(page)).toHaveCount(1, { timeout: 10_000 });
+    // Sandbox.
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-sandbox').click();
+    await page.getByTestId('sandbox-start').click();
+    await expect(page.getByTestId('welcome-card')).toBeVisible({ timeout: 3000 });
+    await page.getByTestId('welcome-go').click();
+    // Save it, then Load it from the title: no card.
+    await page.getByTestId('tool-menu').click();
+    await page.getByTestId('menu-save').click();
+    await page.getByTestId('slot-1').click();
+    const quit = async (): Promise<void> => {
+      await page.getByTestId('tool-menu').click();
+      await page.getByTestId('menu-quit').click();
+      const yes = page.getByRole('button', { name: 'Quit', exact: true });
+      if (await yes.isVisible().catch(() => false)) await yes.click();
+      await expect(page.getByTestId('title-new')).toBeVisible();
+      await expect(posterReady(page)).toHaveCount(1, { timeout: 10_000 });
+    };
+    await quit();
+    await page.getByTestId('title-load').click();
+    await page.locator('.title-load button.slot').first().click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+    // A scenario (its own briefing).
+    await quit();
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-scenarios').click();
+    await page.locator('[data-testid^="scenario-card-"]').first().click();
+    await page.getByTestId('scenario-start').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+    // The tutorial.
+    await quit();
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-tutorial').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+    await ctx.close();
+  });
+
+  for (const s of PHONES) {
+    for (const ts of [100, 175]) {
+      test(`welcome card fits at ${s.name}, text ${ts} %`, async ({ browser }) => {
+        const { ctx, page } = await open(browser, s);
+        await toWelcome(page, 'Fit Park', ts);
+        const box = await page.getByTestId('welcome-card').boundingBox();
+        if (!box) throw new Error('no card');
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(s.w + 0.5);
+        expect(box.y + box.height).toBeLessThanOrEqual(s.h + 0.5);
+        // Nothing inside is cut sideways, and the button can be reached (the card scrolls when it is taller than the window).
+        const fit = await page.getByTestId('welcome-card').evaluate((e) => ({ sw: e.scrollWidth, cw: e.clientWidth, words: [...e.querySelectorAll('.tc-word, .tc-welcome-to, .tc-welcome-body')].every((w) => w.getBoundingClientRect().right <= e.getBoundingClientRect().right + 0.5 && w.getBoundingClientRect().left >= e.getBoundingClientRect().left - 0.5) }));
+        expect(fit.sw).toBeLessThanOrEqual(fit.cw);
+        expect(fit.words).toBe(true);
+        const go = page.getByTestId('welcome-go');
+        await go.scrollIntoViewIfNeeded();
+        const g = await go.boundingBox();
+        expect(g && g.y >= 0 && g.y + g.height <= s.h + 0.5).toBe(true);
+        if (s.name === '390x844' && ts === 100) {
+          await scan(page, `welcome card ${s.name}`);
+          await shot(page, 'welcome-390x844');
+        }
+        await go.tap();
+        await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+        await ctx.close();
+      });
+    }
+  }
 });

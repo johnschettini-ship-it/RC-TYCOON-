@@ -15,7 +15,7 @@
  * (default: the test's output folder), named `title-real-<name><$SHOT_SUFFIX>.png`.
  */
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { openTool, scan } from './helpers';
+import { dismissWelcome, openTool, scan } from './helpers';
 
 const REAL = process.env.VITE_ART === 'real';
 const SIZES = [
@@ -382,6 +382,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
       await page.getByTestId('title-size-64').click();
       await page.getByTestId('title-start').click();
       await expect(page.locator('.title-screen')).toBeHidden();
+      await dismissWelcome(page);
       // In the park: no title bitmap left, the title canvas emptied.
       expect(await page.locator('canvas.title-real-scene').evaluate((c) => (c as HTMLCanvasElement).width)).toBe(0);
       await page.waitForTimeout(400);

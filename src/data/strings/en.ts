@@ -34,6 +34,8 @@ import { contentStrings } from './content';
 import { realBenchStrings } from './realBench';
 // Realistic card frames: only the VITE_ART=real build marks the cards the park cannot pay for.
 import { realCardsStrings } from './realCards';
+// Title-to-play bridge: only the VITE_ART=real build has the welcome card and the poster goal.
+import { realBridgeStrings } from './realBridge';
 import { fillParams, lookupString } from './resolve';
 
 export const en: Record<string, string> = {
@@ -61,6 +63,7 @@ export const en: Record<string, string> = {
   ...contentStrings,
   ...(import.meta.env?.VITE_ART === 'real' ? realBenchStrings : {}),
   ...(import.meta.env?.VITE_ART === 'real' ? realCardsStrings : {}),
+  ...(import.meta.env?.VITE_ART === 'real' ? realBridgeStrings : {}),
 };
 
 export function text(id: string, params?: Record<string, string | number>): string {
