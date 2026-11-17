@@ -268,3 +268,17 @@ describe('Sky Ride (chill, research)', () => {
     expect(add(w, id, 'station').ok).toBe(false);
   });
 });
+
+describe('batch C and old saves', () => {
+  it('saves from before batch C load: the Mine Train is open to build, the four research types wait for research', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    for (const name of ['save-v1.tcsave.json', 'save-v2.tcsave.json', 'save-start-roster.tcsave.json']) {
+      const r = deserialize(readFileSync(join(__dirname, '../../fixtures', name), 'utf8'));
+      if (!r.ok) throw new Error(`${name}: ${r.error}`);
+      expect(isUnlocked(r.world, 'mine_train'), name).toBe(true);
+      for (const id of ['launch_coaster', 'water_coaster', 'flying_coaster', 'sky_ride']) expect(isUnlocked(r.world, id), `${name} ${id}`).toBe(false);
+      expect(validateState(r.world.state), name).toBeNull();
+    }
+  });
+});
