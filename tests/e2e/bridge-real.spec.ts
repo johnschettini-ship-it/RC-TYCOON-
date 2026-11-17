@@ -405,6 +405,11 @@ test.describe('title-to-play bridge (VITE_ART=real build)', () => {
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     // Collapsed: the thumbnail copies are freed.
     expect(await page.getByTestId('poster-goal-thumb').evaluate((c) => (c as HTMLCanvasElement).width)).toBe(0);
+    // Still below the tip after the next checks (it does not jump back over it).
+    await page.waitForTimeout(1200);
+    const tip2 = await page.getByTestId('tip').boundingBox();
+    const chip = await page.getByTestId('poster-goal').boundingBox();
+    if (tip2 && chip) expect(chip.y, 'chip below the tip').toBeGreaterThanOrEqual(tip2.y + tip2.height);
     await shot(page, 'goal-1of5-390x844-chip');
     await ctx.close();
   });

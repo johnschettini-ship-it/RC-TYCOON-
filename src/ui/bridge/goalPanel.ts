@@ -258,7 +258,11 @@ export function createGoalPanel(ctx: UiContext): GoalPanel {
     const tip = root.querySelector<HTMLElement>('.tip-bubble');
     if (tip && !tip.hidden && !el.hidden) {
       const t = tip.getBoundingClientRect();
+      // Measured at its own place (not where an earlier tip pushed it), or it would jump back over the tip.
+      const was = el.style.top;
+      el.style.top = '';
       const me = el.getBoundingClientRect();
+      el.style.top = was;
       if (t.left < me.right && me.left < t.right && t.top < me.bottom + 1 && me.top < t.bottom + 8) top = `${Math.ceil(t.bottom + 8)}px`;
     }
     if (el.style.top !== top) el.style.top = top;
