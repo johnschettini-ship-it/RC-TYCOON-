@@ -24,6 +24,10 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   { id: 'inverted_coaster', name: 'Inverted Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 70, intensityHeightM: 45, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
   { id: 'bobsled_run', name: 'Bobsled Run', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 2, carsMin: 1, carsMax: 4, maxTrains: 4, maxHeightM: 35, intensityHeightM: 25, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
   { id: 'monorail', name: 'Monorail', phase: 6, unlock: 'gentle', tag: 'chill', flags: F(), drive: 'powered', seatsPerCar: 6, carsMin: 3, carsMax: 6, maxTrains: 4, maxHeightM: 24, intensityHeightM: 12, driveSpeedMms: 8000, driveSpeedMinMms: null, defaultPrice: 200 },
+  // New rides batch C (docs/superpowers/specs/2026-11-17-new-rides-design.md). Each row sits beside its nearest type.
+  // Mine Train: a family coaster between the Junior Coaster (20/12 m, $3) and the Spinning Mouse (24/16 m, $4): its
+  // height limits and price are the Mouse's; 4 seats a car as the big coasters, 2–6 cars, 2 trains as the Junior.
+  { id: 'mine_train', name: 'Mine Train', phase: 2, unlock: 'start', tag: 'family', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 2, maxHeightM: 24, intensityHeightM: 16, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
 ]);
 
 /** Definitions by id (first entry wins, as `find` would). The simulation looks these up many times per tick. */

@@ -4,8 +4,15 @@
  * hanging ones (flying, gondola) reach up to their rail or rope; riders sit inside the gondola and under the prone shell.
  */
 import { describe, expect, it } from 'vitest';
-import { CAR_BOUNDS, carDims, HANG_M, paintCar, riderHeightM, type CarShape } from '../../../../src/render/track/paint';
-import { PX_Z } from '../../../../src/render/track/project';
+import { getTrackTypeDef } from '../../../../src/data/track';
+import { buildRideSlices, paintSlice } from '../../../../src/render/track/layer';
+import { CAR_BOUNDS, carDims, HANG_M, lookFor, paintCar, riderHeightM, type CarShape } from '../../../../src/render/track/paint';
+import { drawTrackPreview } from '../../../../src/render/track/preview';
+import { PX_Z, viewFrame } from '../../../../src/render/track/project';
+import { executeCommand } from '../../../../src/sim/commands';
+import { makeTestWorld } from '../../../helpers/world';
+import type { PieceSpec } from '../../track/helpers';
+import { buildCircuit, MINE_TRAIN } from '../../track/ridesCCircuits';
 
 export function recorder(): { ctx: CanvasRenderingContext2D; pts: Array<[number, number]>; ops: string[] } {
   const pts: Array<[number, number]> = [];
@@ -104,5 +111,68 @@ describe('batch C cars', () => {
     const f = carDims('flying', true);
     expect(riderHeightM('flying', f)).toBeLessThan(f.h1);
     expect(riderHeightM('coaster', carDims('coaster', true))).toBe(carDims('coaster', true).h1 + 0.3);
+  });
+});
+
+/** Each batch C type's test circuit (tests/unit/track/ridesC.test.ts) and where its station goes. */
+export const CIRCUITS: ReadonlyArray<readonly [string, number, number, readonly PieceSpec[]]> = [
+  ['mine_train', 6, 4, MINE_TRAIN],
+];
+
+describe('batch C rides in today\'s look', () => {
+  it('each test circuit paints inside its slice bounds at every view rotation', () => {
+    for (const [typeId, x, y, pieces] of CIRCUITS) {
+      const w = makeTestWorld();
+      const id = buildCircuit(w, typeId, x, y, pieces);
+      for (const rot of [0, 1, 2, 3]) {
+        const f = viewFrame(rot, w.state.map.width, w.state.map.height);
+        const slices = buildRideSlices(w, id, f);
+        expect(slices.length, typeId).toBeGreaterThan(0);
+        for (const sl of slices) {
+          const r = recorder();
+          paintSlice(r.ctx, sl, f);
+          expect(r.pts.length, typeId).toBeGreaterThan(0);
+          within(r.pts, sl.bounds);
+        }
+      }
+    }
+  });
+
+  it('the three colour rows change the track, the supports and the cars', () => {
+    for (const [typeId, x, y, pieces] of CIRCUITS) {
+      const w = makeTestWorld();
+      const id = buildCircuit(w, typeId, x, y, pieces);
+      const f = viewFrame(0, w.state.map.width, w.state.map.height);
+      const paint = (): string => buildRideSlices(w, id, f).map((sl) => {
+        const r = recorder();
+        paintSlice(r.ctx, sl, f);
+        return r.ops.join(';');
+      }).join('|');
+      const base = paint();
+      const d = getTrackTypeDef(typeId)!.render.colours;
+      expect(executeCommand(w, { type: 'setTrackColours', rideId: id, track: (d.track + 3) % 12, supports: d.supports, cars: d.cars }).ok).toBe(true);
+      const track = paint();
+      expect(track, `${typeId} track`).not.toBe(base);
+      expect(executeCommand(w, { type: 'setTrackColours', rideId: id, track: (d.track + 3) % 12, supports: (d.supports + 3) % 12, cars: d.cars }).ok).toBe(true);
+      expect(paint(), `${typeId} supports`).not.toBe(track);
+    }
+  });
+
+  it('each type has its own card picture', () => {
+    const logs = new Set<string>();
+    for (const id of ['steel_coaster', 'junior_coaster', 'wooden_coaster', 'inverted_coaster', 'monorail', ...CIRCUITS.map((c) => c[0])]) {
+      const r = recorder();
+      drawTrackPreview(r.ctx, id, 112, 80);
+      expect(r.pts.length, id).toBeGreaterThan(0);
+      logs.add(r.ops.join(';'));
+    }
+    expect(logs.size).toBe(5 + CIRCUITS.length);
+  });
+
+  it('Mine Train: dark rails on wooden sleepers, wooden trestles, ore carts', () => {
+    const t = getTrackTypeDef('mine_train')!;
+    const look = lookFor(t);
+    expect([look.tieColour, look.spine, t.render.supports, t.render.car]).toEqual(['#7a5634', false, 'lattice', 'ore']);
+    expect(look).not.toEqual(lookFor(getTrackTypeDef('wooden_coaster')!));
   });
 });

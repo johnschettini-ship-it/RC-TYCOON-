@@ -12,6 +12,7 @@ import {
 import { FLUME_K, FLUME_V_CURRENT, RAPIDS_K, RAPIDS_V_CURRENT, V_LIFT, V_STATION_CONVEYOR } from '../../../src/data/tuning/track';
 import { entryJointLocal, exitJointLocal, pieceExitJoint, pieceStatic, pieceWorldTiles, piecesForEnd, slopePitch } from '../../../src/sim/rides/track/geometry';
 import type { TrackDir, TrackPieceInstance } from '../../../src/sim/rides/track/types';
+import { RIDES_C_IDS, RIDES_C_START } from '../../helpers/ridesC';
 
 /** Phase 4 §4.4 table rows: piece id(s), geometry, drive. `_l` / `_r` rows hold two ids. */
 const TABLE: Array<{ ids: string[]; geometry: string; drive: string }> = [
@@ -161,8 +162,8 @@ describe('water piece table (Phase 4 §4.4)', () => {
 describe('water track types (catalog §2, Phase 4 §8)', () => {
   it('Log Flume and Rapids Raft use the water current drive, their set, and the catalog vehicle numbers', () => {
     expect(WATER_TRACK_TYPES.map((t) => t.id)).toEqual(['log_flume', 'rapids_raft']);
-    // Build 3 (W4-D) appends the 3 Phase 6 types after the water types.
-    expect(ALL_TRACK_TYPES).toHaveLength(9 + 3);
+    // Build 3 (W4-D) appends the 3 Phase 6 types after the water types, and new rides batch C its types after those.
+    expect(ALL_TRACK_TYPES).toHaveLength(9 + 3 + RIDES_C_IDS.length + RIDES_C_START.length);
     expect(ALL_TRACK_TYPES.slice(7, 9)).toEqual(WATER_TRACK_TYPES);
     const flume = getTrackTypeDef('log_flume')!;
     const rapids = getTrackTypeDef('rapids_raft')!;

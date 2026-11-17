@@ -74,14 +74,14 @@ describe('starting roster (owner, 2026-11-17)', () => {
     }
   });
 
-  it('a new free play park offers 22 rides at the start (16 flat incl. the 4 new family rides, 6 track); 17 rides wait for research (5 of new rides batch B)', () => {
+  it('a new free play park offers 23 rides at the start (16 flat incl. the 4 new family rides, 7 track incl. the Mine Train); 17 rides wait for research (5 of new rides batch B)', () => {
     const w = makeTestWorld();
     const flat = FLAT_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
     const track = TRACK_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
     expect(flat.sort()).toEqual(
       ['carousel', 'big_wheel', 'swing_tower', 'teacup_twirl', 'spiral_slide', 'rocket_rounds', 'pendulum_ship', 'bumper_cars', 'kiddie_cars', 'mirror_maze', 'observation_tower', 'drop_tower', 'dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'].sort(),
     );
-    expect(track.sort()).toEqual(['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume'].sort());
+    expect(track.sort()).toEqual(['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume', 'mine_train'].sort());
     const researched = RESEARCH_ORDER.filter((r) => FLAT_RIDES.some((d) => d.id === r.id) || TRACK_RIDES.some((d) => d.id === r.id)).map((r) => r.id);
     // The research rides keep their relative order; new rides batch B's 5 are inserted by cost among the Build 3 ones.
     expect(researched).toEqual(['thunder_disc', 'go_karts', 'ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft', 'magic_carpet', 'merry_mill',

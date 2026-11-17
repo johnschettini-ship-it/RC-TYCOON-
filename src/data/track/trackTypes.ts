@@ -242,7 +242,17 @@ export const WATER_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(WATER_EX
  * any spec (tuning starting values, set beside the nearest existing type): the rating terms, costs, friction, chain and
  * launch speeds, and car lengths. Each row says what it sits beside.
  */
-const RIDES_C_EXTRAS: Extra[] = [];
+const RIDES_C_EXTRAS: Extra[] = [
+  {
+    // Mine Train: the Junior Coaster's groups (no steep slopes, no loops: low drops) plus the helix, for many turns; the
+    // Spinning Mouse's small-turn rating extra rewards a twisty layout. Friction, chain and costs sit between the
+    // Junior Coaster (1,500) and the Bobsled Run (2,600); rating terms a touch over the Junior's (themed, longer trains).
+    id: 'mine_train', groups: ['S', 'St', 'G', 'Ts', 'Tm', 'B', 'Br', 'BB', 'Hx'], chain: true, mu: 0.02, cd: 0.001, chainSpeedMms: 2000, carLengthMm: 2200, defaultCars: 4,
+    ratings: { e: 1.3, i: 0.1, n: 0.0, kAir: 1.0, extra: 'smallTurns' },
+    costs: { base: 1800, pieceFactorPermille: 800, runBase: 70, extraTrain: 450 },
+    render: { rail: 'wood', supports: 'lattice', car: 'ore', colours: { track: 10, supports: 11, cars: 1 } },
+  },
+];
 
 /** The batch C track types (rail medium). */
 export const RIDES_C_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(RIDES_C_EXTRAS.map(build));

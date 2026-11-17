@@ -5,4 +5,4 @@
  */
 export const RIDES_C: Readonly<Record<string, readonly [string, number]>> = {};
 export const RIDES_C_IDS: readonly string[] = Object.keys(RIDES_C);
-export const RIDES_C_START: readonly string[] = [];
+export const RIDES_C_START: readonly string[] = ['mine_train'];

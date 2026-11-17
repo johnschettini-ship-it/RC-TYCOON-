@@ -10,6 +10,7 @@ import { FLAT_RIDES, STALLS, TRACK_RIDES, PATH_ITEMS, SHOW_SITES, STAFF, getFlat
 import { GROUND_LEVEL, START_TICK } from '../../../src/data/tuning/core';
 import { makeTestWorld, stateHash } from '../../helpers/world';
 import { RIDES_B_IDS } from '../../helpers/ridesB';
+import { RIDES_C_IDS, RIDES_C_START } from '../../helpers/ridesC';
 
 describe('rng', () => {
   it('is deterministic for a seed', () => {
@@ -143,13 +144,14 @@ describe('catalog data (content-catalog.md)', () => {
   it('has the Build 1, Build 2, and Build 3 counts (Phase 6 §4.5)', () => {
     // + the 4 family flat rides of new rides batch A (phase 1, unlocked at the start) and the batch B rides (phase 6).
     expect(FLAT_RIDES).toHaveLength(14 + 4 + 4 + RIDES_B_IDS.length);
-    expect(TRACK_RIDES).toHaveLength(9 + 3);
+    // + the track rides of new rides batch C (tests/helpers/ridesC.ts).
+    expect(TRACK_RIDES).toHaveLength(9 + 3 + RIDES_C_IDS.length + RIDES_C_START.length);
     expect(STALLS).toHaveLength(11 + 3);
     expect(SHOW_SITES).toHaveLength(2);
     expect(PATH_ITEMS).toHaveLength(3);
     expect(STAFF).toHaveLength(4);
     expect(FLAT_RIDES.filter((d) => d.phase <= 3)).toHaveLength(14 + 4);
-    expect(TRACK_RIDES.filter((d) => d.phase <= 4)).toHaveLength(9);
+    expect(TRACK_RIDES.filter((d) => d.phase <= 4)).toHaveLength(9 + RIDES_C_START.length); // the Mine Train is phase 2
     expect(STALLS.filter((d) => d.phase <= 3)).toHaveLength(11);
   });
 
