@@ -12,6 +12,17 @@ import { projectX, projectY, viewFrame, type ViewFrame } from '../../../../src/r
 import { TILE_M } from '../../../../src/data/tuning/track';
 import { buildPerfScene } from '../../../perf/scenes';
 import type { ViewRotation } from '../../../../src/render/view';
+import { createRealLook, type RealSets } from '../../../../src/render/real/look';
+import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey } from '../../../../src/render/real/indexFormat';
+import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
+import type { CanvasLike } from '../../../../src/render/real/tint';
+import { TINT_PAGE_PX } from '../../../../src/render/real/tintAtlas';
+import { pieceClass, poseClasses } from '../../../../src/render/real/trackClasses';
+import { createWorld } from '../../../../src/sim/world';
+import type { Ride } from '../../../../src/sim/rides/types';
+import type { World } from '../../../../src/sim/types';
+import { railTileRanges, setDecodedBytes, typePieces } from '../../../../tools/art3d/sizeReport';
+import { trackBudget } from '../../../../tools/art3d/trackBudget';
 
 beforeAll(() => {
   install();
@@ -124,4 +135,268 @@ describe('bake and reader agree on the support and spine sizes', () => {
     expect(0.22 + 0.45).toBeCloseTo(SUPPORT_TOP_HEIGHT, 9);
     expect(src).toContain(`SUPPORT_TOP_BELOW_RAIL = ${SUPPORT_TOP_BELOW_RAIL} m`);
   });
+});
+
+// ------------------------------------------------------------------ batch 5 Task 2: class sets, alpha tint, scope
+
+describe('track class sets (batch 5 Task 2)', () => {
+  /** A pixel canvas: enough for the tint atlas in node. */
+  class Pix {
+    data: Uint8ClampedArray;
+    constructor(public width: number, public height: number, fill: number[] = [128, 128, 128, 255]) {
+      this.data = new Uint8ClampedArray(width * height * 4);
+      for (let i = 0; i < this.data.length; i += 4) this.data.set(fill, i);
+    }
+    getContext(): unknown {
+      const self = this;
+      return {
+        drawImage(src: Pix, sx = 0, sy = 0, sw = 0, sh = 0, dx = 0, dy = 0) {
+          for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) self.data.set(src.data.subarray(((sy + y) * src.width + sx + x) * 4, ((sy + y) * src.width + sx + x) * 4 + 4), ((dy + y) * self.width + dx + x) * 4);
+        },
+        getImageData(x: number, y: number, w: number, h: number) {
+          const data = new Uint8ClampedArray(w * h * 4);
+          for (let r = 0; r < h; r++) data.set(self.data.subarray(((y + r) * self.width + x) * 4, ((y + r) * self.width + x + w) * 4), r * w * 4);
+          return { width: w, height: h, data };
+        },
+        putImageData(img: { width: number; height: number; data: Uint8ClampedArray }, x = 0, y = 0) {
+          for (let r = 0; r < img.height; r++) self.data.set(img.data.subarray(r * img.width * 4, (r + 1) * img.width * 4), ((y + r) * self.width + x) * 4);
+        },
+        clearRect() {},
+      };
+    }
+  }
+  const FR = { sheet: 's', sx: 0, sy: 0, w: 2, h: 2, ox: -1, oy: -1 };
+
+  class Sets implements RealSets {
+    wants: { keys: SetKey[]; priority: 'now' | 'ahead' }[] = [];
+    used: SetKey[] = [];
+    held = new Map<string, number>();
+    private ready = new Map<SetKey, ReadySet>();
+    constructor(private readonly index: RealIndex, private readonly fill: Record<string, number[]> = {}) {}
+    setReady(key: SetKey): void {
+      const e = this.index.sets.find((x) => x.key === key);
+      if (!e) throw new Error(`no ${key}`);
+      this.ready.set(key, { ...e, images: e.sheets.map((s) => new Pix(s.w, s.h, this.fill[s.file]) as unknown as CanvasImageSource) });
+    }
+    want(keys: SetKey[], priority: 'now' | 'ahead'): void { this.wants.push({ keys: [...keys], priority }); }
+    use(key: SetKey): ReadySet | null { this.used.push(key); return this.ready.get(key) ?? null; }
+    state(key: SetKey): SetState { return this.ready.has(key) ? 'ready' : 'none'; }
+    densityCap(): 2 | 4 { return 4; }
+    isDemoted(): boolean { return false; }
+    hold(id: string, bytes: number): void { if (bytes > 0) this.held.set(id, bytes); else this.held.delete(id); }
+    admit(id: string, bytes: number): boolean { this.hold(id, bytes); return true; }
+    wanted(p: 'now' | 'ahead'): SetKey[] { return [...new Set(this.wants.filter((w) => w.priority === p).flatMap((w) => w.keys))].sort(); }
+  }
+  const idx = (sets: RealSetEntry[]): RealIndex => ({ format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets, bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } });
+  /** A set with one sheet `s` (8 x 8), masked (`m`) or alpha-tinted. */
+  const entry = (kind: RealKind, item: string, d: 2 | 4, rot: RealSetEntry['rot'], frames: string[], tint: 'mask' | 'alpha'): RealSetEntry => ({
+    key: setKey(kind, item, d, rot), kind, item, density: d, rot,
+    sheets: tint === 'alpha' ? [{ file: 's', w: 8, h: 8, tint: 'alpha' }] : [{ file: 's', w: 8, h: 8, mask: 'm' }, { file: 'm', w: 8, h: 8 }],
+    frames: Object.fromEntries(frames.map((f) => [f, FR])),
+  });
+  /** Class layout: rails base, turn and loop at every heading (alpha), cars base, turn and loop (masked). */
+  const classIndex = (): RealIndex => {
+    const sets: RealSetEntry[] = [];
+    for (const d of [2, 4] as const) {
+      for (const r of [0, 1, 2, 3] as const) {
+        sets.push(entry('rail', 'steel_coaster~base', d, r, ['station:t0', 'straight:t0'], 'alpha'));
+        sets.push(entry('rail', 'steel_coaster~turn', d, r, ['turn_medium_left:t0'], 'alpha'));
+        sets.push(entry('rail', 'steel_coaster~loop', d, r, ['vertical_loop_left:t0'], 'alpha'));
+        sets.push(entry('support', 'steel_coaster', d, r, ['foot', 'seg', 'top'], 'mask'));
+      }
+      sets.push(entry('car', 'steel_coaster~base', d, 'all', ['y0:p0:r0:full'], 'mask'));
+      sets.push(entry('car', 'steel_coaster~turn', d, 'all', ['y1:p0:r0:full'], 'mask'));
+      sets.push(entry('car', 'steel_coaster~loop', d, 'all', [], 'mask'));
+    }
+    return idx(sets);
+  };
+  const VIEW = { x0: -2000, y0: -2000, x1: 2000, y1: 2000 };
+  const worldWith = (pieces: { defId: string; dir: number }[]) => {
+    const world = createWorld({ seed: 1, parkName: 'Class Park', mapSize: 16 });
+    world.state.rides.push({ id: 1, kind: 'track', defId: 'steel_coaster', x: 6, y: 6 } as Ride);
+    world.state.track.rides['1'] = { pieces: pieces.map((p, i) => ({ ...p, x: 4 + i, y: 6, z: 8 })) } as unknown as World['state']['track']['rides'][string];
+    return world;
+  };
+  const make = (w: number, h: number) => new Pix(w, h) as unknown as CanvasLike;
+
+  it('a circuit without loops never wants a loop set', () => {
+    const index = classIndex();
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'station', dir: 0 }, { defId: 'straight', dir: 0 }, { defId: 'turn_medium_left', dir: 0 }]), 0, VIEW, 2, 2);
+    const all = [...sets.wanted('now'), ...sets.wanted('ahead')];
+    expect(all.filter((k) => k.includes('~loop'))).toEqual([]);
+    expect(all.some((k) => k.startsWith('rail:steel_coaster~base'))).toBe(true);
+    expect(all.some((k) => k.startsWith('rail:steel_coaster~turn'))).toBe(true);
+    expect(all).toContain('car:steel_coaster~base:d4:rall');
+    expect(all).toContain('car:steel_coaster~turn:d4:rall');
+    // with a loop built, the loop rail and car classes are wanted
+    const sets2 = new Sets(index);
+    createRealLook(index, sets2, { makeCanvas: make }).prepare(worldWith([{ defId: 'station', dir: 0 }, { defId: 'vertical_loop_left', dir: 0 }]), 0, VIEW, 2, 2);
+    expect(sets2.wanted('now')).toEqual(expect.arrayContaining(['rail:steel_coaster~loop:d4:r0', 'car:steel_coaster~loop:d4:rall']));
+  });
+
+  it('wants only the headings its pieces face, shifted by the view turn', () => {
+    const index = classIndex();
+    const world = worldWith([{ defId: 'station', dir: 0 }, { defId: 'straight', dir: 1 }, { defId: 'turn_medium_left', dir: 1 }]);
+    for (const rot of [0, 2] as const) {
+      const sets = new Sets(index);
+      createRealLook(index, sets, { makeCanvas: make }).prepare(world, rot, VIEW, 2, 2);
+      // (while a density-4 set is not ready its density-2 twin is wanted now too: that is the ladder, not the scope)
+      const rails = (p: 'now' | 'ahead') => sets.wanted(p).filter((k) => k.startsWith('rail:') && (p === 'ahead' || k.includes(':d4:')));
+      const h = (d: number) => (d + rot) % 4;
+      expect(rails('now')).toEqual([
+        `rail:steel_coaster~base:d4:r${h(0)}`, `rail:steel_coaster~base:d4:r${h(1)}`, `rail:steel_coaster~turn:d4:r${h(1)}`,
+      ].sort());
+      // the next turn's headings, ahead at density 2 (a turn shows at once), unless that heading's set is wanted now
+      expect(rails('ahead')).toEqual([
+        `rail:steel_coaster~base:d2:r${h(1)}`, `rail:steel_coaster~base:d2:r${h(2)}`, `rail:steel_coaster~turn:d2:r${h(2)}`,
+      ].filter((k) => !rails('now').includes(k.replace(':d2:', ':d4:'))).sort());
+    }
+  });
+
+  it('a heading wanted now is not wanted again ahead at density 2 once its density-4 set is ready (bench: +3.7 MiB)', () => {
+    const index = classIndex();
+    const world = worldWith([{ defId: 'station', dir: 0 }, { defId: 'straight', dir: 1 }, { defId: 'straight', dir: 2 }, { defId: 'straight', dir: 3 }]);
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    for (const r of [0, 1, 2, 3]) sets.setReady(`rail:steel_coaster~base:d4:r${r}`);
+    look.prepare(world, 0, VIEW, 2, 2);
+    expect(sets.wanted('now').filter((k) => k.startsWith('rail:'))).toEqual([0, 1, 2, 3].map((r) => `rail:steel_coaster~base:d4:r${r}`));
+    expect(sets.wanted('ahead').filter((k) => k.startsWith('rail:'))).toEqual([]);
+  });
+
+  it('a car on a base pose draws from the base class; a turn pose from the turn class', () => {
+    const index = classIndex();
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'station', dir: 0 }]), 0, VIEW, 1, 1);
+    sets.setReady('car:steel_coaster~base:d2:rall');
+    sets.setReady('car:steel_coaster~turn:d2:rall');
+    expect(look.car('steel_coaster', 0, 0, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~base:d2:rall');
+    expect(look.car('steel_coaster', 1, 0, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~turn:d2:rall');
+    expect(look.fallbacksUsed()).toEqual([]);
+  });
+
+  it('a rail resolves its piece\'s class set, alpha-tinted (no mask) as a full-white mask would tint it', () => {
+    // the same picture on an alpha sheet and on a masked sheet with a full-white mask
+    const alphaIdx = classIndex();
+    const maskIdx = idx(alphaIdx.sets.map((e) => (e.kind === 'rail' ? { ...e, sheets: [{ file: 's', w: 8, h: 8, mask: 'm' }, { file: 'm', w: 8, h: 8 }] } : e)));
+    const fill = { s: [200, 120, 40, 140], m: [255, 255, 255, 255] };
+    const pixels = (index: RealIndex): number[] => {
+      const sets = new Sets(index, fill);
+      const look = createRealLook(index, sets, { makeCanvas: make });
+      look.prepare(worldWith([{ defId: 'turn_medium_left', dir: 0 }]), 0, VIEW, 1, 1);
+      sets.setReady('rail:steel_coaster~turn:d2:r1');
+      let sp = look.rail('steel_coaster', 'turn_medium_left', 0, 1, 3);
+      for (let i = 0; i < 3 && sp && sp.image === undefined; i++) sp = look.rail('steel_coaster', 'turn_medium_left', 0, 1, 3);
+      expect(sets.used.at(-1)).toBe('rail:steel_coaster~turn:d2:r1');
+      expect(sp).toBeTruthy();
+      const page = sp!.image as unknown as Pix;
+      expect(page.width).toBe(TINT_PAGE_PX); // tinted into the atlas, not the sheet
+      return Array.from((page.getContext() as { getImageData(x: number, y: number, w: number, h: number): { data: Uint8ClampedArray } }).getImageData(sp!.sx!, sp!.sy!, sp!.w, sp!.h).data);
+    };
+    const a = pixels(alphaIdx);
+    expect(a).toEqual(pixels(maskIdx));
+    expect(a[3]).toBe(140); // alpha kept
+    expect(a.slice(0, 3)).not.toEqual([200, 120, 40]); // and tinted
+  });
+
+  it('stage 1 keys still resolve as base: one set per heading serves every class, no fallback', () => {
+    const sets0: RealSetEntry[] = [];
+    for (const d of [2, 4] as const) {
+      for (const r of [0, 1, 2, 3] as const) sets0.push(entry('rail', 'steel_coaster', d, r, ['station:t0', 'turn_medium_left:t0'], 'mask'));
+      sets0.push(entry('car', 'steel_coaster', d, 'all', ['y0:p0:r0:full', 'y1:p0:r0:full'], 'mask'));
+    }
+    const index = idx(sets0);
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'station', dir: 0 }, { defId: 'turn_medium_left', dir: 2 }]), 1, VIEW, 2, 2);
+    // the stage 1 sets at the headings the pieces face (dir 0 and 2 at turn 1)
+    expect(sets.wanted('now').filter((k) => !k.startsWith('support') && k.includes(':d4:'))).toEqual(['car:steel_coaster:d4:rall', 'rail:steel_coaster:d4:r1', 'rail:steel_coaster:d4:r3']);
+    sets.setReady('rail:steel_coaster:d4:r3');
+    sets.setReady('car:steel_coaster:d4:rall');
+    expect(look.rail('steel_coaster', 'turn_medium_left', 0, 3, 3)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('rail:steel_coaster:d4:r3');
+    expect(look.car('steel_coaster', 1, 0, 0, false, 1)).toBeUndefined(); // no empty frame: missing frame, today's art
+    expect(look.car('steel_coaster', 1, 0, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:steel_coaster:d4:rall');
+    expect(look.fallbacksUsed()).toEqual(['car:steel_coaster:d4:rall/y1:p0:r0:empty']);
+  });
+
+  it('memory: the coaster bench circuit at d4 wants at most 60 % of today\'s track bytes, within the 32 MiB bench budget', () => {
+    // Fake indexes of a COMPLETE steel coaster (all 34 pieces, 472 poses), sized from Task 1's measure of the stage 1
+    // bake (merge-b art, 2026-11-17): rail frame w x (h0 + 39.2 px/m x rail range) at d4 (155.75 x (70.36 + ...)),
+    // 77.6% of the d4 size at d2 (78.21 x (35.63 + 19.6/m)), car frame 8781 px at d4 and 2240 at d2, sheets 1.20 x the
+    // frame area. Today's layout: one masked rail sheet per heading holding every piece, one masked car sheet.
+    // Batch 5: class sets, rails on alpha sheets (station and brakes on a small masked sheet), cars masked per class.
+    const MODEL = { 2: { w: 78.21, h0: 35.63, pxm: 19.6, car: 2240 }, 4: { w: 155.75, h0: 70.36, pxm: 39.2, car: 8781 } } as const;
+    const PACK = 1.2;
+    const masked = new Set(['station', 'brakes', 'block_brake']);
+    const sheetOf = (px: number, mask: boolean, file: string): RealSetEntry['sheets'] => {
+      const h = Math.max(1, Math.ceil((px * PACK) / 1024));
+      return mask ? [{ file, w: 1024, h, mask: `${file}-m` }, { file: `${file}-m`, w: 1024, h }] : [{ file, w: 1024, h, tint: 'alpha' }];
+    };
+    const steelPieces = typePieces('steel_coaster');
+    const today: RealSetEntry[] = [];
+    const batch5: RealSetEntry[] = [];
+    for (const d of [2, 4] as const) {
+      const m = MODEL[d];
+      for (const h of [0, 1, 2, 3] as const) {
+        const byClass = new Map<string, { alpha: number; mask: number; frames: string[] }>();
+        let all = 0;
+        const allFrames: string[] = [];
+        for (const pc of steelPieces) railTileRanges(pc, h).forEach((dz, ti) => {
+          const px = m.w * (m.h0 + dz * m.pxm);
+          all += px;
+          allFrames.push(`${pc}:t${ti}`);
+          const c = byClass.get(pieceClass(pc)) ?? { alpha: 0, mask: 0, frames: [] };
+          if (masked.has(pc)) c.mask += px; else c.alpha += px;
+          c.frames.push(`${pc}:t${ti}`);
+          byClass.set(pieceClass(pc), c);
+        });
+        const fr = (keys: string[]) => Object.fromEntries(keys.map((k) => [k, FR]));
+        today.push({ key: setKey('rail', 'steel_coaster', d, h), kind: 'rail', item: 'steel_coaster', density: d, rot: h, sheets: sheetOf(all, true, `r${d}${h}`), frames: fr(allFrames) });
+        for (const [cls, c] of byClass) {
+          const sheets = [...(c.alpha ? sheetOf(c.alpha, false, `r${cls}${d}${h}a`) : []), ...(c.mask ? sheetOf(c.mask, true, `r${cls}${d}${h}m`) : [])];
+          batch5.push({ key: setKey('rail', `steel_coaster~${cls}`, d, h), kind: 'rail', item: `steel_coaster~${cls}`, density: d, rot: h, sheets, frames: fr(c.frames) });
+        }
+        const sup = entry('support', 'steel_coaster', d, h, ['foot', 'seg', 'top'], 'mask');
+        today.push(sup);
+        batch5.push(sup);
+      }
+      const poses = poseClasses('steel_coaster');
+      today.push({ key: setKey('car', 'steel_coaster', d, 'all'), kind: 'car', item: 'steel_coaster', density: d, rot: 'all', sheets: sheetOf(poses.size * 2 * m.car, true, `c${d}`), frames: {} });
+      for (const cls of new Set(poses.values())) {
+        const n = [...poses.values()].filter((c) => c === cls).length;
+        batch5.push({ key: setKey('car', `steel_coaster~${cls}`, d, 'all'), kind: 'car', item: `steel_coaster~${cls}`, density: d, rot: 'all', sheets: sheetOf(n * 2 * m.car, true, `c${cls}${d}`), frames: {} });
+      }
+    }
+    const world = buildPerfScene('coaster');
+    const wantedTrackBytes = (sets: RealSetEntry[]): number => {
+      const index = idx(sets);
+      const fake = new Sets(index);
+      const look = createRealLook(index, fake, { makeCanvas: make });
+      // the whole 64 x 64 map in view at d4, at every view turn: the most the circuit can want at once
+      let most = 0;
+      for (const rot of [0, 1, 2, 3] as const) {
+        fake.wants = [];
+        look.prepare(world, rot, { x0: -3000, y0: -3000, x1: 3000, y1: 3000 }, 2, 2);
+        // the density-4 sets (their density-2 twins are wanted too until they are ready: transient)
+        const keys = fake.wanted('now').filter((k) => /^(rail|car|support):/.test(k) && k.includes(':d4:'));
+        most = Math.max(most, keys.reduce((n, k) => n + setDecodedBytes(index.sets.find((e) => e.key === k)!).all, 0));
+      }
+      return most;
+    };
+    const before = wantedTrackBytes(today);
+    const after = wantedTrackBytes(batch5);
+    const MiB = 1024 * 1024;
+    // today: every heading's whole-type rail sheet and mask, and the whole car sheet and mask (~150 MiB)
+    expect(before / MiB).toBeGreaterThan(120);
+    expect(after).toBeLessThanOrEqual(0.6 * before);
+    expect(after).toBeLessThanOrEqual(trackBudget('steel_coaster').benchMaxD4);
+    console.log(`coaster bench circuit, d4 track bytes wanted: today's layout ${(before / MiB).toFixed(1)} MiB, class sets ${(after / MiB).toFixed(1)} MiB (${((100 * after) / before).toFixed(0)} %)`);
+  }, 120000);
 });

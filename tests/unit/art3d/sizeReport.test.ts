@@ -174,6 +174,23 @@ describe('sizeReport', () => {
       expect(part[0]).toMatch(/^TRACK_COMPLETE rail:junior_coaster d2 r0: \d+ rail frame\(s\) missing/);
     });
 
+    it('class names and alpha tint are checked: known classes on rail and car sets, alpha only on rail sheets without a mask', () => {
+      const sets = complete('steel_coaster', steel);
+      const rail = sets.find((s) => s.key === 'rail:steel_coaster~base:d2:r0')!;
+      const car = sets.find((s) => s.key === 'car:steel_coaster~base:d2:rall')!;
+      rail.sheets = [{ file: 's.webp', w: 8, h: 8, tint: 'alpha', mask: 's.webp' }];
+      car.sheets = [{ file: 's.webp', w: 8, h: 8, tint: 'alpha' }];
+      const sup = { ...set('support', 'steel_coaster~base', 2, 0, 's.webp'), frames: {} };
+      const odd = { ...set('rail', 'steel_coaster~zigzag', 2, 0, 's.webp'), frames: {} };
+      const p = checkIndex(index([...sets, sup, odd]), new Set(['s.webp'])).filter((x) => !x.startsWith('TRACK_COMPLETE') && !x.includes('missing density'));
+      expect(p).toEqual([
+        'rail:steel_coaster~base:d2:r0: sheet s.webp is alpha-tinted and has a mask',
+        'car:steel_coaster~base:d2:rall: sheet s.webp is alpha-tinted; only rail sheets may be',
+        'support:steel_coaster~base:d2:r0: only rail and car sets have track classes',
+        "rail:steel_coaster~zigzag:d2:r0: unknown track class 'zigzag'",
+      ]);
+    });
+
     it('the command line exits 1 when a baked type breaks its per-set limit, 0 within it', () => {
       const run = (d4Sheet: [number, number]): { status: number; out: string } => {
         const dir = mkdtempSync(join(tmpdir(), 'trackfix-'));

@@ -235,14 +235,16 @@ describe('RealLook', () => {
     look.prepare(world, 3, VIEW, 1, 1);
     const k = (kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all') => setKey(kind, item, 2, rot);
     const guests = Array.from({ length: 8 }, (_, i) => k('guest', `b${i >> 2}o${i & 3}`, 'all'));
-    // Rails, supports and path-item shadows are keyed by a heading in the view (the piece's, the saddle's, the
-    // item's side), not the view turn, so every heading is wanted now.
+    // Supports and path-item shadows are keyed by a heading in the view (the saddle's, the item's side), not the view
+    // turn, so every heading is wanted now. Rails (batch 5 Task 2) only at the headings their pieces face: the station
+    // (dir 1) at turn 3 faces heading 0, and the ahead turn's heading 1 is wanted ahead at density 2. The stage 1 bake
+    // (`rail:steel_coaster`, no class sets) serves the station's class.
     const every = (kind: RealKind, item: string) => ROTS.map((r) => k(kind, item, r));
     expect(sets.wanted('now')).toEqual([
       k('car', 'steel_coaster', 'all'),
       k('ground', 'grass', 3),
       ...guests,
-      ...every('rail', 'steel_coaster'),
+      k('rail', 'steel_coaster', 0),
       ...every('support', 'steel_coaster'),
       k('ride', 'carousel', 'all'),
       k('scenery', 'bench', 3),
@@ -253,6 +255,7 @@ describe('RealLook', () => {
     ].sort());
     expect(sets.wanted('ahead')).toEqual([
       k('ground', 'grass', 0),
+      k('rail', 'steel_coaster', 1),
       k('scenery', 'bench', 0),
       k('shadow', 'snack_shack', 0),
       k('stall', 'snack_shack', 0),

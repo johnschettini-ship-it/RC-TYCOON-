@@ -8,6 +8,7 @@ import { checkCoverFolder, checkTitleIndex, type TitleFiles } from './titleIndex
 import { reachedPoses } from './poses';
 import { railTileRanges, typePieces } from './sizeReport';
 import { STAGE1_TRACK, trackTypeOfItem } from './trackBudget';
+import { TRACK_CLASSES } from '../../src/render/real/trackClasses';
 
 const MAX_SHEET = 2048;
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
@@ -59,6 +60,19 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
       if (!okNum(f.sx) || !okNum(f.sy) || !okNum(f.w) || !okNum(f.h)) { problems.push(`${set.key}: frame ${k} has a non-finite or negative rectangle`); continue; }
       if (f.sx + f.w > sh.w || f.sy + f.h > sh.h) problems.push(`${set.key}: frame ${k} outside sheet ${f.sheet}`);
       if (!Number.isFinite(f.ox) || !Number.isFinite(f.oy)) problems.push(`${set.key}: frame ${k} has non-finite ox/oy`);
+    }
+  }
+  // Track class sets and alpha tint (batch 5 Task 2): a `<type>~<class>` item names a known class and only rail and car
+  // sets have classes; an alpha-tint sheet is a rail sheet without a mask (cars and supports keep masks).
+  for (const set of index.sets) {
+    const cls = set.item.includes('~') ? set.item.slice(set.item.indexOf('~') + 1) : null;
+    if (cls !== null && (set.kind !== 'rail' && set.kind !== 'car')) problems.push(`${set.key}: only rail and car sets have track classes`);
+    if (cls !== null && !(TRACK_CLASSES as readonly string[]).includes(cls)) problems.push(`${set.key}: unknown track class '${cls}'`);
+    for (const s of set.sheets) {
+      if (s.tint === undefined) continue;
+      if (s.tint !== 'alpha') problems.push(`${set.key}: sheet ${s.file} has unknown tint '${String(s.tint)}'`);
+      else if (set.kind !== 'rail') problems.push(`${set.key}: sheet ${s.file} is alpha-tinted; only rail sheets may be`);
+      else if (s.mask !== undefined) problems.push(`${set.key}: sheet ${s.file} is alpha-tinted and has a mask`);
     }
   }
   for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && f !== 'title' && f !== 'title-panorama' && !referenced.has(f)) problems.push(`file not in index: ${f}`);

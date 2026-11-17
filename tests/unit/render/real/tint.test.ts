@@ -243,3 +243,30 @@ describe('tintSheetShaded (Task 5): a whole sheet, band by band', () => {
     expect(() => tintSheetShaded(base, mask, [1, 2, 3], [4, 5, 6], (w, h) => ({ width: w, height: h, getContext: () => null }), 4)).toThrow(/no 2D context/);
   });
 });
+
+describe('alpha-tint sheets (batch 5 Task 2: rails that take the track colour everywhere)', () => {
+  /** A 5 x 3 picture with every alpha from transparent to opaque, and its full-white mask. */
+  const sheet = (): { base: Decoded; white: Decoded } => {
+    const b = new PixCanvas(5, 3);
+    const m = new PixCanvas(5, 3);
+    for (let i = 0; i < 15; i++) {
+      b.data.set([(i * 37) & 255, (i * 91) & 255, (i * 13) & 255, Math.round((i / 14) * 255)], i * 4);
+      m.data.set([255, 255, 255, 255], i * 4);
+    }
+    const d = (c: PixCanvas): Decoded => ({ image: c as unknown as CanvasImageSource, bytes: 60, close() {} });
+    return { base: d(b), white: d(m) };
+  };
+  it('alpha-tint sheet tints like a full-white mask (every pixel, semi-transparent ones too), alpha kept', () => {
+    const { base, white } = sheet();
+    const rect = { x: 0, y: 0, w: 5, h: 3 };
+    const a = new PixCanvas(5, 3);
+    const w = new PixCanvas(5, 3);
+    tintRect(base, null, rect, [200, 40, 90], a as never, 0, 0);
+    tintRect(base, white, rect, [200, 40, 90], w as never, 0, 0);
+    expect(Array.from(a.data)).toEqual(Array.from(w.data));
+    const src = (base.image as unknown as PixCanvas).data;
+    for (let i = 3; i < 60; i += 4) expect(a.data[i]).toBe(src[i]);
+    // and it did tint: a mid pixel is not the base colour
+    expect(Array.from(a.data.subarray(28, 31))).not.toEqual(Array.from(src.subarray(28, 31)));
+  });
+});

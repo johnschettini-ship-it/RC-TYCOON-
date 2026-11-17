@@ -1,6 +1,6 @@
 /**
- * Tinted frames for RealLook (spec §5.7, Task 4): a sheet with a mask (guest shirts, track, car and support colours)
- * is tinted one frame at a time, as the frame is drawn, into the shared tint atlas (`../tintAtlas.ts`); no whole sheet
+ * Tinted frames for RealLook (spec §5.7, Task 4): a sheet with a mask (guest shirts, track, car and support colours),
+ * or an alpha-tint sheet (`tint: 'alpha'`: rails that take the track colour everywhere, batch 5), is tinted one frame at a time, as the frame is drawn, into the shared tint atlas (`../tintAtlas.ts`); no whole sheet
  * is tinted. A frame not tinted yet draws its untinted picture (the caller counts it incomplete); a frame the atlas has
  * no room for draws untinted too (the caller counts it incomplete, then degraded after `DEGRADE_FRAMES`).
  */
@@ -90,15 +90,18 @@ export function createTinter(sets: RealSets, metaOf: (rs: ReadySet) => SetMeta, 
     bySet.delete(key);
   }
 
-  /** The id of sheet `base` of set `key` (made on first use), or null when its mask is not its size (the set fails). */
-  function sheetId(key: SetKey, rs: ReadySet, base: CanvasImageSource, mask: CanvasImageSource, hex: string): number | null {
+  /**
+   * The id of sheet `base` of set `key` (made on first use), or null when its mask is not its size (the set fails).
+   * `mask` null: an alpha-tint sheet (nothing to compare).
+   */
+  function sheetId(key: SetKey, rs: ReadySet, base: CanvasImageSource, mask: CanvasImageSource | null, hex: string): number | null {
     const id = sheetIds.get(base);
     if (id !== undefined) return id;
     // A set decoded again: its old frames are of no use.
     const t0 = bySet.get(key);
     if (t0 && t0.source !== rs.images) dropSet(key);
     const b = sizeOf(base);
-    const m = sizeOf(mask);
+    const m = mask === null ? b : sizeOf(mask);
     if (b.w !== m.w || b.h !== m.h) {
       failed.add(key);
       opts.onError?.(`${key}#${hex}`, new Error(`tint mask is ${m.w}x${m.h}, base is ${b.w}x${b.h}`));
@@ -119,8 +122,10 @@ export function createTinter(sets: RealSets, metaOf: (rs: ReadySet) => SetMeta, 
       const meta = metaOf(rs);
       const mi = meta.maskOf[r.si] as number;
       const base = rs.images[r.si];
-      const mask = mi < 0 ? undefined : rs.images[mi];
-      if (!base || !mask) return r.sprite;
+      // An alpha-tint sheet (batch 5 rails) has no mask: its alpha clips a full tint.
+      const alpha = meta.alpha[r.si] === true;
+      const mask = alpha ? null : mi < 0 ? undefined : rs.images[mi];
+      if (!base || mask === undefined) return r.sprite;
       const sheet = sheetId(key, rs, base, mask, hex);
       if (sheet === null) return null;
       const colour = colourOf(hex);
@@ -128,7 +133,7 @@ export function createTinter(sets: RealSets, metaOf: (rs: ReadySet) => SetMeta, 
       const hit = atlas.get(sheet, r.tid, colour);
       if (hit) return hit;
       const { f, sprite } = r;
-      if (!atlas.request(sheet, r.tid, colour, wrap(base), wrap(mask), { x: f.sx, y: f.sy, w: f.w, h: f.h, ox: sprite.ox, oy: sprite.oy, scale: sprite.scale })) {
+      if (!atlas.request(sheet, r.tid, colour, wrap(base), mask === null ? null : wrap(mask), { x: f.sx, y: f.sy, w: f.w, h: f.h, ox: sprite.ox, oy: sprite.oy, scale: sprite.scale })) {
         return failed.has(key) ? null : TINT_NO_ROOM;
       }
       atlas.step(TINT_FRAME_MS);

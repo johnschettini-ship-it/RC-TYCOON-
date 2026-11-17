@@ -36,19 +36,25 @@
  *            path item's shadow set is turned by its side (`shadow:bench:r<side>`), not by the view turn
  *   guest    set guest:b<B>o<O>     frame [`f<facing 0-3>`, `w<walk>` | `sit`]  (rot 'all'; shirt mask; anchor: feet)
  *   staff    set guest:staff_<type> frame [`f<facing 0-3>`, `w<walk>`]          (not baked in stage 1)
- *   rail     set rail:<item>        frame [pieceId, `t<tile>`]                  (track-colour mask)
+ *   rail     set rail:<item>~<class> frame [pieceId, `t<tile>`]                 (track colour: an alpha-tint sheet,
+ *            `tint: 'alpha'`, no mask, where the frame takes the colour everywhere; a masked sheet where it has
+ *            untinted parts: station decks, brake fins, water, tunnel shells)
+ *            class = the piece's class (`../trackClasses.ts` pieceClass: base, turn, bank, loop, cork, helix, ...);
  *            turn = the piece's heading in the view, (piece.dir + view turn) mod 4; tile = the slice's number among
  *            the piece's rail tiles; anchor: the tile's centre at the piece's ENTRY rail height (piece.z)
- *   car      set car:<item>         frame [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (car-colour mask)
- *            steps from `quantisePose` (./pose.ts, shared with the bake); anchor: the car centre on the rail line
+ *   car      set car:<item>~<class> frame [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (car-colour mask)
+ *            class = the pose's class (`poseClassOf`, the first class whose pieces reach it); steps from
+ *            `quantisePose` (./pose.ts, shared with the bake); anchor: the car centre on the rail line
+ *            Stage 1 layout (no class sets: `rail:<item>`, `car:<item>`): read as class `base`, serving every class.
+ *            The scope wants only the (class, heading) rail sets and the car classes the ride's built pieces use.
  *   support  set support:<item>     frames [`foot`], [`seg`], [`top`]           (support-colour mask)
  *            turn = the saddle's (track's) heading in the view. Stacked by the track layer (`supportStack`):
  *            `foot` at the ground point; `seg` (1 m, anchored at its bottom centre, drawn 1.1 m tall) once per
  *            metre of column; `top` (plate + post, 0.67 m) anchored `SUPPORT_TOP_BELOW_RAIL` m under the rail line
  *   ground   set ground:<terrain>   frame [`s<slopeMask>`, `v<variant>`]        anchor: the tile's top corner
  *            path and queue: frame [`j<join mask>`] (kerbs or rails on the sides without a join, view terms)
- * A set with `rot: 'all'` serves every view rotation and is wanted once. Rail, support and path-item shadow sets are
- * keyed by a heading, so every turn of them is wanted. A sheet's tint mask is listed as another sheet of the same set
+ * A set with `rot: 'all'` serves every view rotation and is wanted once. Support and path-item shadow sets are keyed by
+ * a heading, so every turn of them is wanted; rail sets only at the headings the ride's pieces face. A sheet's tint mask is listed as another sheet of the same set
  * (`sheets[i].mask` names its file); a sheet without a mask is drawn untinted.
  * Anchors and offsets: a frame's `ox`/`oy` in the index are the offset FROM the game anchor TO the frame's top-left
  * corner, in density px (so they are usually negative: the top-left is up and left of the anchor). A Sprite's

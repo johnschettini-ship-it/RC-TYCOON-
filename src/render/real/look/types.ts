@@ -170,6 +170,8 @@ export interface Resolved {
  */
 export interface SetMeta {
   maskOf: number[];
+  /** Per sheet: an alpha-tint sheet (`tint: 'alpha'`, track rails, batch 5): no mask, tinted as a full-white mask. */
+  alpha: boolean[];
   /** Tint-atlas frame ids given so far (`Resolved.tid`). */
   tids: number;
   codes: Map<number, Resolved | string>;
