@@ -154,5 +154,13 @@
   "original:dodgem_boats:r2:s0": "30356d8eb8a082831271616984b63362b0dadd59b4df9f528b32e328b66096f9",
   "original:dodgem_boats:r2:s1": "252d5dd229ebc25d64415608b0c84d2ed2f8051415d858624c21b0f4d03f8d3b",
   "original:dodgem_boats:r3:s0": "d1edf8d12c280dc7e77cc91f82ad25d1cc2d2ed1347adb13974aebed4ff5954d",
-  "original:dodgem_boats:r3:s1": "ab4960a8fb6451c4dc1ea9ba5386fe9705306c14361223e79d3afdf85a452c28"
+  "original:dodgem_boats:r3:s1": "ab4960a8fb6451c4dc1ea9ba5386fe9705306c14361223e79d3afdf85a452c28",
+  "original:mini_pirate_ship:r0:s0": "3aaf5a715099e9b7eee3a5ef367007a0132387847dda7008bf753b002792fbfe",
+  "original:mini_pirate_ship:r0:s1": "049f8194e5c635dbfc5bb5ca9741a81e919d8069f0ae4bc65958905658358e37",
+  "original:mini_pirate_ship:r1:s0": "c709188a4baad0cf2fc89430712e77efc29b1cb6cf46b3162ea31b5a8fb60e63",
+  "original:mini_pirate_ship:r1:s1": "068c639e269c3518a1bb6f409958ac89c46b935e5eb1e4425a23a9fdbb428c54",
+  "original:mini_pirate_ship:r2:s0": "91714f0386953d245db559bfb414a55fa02d0150c817c2d6801dfd0f293e9ee2",
+  "original:mini_pirate_ship:r2:s1": "97bceefb9afa10f718f75a13c67904a35f5888b1d281c130b676ee7944eb195a",
+  "original:mini_pirate_ship:r3:s0": "6431e58944f41359c0a3c39426a311b776ac16ab2a511891a99e0e8fb00e6537",
+  "original:mini_pirate_ship:r3:s1": "5aaf5db8067cef035dbd78d0d95bf709096ba88eb8755fbea6ed513db8c1aa87"
 }

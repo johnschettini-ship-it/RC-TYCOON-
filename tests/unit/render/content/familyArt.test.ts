@@ -12,7 +12,7 @@ import { drawRideArt, rideArtBounds, type RideArtState } from '../../../../src/r
 import type { Dir } from '../../../../src/sim/map';
 import { Recorder } from './recorder';
 
-const IDS = ['dodgem_boats'];
+const IDS = ['dodgem_boats', 'mini_pirate_ship'];
 const ROTATIONS: Dir[] = [0, 1, 2, 3];
 const TOLERANCE = 3;
 const def = (id: string) => FLAT_RIDES.find((d) => d.id === id)!;

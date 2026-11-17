@@ -39,6 +39,7 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   // New rides batch A (2026-11-17, docs/superpowers/specs/2026-11-17-new-rides-design.md): four family flat rides,
   // unlocked at the start. Values sit between the nearest existing family rides (the batch A report gives each reason).
   ride('dodgem_boats', 'Dodgem Boats', 1, 'start', 'family', F(), 3, 3, 3.6, 2.0, 0.6, 12, 25, 1700, 55, 2),
+  ride('mini_pirate_ship', 'Mini Pirate Ship', 1, 'start', 'family', F(), 3, 4, 3.8, 2.8, 2.0, 16, 20, 2000, 60, 2),
 ]);
 
 /**
