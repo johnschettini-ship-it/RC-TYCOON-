@@ -88,17 +88,22 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
   let seen = new Uint8Array(0);
   const affine: ViewAffine = viewAffine(0, 1, 1);
 
-  /** What changes when the park's built objects change (not guests): lists, their last ids, track piece counts. */
+  /** What changes when the park's built objects change (not guests): lists, their last ids, each track's pieces. */
   function sigOf(world: World): unknown[] {
     const s = world.state;
-    let pieces = 0;
     // Ride colours (Task 5): a colour change wants other sets, so the coloured rides are part of the signature.
     let colours = '';
+    // Track content (batch 5 review fix): each ride's piece list, its length and its last piece object, as the sim's
+    // own layout cache keys it (pieces are pushed and popped at the end): an undo then a place in one tick keeps the
+    // count but changes the last piece, so the classes and headings wanted are found again.
+    const track: unknown[] = [];
     for (const r of s.rides) {
-      if (r.kind === 'track') pieces += s.track.rides[String(r.id)]?.pieces.length ?? 0;
-      else if (r.colour != null) colours += `${r.id}:${r.colour},`;
+      if (r.kind === 'track') {
+        const p = s.track.rides[String(r.id)]?.pieces;
+        track.push(p, p?.length ?? 0, p?.at(-1));
+      } else if (r.colour != null) colours += `${r.id}:${r.colour},`;
     }
-    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, pieces, s.staff.members.length, colours];
+    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, s.staff.members.length, colours, ...track];
   }
 
   function indexObjects(world: World): void {

@@ -86,7 +86,17 @@ export function poseClasses(typeId: string): Map<number, TrackClass> {
   return m;
 }
 
-/** The car class of pose `code` on `typeId` (`base` when no piece of the type reaches it). */
+/** Whether `poseClasses(typeId)` has been made (the look warms the baked types when it is created). */
+export function poseClassesReady(typeId: string): boolean {
+  return poseClassByType.has(typeId);
+}
+
+/**
+ * The car class of pose `code` on `typeId` (`base` when no piece of the type reaches it). Spinning types
+ * (`vehicle.spins`): a car spun to a yaw no piece reaches (any yaw on a slope, a bank or a turn's pitch) resolves to
+ * `base`, so Task 3's spin bake (32 yaws for every reached pitch and roll) must file those frames in `~base`, or
+ * change this rule for spinning types and TRACK_COMPLETE with it (checkIndex files frames by this function).
+ */
 export function poseClassOf(typeId: string, code: number): TrackClass {
   return poseClasses(typeId).get(code) ?? 'base';
 }

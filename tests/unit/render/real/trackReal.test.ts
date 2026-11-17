@@ -17,7 +17,7 @@ import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey }
 import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
 import type { CanvasLike } from '../../../../src/render/real/tint';
 import { TINT_PAGE_PX } from '../../../../src/render/real/tintAtlas';
-import { pieceClass, poseClasses } from '../../../../src/render/real/trackClasses';
+import { pieceClass, poseClasses, poseClassesReady, poseClassOf, poseCode } from '../../../../src/render/real/trackClasses';
 import { createWorld } from '../../../../src/sim/world';
 import type { Ride } from '../../../../src/sim/rides/types';
 import type { World } from '../../../../src/sim/types';
@@ -219,6 +219,13 @@ describe('track class sets (batch 5 Task 2)', () => {
   };
   const make = (w: number, h: number) => new Pix(w, h) as unknown as CanvasLike;
 
+  it('pose classes of the baked track types are made when the look is created, not on first sight (review P2)', () => {
+    expect(poseClassesReady('bobsled_run')).toBe(false);
+    const index = idx([entry('car', 'bobsled_run~base', 2, 'all', [], 'mask'), entry('car', 'bobsled_run~base', 4, 'all', [], 'mask')]);
+    createRealLook(index, new Sets(index), { makeCanvas: make });
+    expect(poseClassesReady('bobsled_run')).toBe(true);
+  });
+
   it('a circuit without loops never wants a loop set', () => {
     const index = classIndex();
     const sets = new Sets(index);
@@ -324,6 +331,53 @@ describe('track class sets (batch 5 Task 2)', () => {
     expect(look.car('steel_coaster', 1, 0, 0, true, 1)).toBeTruthy();
     expect(sets.used.at(-1)).toBe('car:steel_coaster:d4:rall');
     expect(look.fallbacksUsed()).toEqual(['car:steel_coaster:d4:rall/y1:p0:r0:empty']);
+  });
+
+  it('a type with any class set never falls back to its stage 1 sets (mixed index, review P2)', () => {
+    const sets0: RealSetEntry[] = [];
+    for (const d of [2, 4] as const) for (const r of [0, 1, 2, 3] as const) {
+      sets0.push(entry('rail', 'steel_coaster', d, r, ['station:t0', 'vertical_loop_left:t0'], 'mask'));
+      sets0.push(entry('rail', 'steel_coaster~base', d, r, ['station:t0'], 'alpha'));
+    }
+    const index = idx(sets0);
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'station', dir: 0 }, { defId: 'vertical_loop_left', dir: 0 }]), 0, VIEW, 1, 1);
+    expect([...sets.wanted('now'), ...sets.wanted('ahead')].filter((k) => k.startsWith('rail:steel_coaster:'))).toEqual([]);
+    for (const r of [0, 1, 2, 3]) sets.setReady(`rail:steel_coaster:d2:r${r}`);
+    expect(look.rail('steel_coaster', 'vertical_loop_left', 0, 0, 3)).toBeUndefined();
+    expect(look.fallbacksUsed()).toEqual(['rail:steel_coaster~loop']);
+  });
+
+  it('a piece replaced in one tick (undo, then place: same count) changes the classes wanted (review P2)', () => {
+    const index = classIndex();
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    const world = worldWith([{ defId: 'station', dir: 0 }, { defId: 'straight', dir: 0 }]);
+    look.prepare(world, 0, VIEW, 2, 2);
+    expect(sets.wanted('now').some((k) => k.includes('~turn'))).toBe(false);
+    const pieces = world.state.track.rides['1']!.pieces;
+    const last = pieces.pop()!;
+    pieces.push({ ...last, defId: 'turn_medium_left' });
+    sets.wants = [];
+    look.prepare(world, 0, VIEW, 2, 2);
+    expect(sets.wanted('now')).toContain('rail:steel_coaster~turn:d4:r0');
+  });
+
+  it('spinning types: a spun yaw no piece reaches resolves to base (Task 3 files spin frames in ~base)', () => {
+    // spinning_mouse reaches pitch 2 (gentle slopes) only along the 4 headings; a spun car on a slope is at any yaw
+    const m = poseClasses('spinning_mouse');
+    const spun = poseCode(5, 2, 0);
+    expect(m.has(spun)).toBe(false);
+    expect(poseClassOf('spinning_mouse', spun)).toBe('base');
+    const index = idx([2, 4].map((d) => entry('car', 'spinning_mouse~base', d as 2 | 4, 'all', ['y5:p2:r0:full'], 'mask')));
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.setItemMap!({ spinning_mouse: 'spinning_mouse' }); // not baked yet: map it to its own (fake) sets
+    look.prepare(createWorld({ seed: 1, parkName: 'Spin', mapSize: 16 }), 0, VIEW, 1, 1);
+    sets.setReady('car:spinning_mouse~base:d2:rall');
+    expect(look.car('spinning_mouse', 5, 2, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:spinning_mouse~base:d2:rall');
   });
 
   it('memory: the coaster bench circuit at d4 wants at most 60 % of today\'s track bytes, within the 32 MiB bench budget', () => {
