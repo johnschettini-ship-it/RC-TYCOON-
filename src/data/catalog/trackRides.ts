@@ -27,6 +27,9 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   // New rides batch C (docs/superpowers/specs/2026-11-17-new-rides-design.md). Each row sits beside its nearest type.
   // Mine Train: a family coaster between the Junior Coaster (20/12 m, $3) and the Spinning Mouse (24/16 m, $4): its
   // height limits and price are the Mouse's; 4 seats a car as the big coasters, 2–6 cars, 2 trains as the Junior.
+  // Launch Coaster: a big steel coaster beside the Inverted Coaster (70/45 m, $6): the same height limits and price;
+  // shorter trains (2–6 cars) because a launch must push the whole train.
+  { id: 'launch_coaster', name: 'Launch Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 70, intensityHeightM: 45, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
   { id: 'mine_train', name: 'Mine Train', phase: 2, unlock: 'start', tag: 'family', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 2, maxHeightM: 24, intensityHeightM: 16, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
 ]);
 

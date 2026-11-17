@@ -244,6 +244,16 @@ export const WATER_TRACK_TYPES: readonly TrackTypeDef[] = Object.freeze(WATER_EX
  */
 const RIDES_C_EXTRAS: Extra[] = [
   {
+    // Launch Coaster: the Steel Coaster's groups and inversions plus the launch, and no chain lift (a launch replaces
+    // it). Launch speed 22 m/s (about 80 km/h): five launch pieces reach it from the station speed at LAUNCH_ACCEL.
+    // Friction as the Steel Coaster; rating terms as the Inverted Coaster (1.3 / 0.5 / 0.2); costs over the Inverted
+    // Coaster's (3,500), as the motors cost more to buy and run.
+    id: 'launch_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx', 'Ln'], chain: false, launchSpeedMms: 22_000, mu: 0.015, cd: 0.0008, chainSpeedMms: 0, carLengthMm: 2500, defaultCars: 4,
+    ratings: { e: 1.3, i: 0.5, n: 0.2, kAir: 1.0, extra: 'none' },
+    costs: { base: 3800, pieceFactorPermille: 1100, runBase: 150, extraTrain: 900 },
+    render: { rail: 'steel', supports: 'round', car: 'launch', colours: { track: 10, supports: 9, cars: 2 } },
+  },
+  {
     // Mine Train: the Junior Coaster's groups (no steep slopes, no loops: low drops) plus the helix, for many turns; the
     // Spinning Mouse's small-turn rating extra rewards a twisty layout. Friction, chain and costs sit between the
     // Junior Coaster (1,500) and the Bobsled Run (2,600); rating terms a touch over the Junior's (themed, longer trains).

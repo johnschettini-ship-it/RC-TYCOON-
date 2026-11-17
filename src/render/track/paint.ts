@@ -341,6 +341,7 @@ export function paintRun(ctx: Ctx, P: Projector, look: RailLook, col: TrackColou
   if (lift > 0) spine();
   if (opt.chain) polyline(ctx, cx, cy, '#2b2f36', 1.6);
   if (opt.special === 'brakes' || opt.special === 'blockBrake') paintBrakeFins(ctx, P, s, k0, k1, opt.special === 'blockBrake');
+  if (opt.special === 'launch') paintLaunchMotors(ctx, P, s, k0, k1);
   if (opt.special === 'spooky') paintTunnel(ctx, P, s, k0, k1);
 }
 
@@ -621,6 +622,27 @@ function paintBrakeFins(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1:
     ctx.arc(x, P.y(wx, wy, wz + 2.6), 1.6, 0, Math.PI * 2);
     ctx.fillStyle = '#46d160';
     ctx.fill();
+  }
+}
+
+/**
+ * Launch (batch C): a row of linear motor plates between the rails, dark with a light edge, and glowing blue stator
+ * lines every metre, so a launch reads apart from brakes (orange) and block brakes (yellow and black).
+ */
+function paintLaunchMotors(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: number): void {
+  for (let k = k0; k < k1; k++) {
+    const k2 = k + 1;
+    const x0 = P.x(s.x[k] as number, s.y[k] as number);
+    const y0 = P.y(s.x[k] as number, s.y[k] as number, (s.z[k] as number) + 0.1);
+    const x1 = P.x(s.x[k2] as number, s.y[k2] as number);
+    const y1 = P.y(s.x[k2] as number, s.y[k2] as number, (s.z[k2] as number) + 0.1);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.strokeStyle = k % 4 === 0 ? '#5ec8ff' : '#3a414c';
+    ctx.lineWidth = k % 4 === 0 ? 2.2 : 3.2;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
   }
 }
 

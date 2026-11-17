@@ -37,3 +37,16 @@ export const MINE_TRAIN: PieceSpec[] = [
   'turn_small_right', 'turn_small_left', 'turn_small_right', 'turn_small_right',
 ];
 
+
+/**
+ * Launch Coaster from (6, 4) heading +x: five launch pieces (to 22 m/s, no chain), a 16 m hill, a turn, a 16 m drop, a
+ * vertical loop, brakes, and medium turns home.
+ */
+export const LAUNCH_COASTER: PieceSpec[] = [
+  'station', 'station', ...times(5, 'launch'),
+  'flat_to_gentle_up', 'gentle_to_steep_up', 'steep_up', 'steep_to_gentle_up', 'gentle_up_to_flat', 'turn_medium_right',
+  'flat_to_gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat',
+  'vertical_loop_right', { id: 'brakes', brakeSpeed: 9 },
+  'turn_medium_right', 'turn_medium_right', 'turn_medium_left', 'turn_medium_right', 'turn_medium_left', 'turn_medium_right',
+  'straight', 'straight', 'turn_small_right',
+];

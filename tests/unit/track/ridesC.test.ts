@@ -14,7 +14,9 @@ import type { World } from '../../../src/sim/types';
 import { deserialize, serialize, validateState } from '../../../src/save';
 import { makeTestWorld } from '../../helpers/world';
 import { addAll, dataOf, EAST, place, rideOf } from './helpers';
-import { buildCircuit, MINE_TRAIN, testLap } from './ridesCCircuits';
+import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN, testLap } from './ridesCCircuits';
+import { LAUNCH_ACCEL } from '../../../src/data/tuning/track';
+import { add } from './helpers';
 
 /** The checks every batch C circuit passes: the test lap passed, the stats copied, the save sound and round-tripped. */
 function expectSound(w: World, id: number, t: TestResult): void {
@@ -70,5 +72,66 @@ describe('Mine Train (family, start)', () => {
     expect(ids).toContain('flat_to_gentle_up');
     expect(ids).not.toContain('launch');
     expect(ids).not.toContain('vertical_loop_right');
+  });
+});
+
+describe('Launch Coaster (thrill, research)', () => {
+  it('catalogue row and track type: beside the Inverted Coaster, launched at 22 m/s with no chain lift', () => {
+    expect(getTrackRideDef('launch_coaster')).toMatchObject({ phase: 6, unlock: 'coasters', tag: 'thrill', drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 3, maxHeightM: 70, intensityHeightM: 45, defaultPrice: 600 });
+    const t = getTrackTypeDef('launch_coaster')!;
+    expect(t).toMatchObject({ chain: false, alsoPieces: [] });
+    expect(t.physics.launchSpeedMms).toBe(22_000);
+    expect(t.groups).toContain('Ln');
+    expect(t.render).toEqual({ rail: 'steel', supports: 'round', car: 'launch', colours: { track: 10, supports: 9, cars: 2 } });
+    expect(t.costs.base).toBeGreaterThan(getTrackTypeDef('inverted_coaster')!.costs.base);
+  });
+
+  it('is a research item, locked in a new park', () => {
+    expect(isUnlocked(makeTestWorld(), 'launch_coaster')).toBe(false);
+  });
+
+  it('a launched circuit builds with commands and rates as a big thrill coaster', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'launch_coaster', 6, 4, LAUNCH_COASTER);
+    const t = testLap(w, id);
+    expectSound(w, id, t);
+    // The launch reaches its speed: the only power on the circuit.
+    expect(t.vMaxMms).toBe(22_000);
+    expect(t.inversions).toBe(1);
+    expect(t.highestM).toBe(16);
+    expect(t.excitement).toBeGreaterThan(550);
+    expect(t.excitement).toBeLessThan(800);
+    expect(t.intensity).toBeGreaterThan(500);
+    expect(t.intensity).toBeLessThan(850);
+    expect(t.nausea).toBeLessThan(700);
+  });
+
+  it('without the launch the train cannot climb the hill: the same circuit with straights fails its test', () => {
+    const w = makeTestWorld();
+    const pieces = LAUNCH_COASTER.map((p) => (p === 'launch' ? 'straight' : p));
+    const id = buildCircuit(w, 'launch_coaster', 6, 4, pieces);
+    expect(testLap(w, id).passed).toBe(false);
+  });
+
+  it('the launch accelerates at LAUNCH_ACCEL: 5 pieces take the train from 2 m/s to 22 m/s, and 2 pieces do not', () => {
+    // v² = 2² + 2·a·d over the 20 m of five launch pieces with a train 10 m long (4 cars) gives just over 22 m/s.
+    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (20 + 3.75))).toBeGreaterThan(22);
+    const w = makeTestWorld();
+    const pieces = LAUNCH_COASTER.map((p, i) => (p === 'launch' && i >= 4 ? 'straight' : p));
+    const id = buildCircuit(w, 'launch_coaster', 6, 4, pieces);
+    const t = testLap(w, id);
+    expect(t.passed).toBe(false);
+  });
+
+  it('cannot take a chain lift; other coasters cannot build the launch', () => {
+    const w = makeTestWorld();
+    const id = place(w, 'launch_coaster', 6, 4, EAST);
+    addAll(w, id, ['station']);
+    expect(add(w, id, { id: 'straight', chain: true }).ok).toBe(false);
+    expect(nextTrackPieces(w, id).map((p) => p.id)).toContain('launch');
+    const s = place(w, 'steel_coaster', 6, 12, EAST);
+    addAll(w, s, ['station']);
+    expect(nextTrackPieces(w, s).map((p) => p.id)).not.toContain('launch');
+    expect(add(w, s, 'launch').ok).toBe(false);
   });
 });

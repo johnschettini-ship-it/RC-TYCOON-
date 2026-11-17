@@ -12,7 +12,7 @@ import { PX_Z, viewFrame } from '../../../../src/render/track/project';
 import { executeCommand } from '../../../../src/sim/commands';
 import { makeTestWorld } from '../../../helpers/world';
 import type { PieceSpec } from '../../track/helpers';
-import { buildCircuit, MINE_TRAIN } from '../../track/ridesCCircuits';
+import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN } from '../../track/ridesCCircuits';
 
 export function recorder(): { ctx: CanvasRenderingContext2D; pts: Array<[number, number]>; ops: string[] } {
   const pts: Array<[number, number]> = [];
@@ -117,6 +117,7 @@ describe('batch C cars', () => {
 /** Each batch C type's test circuit (tests/unit/track/ridesC.test.ts) and where its station goes. */
 export const CIRCUITS: ReadonlyArray<readonly [string, number, number, readonly PieceSpec[]]> = [
   ['mine_train', 6, 4, MINE_TRAIN],
+  ['launch_coaster', 6, 4, LAUNCH_COASTER],
 ];
 
 describe('batch C rides in today\'s look', () => {
@@ -167,6 +168,22 @@ describe('batch C rides in today\'s look', () => {
       logs.add(r.ops.join(';'));
     }
     expect(logs.size).toBe(5 + CIRCUITS.length);
+  });
+
+  it('Launch Coaster: the launch paints motor plates, unlike a plain straight', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'launch_coaster', 6, 4, LAUNCH_COASTER);
+    const f = viewFrame(0, w.state.map.width, w.state.map.height);
+    const slices = buildRideSlices(w, id, f);
+    const opsOf = (special: string | null): string[] => slices.filter((sl) => sl.special === special).map((sl) => {
+      const r = recorder();
+      paintSlice(r.ctx, sl, f);
+      return r.ops.join(';');
+    });
+    const launches = opsOf('launch');
+    expect(launches).toHaveLength(5);
+    for (const l of launches) expect(l).toContain('strokeStyle=#5ec8ff');
+    for (const o of opsOf(null)) expect(o).not.toContain('#5ec8ff');
   });
 
   it('Mine Train: dark rails on wooden sleepers, wooden trestles, ore carts', () => {

@@ -31,6 +31,17 @@ export function previewPieces(typeId: string): TrackPieceInstance[] {
       piece(type.pieceSet === 'flume' ? 'flume_splashdown' : 'rapids_whirlpool', 2, 3, 0, 1),
     ];
   }
+  if (type?.groups.includes('Ln')) {
+    // Batch C, the Launch Coaster: the launch straight leaves the station, then the hill.
+    return [
+      piece('station', 0, 0, 0, 0),
+      piece('station', 1, 0, 0, 0),
+      piece('turn_small_right', 2, 0, 0, 0),
+      piece('launch', 2, 1, 0, 1),
+      piece('flat_to_gentle_up', 2, 2, 0, 1),
+      piece('gentle_up_to_flat', 2, 3, 1, 1),
+    ];
+  }
   if (typeId === 'inverted_coaster') {
     return [piece('station', 0, 0, 0, 0), piece('station', 1, 0, 0, 0), piece('corkscrew_right', 2, 0, 0, 0)];
   }
