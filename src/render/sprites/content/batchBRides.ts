@@ -1,5 +1,7 @@
 /**
- * New rides batch B (docs/superpowers/specs/2026-11-17-new-rides-design.md): Chair Swing Twist (3×3, thrill, tall).
+ * New rides batch B (docs/superpowers/specs/2026-11-17-new-rides-design.md): Chair Swing Twist (3×3, thrill, tall),
+ * Spinning Wheel Drop (3×3, thrill, tall), Loop Swing (3×4, thrill, tall), Carousel Deluxe (4×4, chill, covered) and
+ * Train Station Show (4×3, chill, covered walk-through).
  * Original shapes in flat colours (master §2.5: warm = thrill, cool = chill). `st.angle` (0–1 per turn, from
  * `ride.cycle`) drives every moving part; at angle 0 each ride rests in its loading pose. `st.colour` paints the ride's
  * colour part (the same part its realistic bake masks, tools/art3d/items/<id>.js); absent or null draws Original.
@@ -127,4 +129,102 @@ export function drawChairSwingTwist(ctx: Ctx, ex: number, ey: number, st: RideAr
     line3(ctx, p.u, p.v, 3, p.u, p.v, 22, '#5b4a3e', 1.5);
     dot(ctx, sx(p.u, p.v), sy(p.u, p.v, 23), 2, '#fff3b0');
   }
+}
+
+// ------------------------------------------------------------------ Spinning Wheel Drop (3×3, thrill, tall)
+
+/** Wheel radius (world px, 32 per tile) and its seats. */
+const WHEEL_R = 34;
+const WHEEL_SEATS = 16;
+/** Peak tilt of the wheel (radians): near vertical. */
+export const WHEEL_TILT = (75 * Math.PI) / 180;
+/** Wheel spin: turns per turn of the cycle (2.5: 16 seats in two colours repeat every 45 degrees, so a run ends where it began). */
+export const WHEEL_SPIN = 2.5;
+/** Hub height (world px) with the wheel flat for boarding, and the rise of the telescopic arm at full tilt. */
+const WHEEL_HUB = 15;
+const WHEEL_RISE = 30;
+
+const smooth = (x: number): number => {
+  const c = Math.min(1, Math.max(0, x));
+  return c * c * (3 - 2 * c);
+};
+
+/**
+ * Tilt share (0..1) at turn fraction `a`: the wheel spins flat, rises and tilts up between 0.15 and 0.4, holds near
+ * vertical until 0.7, and is lowered flat again by 0.9.
+ */
+export function wheelShare(a: number): number {
+  const t = a - Math.floor(a);
+  if (t < 0.4) return smooth((t - 0.15) / 0.25);
+  if (t <= 0.7) return 1;
+  return smooth((0.9 - t) / 0.2);
+}
+
+export function drawSpinWheelDrop(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
+  const cu = ex / 2;
+  const cv = ey / 2;
+  platform(ctx, ex, ey, '#efe2d0', '#8a3a2a');
+  disc(ctx, cu, cv, 1.4, 3, '#d9cdbd', '#8a7a6a', 1.5);
+  const w = wheelShare(st.angle);
+  const tau = WHEEL_TILT * w;
+  const phi = TAU * st.angle;
+  const spin = TAU * st.angle * WHEEL_SPIN;
+  const hub = WHEEL_HUB + WHEEL_RISE * w;
+  // The turret turns once per turn; the wheel leans towards phi.
+  cylinder(ctx, cu, cv, 0.5, 3, 9, '#3a3f45', '#5a6068');
+  const e1: V3 = [Math.cos(tau) * Math.cos(phi), Math.cos(tau) * Math.sin(phi), Math.sin(tau)];
+  const e2: V3 = [-Math.sin(phi), Math.cos(phi), 0];
+  const n: V3 = [-Math.sin(tau) * Math.cos(phi), -Math.sin(tau) * Math.sin(phi), Math.cos(tau)];
+  const at = (o: V3) => ptAt(cu, cv, hub, o);
+  const inPlane = (th: number, r: number, up = 0): V3 => [
+    (Math.cos(th) * e1[0] + Math.sin(th) * e2[0]) * r + n[0] * up,
+    (Math.cos(th) * e1[1] + Math.sin(th) * e2[1]) * r + n[1] * up,
+    Math.cos(th) * e1[2] * r + n[2] * up,
+  ];
+  // Telescopic arm from the turret to the hub (behind the wheel's lower half).
+  const base = ptAt(cu, cv, 9, [0, 0, 0]);
+  const top = at([0, 0, 0]);
+  line2(ctx, base[0], base[1], top[0], top[1], '#c9ccd0', 6);
+  line2(ctx, base[0] - 6, base[1] - 2, top[0] - 4, top[1] + 4, '#8a8f96', 2);
+  const ringCol = st.colour ?? '#d6336c';
+  const filled = seatsFilled(WHEEL_SEATS, st.occupancy);
+  const seatCols = ['#f5c518', '#2e86de'];
+  const seats: Item[] = [];
+  for (let i = 0; i < WHEEL_SEATS; i++) {
+    const th = (i / WHEEL_SEATS) * TAU + spin;
+    const p = at(inPlane(th, WHEEL_R + 3, 3));
+    seats.push({
+      n: p[2],
+      draw: () => {
+        const c = seatCols[i % 2] as string;
+        ctx.fillStyle = shade(c, 0.7);
+        ctx.fillRect(p[0] - 3.5, p[1] - 5, 7, 8);
+        ctx.fillStyle = c;
+        ctx.fillRect(p[0] - 3, p[1] - 4, 6, 6);
+        if (i < filled) rider(ctx, p[0], p[1] - 7, i);
+      },
+    });
+  }
+  const ring = (near: boolean, colour: string, width: number, r: number): void => {
+    for (let k = 0; k < 32; k++) {
+      const a0 = (k / 32) * TAU;
+      const a1 = ((k + 1) / 32) * TAU;
+      const p0 = at(inPlane(a0, r));
+      const p1 = at(inPlane(a1, r));
+      if (p0[2] + p1[2] >= 0 !== near) continue;
+      line2(ctx, p0[0], p0[1], p1[0], p1[1], colour, width);
+    }
+  };
+  drawSorted(seats.filter((s) => s.n < 0));
+  ring(false, shade(ringCol, 0.75), 5, WHEEL_R);
+  // Spokes and the floor of the wheel (the wheel's colour part is its ring).
+  for (let k = 0; k < 8; k++) {
+    const p = at(inPlane((k / 8) * TAU + spin, WHEEL_R));
+    line2(ctx, top[0], top[1], p[0], p[1], '#e9e6df', 1.6);
+  }
+  dot(ctx, top[0], top[1], 6, '#f5c518');
+  dot(ctx, top[0], top[1], 3, '#3a3f45');
+  ring(true, ringCol, 5, WHEEL_R);
+  ring(true, '#fff3b0', 1.2, WHEEL_R - 4);
+  drawSorted(seats.filter((s) => s.n >= 0));
 }

@@ -20,7 +20,7 @@ const BAKED = [
   'pendulum_ship', 'magic_carpet', 'flip_arm',
   'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc',
   // New rides batch B (2026-11-17).
-  'chair_swing_twist',
+  'chair_swing_twist', 'spin_wheel_drop',
 ] as const;
 
 /** Unbaked items drawn with a baked stand-in. */

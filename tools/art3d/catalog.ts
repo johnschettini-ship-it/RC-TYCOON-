@@ -43,6 +43,7 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   gyro_globe: 14, // realistic: the gimbal stands on a short turntable pedestal (catalog.test.ts HEIGHT_EXCEPTIONS)
   // New rides batch B (2026-11-17): the batch 1 rule, today's drawn height / 8.
   chair_swing_twist: 14,
+  spin_wheel_drop: 12,
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,

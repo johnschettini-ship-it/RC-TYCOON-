@@ -36,8 +36,9 @@ import thunder_disc from './thunder_disc.js';
 import title from './title.js';
 // New rides batch B (2026-11-17).
 import chair_swing_twist from './chair_swing_twist.js';
+import spin_wheel_drop from './spin_wheel_drop.js';
 
 export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
   observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc, title };
 // New rides batch B (2026-11-17).
-Object.assign(ITEMS, { chair_swing_twist });
+Object.assign(ITEMS, { chair_swing_twist, spin_wheel_drop });

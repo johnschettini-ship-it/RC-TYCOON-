@@ -465,6 +465,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     // New rides batch B (2026-11-17).
     const rb = await load('items/ridesB.js');
     out.chair_swing_twist = rb.twistKeys();
+    out.spin_wheel_drop = rb.wheelKeys();
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }
@@ -481,7 +482,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
     // New rides batch B (2026-11-17).
-    chair_swing_twist: { step: 2, d4: 17, d2: 17 },
+    chair_swing_twist: { step: 2, d4: 17, d2: 17 }, spin_wheel_drop: { step: 2, d4: 17, d2: 17 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -699,5 +700,25 @@ describe('new rides batch B frames', () => {
     expect(twistShare(0)).toBe(0);
     expect(twistShare(32)).toBeCloseTo(0, 12);
     expect(twistShare(16)).toBe(1);
+  });
+
+  it('spin_wheel_drop: period 32 (the turret turns once per turn), 16 pictures full and one at rest; today\'s tilt, rise and spin', async () => {
+    const { wheelKeys, wheelPose, wheelShare, WHEEL } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    const m: Keys = wheelKeys();
+    expect(m.size).toBe(16 + 1);
+    periodOk(m, 'spin_wheel_drop', 32, true);
+    for (let a = 0; a < 32; a++) expect(pictureOf(m, keyAt('spin_wheel_drop', a, false)), `slot ${a}`).toBe('rest');
+    expect(WHEEL.tilt).toBe(today.WHEEL_TILT);
+    expect(WHEEL.spin).toBe(today.WHEEL_SPIN);
+    for (let a = 0; a <= 32; a++) {
+      expect(wheelShare(a / 32), `slot ${a}`).toBeCloseTo(today.wheelShare(a / 32), 12);
+      expect(wheelPose(a).tilt).toBeCloseTo(today.WHEEL_TILT * today.wheelShare(a / 32), 12);
+    }
+    // flat at the start and end of a turn, near vertical in the middle; 2.5 spins x 45-degree seat pairs end a turn where it began
+    expect(wheelShare(0)).toBe(0);
+    expect(wheelShare(0.5)).toBe(1);
+    expect(wheelShare(31 / 32)).toBe(0);
+    expect((WHEEL.spin * 360) % (360 / (WHEEL.seats / 2))).toBe(0);
   });
 });

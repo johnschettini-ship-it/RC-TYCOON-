@@ -41,3 +41,42 @@ export function twistKeys() {
   const pick = fullOrRest((a) => `a${a}`);
   return cycleD2('chair_swing_twist', cycleKeys('chair_swing_twist', opts, pick), opts, pick, 2);
 }
+
+// ------------------------------------------------------------------ Spinning Wheel Drop
+
+/**
+ * Spinning Wheel Drop (today's drawSpinWheelDrop): the turret turns once per turn; the wheel spins 2.5 turns per turn
+ * (16 seats in two colours repeat every 45 degrees, so a turn ends where it began) and, by the share wheelShare, rises
+ * on its telescopic arm and tilts up to 75 degrees.
+ */
+export const WHEEL = { tilt: (75 * Math.PI) / 180, spin: 2.5, seats: 16 };
+
+const smooth = (x) => {
+  const c = Math.min(1, Math.max(0, x));
+  return c * c * (3 - 2 * c);
+};
+
+/** Tilt and rise share (0..1) at turn fraction t: flat, up between 0.15 and 0.4, held until 0.7, flat again by 0.9. */
+export function wheelShare(t) {
+  const u = t - Math.floor(t);
+  if (u < 0.4) return smooth((u - 0.15) / 0.25);
+  if (u <= 0.7) return 1;
+  return smooth((0.9 - u) / 0.2);
+}
+
+/** The wheel's pose at an angle slot: rise share, tilt, the turret's heading and the wheel's spin (radians). */
+export function wheelPose(slot) {
+  const w = wheelShare(slot / 32);
+  return { lift: w, tilt: WHEEL.tilt * w, heading: (TAU * slot) / 32, spin: (TAU * WHEEL.spin * slot) / 32 };
+}
+
+/**
+ * Spinning Wheel Drop frame keys: the turret's heading turns once per turn, so period 32: 16 pictures full and one at
+ * rest. Density 2 keeps every picture: every other one would spin the wheel 112.5 degrees a step, half a seat pair
+ * past 90, with no direction.
+ */
+export function wheelKeys() {
+  const opts = { period: 32 };
+  const pick = fullOrRest((a) => `a${a}`);
+  return cycleD2('spin_wheel_drop', cycleKeys('spin_wheel_drop', opts, pick), opts, pick, 2);
+}
