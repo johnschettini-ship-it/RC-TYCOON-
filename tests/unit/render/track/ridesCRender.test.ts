@@ -12,7 +12,7 @@ import { PX_Z, viewFrame } from '../../../../src/render/track/project';
 import { executeCommand } from '../../../../src/sim/commands';
 import { makeTestWorld } from '../../../helpers/world';
 import type { PieceSpec } from '../../track/helpers';
-import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, WATER_COASTER } from '../../track/ridesCCircuits';
+import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, SKY_RIDE, WATER_COASTER } from '../../track/ridesCCircuits';
 
 export function recorder(): { ctx: CanvasRenderingContext2D; pts: Array<[number, number]>; ops: string[] } {
   const pts: Array<[number, number]> = [];
@@ -120,6 +120,7 @@ export const CIRCUITS: ReadonlyArray<readonly [string, number, number, readonly 
   ['launch_coaster', 6, 4, LAUNCH_COASTER],
   ['water_coaster', 6, 4, WATER_COASTER],
   ['flying_coaster', 4, 2, FLYING_COASTER],
+  ['sky_ride', 6, 4, SKY_RIDE],
 ];
 
 describe('batch C rides in today\'s look', () => {
@@ -198,6 +199,26 @@ describe('batch C rides in today\'s look', () => {
     expect(water).toHaveLength(3);
     for (const sl of water) expect(sl.look.channel).toBeGreaterThan(0);
     for (const sl of slices.filter((x) => !x.water)) expect(sl.look).toBe(lookFor(getTrackTypeDef('water_coaster')!));
+  });
+
+  it('Sky Ride: a rope 2.4 m over the riders\' line, no rails, towers on every third tile only, reaching the rope', () => {
+    const t = getTrackTypeDef('sky_ride')!;
+    const look = lookFor(t);
+    expect([look.cable, look.lift, look.railPx, look.tiePx]).toEqual([true, HANG_M, 0, 0]);
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'sky_ride', 6, 4, SKY_RIDE);
+    const f = viewFrame(0, w.state.map.width, w.state.map.height);
+    const slices = buildRideSlices(w, id, f);
+    const towers = slices.filter((sl) => sl.support);
+    expect(towers.length).toBeGreaterThan(5);
+    expect(towers.length).toBeLessThan(slices.length / 2);
+    for (const sl of towers) {
+      expect((sl.x + sl.y) % 3).toBe(0);
+      // The tower stands at one sample of the tile: its top is the rope there, over the tile's lowest rail point.
+      let zMin = Infinity;
+      for (let k = sl.runs[0] as number; k <= (sl.runs[sl.runs.length - 1] as number); k++) zMin = Math.min(zMin, sl.samples.z[k] as number);
+      expect(sl.support!.top).toBeGreaterThanOrEqual(zMin + HANG_M);
+    }
   });
 
   it('Mine Train: dark rails on wooden sleepers, wooden trestles, ore carts', () => {

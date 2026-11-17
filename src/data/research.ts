@@ -8,6 +8,9 @@
  * points), Build 2 the Rapids Raft and 5 themes (1,740), Build 3 11 items (4,050).
  * New rides batch B (2026-11-17): 5 rides inserted by cost into the Build 3 block (2,350 points), so it holds 16 items
  * (6,400 points); within each category the block still rises in cost.
+ * New rides batch C (2026-11-17): 4 track rides inserted the same way (2,250 points: Sky Ride 400 in Gentle; Launch
+ * Coaster 550, Water Coaster 600 and Flying Coaster 700 in Coasters, the Flying Coaster last of all), so the block holds
+ * 20 items (8,650 points). The Mine Train starts unlocked.
  */
 import type { ResearchCategory } from './catalog/types';
 
@@ -59,6 +62,7 @@ export const RESEARCH_ORDER: readonly ResearchItem[] = Object.freeze([
   { id: 'water_coaster', category: 'coasters', cost: 600 }, // new rides batch C
   { id: 'fireworks_launcher', category: 'scenery', cost: 350 },
   { id: 'carousel_deluxe', category: 'gentle', cost: 350 }, // new rides batch B
+  { id: 'sky_ride', category: 'gentle', cost: 400 }, // new rides batch C
   { id: 'monorail', category: 'gentle', cost: 450 },
   { id: 'inverted_coaster', category: 'coasters', cost: 650 },
   { id: 'loop_swing', category: 'thrill', cost: 650 }, // new rides batch B: late

@@ -9,12 +9,14 @@ import { getTrackRideDef } from '../../../src/data/catalog/trackRides';
 import { getTrackTypeDef } from '../../../src/data/track';
 import { isUnlocked } from '../../../src/sim/research/api';
 import { checkTrackRideForLoad, nextTrackPieces } from '../../../src/sim/rides/track/api';
+import { executeCommand } from '../../../src/sim/commands';
 import type { TestResult } from '../../../src/sim/rides/track/types';
 import type { World } from '../../../src/sim/types';
 import { deserialize, serialize, validateState } from '../../../src/save';
 import { makeTestWorld } from '../../helpers/world';
-import { addAll, dataOf, EAST, place, rideOf } from './helpers';
-import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, testLap, WATER_COASTER } from './ridesCCircuits';
+import { addAll, dataOf, EAST, expectOk, place, rideOf } from './helpers';
+import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, SKY_RIDE, testLap, WATER_COASTER } from './ridesCCircuits';
+import { runTicks } from '../../helpers/world';
 import { rideWetsRiders } from '../../../src/sim/rides/track/waterHooks';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { waterRatingExtras } from '../../../src/sim/rides/track/ratings';
@@ -217,5 +219,52 @@ describe('Flying Coaster (thrill, research, late)', () => {
     expect(t.excitement).toBeGreaterThan(500);
     expect(t.excitement).toBeLessThan(850);
     expect(t.intensity).toBeLessThan(900);
+  });
+});
+
+describe('Sky Ride (chill, research)', () => {
+  it('catalogue row and track type: a powered cable ride beside the Monorail, with a station at each end', () => {
+    expect(getTrackRideDef('sky_ride')).toMatchObject({ phase: 6, unlock: 'gentle', tag: 'chill', drive: 'powered', driveSpeedMms: 4000, seatsPerCar: 4, carsMin: 1, carsMax: 1, maxTrains: 8, maxHeightM: 30, intensityHeightM: 20, defaultPrice: 200 });
+    const t = getTrackTypeDef('sky_ride')!;
+    expect(t).toMatchObject({ drive: 'powered', maxStations: 2, chain: false, alsoPieces: [] });
+    expect(t.groups).toEqual(['S', 'St', 'G', 'Ts', 'Tm']);
+    expect(t.render).toEqual({ rail: 'cable', supports: 'tower', car: 'gondola', colours: { track: 10, supports: 4, cars: 0 } });
+    expect(t.ratings.extra).toBe('scenic');
+  });
+
+  it('is a research item, locked in a new park', () => {
+    expect(isUnlocked(makeTestWorld(), 'sky_ride')).toBe(false);
+  });
+
+  it('a two-station circuit builds with commands, runs at a constant 4 m/s and rates as a gentle scenic ride', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'sky_ride', 6, 4, SKY_RIDE);
+    const t = testLap(w, id);
+    expectSound(w, id, t);
+    expect(t.vMaxMms).toBe(4000);
+    expect(t.highestM).toBe(8);
+    expect(t.inversions).toBe(0);
+    expect(t.excitement).toBeGreaterThan(400);
+    expect(t.excitement).toBeLessThan(700);
+    expect(t.intensity).toBeLessThan(200);
+    expect(t.nausea).toBeLessThan(200);
+  });
+
+  it('runs several gondolas: four one-car trains test and keep their spacing', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'sky_ride', 6, 4, SKY_RIDE);
+    expectOk(executeCommand(w, { type: 'setTrainConfig', rideId: id, trains: 4, carsPerTrain: 1 }));
+    const t = testLap(w, id);
+    expect(t.passed).toBe(true);
+    expect(dataOf(w, id).trains.length).toBe(4);
+    runTicks(w, 200);
+    expect(validateState(w.state)).toBeNull();
+  });
+
+  it('a third station run is refused (2 stations); a station off the ground is refused', () => {
+    const w = makeTestWorld();
+    const id = place(w, 'sky_ride', 6, 4, EAST);
+    addAll(w, id, ['station', 'straight', 'station', 'straight']);
+    expect(add(w, id, 'station').ok).toBe(false);
   });
 });

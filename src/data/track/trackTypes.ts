@@ -274,6 +274,16 @@ const RIDES_C_EXTRAS: Extra[] = [
     render: { rail: 'inverted', supports: 'arm', car: 'flying', colours: { track: 7, supports: 9, cars: 2 } },
   },
   {
+    // Sky Ride: a powered type as the Monorail is (flat, gentle slopes, turns), with a station at each end (2 station
+    // runs: the second is a stop, master R26). Cable look: the rope runs 2.4 m over the riders' line on tall towers,
+    // and each 2 m gondola hangs from it. Scenic rating terms as the Mini Railway (2.0 e, scenic extra) less a little,
+    // with a touch of sway in the nausea; costs as the Monorail's, a gondola cheaper than a monorail train.
+    id: 'sky_ride', groups: ['S', 'St', 'G', 'Ts', 'Tm'], maxStations: 2, chain: false, mu: 0, cd: 0, chainSpeedMms: 0, carLengthMm: 2000, defaultCars: 1,
+    ratings: { e: 1.8, i: 0.0, n: 0.1, kAir: 1.0, extra: 'scenic' },
+    costs: { base: 2600, pieceFactorPermille: 900, runBase: 80, extraTrain: 300 },
+    render: { rail: 'cable', supports: 'tower', car: 'gondola', colours: { track: 10, supports: 4, cars: 0 } },
+  },
+  {
     // Mine Train: the Junior Coaster's groups (no steep slopes, no loops: low drops) plus the helix, for many turns; the
     // Spinning Mouse's small-turn rating extra rewards a twisty layout. Friction, chain and costs sit between the
     // Junior Coaster (1,500) and the Bobsled Run (2,600); rating terms a touch over the Junior's (themed, longer trains).

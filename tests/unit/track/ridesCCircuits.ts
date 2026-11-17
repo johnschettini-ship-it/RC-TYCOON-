@@ -75,3 +75,16 @@ export const FLYING_COASTER: PieceSpec[] = [
   'station', 'station', ...LIFT_16, 'helix_right_down', 'turn_medium_right', ...DROP_12, 'corkscrew_right',
   { id: 'brakes', brakeSpeed: 8 }, 'turn_medium_right', ...times(11, 'straight'), 'turn_medium_right', ...times(9, 'straight'), 'turn_medium_right',
 ];
+
+const UP_8: PieceSpec[] = ['flat_to_gentle_up', ...times(3, 'gentle_up'), 'gentle_up_to_flat'];
+const DOWN_8: PieceSpec[] = ['flat_to_gentle_down', ...times(3, 'gentle_down'), 'gentle_down_to_flat'];
+
+/**
+ * Sky Ride from (6, 4) heading +x: a station at each end (stations stand on the ground), the rope climbing 8 m over
+ * the span between them both ways, and turns home.
+ */
+export const SKY_RIDE: PieceSpec[] = [
+  'station', 'station', ...UP_8, ...times(3, 'straight'), ...DOWN_8,
+  'turn_medium_right', 'station', 'station', 'turn_medium_right', ...UP_8, ...times(3, 'straight'), ...DOWN_8,
+  'turn_medium_right', ...times(3, 'straight'), 'turn_small_left', 'turn_small_right', 'turn_small_right',
+];

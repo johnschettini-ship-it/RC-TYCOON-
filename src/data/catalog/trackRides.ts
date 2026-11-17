@@ -36,6 +36,9 @@ export const TRACK_RIDES: readonly TrackRideDef[] = Object.freeze([
   // Flying Coaster: riders lie face down under the track, beside the Inverted Coaster (70/45 m, 3–8 cars, $6): the same
   // trains and price, and the Wooden Coaster's lower limits (60/40 m), as a prone ride stays nearer the ground.
   { id: 'flying_coaster', name: 'Flying Coaster', phase: 6, unlock: 'coasters', tag: 'thrill', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 60, intensityHeightM: 40, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 600 },
+  // Sky Ride: gondolas on a cable, beside the Monorail (powered, 24/12 m, $2): higher limits (30 m, step from 20 m), as
+  // the rope runs high over the park; a slow constant 4 m/s; one 4-seat gondola a train, up to 8 gondolas.
+  { id: 'sky_ride', name: 'Sky Ride', phase: 6, unlock: 'gentle', tag: 'chill', flags: F(), drive: 'powered', seatsPerCar: 4, carsMin: 1, carsMax: 1, maxTrains: 8, maxHeightM: 30, intensityHeightM: 20, driveSpeedMms: 4000, driveSpeedMinMms: null, defaultPrice: 200 },
   { id: 'mine_train', name: 'Mine Train', phase: 2, unlock: 'start', tag: 'family', flags: F(), drive: 'gravity', seatsPerCar: 4, carsMin: 2, carsMax: 6, maxTrains: 2, maxHeightM: 24, intensityHeightM: 16, driveSpeedMms: null, driveSpeedMinMms: null, defaultPrice: 400 },
 ]);
 

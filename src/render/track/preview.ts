@@ -126,7 +126,9 @@ export function drawTrackPreview(ctx: CanvasRenderingContext2D, typeId: string, 
     const mid = Math.floor(s.n / 2);
     const def = getTrackPieceDef(p.defId);
     const pl = lookForPiece(type, def);
-    if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) - pl.drop);
+    // A sky ride tower reaches the rope, `lift` over the riders' line (batch C; as the track layer places it).
+    const up = type.render.supports === 'tower' ? (pl.lift ?? 0) - pl.drop : -pl.drop;
+    if ((s.z[mid] as number) > 0.5) paintSupport(c, P, type.render.supports, col.supports, s.x[mid] as number, s.y[mid] as number, s.yaw[mid] as number, 0, (s.z[mid] as number) + up);
     paintRun(c, P, pl, col, s, 0, s.n - 1, { special: def?.special ?? null, chain: false, conveyor: def?.water?.drive === 'conveyor' && def.special !== 'station' });
   });
   // Two cars in the station (one boat on a water ride).
