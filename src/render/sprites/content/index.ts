@@ -9,7 +9,7 @@ import type { RideArtState } from '../rides';
 import type { Ctx } from '../shapes';
 import { drawBumperCars, drawHauntedManor, drawMirrorMaze, drawObservationTower, drawRocketRounds, drawSpiralSlide } from './gentleRides';
 import { STALL_DRAW } from './stalls';
-import { drawBalloonWheel, drawDodgemBoats, drawMiniPirateShip } from './familyRides';
+import { drawBalloonWheel, drawDodgemBoats, drawFrogHopper, drawMiniPirateShip } from './familyRides';
 import { drawGyroGlobe, drawKiddieCars, drawMagicCarpet, drawMerryMill } from './phase6Rides';
 import { drawDropTower, drawFlipArm, drawPendulumShip, drawThunderDisc } from './thrillRides';
 
@@ -48,6 +48,7 @@ export const CONTENT_RIDE_ART: Readonly<Record<string, ContentRideArt>> = {
   dodgem_boats: ride(52, drawDodgemBoats),
   mini_pirate_ship: ride(72, drawMiniPirateShip),
   balloon_wheel: ride(72, drawBalloonWheel),
+  frog_hopper: ride(60, drawFrogHopper),
 };
 
 export const CONTENT_STALL_ART: Readonly<Record<string, ContentStallArt>> = Object.fromEntries(

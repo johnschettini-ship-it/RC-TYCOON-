@@ -41,6 +41,7 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   ride('dodgem_boats', 'Dodgem Boats', 1, 'start', 'family', F(), 3, 3, 3.6, 2.0, 0.6, 12, 25, 1700, 55, 2),
   ride('mini_pirate_ship', 'Mini Pirate Ship', 1, 'start', 'family', F(), 3, 4, 3.8, 2.8, 2.0, 16, 20, 2000, 60, 2),
   ride('balloon_wheel', 'Balloon Wheel', 1, 'start', 'family', F(), 2, 2, 2.8, 0.7, 0.3, 16, 25, 1300, 40, 2),
+  ride('frog_hopper', 'Frog Hopper', 1, 'start', 'family', F(), 2, 2, 2.6, 1.8, 0.8, 8, 20, 1100, 35, 1),
 ]);
 
 /**

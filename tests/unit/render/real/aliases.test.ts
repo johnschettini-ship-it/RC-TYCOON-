@@ -22,9 +22,9 @@ function index(): RealIndex {
 describe('alias sets for the scale park (round 3 item 7)', () => {
   it('maps every flat ride type to its own alias of a baked ride, in turn', () => {
     const ids = FLAT_RIDES.map((d) => d.id);
-    expect(ids).toHaveLength(21);
+    expect(ids).toHaveLength(22);
     const m = aliasItemMap(ids);
-    expect(new Set(Object.values(m)).size).toBe(21);
+    expect(new Set(Object.values(m)).size).toBe(22);
     expect(m.carousel).toBe('carousel@carousel');
     expect(m.big_wheel).toBe('swing_tower@big_wheel');
     expect(m[ids[2]!]).toBe(`big_wheel@${ids[2]}`);

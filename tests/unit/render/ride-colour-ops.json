@@ -170,5 +170,13 @@
   "original:balloon_wheel:r2:s0": "fd5eb6d6e71e0b4d2b5faf05a5bc822d5a0b7fe91649cd1cb586790e8c6aa2b4",
   "original:balloon_wheel:r2:s1": "eb8ab65256cd813a6dd8b14823f9930f57208a35141556b4c23f981c6a436d7d",
   "original:balloon_wheel:r3:s0": "71b0207148bb22b0eb020f764bc73fd08801892962f9541d7030777209badf93",
-  "original:balloon_wheel:r3:s1": "71b9a59a0576a32f454c15579d39016ab5422f22ab3af7b8dd39567d956e0fed"
+  "original:balloon_wheel:r3:s1": "71b9a59a0576a32f454c15579d39016ab5422f22ab3af7b8dd39567d956e0fed",
+  "original:frog_hopper:r0:s0": "2415c0a3e913c423560964c537e4220935576e7cab936df69c390d1f3938ae08",
+  "original:frog_hopper:r0:s1": "59e407b2f29d909dcf29ced3096052c77905efc54097a0439e0ee89158c3d4b5",
+  "original:frog_hopper:r1:s0": "cc4228d18437011c8ae200348dcf6ef9ba1ebc8e6e71a5f53d345e385324d545",
+  "original:frog_hopper:r1:s1": "636a5d263a80cb45fb6a3347dba79cc6f1148efbd2d6ef3b2233f31809dd72ac",
+  "original:frog_hopper:r2:s0": "26a23cdd3ba2a5615b6218da9f546621d1f7c6ee029d10f7997fc126c0798645",
+  "original:frog_hopper:r2:s1": "fe0979fd94628e7b3c676004093ee5a4153d84e29f7bff0f0ff4e9e12a418584",
+  "original:frog_hopper:r3:s0": "a2671d4757029863739376424ce4f1f40e1b309ecdda44c5fd4ff5767869fd08",
+  "original:frog_hopper:r3:s1": "41515c92cd8099496fa3f07b8edf84b46ba2bc1da4df3b640423ceb7d4fb3fd4"
 }

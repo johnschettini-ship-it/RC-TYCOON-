@@ -141,13 +141,13 @@ describe('loop (Phase 0 §4.6)', () => {
 describe('catalog data (content-catalog.md)', () => {
   it('has the Build 1, Build 2, and Build 3 counts (Phase 6 §4.5)', () => {
     // + the 4 family flat rides of new rides batch A (phase 1, unlocked at the start).
-    expect(FLAT_RIDES).toHaveLength(14 + 4 + 3);
+    expect(FLAT_RIDES).toHaveLength(14 + 4 + 4);
     expect(TRACK_RIDES).toHaveLength(9 + 3);
     expect(STALLS).toHaveLength(11 + 3);
     expect(SHOW_SITES).toHaveLength(2);
     expect(PATH_ITEMS).toHaveLength(3);
     expect(STAFF).toHaveLength(4);
-    expect(FLAT_RIDES.filter((d) => d.phase <= 3)).toHaveLength(14 + 3);
+    expect(FLAT_RIDES.filter((d) => d.phase <= 3)).toHaveLength(14 + 4);
     expect(TRACK_RIDES.filter((d) => d.phase <= 4)).toHaveLength(9);
     expect(STALLS.filter((d) => d.phase <= 3)).toHaveLength(11);
   });

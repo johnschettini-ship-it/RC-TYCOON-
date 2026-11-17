@@ -274,3 +274,79 @@ export function drawBalloonWheel(ctx: Ctx, ex: number, ey: number, st: RideArtSt
   dot(ctx, hubX, hubY, 1.8, '#e8503a');
   leg(1, '#3aa552');
 }
+
+// ------------------------------------------------------------------ Frog Hopper (2×2, family)
+
+const STALK_TOP = 46;
+/** Seat ring travel, world px (2.75 m). */
+const HOP_TRAVEL = 22;
+
+export function drawFrogHopper(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
+  const cu = ex / 2;
+  const cv = ey / 2;
+  platform(ctx, ex, ey, '#e3f1d6', '#3f8f3a');
+  // A shallow lily pond round the foot of the stalk.
+  disc(ctx, cu, cv, 0.85, 3.2, '#5fb7d9', '#3f8f3a', 1.2);
+  for (const [a, r] of [[0.4, 0.62], [2.3, 0.66], [4.1, 0.6]] as const) {
+    const p = circlePt(cu, cv, r, a);
+    oval(ctx, sx(p.u, p.v), sy(p.u, p.v, 3.4), 4.5, 2.2, '#6dbb4f');
+  }
+  const hg = 6 + HOP_TRAVEL * frogShare(st.angle);
+  const [rt, rl, rr] = st.colour ? [shade(st.colour, 1.15), st.colour, shade(st.colour, 0.75)] : ['#ffd166', '#f39a2b', '#c4552c'];
+  const ring = (u0: number, v0: number, u1: number, v1: number): void => box(ctx, u0, v0, u1, v1, hg, hg + 5, rt, rl, rr);
+  const r0 = cu - 0.46;
+  const r1 = cu + 0.46;
+  const q0 = cv - 0.46;
+  const q1 = cv + 0.46;
+  ring(r0, q0, r1, q0 + 0.12);
+  ring(r0, q0, r0 + 0.12, q1);
+  // The stalk: a green stem with leaves, and the lily pad with a friendly frog on top.
+  cylinder(ctx, cu, cv, 0.13, 3, STALK_TOP, '#3aa552', '#4fbf63');
+  for (const h of [14, 26, 38]) {
+    const p = circlePt(cu, cv, 0.18, h);
+    oval(ctx, sx(p.u, p.v) + (h % 2 ? 4 : -4), sy(p.u, p.v, h), 5, 2, '#2a7c3c', h % 2 ? 0.4 : -0.4);
+  }
+  cylinder(ctx, cu, cv, 0.42, STALK_TOP, STALK_TOP + 3, '#3f8f3a', '#6dbb4f');
+  cylinder(ctx, cu, cv, 0.25, STALK_TOP + 3, STALK_TOP + 9, '#4fbf63', '#6fd07a');
+  const fx = sx(cu, cv);
+  const fy = sy(cu, cv, STALK_TOP + 9);
+  oval(ctx, fx, fy, 7, 4, '#6fd07a');
+  for (const d of [-1, 1]) {
+    dot(ctx, fx + d * 4, fy - 4, 3, '#6fd07a');
+    dot(ctx, fx + d * 4, fy - 4.5, 2, '#ffffff');
+    dot(ctx, fx + d * 4.3, fy - 4.4, 1, '#1f1f24');
+  }
+  ctx.strokeStyle = '#2a7c3c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(fx, fy - 0.5, 3, 0.3, Math.PI - 0.3);
+  ctx.stroke();
+  // Front bars of the ring with the riders, legs dangling.
+  const filled = seatsFilled(4, st.occupancy);
+  const legs = (x: number, y: number): void => {
+    ctx.fillStyle = '#30425a';
+    ctx.fillRect(x - 2, y + 2, 1.5, 5);
+    ctx.fillRect(x + 0.5, y + 2, 1.5, 5);
+  };
+  let k = 0;
+  ring(r0, q1 - 0.12, r1, q1);
+  for (let i = 0; i < 2; i++) {
+    const x = sx(r0 + 0.3 + i * 0.36, q1);
+    const y = sy(r0 + 0.3 + i * 0.36, q1, hg);
+    if (k < filled) {
+      legs(x, y);
+      rider(ctx, x, y - 3, k);
+    }
+    k++;
+  }
+  ring(r1 - 0.12, q0, r1, q1);
+  for (let i = 0; i < 2; i++) {
+    const x = sx(r1, q0 + 0.3 + i * 0.36);
+    const y = sy(r1, q0 + 0.3 + i * 0.36, hg);
+    if (k < filled) {
+      legs(x, y);
+      rider(ctx, x, y - 3, k);
+    }
+    k++;
+  }
+}

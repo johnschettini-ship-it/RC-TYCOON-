@@ -23,7 +23,7 @@ describe('itemSpec', () => {
     bumper_cars: 106, rocket_rounds: 84, spiral_slide: 114, observation_tower: 200, mirror_maze: 82, haunted_manor: 116,
     pendulum_ship: 142, thunder_disc: 106, drop_tower: 208, flip_arm: 136,
     magic_carpet: 132, kiddie_cars: 78, merry_mill: 116, gyro_globe: 148,
-    dodgem_boats: 52, mini_pirate_ship: 72, balloon_wheel: 72,
+    dodgem_boats: 52, mini_pirate_ship: 72, balloon_wheel: 72, frog_hopper: 60,
   };
   // The px / 8 rule is a starting value. A ride may deviate (a realistic height) with a one-line reason here.
   const HEIGHT_EXCEPTIONS: Record<string, { m: number; why: string }> = {

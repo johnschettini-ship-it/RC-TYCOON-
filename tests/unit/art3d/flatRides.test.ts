@@ -483,8 +483,8 @@ describe('density 2: fewer pictures, the same frames', () => {
     mirror_maze: { step: 2, d4: 4, d2: 4, walkThrough: true }, haunted_manor: { step: 2, d4: 4, d2: 4, walkThrough: true },
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
-    // New rides batch A.
-    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 }, balloon_wheel: { step: 2, d4: 5, d2: 5 },
+    // New rides batch A: frog_hopper keeps every picture at density 2 (its hops are 4 steps long).
+    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 }, balloon_wheel: { step: 2, d4: 5, d2: 5 }, frog_hopper: { step: 2, d4: 7, d2: 7 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -678,7 +678,7 @@ describe('ride colour part', () => {
 // game frame shows the realistic picture of today's pose at that frame, that slot 32 wraps to slot 0, and that a
 // whole run ends on its start picture.
 describe('new rides batch A', () => {
-  const IDS = ['dodgem_boats', 'mini_pirate_ship', 'balloon_wheel'];
+  const IDS = ['dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'];
   async function maps(): Promise<Record<string, Keys>> {
     const fam = await load('items/familyKeys.js');
     return { dodgem_boats: fam.dodgemKeys(), mini_pirate_ship: fam.miniShipKeys(), balloon_wheel: fam.balloonKeys(), frog_hopper: fam.frogKeys() };
@@ -733,6 +733,19 @@ describe('new rides batch A', () => {
     periodOk(m, 'balloon_wheel', fam.BALLOON_PERIOD, true);
     const src = readFileSync(new URL('items/balloon_wheel.js', dir), 'utf8');
     expect(src).toContain('BALLOON_COLOURS[i % 4], 720 + (i % 4) * 2');
+  });
+
+  it('frog_hopper: each slot shows today\'s seat height within half a level; the hops rise and fall', async () => {
+    const fam = await load('items/familyKeys.js');
+    const { frogShare } = await import('../../../src/render/sprites/content/familyMotion');
+    const m = (await maps()).frog_hopper!;
+    for (let a = 0; a < 32; a += 2) {
+      const id = pictureOf(m, keyAt('frog_hopper', a, true))!;
+      expect(Math.abs(Number(id.slice(1)) / fam.FROG_Q - frogShare(a / 32)), `slot ${a}`).toBeLessThanOrEqual(0.5 / fam.FROG_Q);
+    }
+    // four hops: the ring is back at the bottom every quarter turn
+    for (const a of [0, 8, 16, 24]) expect(pictureOf(m, keyAt('frog_hopper', a, true))).toBe('h0');
+    expect(pictureOf(m, keyAt('frog_hopper', 4, true))).not.toBe('h0');
   });
 
   it('each model\'s entrance and exit sit on the sim\'s gate column (gateIndex), front row and back row', async () => {
