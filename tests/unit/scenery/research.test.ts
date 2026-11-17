@@ -1,6 +1,7 @@
 /**
  * Phase 4 research (master R10, R23; catalog §9): Log Flume 480, Rapids Raft 540, each scenery theme 240 points,
- * after the 21 Build 1 items. A researched theme unlocks all of its items; Base Set and Classic Fair start open.
+ * after the 21 Build 1 items. Starting roster (owner, 2026-11-17): the Log Flume starts unlocked and left the order, as
+ * did 9 Build 1 rides, so Build 2 is the Rapids Raft and 5 themes after 12 Build 1 items. A researched theme unlocks all of its items; Base Set and Classic Fair start open.
  */
 import { describe, expect, it } from 'vitest';
 import { PATH_ITEMS, SCENERY, SCENERY_THEMES } from '../../../src/data/catalog';
@@ -20,12 +21,11 @@ describe('Phase 4 research entries', () => {
     expect(BUILD_MAX_PHASE).toBeGreaterThanOrEqual(4);
   });
 
-  it('adds Log Flume 480, Rapids Raft 540, and 240 per theme after the 21 Build 1 items', () => {
-    // Build 3 (W4-D) appends 12 more items after these (tests/unit/content/research.test.ts).
-    expect(RESEARCH_ORDER).toHaveLength(28 + 12);
-    const build2 = RESEARCH_ORDER.slice(21, 28);
+  it('adds Rapids Raft 540 and 240 per theme after the 12 Build 1 items (the Log Flume starts unlocked)', () => {
+    // Build 3 (W4-D) appends 11 more items after these (tests/unit/content/research.test.ts).
+    expect(RESEARCH_ORDER).toHaveLength(18 + 11);
+    const build2 = RESEARCH_ORDER.slice(12, 18);
     expect(build2.map((r) => [r.id, r.category, r.cost])).toEqual([
-      ['log_flume', 'water', 480],
       ['frost_peaks', 'scenery', 240],
       ['volcano_ridge', 'scenery', 240],
       ['rapids_raft', 'water', 540],
@@ -33,8 +33,9 @@ describe('Phase 4 research entries', () => {
       ['jungle_lagoon', 'scenery', 240],
       ['starport', 'scenery', 240],
     ]);
-    expect(build2.reduce((a, r) => a + r.cost, 0)).toBe(480 + 540 + 5 * 240);
-    expect(RESEARCH_ORDER.slice(0, 21).reduce((a, r) => a + r.cost, 0)).toBe(6460);
+    expect(build2.reduce((a, r) => a + r.cost, 0)).toBe(540 + 5 * 240);
+    expect(RESEARCH_ORDER.slice(0, 12).reduce((a, r) => a + r.cost, 0)).toBe(3510);
+    expect(getResearchItem('log_flume')).toBeUndefined();
   });
 
   it('every research theme of the catalog is an entry with id = theme id, and each entry is known content', () => {
@@ -45,11 +46,12 @@ describe('Phase 4 research entries', () => {
     for (const r of RESEARCH_ORDER) expect(contentInfo(r.id), r.id).toBeDefined();
   });
 
-  it('the lamp starts unlocked; water rides and themes wait for research', () => {
+  it('the lamp and the Log Flume start unlocked; the Rapids Raft and themes wait for research', () => {
     const w = makeTestWorld();
     expect(PATH_ITEMS.find((p) => p.id === 'lamp')).toMatchObject({ phase: 4, unlock: 'start' });
     expect(isUnlocked(w, 'lamp')).toBe(true);
-    for (const id of ['log_flume', 'rapids_raft', ...THEMES]) expect(isUnlocked(w, id), id).toBe(false);
+    expect(isUnlocked(w, 'log_flume')).toBe(true);
+    for (const id of ['rapids_raft', ...THEMES]) expect(isUnlocked(w, id), id).toBe(false);
   });
 });
 
@@ -81,7 +83,7 @@ describe('theme research unlocks items', () => {
     expect(executeCommand(w, { type: 'placeScenery', defId: 'lava_rock', x: 12, y: 10, rotation: 0, edge: -1 })).toEqual({ ok: false, reason: 'Not unlocked' });
   });
 
-  it('focusing Scenery picks the first theme; focusing Water picks the Log Flume', () => {
+  it('focusing Scenery picks the first theme; focusing Water picks the Rapids Raft', () => {
     const m = createManagementSlice();
     const r = m.research;
     for (const k of Object.keys(r.focus) as (keyof typeof r.focus)[]) r.focus[k] = false;
@@ -91,6 +93,6 @@ describe('theme research unlocks items', () => {
     expect(pickNextResearch(r)).toBe('spooky_hollow');
     r.focus.scenery = false;
     r.focus.water = true;
-    expect(pickNextResearch(r)).toBe('log_flume');
+    expect(pickNextResearch(r)).toBe('rapids_raft');
   });
 });

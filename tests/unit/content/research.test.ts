@@ -1,7 +1,8 @@
 /**
  * Build 3 research (catalog §9, master R25): the 12 Phase 6 items after the Build 2 items, with the provisional
  * Wave 4.0 costs (4,200 points), each in its catalog category. Raising `BUILD_MAX_PHASE` to 6 makes them
- * researchable in every park; research unlocks each one.
+ * researchable in every park; research unlocks each one. Starting roster (owner, 2026-11-17): Kiddie Cars start
+ * unlocked, so 11 items (4,050 points) remain, after the 18 Build 1 and Build 2 items left.
  */
 import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES, SHOW_SITES, STALLS, TRACK_RIDES } from '../../../src/data/catalog';
@@ -14,7 +15,6 @@ import { makeTestWorld } from '../../helpers/world';
 
 /** Card W4-D (open question 1, master R25): provisional costs by category. */
 const BUILD3: Record<string, [string, number]> = {
-  kiddie_cars: ['gentle', 150],
   merry_mill: ['gentle', 250],
   monorail: ['gentle', 450],
   magic_carpet: ['thrill', 400],
@@ -28,25 +28,26 @@ const BUILD3: Record<string, [string, number]> = {
   fireworks_launcher: ['scenery', 350],
 };
 
-const PHASE6 = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS, ...SHOW_SITES].filter((d) => d.phase === 6);
+const PHASE6 = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS, ...SHOW_SITES].filter((d) => d.phase === 6 && d.unlock !== 'start');
 
 describe('Build 3 research entries (catalog §9, master R25)', () => {
   it('Build 3 raises the build phase limit to 6', () => {
     expect(BUILD_MAX_PHASE).toBe(6);
   });
 
-  it('appends the 12 Phase 6 items after the 28 Build 1 and Build 2 items: 4,200 points', () => {
-    expect(RESEARCH_ORDER).toHaveLength(28 + 12);
-    const build3 = RESEARCH_ORDER.slice(28);
+  it('appends the 11 Phase 6 research items after the 18 Build 1 and Build 2 items: 4,050 points', () => {
+    expect(RESEARCH_ORDER).toHaveLength(18 + 11);
+    const build3 = RESEARCH_ORDER.slice(18);
     expect(new Set(build3.map((r) => r.id))).toEqual(new Set(Object.keys(BUILD3)));
     for (const r of build3) expect([r.category, r.cost], r.id).toEqual(BUILD3[r.id]);
-    expect(build3.reduce((a, r) => a + r.cost, 0)).toBe(4200);
+    expect(build3.reduce((a, r) => a + r.cost, 0)).toBe(4200 - 150);
     // The Build 1 and Build 2 entries keep their place.
-    expect(RESEARCH_ORDER.slice(0, 28).reduce((a, r) => a + r.cost, 0)).toBe(6460 + 2220);
+    expect(RESEARCH_ORDER.slice(0, 18).reduce((a, r) => a + r.cost, 0)).toBe(3510 + 1740);
   });
 
   it('covers every Phase 6 catalog item, each in its catalog category', () => {
-    expect(PHASE6).toHaveLength(12);
+    expect(PHASE6).toHaveLength(11);
+    expect(getResearchItem('kiddie_cars')).toBeUndefined();
     for (const d of PHASE6) {
       const item = getResearchItem(d.id);
       expect(item, d.id).toBeDefined();
@@ -68,7 +69,7 @@ describe('Build 3 research entries (catalog §9, master R25)', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     // Everything before the Build 3 items is done; focus Shops.
-    r.unlocked = RESEARCH_ORDER.slice(0, 28).map((i) => i.id);
+    r.unlocked = RESEARCH_ORDER.slice(0, 18).map((i) => i.id);
     for (const k of Object.keys(r.focus) as (keyof typeof r.focus)[]) r.focus[k] = k === 'shops';
     r.current = pickNextResearch(r);
     expect(r.current).toBe(RESEARCH_ORDER.find((i) => i.category === 'shops' && !r.unlocked.includes(i.id))?.id);

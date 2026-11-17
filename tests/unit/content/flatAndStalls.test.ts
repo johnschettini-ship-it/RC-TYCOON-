@@ -26,8 +26,11 @@ describe('Phase 6 flat rides build, operate, and earn with their catalog numbers
   it.each(RIDES.map((d) => [d.id, d] as const))('%s: locked → researched → placed (charged) → open → guests ride the full cycle', (id, def) => {
     const w = makeTestWorld(6100 + def.capacity);
     const p = facilityPark(w);
-    expect(executeCommand(w, { type: 'placeRide', defId: id, x: 20, y: 40, rotation: 0 })).toEqual({ ok: false, reason: 'Not unlocked' });
-    w.state.management.research.unlocked.push(id);
+    // Starting roster (owner, 2026-11-17): Kiddie Cars start unlocked; the others wait for research.
+    if (def.unlock !== 'start') {
+      expect(executeCommand(w, { type: 'placeRide', defId: id, x: 20, y: 40, rotation: 0 })).toEqual({ ok: false, reason: 'Not unlocked' });
+      w.state.management.research.unlocked.push(id);
+    }
     const cash = w.state.park.cash;
     const ride = placeConnectedRide(w, id, 24);
     expect(ride.totalBuildCost).toBe(def.buildCost);

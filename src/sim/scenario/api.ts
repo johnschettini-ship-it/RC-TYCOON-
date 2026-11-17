@@ -3,7 +3,7 @@
  * Free play and Build 1 parks get the neutral answer from every function.
  */
 import { getSceneryDef, getSceneryTheme, getTrackRideDef, type SceneryThemeId } from '../../data/catalog';
-import { getResearchItem } from '../../data/research';
+import { FORMER_RESEARCH_IDS, getResearchItem } from '../../data/research';
 import { getScenarioDef, type Climate, type ScenarioDef } from '../../data/scenarios';
 import { SCENARIO_ERR } from '../../data/strings/scenario';
 import { LOAN_STEP, SEASON_WEATHER_WEIGHTS, WEATHER_STATES, type WeatherState } from '../../data/tuning/management';
@@ -105,9 +105,12 @@ function idsOf(itemId: string): string[] {
   return theme ? [itemId, theme] : [itemId];
 }
 
-/** Content that research unlocks (a research item, or a scenery theme or item that does not start open). */
+/**
+ * Content that research unlocks (a research item, or a scenery theme or item that does not start open). The rides that
+ * left research for the starting roster (`FORMER_RESEARCH_IDS`) count too, so a scenario's `allowed` list keeps them out.
+ */
 function isResearchContent(itemId: string): boolean {
-  if (getResearchItem(itemId)) return true;
+  if (getResearchItem(itemId) || FORMER_RESEARCH_IDS.includes(itemId)) return true;
   const theme = getSceneryTheme(getSceneryDef(itemId)?.theme ?? (itemId as SceneryThemeId));
   return theme !== undefined && theme.unlock !== 'start';
 }

@@ -105,9 +105,10 @@ describe('Build 2 commands are registered (Phase 4 §6, Phase 5 §6)', () => {
 
   it('setup mode skips unlock checks (Phase 5 §2) but keeps placement checks', () => {
     const w = makeTestWorld();
-    expect(isUnlocked(w, 'drop_tower')).toBe(false);
-    expect(executeCommand(w, { type: 'placeRide', defId: 'drop_tower', x: 20, y: 20, rotation: 0 }).ok).toBe(false);
-    expect(executeCommand(w, { type: 'placeRide', defId: 'drop_tower', x: 20, y: 20, rotation: 0 }, { setup: true }).ok).toBe(true);
+    // The Drop Tower starts unlocked since the starting roster (owner, 2026-11-17); the Flip Arm still waits for research.
+    expect(isUnlocked(w, 'flip_arm')).toBe(false);
+    expect(executeCommand(w, { type: 'placeRide', defId: 'flip_arm', x: 20, y: 20, rotation: 0 }).ok).toBe(false);
+    expect(executeCommand(w, { type: 'placeRide', defId: 'flip_arm', x: 20, y: 20, rotation: 0 }, { setup: true }).ok).toBe(true);
   });
 });
 

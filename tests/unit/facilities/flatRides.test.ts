@@ -35,9 +35,11 @@ describe('Phase 3 flat rides (Phase 3 §4.11)', () => {
   it.each(PHASE3_RIDES.map((d) => [d.id, d] as const))('%s: locked → unlock → place → open → guests ride the full cycle', (id, def) => {
     const w = makeTestWorld(4100 + def.capacity);
     const p = facilityPark(w);
-    expect(executeCommand(w, { type: 'placeRide', defId: id, x: 20, y: 40, rotation: 0 })).toEqual({ ok: false, reason: 'Not unlocked' });
-
-    w.state.management.research.unlocked.push(id);
+    // Starting roster (owner, 2026-11-17): 8 of these rides start unlocked; the others wait for research.
+    if (def.unlock !== 'start') {
+      expect(executeCommand(w, { type: 'placeRide', defId: id, x: 20, y: 40, rotation: 0 })).toEqual({ ok: false, reason: 'Not unlocked' });
+      w.state.management.research.unlocked.push(id);
+    }
     const ride = placeConnectedRide(w, id, 24);
     expect(ride.cycle.phase).toBe('waiting');
     expect(executeCommand(w, { type: 'setRideOpen', rideId: ride.id, open: true }).ok).toBe(true);

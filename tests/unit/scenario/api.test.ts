@@ -118,12 +118,13 @@ describe('content rules (Phase 5 §4.1 research, sandbox all unlocked)', () => {
   it('scenario `unlocked` items are available at start; research never picks them', () => {
     const w = scenario('meadow_start');
     expect(scenarioContentRule(w, 'bumper_cars')).toBe('unlocked');
-    expect(scenarioContentRule(w, 'drop_tower')).toBe('normal');
+    expect(scenarioContentRule(w, 'thunder_disc')).toBe('normal');
     expect(isUnlocked(w, 'bumper_cars')).toBe(true);
     expect(isUnlocked(w, 'spiral_slide')).toBe(true);
-    expect(isUnlocked(w, 'drop_tower')).toBe(false);
+    expect(isUnlocked(w, 'thunder_disc')).toBe(false);
     const r = w.state.management.research;
-    expect(pickNextResearch(r)).toBe('spiral_slide');
+    // Starting roster (owner, 2026-11-17): Meadow Start's two rides start unlocked everywhere now.
+    expect(pickNextResearch(r)).toBe('ice_cream_cart');
     r.current = 'spiral_slide';
     w.state.tick = 450;
     hourlyResearch(w);
@@ -135,11 +136,17 @@ describe('content rules (Phase 5 §4.1 research, sandbox all unlocked)', () => {
     const w = scenario('meadow_start');
     const original = def.research;
     const live = getScenarioDef('meadow_start')!;
-    (live as { research: ScenarioDef['research'] }).research = { unlocked: ['spiral_slide'], allowed: ['spiral_slide', 'pendulum_ship', 'volcano_ridge'] };
+    (live as { research: ScenarioDef['research'] }).research = { unlocked: ['spiral_slide'], allowed: ['spiral_slide', 'thunder_disc', 'volcano_ridge'] };
     try {
+      expect(scenarioContentRule(w, 'flip_arm')).toBe('hidden');
+      expect(isUnlocked(w, 'flip_arm')).toBe(false);
+      expect(scenarioContentRule(w, 'thunder_disc')).toBe('normal');
+      // Starting roster (owner, 2026-11-17): a ride that left research for the start stays out of an `allowed` list
+      // that does not name it, so a scenario that sets its own roster keeps it.
       expect(scenarioContentRule(w, 'drop_tower')).toBe('hidden');
       expect(isUnlocked(w, 'drop_tower')).toBe(false);
-      expect(scenarioContentRule(w, 'pendulum_ship')).toBe('normal');
+      expect(isUnlocked(w, 'pendulum_ship')).toBe(false);
+      expect(isUnlocked(w, 'spiral_slide')).toBe(true);
       expect(scenarioContentRule(w, 'carousel')).toBe('normal');
       expect(scenarioContentRule(w, 'lava_rock')).toBe('normal');
       expect(scenarioContentRule(w, 'tree_bare')).toBe('hidden');
@@ -153,7 +160,7 @@ describe('content rules (Phase 5 §4.1 research, sandbox all unlocked)', () => {
         r.unlocked.push(next);
       }
       // Build 2 (BUILD_MAX_PHASE 4): the allowed scenery theme is researchable too, after the Build 1 items.
-      expect(order).toEqual(['pendulum_ship', 'volcano_ridge']);
+      expect(order).toEqual(['thunder_disc', 'volcano_ridge']);
     } finally {
       (live as { research: ScenarioDef['research'] }).research = original;
     }
