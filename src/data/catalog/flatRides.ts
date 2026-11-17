@@ -36,6 +36,9 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   ride('kiddie_cars', 'Kiddie Cars', 6, 'gentle', 'family', F(), 3, 3, 2.2, 0.6, 0.2, 12, 20, 1000, 30, 1),
   ride('merry_mill', 'Merry Mill', 6, 'gentle', 'chill', F(), 3, 3, 3.2, 1.2, 0.8, 16, 30, 2200, 60, 2),
   ride('gyro_globe', 'Gyro Globe', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 7.0, 8.5, 7.0, 8, 25, 6000, 160, 5),
+  // New rides batch A (2026-11-17, docs/superpowers/specs/2026-11-17-new-rides-design.md): four family flat rides,
+  // unlocked at the start. Values sit between the nearest existing family rides (the batch A report gives each reason).
+  ride('dodgem_boats', 'Dodgem Boats', 1, 'start', 'family', F(), 3, 3, 3.6, 2.0, 0.6, 12, 25, 1700, 55, 2),
 ]);
 
 /**

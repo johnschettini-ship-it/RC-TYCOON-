@@ -1,6 +1,6 @@
 /**
  * Owner: W2-C, W4-D. Art registry for the research content: Phase 3 (10 flat rides, 8 stalls) and Phase 6 (4 flat
- * rides, 3 stalls).
+ * rides, 3 stalls), and the new family rides of batch A (4 flat rides, `./familyRides.ts`).
  * `rides.ts` and `stalls.ts` look ids up here before their generic fallback.
  * Entries are plain objects so tests can watch the draw calls.
  */
@@ -9,6 +9,7 @@ import type { RideArtState } from '../rides';
 import type { Ctx } from '../shapes';
 import { drawBumperCars, drawHauntedManor, drawMirrorMaze, drawObservationTower, drawRocketRounds, drawSpiralSlide } from './gentleRides';
 import { STALL_DRAW } from './stalls';
+import { drawDodgemBoats } from './familyRides';
 import { drawGyroGlobe, drawKiddieCars, drawMagicCarpet, drawMerryMill } from './phase6Rides';
 import { drawDropTower, drawFlipArm, drawPendulumShip, drawThunderDisc } from './thrillRides';
 
@@ -43,6 +44,8 @@ export const CONTENT_RIDE_ART: Readonly<Record<string, ContentRideArt>> = {
   kiddie_cars: ride(78, drawKiddieCars),
   merry_mill: ride(116, drawMerryMill),
   gyro_globe: ride(148, drawGyroGlobe),
+  // New rides batch A (2026-11-17): family flat rides, unlocked at the start.
+  dodgem_boats: ride(52, drawDodgemBoats),
 };
 
 export const CONTENT_STALL_ART: Readonly<Record<string, ContentStallArt>> = Object.fromEntries(

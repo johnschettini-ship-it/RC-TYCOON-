@@ -25,8 +25,9 @@ export const PERF_SCENES: readonly PerfSceneInfo[] = [
   { id: 'phone', file: 'phone-800-guests.tcsave.json', mapSize: 64, guests: 800, trackRides: 10, flatRides: 14, shows: 0, focus: { x: 40, y: 30 } },
   { id: 'coaster', file: 'coaster-600-guests.tcsave.json', mapSize: 64, guests: 600, trackRides: 1, flatRides: 1, shows: 0, focus: { x: 14, y: 8 } },
   // Phase 8c batch 1: all 18 flat ride types side by side (memory with many different rides on screen). Flat-ride
-  // colours: six coloured, carousel twice in two colours (19 rides; the file name keeps its batch 1 name).
-  { id: 'rides', file: 'rides-18-flat-rides-300-guests.tcsave.json', mapSize: 64, guests: 300, trackRides: 0, flatRides: 19, shows: 0, focus: { x: RIDES_FOCUS.x, y: RIDES_FOCUS.y } },
+  // colours: six coloured, carousel twice in two colours. New rides batch A adds its family rides (20 rides; the file
+  // name keeps its batch 1 name).
+  { id: 'rides', file: 'rides-18-flat-rides-300-guests.tcsave.json', mapSize: 64, guests: 300, trackRides: 0, flatRides: 20, shows: 0, focus: { x: RIDES_FOCUS.x, y: RIDES_FOCUS.y } },
 ];
 
 /**

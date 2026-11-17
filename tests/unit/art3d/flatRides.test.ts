@@ -483,6 +483,8 @@ describe('density 2: fewer pictures, the same frames', () => {
     mirror_maze: { step: 2, d4: 4, d2: 4, walkThrough: true }, haunted_manor: { step: 2, d4: 4, d2: 4, walkThrough: true },
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
+    // New rides batch A.
+    dodgem_boats: { step: 8, d4: 9, d2: 5 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -669,4 +671,72 @@ describe('ride colour part', () => {
       expect(src, id).toMatch(/colour(Part|Mesh)\(/);
     });
   }
+});
+
+// New rides batch A (2026-11-17): dodgem_boats, mini_pirate_ship, balloon_wheel, frog_hopper. Their bake modules pose
+// from src/render/sprites/content/familyMotion.ts, the functions today's look draws with; these tests check that each
+// game frame shows the realistic picture of today's pose at that frame, that slot 32 wraps to slot 0, and that a
+// whole run ends on its start picture.
+describe('new rides batch A', () => {
+  const IDS = ['dodgem_boats'];
+  async function maps(): Promise<Record<string, Keys>> {
+    const fam = await load('items/familyKeys.js');
+    return { dodgem_boats: fam.dodgemKeys(), mini_pirate_ship: fam.miniShipKeys(), balloon_wheel: fam.balloonKeys(), frog_hopper: fam.frogKeys() };
+  }
+
+  it('run 2 turns per run (no REVOLUTIONS entry), so every motion here, whole in a turn, starts and ends at rest', () => {
+    for (const id of IDS) {
+      const d = getFlatRideDef(id)!;
+      expect(rideAnimation(id, { phase: 'running', ticks: d.cycleTicks }, d.cycleTicks).turn, id).toBe(2);
+    }
+  });
+
+  it('every slot has a picture, slot 32 wraps to slot 0, an empty ride is one rest picture', async () => {
+    const m = await maps();
+    for (const id of IDS) {
+      for (const full of [false, true]) expect(pictureOf(m[id]!, keyAt(id, 0, full)), id).toBe(pictureOf(m[id]!, keyAt(id, 32 & 31, full)));
+      for (let a = 0; a < 32; a++) {
+        expect(pictureOf(m[id]!, keyAt(id, a, true)), `${id} slot ${a}`).toBeDefined();
+        expect(pictureOf(m[id]!, keyAt(id, a, false)), `${id} slot ${a}`).toBe('rest');
+      }
+    }
+  });
+
+  it('dodgem_boats: 8 pictures per turn in order, picture k posed at turn share k / 8 (the slot floored to it)', async () => {
+    const fam = await load('items/familyKeys.js');
+    const m = (await maps()).dodgem_boats!;
+    for (let a = 0; a < 32; a++) {
+      const id = pictureOf(m, keyAt('dodgem_boats', a, true))!;
+      expect(fam.dodgemTime(id).t, `slot ${a}`).toBe(Math.floor(((a & ~1) / 32) * 8) / 8);
+    }
+  });
+
+  it('each model\'s entrance and exit sit on the sim\'s gate column (gateIndex), front row and back row', async () => {
+    const { FAMILY_GATES } = await load('items/familyKeys.js');
+    for (const id of IDS) {
+      const def = getFlatRideDef(id)!;
+      const x = (gateIndex(def.w) + 0.5) * 4 - (def.w * 4) / 2;
+      const { entrance, exit } = FAMILY_GATES[id];
+      expect(entrance[0], id).toBe(x);
+      expect(exit[0], id).toBe(x);
+      // inside the footprint, on the front and back rows (tile depth 4 m)
+      expect(entrance[1], id).toBeGreaterThan((def.d * 4) / 2 - 4);
+      expect(entrance[1], id).toBeLessThan((def.d * 4) / 2);
+      expect(exit[1], id).toBeLessThan(-(def.d * 4) / 2 + 4);
+      expect(exit[1], id).toBeGreaterThan(-(def.d * 4) / 2);
+    }
+  });
+
+  it('are baked: registry, card, BAKED, rots [0, 1, 2, 3] (FAMILY_NON_ROUND), start rides', async () => {
+    const { ITEM_LIST, CARD_ITEMS } = await load('items/registry.js');
+    const NON_ROUND = await nonRound();
+    const { REAL_FALLBACK } = await import('../../../src/render/real/fallbacks');
+    for (const id of IDS) {
+      expect(ITEM_LIST.some((x: { id: string }) => x.id === id), id).toBe(true);
+      expect(CARD_ITEMS.some((x: { id: string; kind: string }) => x.id === id && x.kind === 'ride'), id).toBe(true);
+      expect(REAL_FALLBACK[id], id).toBe(id);
+      expect(NON_ROUND, id).toContain(id);
+      expect(getFlatRideDef(id)).toMatchObject({ unlock: 'start', tag: 'family' });
+    }
+  });
 });

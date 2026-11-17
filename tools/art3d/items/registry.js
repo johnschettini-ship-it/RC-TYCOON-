@@ -44,6 +44,8 @@ export const CARD_ITEMS = [
   { id: 'rocket_rounds', kind: 'ride' },
   { id: 'kiddie_cars', kind: 'ride' },
   { id: 'merry_mill', kind: 'ride' },
+  // New rides batch A (2026-11-17).
+  { id: 'dodgem_boats', kind: 'ride' },
 ];
 
 export const ITEM_LIST = [
@@ -81,6 +83,8 @@ export const ITEM_LIST = [
   { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
   { id: 'kiddie_cars', file: 'items/kiddie_cars.js', catalog: ['ride', 'kiddie_cars'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
   { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  // New rides batch A (2026-11-17): family flat rides, unlocked at the start.
+  { id: 'dodgem_boats', file: 'items/dodgem_boats.js', catalog: ['ride', 'dodgem_boats'], deps: FAMILY_DEPS },
 ];
 
 // The earlier title panorama (items/title.js): a whole park scene from a free camera and the name signs, written to

@@ -1,4 +1,8 @@
 {
+  "coloured:carousel:r0": "e28fb9b04a7b20d3403472f2a48890f7f9a2f270c936ca8d29cccb6c1fb45800",
+  "coloured:carousel:r1": "f8dd4720989939a55c0478d9711ce55b46a2ab2499c142e8be6757c6982d407d",
+  "coloured:carousel:r2": "dba9d5d36d49981dae7c9ac441260f3bfefa1715c1b41a51d936024376dba0f3",
+  "coloured:carousel:r3": "27660bfeaf1d40536a07d3eb815b9eb991f7a1e3802ebdc0d66428d1f47759d8",
   "original:carousel:r0:s0": "53c13740698ece342fcfd49838cded9e666265148da5529dfb4cc81283bbfa52",
   "original:carousel:r0:s1": "0e74903618080ceaf898d71a81a22609b8196feadf7fe4a77e68e08c785a7e8d",
   "original:carousel:r1:s0": "4a2f8856bb3477337fc24178ae03e8d6d88cf6c1999391e1193e4cd4c2138a70",
@@ -143,8 +147,12 @@
   "original:gyro_globe:r2:s1": "f14653f0e5443f3fff3d33b2a8832b27f0583f2952c1869a55a5f9a16348decd",
   "original:gyro_globe:r3:s0": "6edea5d10fbb5e10867bdac0ddcc82fc9252b55b2372817291068138f5dd3e4f",
   "original:gyro_globe:r3:s1": "10df5d5707c635f005676744efdbc4699d382606223f0fe9ac76840a9f673017",
-  "coloured:carousel:r0": "e28fb9b04a7b20d3403472f2a48890f7f9a2f270c936ca8d29cccb6c1fb45800",
-  "coloured:carousel:r1": "f8dd4720989939a55c0478d9711ce55b46a2ab2499c142e8be6757c6982d407d",
-  "coloured:carousel:r2": "dba9d5d36d49981dae7c9ac441260f3bfefa1715c1b41a51d936024376dba0f3",
-  "coloured:carousel:r3": "27660bfeaf1d40536a07d3eb815b9eb991f7a1e3802ebdc0d66428d1f47759d8"
+  "original:dodgem_boats:r0:s0": "68c7cbcd23fcfad25b74a26011cf4b81e6bf4a2fdf0ca78649d684c1e2e885fd",
+  "original:dodgem_boats:r0:s1": "48f3c5b155da7c7fc32269b680782ed03e8c82d83d0b800dcc749ad44dcc33ec",
+  "original:dodgem_boats:r1:s0": "8fd79e10c569fbaf551502a5b102c393f71ae8b78fc9b2198c5e920d4bd93a3e",
+  "original:dodgem_boats:r1:s1": "674be26c577a21be4c359f545d34c7177ae530dfae56b6fb11523c7e63a5a6f8",
+  "original:dodgem_boats:r2:s0": "30356d8eb8a082831271616984b63362b0dadd59b4df9f528b32e328b66096f9",
+  "original:dodgem_boats:r2:s1": "252d5dd229ebc25d64415608b0c84d2ed2f8051415d858624c21b0f4d03f8d3b",
+  "original:dodgem_boats:r3:s0": "d1edf8d12c280dc7e77cc91f82ad25d1cc2d2ed1347adb13974aebed4ff5954d",
+  "original:dodgem_boats:r3:s1": "ab4960a8fb6451c4dc1ea9ba5386fe9705306c14361223e79d3afdf85a452c28"
 }

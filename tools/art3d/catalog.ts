@@ -41,6 +41,8 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   kiddie_cars: 7, // realistic: a children's car ride, gold ball on a short mast (today's flag mast is drawn tall)
   merry_mill: 11.5, // realistic: 4.8 m sails on a 6.8 m hub, so the lowest gondola boards at the deck
   gyro_globe: 14, // realistic: the gimbal stands on a short turntable pedestal (catalog.test.ts HEIGHT_EXCEPTIONS)
+  // New rides batch A (2026-11-17), by the same rule.
+  dodgem_boats: 6.5, // the lighthouse cap
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,

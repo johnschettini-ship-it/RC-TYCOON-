@@ -111,7 +111,7 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     return { inside, touching };
   }
 
-  it('rides (phase 8c batch 1): each of the 18 flat rides (carousel twice), open, connected, about 300 guests', { timeout: 60_000 }, () => {
+  it('rides (phase 8c batch 1, new rides batch A): each of the 19 flat rides (carousel twice), open, connected, about 300 guests', { timeout: 60_000 }, () => {
     const info = PERF_SCENES.find((x) => x.id === 'rides');
     expect(info).toBeDefined();
     const r = deserialize(readFileSync(join(DIR, info!.file), 'utf8'));
@@ -121,8 +121,8 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     // Every flat ride type, plus a second carousel (flat-ride colours: one type twice in two colours).
     expect(new Set(flat.map((x) => x.defId))).toEqual(new Set(FLAT_RIDES.map((d) => d.id)));
     expect(flat.map((x) => x.defId).sort()).toEqual([...FLAT_RIDES.map((d) => d.id), 'carousel'].sort());
-    expect(info!.flatRides).toBe(19);
-    expect(flat).toHaveLength(19);
+    expect(info!.flatRides).toBe(20);
+    expect(flat).toHaveLength(20);
     expect(info!.trackRides).toBe(0);
     // Paths: from the park entrance over footpath and queue tiles, every ride's entrance and exit tile is reached.
     const reach = new Set<number>([s.map.entranceTile]);
@@ -174,8 +174,8 @@ describe('perf scenes (Phase 6 §4.6)', () => {
   it('rides: the bench camera sees the park (zoom 0.5 from the focus, 390 x 844)', { timeout: 60_000 }, () => {
     const r = deserialize(readFileSync(join(DIR, PERF_SCENES.find((x) => x.id === 'rides')!.file), 'utf8'));
     if (!r.ok) throw new Error(r.error);
-    // The bench holds zoom 0.5 at rotation 0 (rotation 2 is the same band, turned over): all 19 footprints inside.
-    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 19, touching: 19 });
+    // The bench holds zoom 0.5 at rotation 0 (rotation 2 is the same band, turned over): all 20 footprints inside.
+    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 20, touching: 20 });
     // Rotations 1 and 3 turn the band across the narrow view: the view cannot hold 18 (it fits 12 tiles of
     // |u-v| there); the measured counts (7 inside, 10 touching) are the floor.
     for (const rot of [1, 3] as const) {
