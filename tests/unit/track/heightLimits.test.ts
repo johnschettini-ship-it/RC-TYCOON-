@@ -19,7 +19,7 @@ const LIMITS: Record<string, [number, number]> = {
   log_flume: [30, 20], spinning_mouse: [24, 16], junior_coaster: [20, 12], monorail: [24, 12],
   rapids_raft: [15, 10], mini_railway: [16, 8], ghost_train: [10, 6], go_karts: [6, 4],
   // New rides batch C.
-  mine_train: [24, 16], launch_coaster: [70, 45], water_coaster: [40, 25],
+  mine_train: [24, 16], launch_coaster: [70, 45], water_coaster: [40, 25], flying_coaster: [60, 40],
 };
 
 const defsOf = (w: World, id: number) => getLayout(dataOf(w, id)).statics.map((st) => st.def);

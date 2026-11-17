@@ -12,7 +12,7 @@ import { PX_Z, viewFrame } from '../../../../src/render/track/project';
 import { executeCommand } from '../../../../src/sim/commands';
 import { makeTestWorld } from '../../../helpers/world';
 import type { PieceSpec } from '../../track/helpers';
-import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN, WATER_COASTER } from '../../track/ridesCCircuits';
+import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, WATER_COASTER } from '../../track/ridesCCircuits';
 
 export function recorder(): { ctx: CanvasRenderingContext2D; pts: Array<[number, number]>; ops: string[] } {
   const pts: Array<[number, number]> = [];
@@ -119,6 +119,7 @@ export const CIRCUITS: ReadonlyArray<readonly [string, number, number, readonly 
   ['mine_train', 6, 4, MINE_TRAIN],
   ['launch_coaster', 6, 4, LAUNCH_COASTER],
   ['water_coaster', 6, 4, WATER_COASTER],
+  ['flying_coaster', 4, 2, FLYING_COASTER],
 ];
 
 describe('batch C rides in today\'s look', () => {

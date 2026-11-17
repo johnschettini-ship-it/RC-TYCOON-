@@ -55,7 +55,7 @@ describe('locked preview cards: which and in what order', () => {
     // (All research rides but the last 3 researched leave 3; batches B and C add research rides.)
     const researchRides = RESEARCH_ORDER.map((r) => r.id).filter(isRide);
     w.state.management.research.unlocked.push(...researchRides.slice(0, researchRides.length - 3));
-    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['monorail', 'inverted_coaster', 'loop_swing']);
+    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['inverted_coaster', 'loop_swing', 'flying_coaster']);
   });
 
   it('follows the order research will take: the current item first, then the focused categories', () => {
@@ -63,7 +63,7 @@ describe('locked preview cards: which and in what order', () => {
     const r = w.state.management.research;
     for (const k of Object.keys(r.focus) as (keyof typeof r.focus)[]) r.focus[k] = k === 'coasters';
     r.current = 'ghost_train';
-    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['ghost_train', 'bobsled_run', 'launch_coaster', 'water_coaster', 'inverted_coaster', 'thunder_disc']);
+    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['ghost_train', 'bobsled_run', 'launch_coaster', 'water_coaster', 'inverted_coaster', 'flying_coaster']);
   });
 
   it('the item research is on now is marked current with its progress; the others are not', () => {

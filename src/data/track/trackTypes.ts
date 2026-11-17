@@ -265,6 +265,15 @@ const RIDES_C_EXTRAS: Extra[] = [
     render: { rail: 'steel', supports: 'round', car: 'boat', colours: { track: 5, supports: 9, cars: 2 } },
   },
   {
+    // Flying Coaster: the Inverted Coaster's track, supports and hanging (rail 2.4 m over the riders' line), with prone
+    // cars. Its pieces and friction; rating terms a step over it (1.4 / 0.6 / 0.3: lying face down adds to every
+    // one), airtime counting as on the Inverted Coaster; the dearest coaster to build (base 4,000).
+    id: 'flying_coaster', groups: [...COASTER, 'L', 'Cs', 'Hx'], chain: true, mu: 0.015, cd: 0.0008, chainSpeedMms: 3000, carLengthMm: 2500, defaultCars: 4,
+    ratings: { e: 1.4, i: 0.6, n: 0.3, kAir: 0.8, extra: 'none' },
+    costs: { base: 4000, pieceFactorPermille: 1200, runBase: 150, extraTrain: 1000 },
+    render: { rail: 'inverted', supports: 'arm', car: 'flying', colours: { track: 7, supports: 9, cars: 2 } },
+  },
+  {
     // Mine Train: the Junior Coaster's groups (no steep slopes, no loops: low drops) plus the helix, for many turns; the
     // Spinning Mouse's small-turn rating extra rewards a twisty layout. Friction, chain and costs sit between the
     // Junior Coaster (1,500) and the Bobsled Run (2,600); rating terms a touch over the Junior's (themed, longer trains).

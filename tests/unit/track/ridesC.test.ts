@@ -14,7 +14,7 @@ import type { World } from '../../../src/sim/types';
 import { deserialize, serialize, validateState } from '../../../src/save';
 import { makeTestWorld } from '../../helpers/world';
 import { addAll, dataOf, EAST, place, rideOf } from './helpers';
-import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN, testLap, WATER_COASTER } from './ridesCCircuits';
+import { buildCircuit, FLYING_COASTER, LAUNCH_COASTER, MINE_TRAIN, testLap, WATER_COASTER } from './ridesCCircuits';
 import { rideWetsRiders } from '../../../src/sim/rides/track/waterHooks';
 import { getLayout } from '../../../src/sim/rides/track/layout';
 import { waterRatingExtras } from '../../../src/sim/rides/track/ratings';
@@ -183,5 +183,39 @@ describe('Water Coaster (thrill, research)', () => {
     const s = place(w, 'steel_coaster', 6, 12, EAST);
     addAll(w, s, ['station']);
     expect(add(w, s, 'flume_splashdown').ok).toBe(false);
+  });
+});
+
+describe('Flying Coaster (thrill, research, late)', () => {
+  it('catalogue row and track type: the Inverted Coaster\'s track with prone cars', () => {
+    expect(getTrackRideDef('flying_coaster')).toMatchObject({ phase: 6, unlock: 'coasters', tag: 'thrill', drive: 'gravity', seatsPerCar: 4, carsMin: 3, carsMax: 8, maxTrains: 3, maxHeightM: 60, intensityHeightM: 40, defaultPrice: 600 });
+    const t = getTrackTypeDef('flying_coaster')!;
+    const inv = getTrackTypeDef('inverted_coaster')!;
+    expect(t.groups).toEqual(inv.groups);
+    expect(t.physics).toEqual(inv.physics);
+    expect(t.render).toEqual({ rail: 'inverted', supports: 'arm', car: 'flying', colours: { track: 7, supports: 9, cars: 2 } });
+    for (const k of ['e', 'i', 'n'] as const) expect(t.ratings[k], k).toBeGreaterThan(inv.ratings[k]);
+  });
+
+  it('is a research item, locked in a new park, and the last item of the research order', () => {
+    expect(isUnlocked(makeTestWorld(), 'flying_coaster')).toBe(false);
+  });
+
+  it('the Inverted Coaster\'s reference circuit builds with commands and rates above the Inverted Coaster', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'flying_coaster', 4, 2, FLYING_COASTER);
+    const t = testLap(w, id);
+    expectSound(w, id, t);
+    expect(t.inversions).toBe(1);
+    const w2 = makeTestWorld();
+    const inv = testLap(w2, buildCircuit(w2, 'inverted_coaster', 4, 2, FLYING_COASTER));
+    // Same track and physics: the same measured lap, rated a step higher.
+    expect([t.vMaxMms, t.posGMax, t.rideTimeTicks]).toEqual([inv.vMaxMms, inv.posGMax, inv.rideTimeTicks]);
+    expect(t.excitement).toBeGreaterThan(inv.excitement);
+    expect(t.intensity).toBeGreaterThan(inv.intensity);
+    expect(t.nausea).toBeGreaterThan(inv.nausea);
+    expect(t.excitement).toBeGreaterThan(500);
+    expect(t.excitement).toBeLessThan(850);
+    expect(t.intensity).toBeLessThan(900);
   });
 });

@@ -63,3 +63,15 @@ export const WATER_COASTER: PieceSpec[] = [
   'turn_medium_right', 'flat_to_gentle_down', 'gentle_down_to_flat',
   'turn_medium_right', 'turn_medium_left', 'turn_small_right', ...times(8, 'straight'), 'turn_small_left', 'turn_small_right', 'turn_small_right',
 ];
+
+const LIFT_16: PieceSpec[] = [chain('flat_to_gentle_up'), chain('gentle_to_steep_up'), chain('steep_up'), chain('steep_to_gentle_up'), chain('gentle_up_to_flat')];
+const DROP_12: PieceSpec[] = ['flat_to_gentle_down', 'gentle_down', 'gentle_to_steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat'];
+
+/**
+ * Flying Coaster from (4, 2) heading +x: the Inverted Coaster's reference circuit (tests/unit/track/phase6Rides.test.ts):
+ * a 16 m lift, a helix down, a 12 m drop, a corkscrew, brakes and medium turns home.
+ */
+export const FLYING_COASTER: PieceSpec[] = [
+  'station', 'station', ...LIFT_16, 'helix_right_down', 'turn_medium_right', ...DROP_12, 'corkscrew_right',
+  { id: 'brakes', brakeSpeed: 8 }, 'turn_medium_right', ...times(11, 'straight'), 'turn_medium_right', ...times(9, 'straight'), 'turn_medium_right',
+];

@@ -85,7 +85,7 @@ describe('starting roster (owner, 2026-11-17)', () => {
     const researched = RESEARCH_ORDER.filter((r) => FLAT_RIDES.some((d) => d.id === r.id) || TRACK_RIDES.some((d) => d.id === r.id)).map((r) => r.id);
     // The research rides keep their relative order; new rides batch B's 5 are inserted by cost among the Build 3 ones.
     expect(researched).toEqual(['thunder_disc', 'go_karts', 'ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft', 'magic_carpet', 'merry_mill',
-      'station_show', 'chair_swing_twist', 'bobsled_run', 'gyro_globe', 'launch_coaster', 'spin_wheel_drop', 'water_coaster', 'carousel_deluxe', 'monorail', 'inverted_coaster', 'loop_swing']);
+      'station_show', 'chair_swing_twist', 'bobsled_run', 'gyro_globe', 'launch_coaster', 'spin_wheel_drop', 'water_coaster', 'carousel_deluxe', 'monorail', 'inverted_coaster', 'loop_swing', 'flying_coaster']);
     for (const id of researched) expect(isUnlocked(w, id), id).toBe(false);
   });
 
@@ -257,7 +257,7 @@ describe('research completion', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    // The last item of the default order (new rides batch B: the Loop Swing, late, 650 points).
+    // The last item of the default order (new rides batch C: the Flying Coaster, late, 700 points).
     const last = RESEARCH_ORDER[RESEARCH_ORDER.length - 1]!;
     r.unlocked = RESEARCH_ORDER.slice(0, -1).map((i) => i.id);
     r.current = last.id;
@@ -272,7 +272,7 @@ describe('research completion', () => {
     const done = w.state.management.messages.filter((m) => m.textId === MSG.researchComplete);
     expect(done).toHaveLength(1);
     expect(done[0]?.category).toBe('research');
-    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'loop_swing', name: 'Loop Swing' });
+    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'flying_coaster', name: 'Flying Coaster' });
   });
 });
 

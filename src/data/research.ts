@@ -62,6 +62,7 @@ export const RESEARCH_ORDER: readonly ResearchItem[] = Object.freeze([
   { id: 'monorail', category: 'gentle', cost: 450 },
   { id: 'inverted_coaster', category: 'coasters', cost: 650 },
   { id: 'loop_swing', category: 'thrill', cost: 650 }, // new rides batch B: late
+  { id: 'flying_coaster', category: 'coasters', cost: 700 }, // new rides batch C: last
 ]);
 
 /**

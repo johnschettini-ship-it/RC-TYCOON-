@@ -52,7 +52,7 @@ export function previewPieces(typeId: string): TrackPieceInstance[] {
       piece('flume_splashdown', 2, 2, -1, 1),
     ];
   }
-  if (typeId === 'inverted_coaster') {
+  if (typeId === 'inverted_coaster' || typeId === 'flying_coaster') {
     return [piece('station', 0, 0, 0, 0), piece('station', 1, 0, 0, 0), piece('corkscrew_right', 2, 0, 0, 0)];
   }
   if (typeId === 'bobsled_run') {
