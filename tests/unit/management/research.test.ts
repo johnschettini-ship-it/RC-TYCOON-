@@ -211,7 +211,7 @@ describe('research completion', () => {
     const w = makeTestWorld();
     const r = w.state.management.research;
     r.level = 'high';
-    // The last item of the default order (Build 3: the Inverted Coaster, 650 points).
+    // The last item of the default order (new rides batch B: the Loop Swing, late, 650 points).
     const last = RESEARCH_ORDER[RESEARCH_ORDER.length - 1]!;
     r.unlocked = RESEARCH_ORDER.slice(0, -1).map((i) => i.id);
     r.current = last.id;
@@ -226,7 +226,7 @@ describe('research completion', () => {
     const done = w.state.management.messages.filter((m) => m.textId === MSG.researchComplete);
     expect(done).toHaveLength(1);
     expect(done[0]?.category).toBe('research');
-    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'inverted_coaster', name: 'Inverted Coaster' });
+    expect(w.state.management.messages.at(-2)?.params).toEqual({ itemId: 'loop_swing', name: 'Loop Swing' });
   });
 });
 
