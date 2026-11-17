@@ -59,7 +59,11 @@ export interface RealTitle {
 }
 
 const STYLE_ID = 'tc-real-title-style';
-/** The name's colours (the mocks); contrast to the outline is checked in the tests (at least 4.5:1). */
+/**
+ * The name's colours (the mocks): the fallbacks of the shared tokens `--tc-title-y`, `--tc-title-c`, `--tc-title-b` and
+ * `--tc-outline` (`src/styles/realBridge.css`, title-to-play bridge §5), which the welcome card uses too. Contrast to
+ * the outline is checked in the tests (at least 4.5:1), for both.
+ */
 export const TITLE_COLOURS = { thrills: '#ffd76e', amp: '#ffa184', chills: '#aee8f8', outline: '#4a230c' } as const;
 /**
  * The style. Built when the title is made, not at module level: a top-level call would keep this module in the website
@@ -81,17 +85,17 @@ const css = (): string => {
 }
 .title-screen[data-art='real'] .title-real-scene[data-ready] { opacity: 1; }
 .title-screen[data-art='real'] .title-logo {
-  --tr-outline: ${TITLE_COLOURS.outline};
+  --tr-outline: var(--tc-outline, ${TITLE_COLOURS.outline});
   left: var(--tr-title-x, 16px); top: var(--tr-title-y, 12px); width: var(--tr-title-w, auto);
   font-family: 'Fredoka', system-ui, sans-serif; font-weight: 600; font-size: var(--tr-title-font, 48px);
   line-height: 1; letter-spacing: 0.01em; text-align: center; white-space: nowrap;
-  color: ${TITLE_COLOURS.thrills};
+  color: var(--tc-title-y, ${TITLE_COLOURS.thrills});
   text-shadow: ${ring}, 0 0.09em 0 var(--tr-outline), 0 0 0.35em rgba(255, 196, 110, 0.75), 0 0 0.8em rgba(255, 150, 70, 0.45);
   padding: 0.06em 0;
   pointer-events: none; user-select: none;
 }
-.title-screen[data-art='real'] .title-logo .tr-amp { color: ${TITLE_COLOURS.amp}; }
-.title-screen[data-art='real'] .title-logo .tr-chills { color: ${TITLE_COLOURS.chills}; }
+.title-screen[data-art='real'] .title-logo .tr-amp { color: var(--tc-title-c, ${TITLE_COLOURS.amp}); }
+.title-screen[data-art='real'] .title-logo .tr-chills { color: var(--tc-title-b, ${TITLE_COLOURS.chills}); }
 .title-screen[data-art='real'] .title-logo[data-kind='stack'] .tr-word { display: block; }
 .title-screen[data-art='real'] .title-logo[data-kind='stack'] .tr-amp { font-size: 0.6em; line-height: 0.9; }
 @media (prefers-reduced-motion: reduce) {
