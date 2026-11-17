@@ -443,9 +443,22 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom'] .content-card .card-name { font-size: calc(13px * var(--ts, 1)); }
 #ui[data-layout='bottom'] .card.tool-card { padding: 6px; }
 #ui[data-layout='bottom'] .card-band { font-size: calc(11px * var(--ts, 1)); padding: 1px 6px; }
-#ui[data-layout='bottom'] .card-price-row { padding: 0 6px; gap: 3px; }
+#ui[data-layout='bottom'] .card-price-row { padding: 0 5px; gap: 3px; }
 #ui[data-layout='bottom'] .card-cost { font-size: calc(12px * var(--ts, 1)); padding: 0 5px; }
 #ui[data-layout='bottom'] .card-track { font-size: calc(11px * var(--ts, 1)); padding: 0 5px; }
+/* "Track": a small chip on the picture's top corner, out of the price row, so every card's price row is one line and
+   names and prices line up across the hand (owner, 2026-11-17; the realistic build does the same in realCards.css).
+   It stays in the price row's markup, so the accessible name still reads "From $X, Track". The top is the zone band's
+   height (its text line, padding and bottom edge) plus 4 px. */
+.card.content-card { position: relative; }
+.content-card .card-track {
+  position: absolute;
+  top: calc(12px * var(--ts, 1) * 1.2 + 4px + 2px + 4px);
+  right: 10px;
+  z-index: 1;
+  background: var(--surface);
+}
+:where(#ui[data-layout='bottom']) .content-card .card-track { top: calc(11px * var(--ts, 1) * 1.2 + 2px + 2px + 3px); right: 8px; }
 /* A cost that wraps (large text) keeps round corners that suit two lines. */
 #ui:not([data-text-scale='100']) .card-cost { border-radius: var(--radius); }
 #ui:not([data-text-scale='100']) .card-research { border-radius: var(--radius); }
@@ -490,7 +503,10 @@ button { font: inherit; color: inherit; }
 .locked-card .card-band,
 .content-card.locked-card[data-zone] .card-band { background: var(--surface-3); }
 .locked-card .card-preview { filter: grayscale(1) opacity(0.5); }
-.card-research { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; font-size: calc(13px * var(--ts, 1)); line-height: 1.3; color: var(--ink); border: var(--control-outline); border-radius: 999px; padding: 0 7px 0 5px; }
+.card-research { display: inline-flex; align-items: center; gap: 3px; font-weight: 700; font-size: calc(13px * var(--ts, 1)); line-height: 1.3; color: var(--ink); border-radius: 999px; padding: 0 7px 0 5px; box-shadow: inset 0 0 0 2px var(--ink); }
+/* The price row is one line on every card: the comma between the price and "Track" (now a chip on the picture) takes
+   no place, and the lock chip's edge is a shadow, so it is no taller than a price. */
+.content-card .card-price-row > .name-sep { position: absolute; }
 .card-research { max-width: 100%; box-sizing: border-box; }
 .card-research > span { min-width: 0; overflow-wrap: anywhere; }
 .card-research .card-lock { width: 1em; height: 1em; flex: none; }

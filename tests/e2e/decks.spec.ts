@@ -742,3 +742,34 @@ test('the locked card research is on shows a progress bar; the Stalls deck shows
   await expect(page.getByTestId('locked-ice_cream_cart')).toHaveAccessibleName('Ice Cream Cart, locked, unlocks with research');
   await expect(page.locator('[data-testid="hand"] .card-progress')).toHaveCount(0);
 });
+
+test('ride cards line up: names from one top, prices on one line, "Track" a chip on the picture (owner, 2026-11-17)', async ({ page }) => {
+  const rows = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('[data-testid="hand"] .content-card')].map((c) => {
+      const top = (sel: string): number => Math.round((c.querySelector(sel) as HTMLElement).getBoundingClientRect().top);
+      const name = c.querySelector('.card-name') as HTMLElement;
+      const range = document.createRange();
+      range.selectNodeContents(name);
+      const track = c.querySelector<HTMLElement>('.card-track');
+      return {
+        id: c.dataset.def,
+        name: top('.card-name'),
+        price: top('.card-cost, .card-research'),
+        lines: new Set([...range.getClientRects()].filter((r) => r.width > 0.5).map((r) => Math.round(r.top))).size,
+        track: track ? { bottom: track.getBoundingClientRect().bottom, nameTop: name.getBoundingClientRect().top, pictureTop: (c.querySelector('.card-preview') as HTMLElement).getBoundingClientRect().top } : null,
+      };
+    }),
+  );
+  expect(rows.length).toBeGreaterThan(2);
+  expect([...new Set(rows.map((r) => r.name))], JSON.stringify(rows)).toHaveLength(1);
+  expect([...new Set(rows.map((r) => r.price))], JSON.stringify(rows)).toHaveLength(1);
+  // Names of one and two lines (Observation Tower) and track rides are all in the hand: the check is not empty.
+  expect(rows.some((r) => r.lines === 2) && rows.some((r) => r.lines === 1) && rows.some((r) => r.track), JSON.stringify(rows)).toBe(true);
+  for (const r of rows) {
+    if (!r.track) continue;
+    expect(r.track.bottom, `${r.id} chip above the name`).toBeLessThanOrEqual(r.track.nameTop);
+    expect(r.track.bottom, `${r.id} chip on the picture`).toBeGreaterThan(r.track.pictureTop);
+  }
+  // The chip stays in the price row's markup: the name still reads "From $X, Track".
+  await expect(page.getByTestId('card-junior_coaster')).toHaveAccessibleName(/Family.*Junior Coaster.*From \$[\d,]+.*Track/);
+});

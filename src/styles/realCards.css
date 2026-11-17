@@ -139,7 +139,7 @@
 .hand .content-card.locked-card .card-band,
 .hand .content-card.locked-card[data-zone] .card-band { background: #8a9099; }
 .hand .content-card.locked-card .card-preview { filter: grayscale(1) brightness(0.85) opacity(0.6); }
-.hand .content-card.locked-card .card-research { padding: 0; border: 0; color: var(--rc-text); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45); }
+.hand .content-card.locked-card .card-research { padding: 0; border: 0; box-shadow: none; color: var(--rc-text); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.45); }
 #ui[data-layout='bottom'] .hand .content-card.locked-card .card-research { padding: 0; }
 .hand .content-card.locked-card .card-progress {
   position: absolute;
