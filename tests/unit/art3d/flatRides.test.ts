@@ -10,17 +10,21 @@ import { d2FloorOk, keyAt, keysAt, periodOk, pictureOf, type Keys } from './fram
 // Plain JS build tool without types: import by a computed path so it loads as `any`.
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
+/** Rides that bake rots [0, 1, 2, 3]: batch 1's (flatRides.js) and new rides batch A's (familyKeys.js). */
+async function nonRound(): Promise<string[]> {
+  return [...(await load('items/flatRides.js')).NON_ROUND, ...(await load('items/familyKeys.js')).FAMILY_NON_ROUND];
+}
 
 describe('NON_ROUND', () => {
   it('names flat rides only', async () => {
-    const { NON_ROUND } = await load('items/flatRides.js');
+    const NON_ROUND = await nonRound();
     const ids = new Set(FLAT_RIDES.map((d) => d.id));
     for (const id of NON_ROUND) expect(ids.has(id), id).toBe(true);
   });
   // The list is what the bake turns by: each ride module bakes one set per view turn exactly when it has a front.
   for (const { id } of FLAT_RIDES) {
     it(`${id}: its module bakes rots [0, 1, 2, 3] if it is in NON_ROUND, else one 'all' set`, async () => {
-      const { NON_ROUND } = await load('items/flatRides.js');
+      const NON_ROUND = await nonRound();
       const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
       const rots = [...src.matchAll(/rots: (\[0, 1, 2, 3\]|'all')/g)].map((m) => m[1]);
       expect(rots, `${id}: one bakeObject call`).toHaveLength(1);
@@ -456,12 +460,14 @@ describe('density 2: fewer pictures, the same frames', () => {
     const sw = await load('items/swingers.js');
     const ar = await load('items/arenaKeys.js');
     const sp = await load('items/spinnerMotion.js');
+    const fam = await load('items/familyKeys.js');
     const out: Record<string, Keys> = {
       carousel: fr.carouselKeys(), swing_tower: fr.swingTowerKeys(4), big_wheel: fr.bigWheelKeys(),
       pendulum_ship: sw.shipKeys(), magic_carpet: sw.carpetKeys(), flip_arm: sw.flipKeys(),
       bumper_cars: ar.bumperKeys(), thunder_disc: ar.thunderKeys(), mirror_maze: ar.mirrorKeys(), haunted_manor: ar.manorKeys(),
     };
     for (const id of ['observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide']) out[id] = tm.towerKeys(id);
+    Object.assign(out, { dodgem_boats: fam.dodgemKeys(), mini_pirate_ship: fam.miniShipKeys(), balloon_wheel: fam.balloonKeys(), frog_hopper: fam.frogKeys() });
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }

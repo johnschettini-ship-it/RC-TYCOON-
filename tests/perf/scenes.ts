@@ -7,7 +7,7 @@
  *   queues, 24 stalls, raised plateaus, a pond, painted ground, 60 scenery items, 2 show sites, 12 staff, and
  *   3,000 guests.
  * - `phone`: the master §10 phone scene: the `build1` park with 800 guests.
- * - `rides`: the phase 8c batch 1 park on the 64 × 64 map: all 18 flat ride types (carousel twice; six rides coloured) in a compact band the bench camera
+ * - `rides`: the phase 8c batch 1 park on the 64 × 64 map: all 18 flat ride types (carousel twice; six rides coloured), in a compact band the bench camera
  *   sees at zoom 0.5, each with its own queue, open, and 300 guests. It tests memory with many different rides on screen.
  *
  * Every guest is a real guest (needs, temperament, decisions), so a perf run measures real ticks. The track rides
@@ -287,8 +287,9 @@ function buildScale(): World {
   run(world, { type: 'buildPathLine', x0: 31, y0: 121, x1: 31, y1: N - 4, kind: 'footpath' });
   const cells: Array<[number, number]> = [];
   for (const m of lines.slice(0, -1)) for (const l of lines.slice(0, -1)) cells.push([l, m]);
-  // 36 rides: every flat ride type twice, spread over the grid (a 7 × 7 cell holds the largest, 4 × 5, with a queue).
-  const types = FLAT_RIDES.map((d) => d.id);
+  // 36 rides: the 18 batch 1 flat ride types twice, spread over the grid (a 7 × 7 cell holds the largest, 4 × 5, with a
+  // queue). New ride types are appended to FLAT_RIDES, so the first 18 stay the batch 1 ones and the save is unchanged.
+  const types = FLAT_RIDES.slice(0, SCALE_SCENE.rideTypes).map((d) => d.id);
   if (types.length !== SCALE_SCENE.rideTypes) throw new Error(`expected ${SCALE_SCENE.rideTypes} flat ride types, found ${types.length}`);
   const stallIds = ['snack_shack', 'fizz_stand', 'restrooms', 'balloon_stand'];
   let k = 0;

@@ -15,6 +15,8 @@ const RIDE_DEPS = ['items/flatRides.js'];
 const TOWER_DEPS = [...RIDE_DEPS, 'items/towerMotion.js'];
 const SWINGER_DEPS = [...RIDE_DEPS, 'items/swingers.js', 'items/swingParts.js'];
 const ARENA_DEPS = [...RIDE_DEPS, 'items/arenaKeys.js', 'items/arenaKit.js'];
+/** New rides batch A (family flat rides): their keys, the motion they share with today's look, and the kit parts they use. */
+const FAMILY_DEPS = [...RIDE_DEPS, 'items/familyKeys.js', '../../src/render/sprites/content/familyMotion.ts', 'items/swingParts.js', 'items/arenaKit.js'];
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = SCENERY_DEPS; // bench and bin bake through items/scenery.js, which imports sprites.ts
 

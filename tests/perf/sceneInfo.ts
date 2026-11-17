@@ -30,10 +30,11 @@ export const PERF_SCENES: readonly PerfSceneInfo[] = [
 ];
 
 /**
- * Stage 1 round 3 item 7: the scale park, a synthetic bench scene for the realistic look at full scale: every one of
- * the 18 flat ride types (2 rides each), 5,000 scenery items of the baked kinds, and 3,000 guests on the 128 × 128
- * map. Only the bench runs it (not the Phase 6 perf runs). In the bench, each ride type is drawn from its own copy of
- * a baked ride's sets (alias sets, `src/render/real/aliases.ts`), so 18 types decode and count as 18 would.
+ * Stage 1 round 3 item 7: the scale park, a synthetic bench scene for the realistic look at full scale: the 18 flat
+ * ride types of batch 1 (2 rides each; the first 18 of `FLAT_RIDES`, so the new rides of batch A leave its save as it
+ * was), 5,000 scenery items of the baked kinds, and 3,000 guests on the 128 × 128 map. Only the bench runs it (not
+ * the Phase 6 perf runs). In the bench, each ride type is drawn from its own copy of a baked ride's sets (alias sets,
+ * `src/render/real/aliases.ts`), so 18 types decode and count as 18 would.
  */
 export interface ScaleSceneInfo extends Omit<PerfSceneInfo, 'id'> {
   id: 'scale';
