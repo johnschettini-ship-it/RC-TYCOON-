@@ -47,6 +47,22 @@ export interface CoverFraming {
   /** Where the twinkling bulbs are looked for (inside the painted area). */
   lights: Rect;
 }
+/** An ellipse in the file's px. */
+export interface Ellipse {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+}
+/** A poster area that lights when its goal is done: an ellipse, or one or more boxes. */
+export interface GoalArea {
+  ellipse?: Ellipse;
+  rect?: Rect | Rect[];
+}
+/** The "Make the poster real" goals (title-to-play bridge §4), in the order the panel lists them. */
+export const POSTER_GOALS = ['wheel', 'coaster', 'stalls', 'arch', 'crowd'] as const;
+export type PosterGoal = (typeof POSTER_GOALS)[number];
+
 /** `art/real/title/index.json`. */
 export interface CoverIndex {
   format: 'cover/1';
@@ -58,6 +74,11 @@ export interface CoverIndex {
    * the art check (`tools/art3d/titleIndex.ts` `checkCoverFolder`) requires it.
    */
   arch?: { x: number; y: number };
+  /**
+   * The poster area of each goal of "Make the poster real", in the wide file's px (the panel's thumbnail lights it in
+   * colour). Optional for the reader (no panel thumbnail lights without it); required by the art check.
+   */
+  goals?: Record<PosterGoal, GoalArea>;
   /** Written by the copy step for the record; not needed by the reader. */
   bytes?: { compressed: number; decoded: { wide: number; tall: number } };
 }
@@ -222,6 +243,24 @@ export function checkCoverIndex(raw: unknown): CoverIndex | Error {
     const W = o.wide as CoverFraming;
     if (!a || typeof a !== 'object' || !isNum(a.x) || !isNum(a.y)) return new Error('cover index: arch is not a point');
     if (a.x < 0 || a.y < 0 || a.x > W.w || a.y > W.h) return new Error('cover index: arch outside the wide file');
+  }
+  if (o.goals !== undefined) {
+    const G = o.goals as Partial<Record<string, GoalArea>> | null;
+    const W = o.wide as CoverFraming;
+    const file: Rect = { x: 0, y: 0, w: W.w, h: W.h };
+    if (!G || typeof G !== 'object') return new Error('cover index: goals is not an object');
+    for (const id of POSTER_GOALS) {
+      const g = G[id];
+      if (!g || typeof g !== 'object') return new Error(`cover index: goal ${id} missing`);
+      const rects = g.rect === undefined ? [] : Array.isArray(g.rect) ? g.rect : [g.rect];
+      if (!g.ellipse && rects.length === 0) return new Error(`cover index: goal ${id} has no area`);
+      for (const r of rects) if (!isRect(r) || !inside(r, file)) return new Error(`cover index: goal ${id} box outside the wide file`);
+      const e = g.ellipse;
+      if (e) {
+        if (![e.cx, e.cy, e.rx, e.ry].every(isNum) || e.rx <= 0 || e.ry <= 0) return new Error(`cover index: goal ${id} ellipse is not an ellipse`);
+        if (!inside({ x: e.cx - e.rx, y: e.cy - e.ry, w: 2 * e.rx, h: 2 * e.ry }, file)) return new Error(`cover index: goal ${id} ellipse outside the wide file`);
+      }
+    }
   }
   return o as CoverIndex;
 }

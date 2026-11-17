@@ -234,14 +234,14 @@ export function mountUI(root: HTMLElement, game: Game): void {
     plainHiddenUntil = 0;
   });
   const title = createTitleScreen(ctx);
-  // Title-to-play bridge (realistic look only): the arrival glow, the welcome card and the poster goal (`./bridge`).
-  if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') mountBridge(ctx);
   // Phase 7 §4.8: one tip at a time.
   const tip = createTipBubble(ctx);
   // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).
   const extraBars = UI_EXTENSIONS.flatMap((x) => (x.bars ? [x.bars(ctx)] : []));
   root.append(hud.el, decks.el, status.el, patrolBar.el, pathItemBar.el, ...extraBars.map((b) => b.el), tip.el, tip.live, panels.el, toastView.el, messageToast.el, fileInput, title.el);
   mountTrackUi(ctx);
+  // Title-to-play bridge (realistic look only): the arrival glow, the welcome card and the poster goal (`./bridge`).
+  if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') mountBridge(ctx, title.el);
 
   // Task 19: a low window (a phone held sideways) has the phone layout with its own rules (`data-low`): its panels are
   // right-side panels, and the hand closes when the window becomes low.

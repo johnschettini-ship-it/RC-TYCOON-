@@ -69,3 +69,50 @@
   color: var(--ink);
 }
 .tc-welcome-go:hover { background: #6cc0ef; }
+
+/* "Make the poster real": top right under the speed controls, open on desktop, a chip on phones. */
+.tc-goal {
+  position: absolute;
+  top: calc(var(--hud-bottom) + 10px);
+  right: calc(10px + var(--safe-right));
+  width: 220px;
+  max-width: calc(100% - 20px - var(--safe-left) - var(--safe-right));
+  max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px - var(--safe-bottom));
+  overflow-y: auto;
+  pointer-events: auto;
+  color: var(--tc-brown);
+  background: var(--tc-cream);
+  border: 3px solid var(--tc-coral);
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 2px var(--tc-cream), inset 0 0 0 3px var(--tc-coral), 0 6px 18px rgba(42, 32, 41, 0.35);
+}
+.tc-goal:not([data-open]) { width: auto; }
+.tc-goal[hidden] { display: none; }
+/* Desktop: a side panel (or the track builder) takes the right side; the goal steps aside. */
+#ui[data-layout='side']:has(.panel[data-layout='side']:not([hidden]), .track-builder:not([hidden])) .tc-goal { display: none; }
+.tc-goal-head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px;
+  width: 100%; min-height: 44px; padding: 8px 12px;
+  text-align: left; color: inherit; background: transparent; border: 0; border-radius: 13px;
+  font: inherit; font-size: calc(14px * var(--ts, 1)); line-height: 1.25; cursor: pointer;
+}
+.tc-goal-head:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
+.tc-goal-title { font-weight: 700; }
+.tc-goal-count { font-weight: 600; white-space: nowrap; }
+.tc-goal-body { padding: 0 12px 12px; }
+.tc-goal-thumb {
+  display: block; width: 100%; aspect-ratio: 1376 / 768; max-width: none;
+  border-radius: 6px; background: #e4dccb;
+}
+.tc-goal-bar { height: 8px; margin: 8px 0; border-radius: 4px; background: rgba(217, 97, 74, 0.22); overflow: hidden; }
+.tc-goal-fill { height: 100%; width: 0; background: var(--tc-coral); border-radius: 4px; }
+.tc-goal-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: calc(13px * var(--ts, 1)); line-height: 1.25; }
+.tc-goal-list li { display: grid; grid-template-columns: 16px 1fr; column-gap: 8px; align-items: start; }
+.tc-goal-mark { width: 14px; height: 14px; margin-top: 1px; border: 2px solid var(--tc-coral); border-radius: 50%; box-sizing: border-box; }
+.tc-goal-list li[data-done] .tc-goal-mark { background: var(--tc-coral); box-shadow: inset 0 0 0 2px var(--tc-cream); }
+.tc-goal-name { font-weight: 600; overflow-wrap: break-word; min-width: 0; }
+.tc-goal-hint { grid-column: 2; font-size: calc(12px * var(--ts, 1)); color: #7a4631; overflow-wrap: break-word; min-width: 0; }
+.tc-goal-hint[hidden] { display: none; }
+.tc-goal-complete { margin: 8px 0 6px; font-weight: 700; font-size: calc(15px * var(--ts, 1)); text-align: center; }
+.tc-goal-complete[hidden], .tc-goal-close[hidden] { display: none; }
+.tc-goal-close { width: 100%; justify-content: center; }
