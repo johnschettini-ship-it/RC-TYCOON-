@@ -55,6 +55,7 @@ export const RESEARCH_ORDER: readonly ResearchItem[] = Object.freeze([
   { id: 'lightshow_tower', category: 'scenery', cost: 300 },
   { id: 'photo_booth', category: 'shops', cost: 200 },
   { id: 'merry_mill', category: 'gentle', cost: 250 },
+  { id: 'chair_swing_twist', category: 'thrill', cost: 450 }, // new rides batch B
   { id: 'bobsled_run', category: 'coasters', cost: 500 },
   { id: 'noodle_bar', category: 'shops', cost: 220 },
   { id: 'gyro_globe', category: 'thrill', cost: 550 },

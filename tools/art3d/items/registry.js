@@ -81,6 +81,14 @@ export const ITEM_LIST = [
   { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
 ];
 
+// New rides batch B (docs/superpowers/specs/2026-11-17-new-rides-design.md): one bake module each, their motion and
+// frame keys in items/ridesB.js; each has its own card picture.
+const RIDES_B_DEPS = [...RIDE_DEPS, 'items/ridesB.js'];
+for (const id of ['chair_swing_twist']) {
+  ITEM_LIST.push({ id, file: `items/${id}.js`, catalog: ['ride', id], deps: RIDES_B_DEPS });
+  CARD_ITEMS.push({ id, kind: 'ride' });
+}
+
 // The earlier title panorama (items/title.js): a whole park scene from a free camera and the name signs, written to
 // their own folder (out: 'title-panorama', with its index.json, tools/art3d/titleIndex.ts checkTitleIndex), not as
 // sets. The game shows the owner's poster cover instead (art-src/title/, tools/art3d/cover.mjs, 2026-11-17), so this

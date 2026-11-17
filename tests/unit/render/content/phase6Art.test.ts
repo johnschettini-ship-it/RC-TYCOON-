@@ -12,6 +12,7 @@ import { drawStallArt, stallArtBounds } from '../../../../src/render/sprites/sta
 import { defHash, spriteKey } from '../../../../src/render/spriteCache';
 import type { Dir } from '../../../../src/sim/map';
 import { Recorder } from './recorder';
+import { RIDES_B_IDS } from '../../../helpers/ridesB';
 
 const RIDES = FLAT_RIDES.filter((d) => d.phase === 6);
 const STALL_IDS = STALLS.filter((d) => d.phase === 6).map((d) => d.id);
@@ -39,8 +40,8 @@ afterEach(() => {
 });
 
 describe('Phase 6 flat ride art', () => {
-  it('has its own art for each of the 4 rides', () => {
-    expect(RIDES.map((d) => d.id)).toEqual(['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']);
+  it('has its own art for each of the 4 rides, and the new rides of batch B', () => {
+    expect(RIDES.map((d) => d.id)).toEqual(['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe', ...RIDES_B_IDS]);
     for (const d of RIDES) expect(CONTENT_RIDE_ART[d.id], d.id).toBeDefined();
   });
 

@@ -13,14 +13,15 @@ import { stepTick } from '../../../src/sim/tick';
 import { validateState } from '../../../src/save/codec';
 import { addGuestDirect, makeTestWorld } from '../../helpers/world';
 import { facilityPark, MAIN_Y, placeConnectedRide } from '../facilities/park';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 
 const RIDES = FLAT_RIDES.filter((d) => d.phase === 6);
 const STALL_IDS = STALLS.filter((d) => d.phase === 6).map((d) => d.id);
 const TEMPERAMENT = { thrill: 90, family: 50, chill: 20 } as const;
 
 describe('Phase 6 flat rides build, operate, and earn with their catalog numbers', () => {
-  it('the catalog has the 4 Phase 6 flat rides', () => {
-    expect(RIDES.map((d) => d.id)).toEqual(['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']);
+  it('the catalog has the 4 Phase 6 flat rides, and the new rides of batch B', () => {
+    expect(RIDES.map((d) => d.id)).toEqual(['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe', ...RIDES_B_IDS]);
   });
 
   it.each(RIDES.map((d) => [d.id, d] as const))('%s: locked → researched → placed (charged) → open → guests ride the full cycle', (id, def) => {

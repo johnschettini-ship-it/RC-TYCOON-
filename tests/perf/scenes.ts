@@ -28,6 +28,7 @@ import { addGuestDirect } from '../helpers/world';
 import { SCALE_SCENE, type PerfSceneId } from './sceneInfo';
 import { FLAT_RIDES, gateIndex } from '../../src/data/catalog/flatRides';
 import { CELL_H, CELL_W, RIDES_CELLS, RIDES_COLOURS, RIDES_EXTRA, RIDES_FOCUS } from './ridesLayout';
+import { RIDES_CELLS_B } from './ridesLayout';
 
 export { PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT, type PerfSceneId, type PerfSceneInfo } from './sceneInfo';
 
@@ -332,8 +333,9 @@ function buildScale(): World {
 function buildRides(): World {
   const world = createWorld({ seed: 8181, parkName: 'Rides Perf Park' });
   world.state.park.cash = 100_000_000;
-  const is = RIDES_CELLS.map((c) => c[0]);
-  const js = RIDES_CELLS.map((c) => c[1]);
+  const cells = [...RIDES_CELLS, ...Object.values(RIDES_CELLS_B)];
+  const is = cells.map((c) => c[0]);
+  const js = cells.map((c) => c[1]);
   const x0 = RIDES_FOCUS.x + CELL_W * Math.min(...is);
   const x1 = RIDES_FOCUS.x + CELL_W * (Math.max(...is) + 1);
   const y0 = RIDES_FOCUS.y + CELL_H * Math.min(...js);
@@ -350,7 +352,7 @@ function buildRides(): World {
     if (colour !== undefined) run(world, { type: 'setRideColour', rideId: id, colour });
     run(world, { type: 'setRideOpen', rideId: id, open: true });
   };
-  FLAT_RIDES.forEach((def, k) => place(def, RIDES_CELLS[k] as readonly [number, number], RIDES_COLOURS[def.id]));
+  FLAT_RIDES.forEach((def, k) => place(def, (RIDES_CELLS_B[def.id] ?? RIDES_CELLS[k]) as readonly [number, number], RIDES_COLOURS[def.id]));
   const extra = FLAT_RIDES.find((d) => d.id === RIDES_EXTRA.defId);
   if (!extra) throw new Error(`rides: no flat ride ${RIDES_EXTRA.defId}`);
   place(extra, RIDES_EXTRA.cell, RIDES_EXTRA.colour);

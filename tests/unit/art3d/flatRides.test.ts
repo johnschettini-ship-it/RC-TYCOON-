@@ -462,6 +462,9 @@ describe('density 2: fewer pictures, the same frames', () => {
       bumper_cars: ar.bumperKeys(), thunder_disc: ar.thunderKeys(), mirror_maze: ar.mirrorKeys(), haunted_manor: ar.manorKeys(),
     };
     for (const id of ['observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide']) out[id] = tm.towerKeys(id);
+    // New rides batch B (2026-11-17).
+    const rb = await load('items/ridesB.js');
+    out.chair_swing_twist = rb.twistKeys();
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }
@@ -477,6 +480,8 @@ describe('density 2: fewer pictures, the same frames', () => {
     mirror_maze: { step: 2, d4: 4, d2: 4, walkThrough: true }, haunted_manor: { step: 2, d4: 4, d2: 4, walkThrough: true },
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
+    // New rides batch B (2026-11-17).
+    chair_swing_twist: { step: 2, d4: 17, d2: 17 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -663,4 +668,36 @@ describe('ride colour part', () => {
       expect(src, id).toMatch(/colour(Part|Mesh)\(/);
     });
   }
+});
+
+// New rides batch B (docs/superpowers/specs/2026-11-17-new-rides-design.md). The bake follows today's motion
+// (src/render/sprites/content/batchBRides.ts), which reads st.angle = slot / 32: one motion cycle per turn; none of the
+// rides has a REVOLUTIONS entry (anim.ts unchanged), so a run plays it twice and starts and ends at rest.
+describe('new rides batch B frames', () => {
+  it('chair_swing_twist: period 32 (the lean goes round once per turn), 16 pictures full and one at rest', async () => {
+    const { twistKeys } = await load('items/ridesB.js');
+    const m: Keys = twistKeys();
+    expect(m.size).toBe(16 + 1);
+    periodOk(m, 'chair_swing_twist', 32, true);
+    for (let a = 0; a < 32; a++) expect(pictureOf(m, keyAt('chair_swing_twist', a, false)), `slot ${a}`).toBe('rest');
+    expect(m.get('rest')!.keys[0]).toBe(keyAt('chair_swing_twist', 0, false)); // posed at slot 0
+  });
+
+  it('chair_swing_twist: the bake\'s climb, tilt, lean heading and spin are today\'s at every slot', async () => {
+    const { twistPose, twistShare, TWIST } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    expect(TWIST.tilt).toBe(today.TWIST_TILT);
+    expect(TWIST.spin).toBe(today.TWIST_SPIN);
+    expect(TWIST.throw).toBe(today.TWIST_THROW);
+    for (let a = 0; a <= 32; a++) {
+      expect(twistShare(a), `slot ${a}`).toBeCloseTo(today.twistShare(a / 32), 12);
+      const p = twistPose(a);
+      expect(p.tilt).toBeCloseTo(today.TWIST_TILT * today.twistShare(a / 32), 12);
+      expect(p.heading).toBeCloseTo((2 * Math.PI * a) / 32, 12);
+    }
+    // At rest (slot 0 and the end of each turn) the top is down and level.
+    expect(twistShare(0)).toBe(0);
+    expect(twistShare(32)).toBeCloseTo(0, 12);
+    expect(twistShare(16)).toBe(1);
+  });
 });

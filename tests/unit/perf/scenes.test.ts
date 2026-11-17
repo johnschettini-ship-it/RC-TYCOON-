@@ -14,6 +14,7 @@ import { mapPointToWorld, tileCentreWorld } from '../../../src/input/camera';
 import { Content } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
 import { buildPerfScene, PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT } from '../../perf/scenes';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 
 const DIR = join(__dirname, '../../perf');
 const write = !!process.env.TC_WRITE_SCENES;
@@ -121,8 +122,8 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     // Every flat ride type, plus a second carousel (flat-ride colours: one type twice in two colours).
     expect(new Set(flat.map((x) => x.defId))).toEqual(new Set(FLAT_RIDES.map((d) => d.id)));
     expect(flat.map((x) => x.defId).sort()).toEqual([...FLAT_RIDES.map((d) => d.id), 'carousel'].sort());
-    expect(info!.flatRides).toBe(19);
-    expect(flat).toHaveLength(19);
+    expect(info!.flatRides).toBe(19 + RIDES_B_IDS.length);
+    expect(flat).toHaveLength(19 + RIDES_B_IDS.length);
     expect(info!.trackRides).toBe(0);
     // Paths: from the park entrance over footpath and queue tiles, every ride's entrance and exit tile is reached.
     const reach = new Set<number>([s.map.entranceTile]);
@@ -175,7 +176,7 @@ describe('perf scenes (Phase 6 §4.6)', () => {
     const r = deserialize(readFileSync(join(DIR, PERF_SCENES.find((x) => x.id === 'rides')!.file), 'utf8'));
     if (!r.ok) throw new Error(r.error);
     // The bench holds zoom 0.5 at rotation 0 (rotation 2 is the same band, turned over): all 19 footprints inside.
-    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 19, touching: 19 });
+    for (const rot of [0, 2] as const) expect(inView(r.world, 0.5, rot), `rot ${rot}`).toEqual({ inside: 19 + RIDES_B_IDS.length, touching: 19 + RIDES_B_IDS.length });
     // Rotations 1 and 3 turn the band across the narrow view: the view cannot hold 18 (it fits 12 tiles of
     // |u-v| there); the measured counts (7 inside, 10 touching) are the floor.
     for (const rot of [1, 3] as const) {

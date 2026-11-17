@@ -12,6 +12,7 @@ import { contentInfo, isUnlocked } from '../../../src/sim/research/api';
 import { hourlyResearch, pickNextResearch } from '../../../src/sim/research/update';
 import { TICKS_PER_MONTH } from '../../../src/data/tuning/core';
 import { makeTestWorld } from '../../helpers/world';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 
 const THEMES = ['frost_peaks', 'volcano_ridge', 'spooky_hollow', 'jungle_lagoon', 'starport'];
 
@@ -22,7 +23,7 @@ describe('Phase 4 research entries', () => {
 
   it('adds Log Flume 480, Rapids Raft 540, and 240 per theme after the 21 Build 1 items', () => {
     // Build 3 (W4-D) appends 12 more items after these (tests/unit/content/research.test.ts).
-    expect(RESEARCH_ORDER).toHaveLength(28 + 12);
+    expect(RESEARCH_ORDER).toHaveLength(28 + 12 + RIDES_B_IDS.length);
     const build2 = RESEARCH_ORDER.slice(21, 28);
     expect(build2.map((r) => [r.id, r.category, r.cost])).toEqual([
       ['log_flume', 'water', 480],

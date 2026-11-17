@@ -5,6 +5,7 @@
  * content stays locked …" with "Phase 6 content unlocks by research" when it raised `BUILD_MAX_PHASE`.
  */
 import { describe, expect, it } from 'vitest';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 import { FLAT_RIDES, getFlatRideDef, getShowSiteDef, getStallDef, getTrackRideDef, SHOW_SITES, STALLS, TRACK_RIDES } from '../../../src/data/catalog';
 import { BUILD_MAX_PHASE } from '../../../src/data/tuning/management';
 import { en, text } from '../../../src/data/strings/en';
@@ -198,7 +199,7 @@ describe('Phase 6 catalog rows (phase-6-polish.md §4.5)', () => {
     expect(BUILD_MAX_PHASE).toBe(6);
     const w = makeTestWorld();
     const ids = [...FLAT_RIDES, ...TRACK_RIDES, ...STALLS, ...SHOW_SITES].filter((d) => d.phase === 6).map((d) => d.id);
-    expect(ids).toHaveLength(12);
+    expect(ids).toHaveLength(12 + RIDES_B_IDS.length);
     for (const id of ids) expect(isUnlocked(w, id), id).toBe(false);
     w.state.management.research.unlocked.push(...ids);
     for (const id of ids) expect(isUnlocked(w, id), id).toBe(true);

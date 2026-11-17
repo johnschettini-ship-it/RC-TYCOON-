@@ -11,6 +11,7 @@ import { drawBumperCars, drawHauntedManor, drawMirrorMaze, drawObservationTower,
 import { STALL_DRAW } from './stalls';
 import { drawGyroGlobe, drawKiddieCars, drawMagicCarpet, drawMerryMill } from './phase6Rides';
 import { drawDropTower, drawFlipArm, drawPendulumShip, drawThunderDisc } from './thrillRides';
+import { drawChairSwingTwist } from './batchBRides';
 
 export interface ContentRideArt {
   /** Highest art point above the footprint centre (world px), for `rideArtBounds`. */
@@ -43,6 +44,8 @@ export const CONTENT_RIDE_ART: Readonly<Record<string, ContentRideArt>> = {
   kiddie_cars: ride(78, drawKiddieCars),
   merry_mill: ride(116, drawMerryMill),
   gyro_globe: ride(148, drawGyroGlobe),
+  // New rides batch B (2026-11-17).
+  chair_swing_twist: ride(112, drawChairSwingTwist),
 };
 
 export const CONTENT_STALL_ART: Readonly<Record<string, ContentStallArt>> = Object.fromEntries(
