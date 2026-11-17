@@ -1,6 +1,6 @@
 /**
  * The title-to-play bridge (`docs/superpowers/specs/2026-11-17-title-to-play-bridge-design.md`): the push through the
- * arch, the arrival glow, the welcome card and the "Make the poster real" goal panel. Needs a VITE_ART=real build with
+ * arch, the arrival glow and the welcome card. Needs a VITE_ART=real build with
  * the baked art in `art/real/` and the cover in `art/real/title/` (see `title-real.spec.ts`):
  *
  *   VITE_ART=real npx vite build --outDir <dir> && cp -r <baked art> <dir>/art/real && node tools/art3d/cover.mjs --out <dir>/art/real
@@ -215,7 +215,7 @@ test.describe('title-to-play bridge (VITE_ART=real build)', () => {
     const card = page.getByRole('dialog', { name: 'Welcome to Thrills & Chills' });
     await expect(card).toBeVisible();
     await expect(page.getByTestId('welcome-go')).toBeFocused();
-    await expect(card).toContainText('Your park is an empty field. Build the park on the poster!');
+    await expect(card).toContainText('Your park is an empty field. Let\'s build something amazing!');
     // The game is paused while it is open, and the first tip ("no ride yet") waits.
     expect(await speed(page)).toBe(0);
     await page.waitForTimeout(2600);
@@ -318,120 +318,4 @@ test.describe('title-to-play bridge (VITE_ART=real build)', () => {
       });
     }
   }
-
-  /** Mean colourfulness ((max - min) / 255) of the thumbnail inside a box given in poster px. */
-  const colourIn = (page: Page, box: { x: number; y: number; w: number; h: number }): Promise<number> =>
-    page.getByTestId('poster-goal-thumb').evaluate((c, b) => {
-      const cv = c as HTMLCanvasElement;
-      const k = cv.width / 1376;
-      const x = cv.getContext('2d') as CanvasRenderingContext2D;
-      const d = x.getImageData(Math.round(b.x * k), Math.round(b.y * k), Math.max(1, Math.round(b.w * k)), Math.max(1, Math.round(b.h * k))).data;
-      let sum = 0;
-      for (let i = 0; i < d.length; i += 4) sum += (Math.max(d[i] ?? 0, d[i + 1] ?? 0, d[i + 2] ?? 0) - Math.min(d[i] ?? 0, d[i + 1] ?? 0, d[i + 2] ?? 0)) / 255;
-      return sum / (d.length / 4);
-    }, box);
-  const WHEEL_BOX = { x: 560, y: 120, w: 250, h: 130 };
-  const COASTER_BOX = { x: 1150, y: 150, w: 150, h: 200 };
-  const buildWheel = (page: Page): Promise<boolean> =>
-    page.evaluate(() => {
-      const g = (window as unknown as { __tc: { dispatch(c: unknown): { ok: boolean } } }).__tc;
-      return g.dispatch({ type: 'placeRide', defId: 'big_wheel', x: 26, y: 40, rotation: 0 }).ok;
-    });
-  const thumbReady = (page: Page) => expect.poll(() => page.getByTestId('poster-goal-thumb').evaluate((c) => (c as HTMLCanvasElement).width), { timeout: 5000 }).toBeGreaterThan(0);
-
-  test('goal panel (desktop): 0 of 5 in grey; a big wheel built lights the wheel, 1 of 5; list text; axe clean', async ({ browser }) => {
-    const { ctx, page, errors } = await open(browser, DESKTOP);
-    await toWelcome(page, 'Poster Park');
-    await page.getByTestId('welcome-go').click();
-    const panel = page.getByRole('complementary', { name: 'Make the poster real' });
-    await expect(panel).toBeVisible();
-    await expect(page.getByTestId('poster-goal-toggle')).toHaveAttribute('aria-expanded', 'true');
-    await expect(page.getByTestId('poster-goal-count')).toHaveText(' · 0 of 5');
-    await thumbReady(page);
-    expect(await colourIn(page, WHEEL_BOX)).toBeLessThan(0.08);
-    expect(await colourIn(page, COASTER_BOX)).toBeLessThan(0.08);
-    const items = await panel.locator('li').allInnerTexts();
-    expect(items.length).toBe(5);
-    expect(await panel.locator('li[data-goal="wheel"] .tc-goal-name').textContent()).toBe('Big wheel: to do');
-    await scan(page, 'goal panel 0 of 5');
-    await shot(page, 'goal-0of5-1366x768');
-    expect(await buildWheel(page)).toBe(true);
-    await expect(page.getByTestId('poster-goal-count')).toHaveText(' · 1 of 5', { timeout: 2000 });
-    expect(await panel.locator('li[data-goal="wheel"] .tc-goal-name').textContent()).toBe('Big wheel: done');
-    await expect(page.getByTestId('poster-goal-thumb')).toHaveAttribute('data-lit', 'wheel');
-    expect(await colourIn(page, WHEEL_BOX)).toBeGreaterThan(0.25);
-    expect(await colourIn(page, COASTER_BOX)).toBeLessThan(0.08);
-    // The wheel's card panel may have opened over the right side: closed for the shot.
-    await page.keyboard.press('Escape');
-    await expect(panel).toBeVisible();
-    await shot(page, 'goal-1of5-1366x768');
-    // Demolish turns the goal back off.
-    await page.evaluate(() => {
-      const g = (window as unknown as { __tc: { dispatch(c: unknown): unknown; world: { state: { rides: Array<{ defId: string; x: number; y: number }> } } } }).__tc;
-      const r = g.world.state.rides.find((x) => x.defId === 'big_wheel');
-      if (r) g.dispatch({ type: 'demolish', x: r.x, y: r.y });
-    });
-    await expect(page.getByTestId('poster-goal-count')).toHaveText(' · 0 of 5', { timeout: 2000 });
-    expect(errors).toEqual([]);
-    await ctx.close();
-  });
-
-  test('goal panel (phone 390x844): a chip by default; opened it shows the poster; 1 of 5 with the wheel lit', async ({ browser }) => {
-    const { ctx, page } = await open(browser, PHONES[0]);
-    await toWelcome(page, 'Phone Park');
-    await page.getByTestId('welcome-go').tap();
-    const toggle = page.getByTestId('poster-goal-toggle');
-    await expect(toggle).toBeVisible();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await expect(page.getByTestId('poster-goal-thumb')).toBeHidden();
-    await shot(page, 'goal-0of5-390x844-chip');
-    await toggle.tap();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await thumbReady(page);
-    const box = await page.getByTestId('poster-goal').boundingBox();
-    expect(box && box.x >= 0 && box.x + box.width <= 390.5 && box.y + box.height <= 844.5).toBe(true);
-    await shot(page, 'goal-0of5-390x844-open');
-    expect(await buildWheel(page)).toBe(true);
-    await expect(page.getByTestId('poster-goal-count')).toHaveText(' · 1 of 5', { timeout: 2000 });
-    await expect(page.getByTestId('poster-goal-thumb')).toHaveAttribute('data-lit', 'wheel');
-    expect(await colourIn(page, WHEEL_BOX)).toBeGreaterThan(0.25);
-    // The tip ("build a ride and open it") shows by now: the panel sits below it, never over it.
-    await page.waitForTimeout(2500);
-    const tip = await page.getByTestId('tip').boundingBox();
-    const me = await page.getByTestId('poster-goal').boundingBox();
-    if (tip && me) expect(me.y, 'panel below the tip').toBeGreaterThanOrEqual(tip.y + tip.height);
-    await shot(page, 'goal-1of5-390x844-open');
-    await toggle.tap();
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    // Collapsed: the thumbnail copies are freed.
-    expect(await page.getByTestId('poster-goal-thumb').evaluate((c) => (c as HTMLCanvasElement).width)).toBe(0);
-    // Still below the tip after the next checks (it does not jump back over it).
-    await page.waitForTimeout(1200);
-    const tip2 = await page.getByTestId('tip').boundingBox();
-    const chip = await page.getByTestId('poster-goal').boundingBox();
-    if (tip2 && chip) expect(chip.y, 'chip below the tip').toBeGreaterThanOrEqual(tip2.y + tip2.height);
-    await shot(page, 'goal-1of5-390x844-chip');
-    await ctx.close();
-  });
-
-  test('goal panel: hidden in a scenario, and gone for good once dismissed (stored under tcreal:)', async ({ browser }) => {
-    const { ctx, page } = await open(browser, DESKTOP);
-    await page.goto('/');
-    await expect(posterReady(page)).toHaveCount(1, { timeout: 10_000 });
-    await page.getByTestId('title-new').click();
-    await page.getByTestId('title-scenarios').click();
-    await page.locator('[data-testid^="scenario-card-"]').first().click();
-    await page.getByTestId('scenario-start').click();
-    await expect(page.locator('.title-screen')).toBeHidden();
-    await page.waitForTimeout(800);
-    await expect(page.getByTestId('poster-goal')).toBeHidden();
-    await ctx.close();
-    const second = await open(browser, DESKTOP);
-    await second.page.addInitScript(() => window.localStorage.setItem('tcreal:tc.posterGoal', 'dismissed'));
-    await toWelcome(second.page, 'Done Park');
-    await second.page.getByTestId('welcome-go').click();
-    await second.page.waitForTimeout(800);
-    await expect(second.page.getByTestId('poster-goal')).toBeHidden();
-    await second.ctx.close();
-  });
 });

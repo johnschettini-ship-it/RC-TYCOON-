@@ -34,7 +34,7 @@ import { contentStrings } from './content';
 import { realBenchStrings } from './realBench';
 // Realistic card frames: only the VITE_ART=real build marks the cards the park cannot pay for.
 import { realCardsStrings } from './realCards';
-// Title-to-play bridge: only the VITE_ART=real build has the welcome card and the poster goal.
+// Title-to-play bridge: only the VITE_ART=real build has the welcome card.
 import { realBridgeStrings } from './realBridge';
 import { fillParams, lookupString } from './resolve';
 

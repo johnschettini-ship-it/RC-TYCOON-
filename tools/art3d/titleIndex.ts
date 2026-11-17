@@ -136,7 +136,6 @@ export function checkCoverFolder(raw: unknown, files: TitleFiles): string[] {
   const problems: string[] = [];
   // The title-to-play bridge reads these (the push zooms about the arch); the reader treats them as optional.
   if (!idx.arch) problems.push('no arch point (the push through the arch zooms about it)');
-  if (!idx.goals) problems.push('no poster goal areas (the "Make the poster real" panel lights them)');
   const named = new Set<string>();
   for (const k of ['wide', 'tall'] as const) {
     const F = idx[k];

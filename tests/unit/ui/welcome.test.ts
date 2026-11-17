@@ -51,7 +51,7 @@ describe('welcomeSession (the game paused while the card is open)', () => {
 describe('the welcome strings', () => {
   it('are the spec text, no final period', () => {
     expect(realBridgeStrings['ui.welcome.to']).toBe('Welcome to');
-    expect(realBridgeStrings['ui.welcome.body']).toBe('Your park is an empty field. Build the park on the poster!');
+    expect(realBridgeStrings['ui.welcome.body']).toBe("Your park is an empty field. Let's build something amazing!");
     expect(realBridgeStrings['ui.welcome.go']).toBe("Let's go");
     for (const v of Object.values(realBridgeStrings)) expect(v.endsWith('.')).toBe(false);
     for (const k of Object.keys(realBridgeStrings)) expect(k.startsWith('ui.')).toBe(true);

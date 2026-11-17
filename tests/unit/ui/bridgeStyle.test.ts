@@ -31,13 +31,10 @@ describe('the bridge style tokens', () => {
   it('text contrast: the letters on their outline, the brown texts on cream, ink on the button', () => {
     for (const t of ['--tc-title-y', '--tc-title-c', '--tc-title-b']) expect(ratio(token(t), token('--tc-outline')), t).toBeGreaterThanOrEqual(4.5);
     expect(ratio(token('--tc-brown'), token('--tc-cream'))).toBeGreaterThanOrEqual(4.5);
-    expect(ratio('#7a4631', token('--tc-cream'))).toBeGreaterThanOrEqual(4.5);
-    expect(css).toContain('color: #7a4631');
     expect(ratio('#1f2340', token('--tc-go'))).toBeGreaterThanOrEqual(4.5);
   });
-  it('the welcome card, the goal panel and the title name use them', () => {
+  it('the welcome card and the title name use them', () => {
     expect(css).toMatch(/\.tc-welcome \{[^}]*var\(--tc-cream\)[^}]*var\(--tc-coral\)/s);
-    expect(css).toMatch(/\.tc-goal \{[^}]*var\(--tc-cream\)[^}]*var\(--tc-coral\)/s);
     for (const t of ['--tc-title-y', '--tc-title-c', '--tc-title-b']) expect(view).toContain(`var(${t},`);
   });
 });

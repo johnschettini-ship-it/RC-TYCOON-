@@ -237,15 +237,6 @@ describe('checkCoverFolder (title/: the poster cover)', () => {
     expect(checkCoverFolder(noArch, t.files).some((p) => p.includes('no arch point'))).toBe(true);
     expect(checkCoverFolder({ ...t.index, arch: { x: -1, y: 4 } }, t.files)[0]).toMatch(/arch outside/);
   });
-  it('the poster goal areas are required and checked', () => {
-    const t = fixtureCover();
-    const { goals: _g, ...noGoals } = t.index as CoverIndex;
-    void _g;
-    expect(checkCoverFolder(noGoals, t.files).some((p) => p.includes('no poster goal areas'))).toBe(true);
-    const bad = structuredClone(t.index) as CoverIndex;
-    if (bad.goals) bad.goals.crowd = { rect: { x: 1300, y: 10, w: 200, h: 10 } };
-    expect(checkCoverFolder(bad, t.files)[0]).toMatch(/goal crowd/);
-  });
   it('the copy step\'s source (art-src/title/) passes with the real file', () => {
     const src = new URL('../../../art-src/title/', import.meta.url);
     const files: TitleFiles = new Map();
