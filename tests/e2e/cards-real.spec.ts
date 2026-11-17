@@ -186,7 +186,7 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
     watch.expectNoErrors();
   });
 
-  test('every ride card in the hand shows its price on the same line; "Track" is a chip on the picture, not a third band line', async ({ page }) => {
+  test('every ride card in the hand shows its price on the same line and its name from the same top; "Track" is a chip on the picture, not a third band line', async ({ page }) => {
     await newPark(page, 'Line Park');
     await expectRealLook(page);
     const rows = await page.evaluate(() =>
@@ -194,12 +194,19 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
         id: c.getAttribute('data-def'),
         // A locked preview card (owner, 2026-11-17) has its lock and "Research" on the price line.
         price: Math.round((c.querySelector('.card-cost, .card-research') as HTMLElement).getBoundingClientRect().top),
+        // The band holds two name lines on every card (owner, 2026-11-17): a two-line name starts where a one-line name does.
+        name: Math.round((c.querySelector('.card-name') as HTMLElement).getBoundingClientRect().top),
+        lines: (() => { const n = c.querySelector('.card-name') as HTMLElement; const range = document.createRange(); range.selectNodeContents(n); return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size; })(),
         track: (() => { const t = c.querySelector<HTMLElement>('.card-track'); if (!t) return null; const r = t.getBoundingClientRect(); const pic = (c.querySelector('.card-name') as HTMLElement).getBoundingClientRect(); return { bottom: r.bottom, nameTop: pic.top }; })(),
       })),
     );
     expect(rows.length).toBeGreaterThan(2);
     const prices = new Set(rows.map((r) => r.price));
     expect([...prices], JSON.stringify(rows)).toHaveLength(1);
+    expect([...new Set(rows.map((r) => r.name))], JSON.stringify(rows)).toHaveLength(1);
+    // The hand holds names of one line and of two (Observation Tower): the check is not empty.
+    expect(rows.some((r) => r.lines === 2), JSON.stringify(rows)).toBe(true);
+    expect(rows.some((r) => r.lines === 1), JSON.stringify(rows)).toBe(true);
     for (const r of rows) if (r.track) expect(r.track.bottom, `${r.id} track chip above the band`).toBeLessThanOrEqual(r.track.nameTop);
   });
 

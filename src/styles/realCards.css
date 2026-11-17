@@ -92,7 +92,10 @@
   transition: filter 160ms ease-out;
 }
 #ui[data-layout='bottom'] .hand .content-card .card-preview { min-height: 0; }
+/* The name row holds two lines on every card (padding included), the name at its top: names start on one line and
+   prices sit on one line across the hand whether a name takes one line or two (owner, 2026-11-17). */
 .hand .content-card .card-name {
+  min-height: calc(2lh + 5px);
   grid-row: 3;
   grid-column: 1;
   z-index: 2;
@@ -209,7 +212,7 @@
 .tc-hc .hand { --rc-band: rgb(14, 16, 30); }
 
 /* Large text: a slimmer band (less padding), so more of the picture shows above it. */
-#ui:not([data-text-scale='100']) .hand .content-card .card-name { padding: 2px 5px 0; }
+#ui:not([data-text-scale='100']) .hand .content-card .card-name { padding: 2px 5px 0; min-height: calc(2lh + 2px); }
 #ui:not([data-text-scale='100']) .hand .content-card .card-price-row { padding: 0 5px 3px; }
 /* The tool name keeps 1 px at the sides: "Marketing" at 175 % (112.6 px) fits the 123 px card (borders included, high
    contrast's 3 px too) instead of breaking as "Marketin/g". */
