@@ -81,10 +81,12 @@ export const ITEM_LIST = [
   { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
 ];
 
-// The title pictures (items/title.js): a whole park scene from a free camera and the name signs, written to their
-// own folder (out: 'title', dist-art/real/title/ with its index.json, tools/art3d/titleIndex.ts), not as sets.
+// The earlier title panorama (items/title.js): a whole park scene from a free camera and the name signs, written to
+// their own folder (out: 'title-panorama', with its index.json, tools/art3d/titleIndex.ts checkTitleIndex), not as
+// sets. The game shows the owner's poster cover instead (art-src/title/, tools/art3d/cover.mjs, 2026-11-17), so this
+// item is out of the default bake (`explicit`): `bake.mjs --only title` still bakes it.
 ITEM_LIST.push({
-  id: 'title', file: 'items/title.js', out: 'title',
+  id: 'title', file: 'items/title.js', out: 'title-panorama', explicit: true,
   deps: ['items/titleMirror.js', 'items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js', 'items/flatRides.js', '../../src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'],
 });
 

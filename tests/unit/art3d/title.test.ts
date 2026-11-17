@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import fixture from '../../fixtures/real-index.json';
 import type { RealIndex } from '../../../src/render/real/indexFormat';
 import { checkIndex } from '../../../tools/art3d/checkIndex';
+import COVER from '../../../art-src/title/index.json';
+import type { CoverIndex } from '../../../src/ui/titleScreen/real/layout';
 import {
-  TITLE_CAPS, TITLE_COMPRESSED_MAX, TITLE_DECODED_MAX, checkTitleIndex, titleDecoded, webpSize,
+  TITLE_CAPS, TITLE_COMPRESSED_MAX, TITLE_DECODED_MAX, checkCoverFolder, checkTitleIndex, titleDecoded, webpSize,
   type TitleFiles, type TitleIndex,
 } from '../../../tools/art3d/titleIndex';
 
@@ -36,12 +38,15 @@ function fixtureTitle(): { index: TitleIndex; files: TitleFiles } {
 }
 
 describe('title bake item', () => {
-  it('the registry has `title`, written to its own folder, built from the batch 1 ride modules and the Fredoka font', async () => {
+  it('the registry keeps the earlier panorama `title`, out of the default bake, written to title-panorama/ (the game shows the poster cover in title/)', async () => {
     const { ITEM_LIST } = await load('items/registry.js');
     const it = ITEM_LIST.find((x: { id: string }) => x.id === 'title');
     expect(it).toBeTruthy();
     expect(it.file).toBe('items/title.js');
-    expect(it.out).toBe('title');
+    expect(it.out).toBe('title-panorama');
+    expect(it.explicit).toBe(true);
+    const bake = readFileSync(new URL('bake.mjs', dir), 'utf8');
+    expect(bake).toMatch(/ITEM_LIST\.filter\(\(it\) => !it\.explicit \|\| \(o\.only && o\.only\.includes\(it\.id\)\)\)/);
     for (const f of ['items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js']) expect(it.deps).toContain(f);
     expect(it.deps.some((f: string) => /fredoka.*\.woff2$/.test(f))).toBe(true);
     const index = readFileSync(new URL('items/index.js', dir), 'utf8');
@@ -192,27 +197,92 @@ describe('checkTitleIndex', () => {
   });
 });
 
-describe('checkIndex and the title folder', () => {
-  const base = fixture as unknown as RealIndex;
-  const filesOf = (i: RealIndex): Set<string> => new Set(i.sets.flatMap((s) => s.sheets.map((x) => x.file)));
-  it('accepts a `title` folder with a valid title index', () => {
-    const f = filesOf(base); f.add('title');
-    expect(checkIndex(base, f, fixtureTitle())).toEqual([]);
+/** The cover folder as the copy step writes it: the real cover index and its poster's size. */
+function fixtureCover(): { index: CoverIndex; files: TitleFiles } {
+  const index = structuredClone(COVER) as unknown as CoverIndex;
+  const files: TitleFiles = new Map([['poster-wide.webp', { w: 1376, h: 768, bytes: 359_692 }]]);
+  return { index, files };
+}
+
+describe('checkCoverFolder (title/: the poster cover)', () => {
+  it('the real cover index with its poster is clean', () => {
+    const { index, files } = fixtureCover();
+    expect(checkCoverFolder(index, files)).toEqual([]);
   });
-  it('reports a title folder it was not given to check', () => {
-    const f = filesOf(base); f.add('title');
-    expect(checkIndex(base, f).some((p) => p.includes('title'))).toBe(true);
+  it('the poster must be there at the size the index says, with nothing stray', () => {
+    const t = fixtureCover();
+    t.files.clear();
+    expect(checkCoverFolder(t.index, t.files).some((p) => p.includes('missing file poster-wide.webp'))).toBe(true);
+    const u = fixtureCover();
+    u.files.set('poster-wide.webp', { w: 1376, h: 760, bytes: 1 });
+    expect(checkCoverFolder(u.index, u.files).some((p) => p.includes('is 1376x760'))).toBe(true);
+    const v = fixtureCover();
+    v.files.set('old.webp', { w: 1, h: 1, bytes: 1 });
+    expect(checkCoverFolder(v.index, v.files)).toEqual(['file not in the cover index: old.webp']);
   });
-  it('reports the title index problems', () => {
-    const f = filesOf(base); f.add('title');
-    const t = fixtureTitle(); t.index.wide.wheel.frames = 4 as 8;
-    expect(checkIndex(base, f, t).some((p) => p.startsWith('title:') && p.includes('8 frames'))).toBe(true);
+  it('compressed within 3 MB, and the game\'s own index check (decoded within 24 MB per framing)', () => {
+    const t = fixtureCover();
+    t.files.set('poster-wide.webp', { w: 1376, h: 768, bytes: 3_000_001 });
+    expect(checkCoverFolder(t.index, t.files).some((p) => p.includes('over 3000000'))).toBe(true);
+    const u = fixtureCover();
+    Object.assign(u.index.tall, { file: 'poster-tall.webp', w: 2560, h: 2400 });
+    u.files.set('poster-tall.webp', { w: 2560, h: 2400, bytes: 1 });
+    expect(checkCoverFolder(u.index, u.files).some((p) => /tall/.test(p))).toBe(true);
+    expect(checkCoverFolder({ ...u.index, format: 'x' }, u.files)[0]).toMatch(/format/);
+  });
+  it('the copy step\'s source (art-src/title/) passes with the real file', () => {
+    const src = new URL('../../../art-src/title/', import.meta.url);
+    const files: TitleFiles = new Map();
+    for (const n of readdirSync(src)) {
+      if (n === 'index.json') continue;
+      const buf = readFileSync(new URL(n, src));
+      const [w, h] = webpSize(buf);
+      files.set(n, { w, h, bytes: buf.length });
+    }
+    expect(checkCoverFolder(COVER, files)).toEqual([]);
   });
 });
 
-// The baked folder, when a bake has run here (dist-art is not in the repository).
-const baked = new URL('../../../dist-art/real/title/', import.meta.url);
-describe.skipIf(!existsSync(new URL('index.json', baked)))('the baked title (dist-art/real/title)', () => {
+describe('checkIndex and the title folders', () => {
+  const base = fixture as unknown as RealIndex;
+  const filesOf = (i: RealIndex): Set<string> => new Set(i.sets.flatMap((s) => s.sheets.map((x) => x.file)));
+  it('accepts a `title` cover folder and a `title-panorama` folder', () => {
+    const f = filesOf(base); f.add('title'); f.add('title-panorama');
+    expect(checkIndex(base, f, fixtureCover(), fixtureTitle())).toEqual([]);
+  });
+  it('reports a folder it was not given to check', () => {
+    const f = filesOf(base); f.add('title');
+    expect(checkIndex(base, f).some((p) => p.startsWith('title:'))).toBe(true);
+    const g = filesOf(base); g.add('title-panorama');
+    expect(checkIndex(base, g, fixtureCover()).some((p) => p.startsWith('title-panorama:'))).toBe(true);
+  });
+  it('reports the problems of each folder under its name', () => {
+    const f = filesOf(base); f.add('title'); f.add('title-panorama');
+    const c = fixtureCover(); c.files.clear();
+    const t = fixtureTitle(); t.index.wide.wheel.frames = 4 as 8;
+    const p = checkIndex(base, f, c, t);
+    expect(p.some((x) => x.startsWith('title:') && x.includes('missing file'))).toBe(true);
+    expect(p.some((x) => x.startsWith('title-panorama:') && x.includes('8 frames'))).toBe(true);
+  });
+});
+
+// The baked folders, when a bake has run here (dist-art is not in the repository).
+const cover = new URL('../../../dist-art/real/title/', import.meta.url);
+describe.skipIf(!existsSync(new URL('index.json', cover)))('the copied cover (dist-art/real/title)', () => {
+  it('passes checkCoverFolder with the real file sizes', () => {
+    const index = JSON.parse(readFileSync(new URL('index.json', cover), 'utf8')) as unknown;
+    const files: TitleFiles = new Map();
+    for (const n of readdirSync(cover)) {
+      if (n === 'index.json') continue;
+      const buf = readFileSync(new URL(n, cover));
+      const [w, h] = webpSize(buf);
+      files.set(n, { w, h, bytes: statSync(new URL(n, cover)).size });
+    }
+    expect(checkCoverFolder(index, files)).toEqual([]);
+  });
+});
+const baked = new URL('../../../dist-art/real/title-panorama/', import.meta.url);
+describe.skipIf(!existsSync(new URL('index.json', baked)))('the baked panorama (dist-art/real/title-panorama, only with --only title)', () => {
   it('passes checkTitleIndex with the real file sizes', () => {
     const index = JSON.parse(readFileSync(new URL('index.json', baked), 'utf8')) as TitleIndex;
     const files: TitleFiles = new Map();

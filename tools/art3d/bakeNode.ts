@@ -5,7 +5,7 @@
  */
 import { itemSpec, contentHash, type ItemKind } from './catalog';
 import { checkIndex } from './checkIndex';
-import { titleDecoded } from './titleIndex';
+import { checkCoverFolder, coverDecoded, titleDecoded } from './titleIndex';
 import { cacheKey } from './cacheKey';
 import { sizeReport, formatSizeReport, S5_LIMIT_BYTES } from './sizeReport';
 import { reachedPoses } from './poses';
@@ -16,7 +16,7 @@ import { previewPieces } from '../../src/render/track/preview';
 import { paletteColour } from '../../src/render/track/colours';
 import { repackPng } from './pngRepack';
 
-export { itemSpec, contentHash, checkIndex, titleDecoded, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES, repackPng };
+export { itemSpec, contentHash, checkIndex, checkCoverFolder, coverDecoded, titleDecoded, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES, repackPng };
 export type { ItemKind };
 
 /** Per piece and heading (0-3): rail samples and the piece's tiles, for a piece entering tile (0, 0) at height 0. */
