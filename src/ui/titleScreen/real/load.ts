@@ -1,15 +1,15 @@
 /**
- * The baked pictures of the realistic title screen (VITE_ART=real build only; spec builder-check answers 2–4):
- * `art/real/title/index.json` and its WebP files, decoded with `createImageBitmap` outside the set manager, only while the
- * title shows. One framing (wide or tall: three layers and the wheel sprite) is decoded at a time, plus the two small
- * name signs; `close()` closes every bitmap, including any still decoding (closed as it lands).
+ * The realistic title screen's poster cover (VITE_ART=real build only): `art/real/title/index.json` (the cover index,
+ * `layout.ts`) and its poster files, decoded with `createImageBitmap` outside the set manager, only while the title
+ * shows. One framing (one poster bitmap) is decoded at a time; `close()` closes every bitmap, including any still
+ * decoding (closed as it lands).
  *
  * `createTitleSession` is the title's life cycle, without the DOM: `open` (the title shows) releases the park's art
  * first, then loads the index; `want` asks for a framing and keeps showing the old one until the new one is decoded
  * (no blank frame on a rotation), then closes the old; `close` (a park opens) closes everything. A failed index or
- * picture leaves no art (the sky gradient and the menu stay) and never throws.
+ * picture leaves no art (the sky fill and the menu stay) and never throws.
  */
-import { checkTitleIndex, type Framing, type TitleIndex } from './layout';
+import { checkCoverIndex, type CoverIndex, type Framing } from './layout';
 
 /** What a decoded picture must offer (an ImageBitmap does). */
 export interface TitleBitmap {
@@ -21,21 +21,16 @@ export interface TitleLoadDeps<B extends TitleBitmap> {
   fetch(url: string): Promise<Pick<Response, 'ok' | 'status' | 'json' | 'blob'>>;
   decode(blob: Blob): Promise<B>;
 }
-/** One framing's pictures and both signs. */
+/** One framing's poster. A framing that uses the other framing's file decodes its own copy (closed with it). */
 export interface FramingArt<B extends TitleBitmap = ImageBitmap> {
   framing: Framing;
-  sky: B;
-  park: B;
-  front: B;
-  wheel: B;
-  line: B;
-  stack: B;
+  poster: B;
 }
 export interface TitleArt<B extends TitleBitmap = ImageBitmap> {
-  readonly index: TitleIndex;
-  /** Decodes `f` (once; the same promise while it decodes) with the signs; null when closed or a file failed. */
+  readonly index: CoverIndex;
+  /** Decodes `f` (once; the same promise while it decodes); null when closed or the file failed. */
   framing(f: Framing): Promise<FramingArt<B> | null>;
-  /** Closes `f`'s layers and wheel (not the signs). */
+  /** Closes `f`'s poster. */
   drop(f: Framing): void;
   /** Bitmaps open now. */
   open(): number;
@@ -53,47 +48,33 @@ export async function loadTitleArt<B extends TitleBitmap>(base: string, deps: Ti
 export async function loadTitleArt(base: string, deps: TitleLoadDeps<TitleBitmap> = defaults as unknown as TitleLoadDeps<TitleBitmap>): Promise<TitleArt<TitleBitmap>> {
   const res = await deps.fetch(`${base}index.json`);
   if (!res.ok) throw new Error(`title index.json: HTTP ${res.status}`);
-  const checked = checkTitleIndex(await res.json());
+  const checked = checkCoverIndex(await res.json());
   if (checked instanceof Error) throw checked;
   const index = checked;
   let closed = false;
   const live = new Set<TitleBitmap>();
   const pending = new Map<Framing, Promise<FramingArt<TitleBitmap> | null>>();
   const done = new Map<Framing, FramingArt<TitleBitmap>>();
-  let signs: Promise<{ line: TitleBitmap; stack: TitleBitmap } | null> | null = null;
 
-  /** Decodes `file`; a bitmap that lands after `close` is closed at once (and the promise rejects). */
-  const one = async (file: string): Promise<TitleBitmap> => {
-    const r = await deps.fetch(base + file);
-    if (!r.ok) throw new Error(`title ${file}: HTTP ${r.status}`);
-    const b = await deps.decode(await r.blob());
-    if (closed) {
-      b.close();
-      throw new Error('title art closed');
+  const free = (b: TitleBitmap | undefined): void => {
+    if (b && live.delete(b)) b.close();
+  };
+  /** Decodes `file`; a bitmap that lands after `close` is closed at once (and gives null). */
+  const one = async (file: string): Promise<TitleBitmap | null> => {
+    try {
+      const r = await deps.fetch(base + file);
+      if (!r.ok) throw new Error(`title ${file}: HTTP ${r.status}`);
+      const b = await deps.decode(await r.blob());
+      if (closed) {
+        b.close();
+        return null;
+      }
+      live.add(b);
+      return b;
+    } catch (err) {
+      if (!closed) console.warn('[art=real] title', err);
+      return null;
     }
-    live.add(b);
-    return b;
-  };
-  const free = (bs: Array<TitleBitmap | undefined>): void => {
-    for (const b of bs) {
-      if (b && live.delete(b)) b.close();
-    }
-  };
-  /** Decodes every file, or closes the ones that landed and gives null. */
-  const all = async (files: string[]): Promise<TitleBitmap[] | null> => {
-    const out = await Promise.allSettled(files.map(one));
-    if (out.every((o) => o.status === 'fulfilled')) return out.map((o) => (o as PromiseFulfilledResult<TitleBitmap>).value);
-    free(out.map((o) => (o.status === 'fulfilled' ? o.value : undefined)));
-    const why = out.find((o) => o.status === 'rejected') as PromiseRejectedResult;
-    if (!closed) console.warn('[art=real] title', why.reason);
-    return null;
-  };
-  const getSigns = (): Promise<{ line: TitleBitmap; stack: TitleBitmap } | null> => {
-    signs ??= all([index.sign.line.file, index.sign.stack.file]).then((b) => {
-      if (!b) signs = null; // a later framing tries again
-      return b ? { line: b[0] as TitleBitmap, stack: b[1] as TitleBitmap } : null;
-    });
-    return signs;
   };
 
   return {
@@ -104,14 +85,13 @@ export async function loadTitleArt(base: string, deps: TitleLoadDeps<TitleBitmap
       if (ready) return Promise.resolve(ready);
       let p = pending.get(f);
       if (!p) {
-        const F = index[f];
-        p = Promise.all([all([F.layers.sky, F.layers.park, F.layers.front, F.wheel.file]), getSigns()]).then(([b, s]) => {
+        p = one(index[f].file).then((b) => {
           pending.delete(f);
-          if (!b || !s || closed) {
-            free(b ?? []);
+          if (!b || closed) {
+            free(b ?? undefined);
             return null;
           }
-          const art: FramingArt<TitleBitmap> = { framing: f, sky: b[0] as TitleBitmap, park: b[1] as TitleBitmap, front: b[2] as TitleBitmap, wheel: b[3] as TitleBitmap, ...s };
+          const art: FramingArt<TitleBitmap> = { framing: f, poster: b };
           done.set(f, art);
           return art;
         });
@@ -123,13 +103,13 @@ export async function loadTitleArt(base: string, deps: TitleLoadDeps<TitleBitmap
       const a = done.get(f);
       if (!a) return;
       done.delete(f);
-      free([a.sky, a.park, a.front, a.wheel]);
+      free(a.poster);
     },
     open: () => live.size,
     close() {
       closed = true;
       done.clear();
-      free([...live]);
+      for (const b of [...live]) free(b);
     },
   };
 }
@@ -144,9 +124,9 @@ export interface TitleSessionDeps<B extends TitleBitmap> {
 export interface TitleSession<B extends TitleBitmap> {
   open(): void;
   want(f: Framing): void;
-  /** The framing shown now, or null (the sky gradient only). */
+  /** The framing shown now, or null (the sky fill only). */
   current(): FramingArt<B> | null;
-  index(): TitleIndex | null;
+  index(): CoverIndex | null;
   close(): void;
 }
 

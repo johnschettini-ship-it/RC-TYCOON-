@@ -1,17 +1,18 @@
 /**
- * The realistic title screen (Task 2 of `docs/superpowers/plans/2026-11-16-realistic-title-and-cards.md`). Needs a
- * VITE_ART=real build with the baked art copied to `art/real/` (the title pictures in `art/real/title/`):
+ * The realistic title screen: the owner's poster cover (`art-src/title/`, chosen 2026-11-17) with the name as real text
+ * in Fredoka. Needs a VITE_ART=real build with the baked art copied to `art/real/` and the cover in `art/real/title/`
+ * (the bake copies it; without a bake, `node tools/art3d/cover.mjs --out <dir>/art/real` copies the cover alone):
  *
  *   VITE_ART=real npx vite build --outDir <dir> && cp -r dist-art/real <dir>/art/real
  *   npx vite preview --outDir <dir> --port <port> &  PW_PORT=<port> VITE_ART=real npx playwright test tests/e2e/title-real.spec.ts
  *
- * Checks: the menu at once over the sky gradient, the panorama fading in, the framing and the name sign's place
- * (above the rides, inside the window), the desktop menu clear of the wheel, a slow and a failed download (menu works,
- * no error), a rotation without a blank frame, reduced motion (a still picture), three round trips to a park (title
- * bitmaps closed in the park, the park's released at the title), and the axe scan with the hidden heading.
- * The whole wheel inside the window at every size and text size, and the fills above and below the picture continuing
- * the sky's top row and the lawn's bottom row (no seam). Screenshots go to `$SHOT_DIR` (default: the test's output
- * folder), named `title-real-<name><$SHOT_SUFFIX>.png`.
+ * Checks: the menu and the name at once over the sky fill, the poster fading in, the framing, the focus box (wheel and
+ * arch) inside the window at every size and text size, the name in the window above the wheel's hub, the desktop menu
+ * clear of the wheel, the phone menu below the wheel and arch, the name's contrast (each word against its outline) and
+ * the axe scan, a slow and a failed download (menu and name work, no error), a rotation without a blank frame, reduced
+ * motion (a still picture, no twinkle), three round trips to a park (title bitmaps closed in the park, the park's
+ * released at the title, no growth), the fill under the poster on phones (no seam). Screenshots go to `$SHOT_DIR`
+ * (default: the test's output folder), named `title-real-<name><$SHOT_SUFFIX>.png`.
  */
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { openTool, scan } from './helpers';
@@ -79,54 +80,57 @@ const parseBox = (v: string | undefined): Box => {
   return { x: x ?? NaN, y: y ?? NaN, w: w ?? NaN, h: h ?? NaN };
 };
 interface Placed {
-  picture: Box;
-  wheel: Box;
   framing: string;
-  sign: string;
-  box: { x: number; y: number; w: number; h: number };
-  nameRow: number;
-  anchor: number;
+  shown: Box;
+  /** Focus box and wheel with the drift added round them. */
+  focus: Box;
+  wheel: Box;
+  /** The wheel's hub at the top of its drift. */
+  hub: number;
+  kind: string;
+  title: Box;
+  bulbs: number;
 }
 async function placed(page: Page): Promise<Placed> {
   const raw = await page.locator('canvas.title-real-scene').evaluate((c) => ({ ...(c as HTMLCanvasElement).dataset }));
-  const [sign, nums] = (raw.sign ?? ':').split(':');
-  return {
-    picture: parseBox(raw.picture),
-    wheel: parseBox(raw.wheel),
-    framing: raw.framing ?? '',
-    sign: sign ?? '',
-    box: parseBox(nums),
-    nameRow: Number(raw.nameRow),
-    anchor: Number(raw.anchor),
-  };
+  const [kind, nums] = (raw.title ?? ':').split(':');
+  return { framing: raw.framing ?? '', shown: parseBox(raw.shown), focus: parseBox(raw.focus), wheel: parseBox(raw.wheel), hub: Number(raw.hub), kind: kind ?? '', title: parseBox(nums), bulbs: Number(raw.bulbs) };
 }
+const overlaps = (a: Box, b: { x: number; y: number; width: number; height: number }): boolean => a.x < b.x + b.width && b.x < a.x + a.w && a.y < b.y + b.height && b.y < a.y + a.h;
 
 /**
- * The checks of one size: the framing, the sign in the window and above the ride tops (and the menu), the whole wheel
- * in the window (at both ends of its drift), the desktop menu clear of the wheel, the phone menu below it, the menu
- * buttons in the window, no sideways scroll.
+ * The checks of one size: the framing, the focus box (wheel and arch) inside the window at both ends of its drift, the
+ * name (the heading itself, real text) in the window, above the wheel's hub and the menu, the desktop menu clear of
+ * the wheel, the phone menu below the focus box, the menu buttons in the window, no sideways scroll.
  */
 async function checkPlaced(page: Page, s: Size): Promise<void> {
   const p = await placed(page);
   expect(p.framing).toBe(s.h > s.w ? 'tall' : 'wide');
-  expect(p.box.x).toBeGreaterThanOrEqual(16 - 0.1);
-  expect(p.box.x + p.box.w).toBeLessThanOrEqual(s.w - 16 + 0.1);
-  expect(p.box.y).toBeGreaterThanOrEqual(12 - 0.1);
-  expect(p.box.y + p.box.h).toBeLessThanOrEqual(p.nameRow - 8 + 0.1);
+  expect(p.kind).toBe(s.h > s.w ? 'stack' : 'line');
+  expect(p.focus.x, 'focus left').toBeGreaterThanOrEqual(-0.1);
+  expect(p.focus.x + p.focus.w, 'focus right').toBeLessThanOrEqual(s.w + 0.1);
+  expect(p.focus.y, 'focus top').toBeGreaterThanOrEqual(-0.1);
+  expect(p.focus.y + p.focus.h, 'focus bottom').toBeLessThanOrEqual(s.h + 0.1);
+  // The heading as the browser lays it out: where the layout put it, inside the window, above the hub.
+  const heading = await page.locator('.title-logo').boundingBox();
+  if (!heading) throw new Error('no heading');
+  expect(Math.abs(heading.x - p.title.x), 'heading x').toBeLessThanOrEqual(1);
+  expect(Math.abs(heading.y - p.title.y), 'heading y').toBeLessThanOrEqual(1);
+  expect(heading.x).toBeGreaterThanOrEqual(16 - 0.5);
+  expect(heading.x + heading.width).toBeLessThanOrEqual(s.w - 16 + 0.5);
+  expect(heading.y).toBeGreaterThanOrEqual(12 - 0.5);
+  expect(heading.y + heading.height, 'the name above the wheel hub').toBeLessThanOrEqual(p.hub + 0.5);
+  // The words fit their box: none wider than the heading (no overflow).
+  const words = await page.locator('.title-logo .tr-word').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ l: r.left, r: r.right })));
+  for (const w of words) expect(w.l >= heading.x - 1 && w.r <= heading.x + heading.width + 1, JSON.stringify(w)).toBe(true);
   const menu = await page.locator('.title-menu').boundingBox();
   if (!menu) throw new Error('no menu');
-  expect(p.box.y + p.box.h).toBeLessThanOrEqual(menu.y + 0.5);
-  expect(p.wheel.x, 'wheel left').toBeGreaterThanOrEqual(-0.1);
-  expect(p.wheel.x + p.wheel.w, 'wheel right').toBeLessThanOrEqual(s.w + 0.1);
-  expect(p.wheel.y, 'wheel top').toBeGreaterThanOrEqual(-0.1);
-  expect(p.wheel.y + p.wheel.h, 'wheel bottom').toBeLessThanOrEqual(s.h + 0.1);
+  expect(heading.y + heading.height).toBeLessThanOrEqual(menu.y + 0.5);
   if (s.w >= 900) {
-    expect(p.anchor).toBeGreaterThanOrEqual(menu.x + menu.width);
+    // Desktop: the menu block never over the wheel.
     expect(p.wheel.x).toBeGreaterThanOrEqual(menu.x + menu.width);
-    // The whole picture shows on the desktop (the lake at its bottom).
-    expect(p.picture.y).toBeGreaterThanOrEqual(-0.1);
-    expect(p.picture.y + p.picture.h).toBeLessThanOrEqual(s.h + 0.1);
-  } else expect(p.wheel.y + p.wheel.h, 'wheel above the menu').toBeLessThanOrEqual(menu.y + 0.5);
+    expect(overlaps(p.wheel, menu)).toBe(false);
+  } else if (s.h > s.w) expect(p.focus.y + p.focus.h, 'wheel and arch above the menu').toBeLessThanOrEqual(menu.y + 0.5);
   for (const b of await page.locator('.title-menu button:visible').all()) {
     const r = await b.boundingBox();
     expect(r && r.x >= 0 && r.y >= 0 && r.x + r.width <= s.w + 0.5 && r.y + r.height <= s.h + 0.5, await b.innerText()).toBe(true);
@@ -171,21 +175,26 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
   });
 
   for (const s of SIZES) {
-    test(`${s.name}: menu at once, panorama fades in, name above the rides, menu clear of the wheel`, async ({ browser }) => {
+    test(`${s.name}: menu and name at once, poster fades in, focus box visible, name above the wheel, menu clear of it`, async ({ browser }) => {
       const { ctx, page, errors } = await open(browser, s);
       await page.goto('/');
-      // The menu shows over the sky gradient before (and whether or not) the art arrives.
+      // The menu and the name show over the sky fill before (and whether or not) the art arrives.
       await expect(page.getByTestId('title-new')).toBeVisible();
       const bg = await page.locator('.title-screen').evaluate((el) => getComputedStyle(el).backgroundImage);
       expect(bg).toContain('linear-gradient');
+      // The name is real text in Fredoka, visible, and names the heading.
+      const heading = page.getByRole('heading', { level: 1, name: 'Thrills & Chills' });
+      await expect(heading).toBeVisible();
+      expect(await heading.evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Fredoka');
+      expect(await heading.evaluate((e) => (e as HTMLElement).innerText.replace(/\s+/g, ' ').trim())).toBe('Thrills & Chills');
       test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
       await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
       await expect(ready(page)).toHaveCSS('opacity', '1');
+      await page.evaluate(() => document.fonts.ready);
       await checkPlaced(page, s);
-      // The name stays for screen readers, visually hidden.
-      const heading = page.getByRole('heading', { level: 1, name: 'Thrills & Chills' });
-      await expect(heading).toHaveCount(1);
-      expect((await heading.boundingBox())?.width ?? 0).toBeLessThanOrEqual(1);
+      expect((await heading.boundingBox())?.width ?? 0).toBeGreaterThan(100);
+      // The twinkling bulbs were found on the poster.
+      expect((await placed(page)).bulbs).toBeGreaterThan(50);
       await page.waitForTimeout(300);
       await shot(page, s.name);
       expect(errors).toEqual([]);
@@ -194,7 +203,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
   }
 
   for (const s of SIZES) {
-    test(`${s.name}, large text (175 %): the menu, the sign and the whole wheel still fit`, async ({ browser }) => {
+    test(`${s.name}, large text (175 %): the menu, the name and the focus box still fit`, async ({ browser }) => {
       const { ctx, page, errors } = await open(browser, s);
       await page.goto('/');
       test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
@@ -202,6 +211,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
       await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('textScale', 175));
       await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
       await page.waitForTimeout(400);
+      await page.evaluate(() => document.fonts.ready);
       await checkPlaced(page, s);
       await shot(page, `${s.name}-text175`);
       expect(errors).toEqual([]);
@@ -209,54 +219,40 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     });
   }
 
-  for (const s of [SIZES[0], SIZES[3]]) {
-    test(`${s.name}: the fills continue the sky's top row above the picture and the lawn below it (no seam)`, async ({ browser }) => {
+  for (const s of [SIZES[0], SIZES[1]]) {
+    test(`${s.name}: the fill under the poster continues its bottom row (no seam), then plain ground`, async ({ browser }) => {
       const { ctx, page } = await open(browser, s, 'reduce');
       await page.goto('/');
       test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
       await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
       await page.waitForTimeout(300);
       const p = await placed(page);
-      const out = await page.evaluate(async ({ P, sign }) => {
+      const out = await page.evaluate(({ P }) => {
         const c = document.querySelector('canvas.title-real-scene') as HTMLCanvasElement;
         const k = c.width / window.innerWidth;
         const x = c.getContext('2d') as CanvasRenderingContext2D;
         const px = (cx: number, cy: number): number[] => [...x.getImageData(Math.floor(cx * k), Math.floor(cy * k), 1, 1).data].slice(0, 3);
-        const ix = (await (await fetch('art/real/title/index.json')).json()) as Record<string, { w: number; layers: { sky: string } }>;
-        const framing = c.dataset.framing as string;
-        const sky = await createImageBitmap(await (await fetch(`art/real/title/${ix[framing]?.layers.sky}`)).blob());
-        const t = document.createElement('canvas');
-        t.width = sky.width;
-        t.height = 1;
-        const tx = t.getContext('2d') as CanvasRenderingContext2D;
-        tx.drawImage(sky, 0, 0, sky.width, 1, 0, 0, sky.width, 1);
-        const top = tx.getImageData(0, 0, sky.width, 1).data;
-        const skyW = sky.width;
-        sky.close();
-        // Points across the window, clear of the sign (it stands in the sky).
-        const xs = [0.04, 0.1, 0.3, 0.5, 0.7, 0.9, 0.96].map((f) => f * window.innerWidth).filter((cx) => cx < sign.x - 4 || cx > sign.x + sign.w + 4);
-        const above = P.y > 4 ? xs.map((cx) => {
-          const sx = Math.min(skyW - 1, Math.max(0, Math.floor(((cx - P.x) / P.w) * skyW)));
-          return { fill: px(cx, P.y / 2), seam: px(cx, P.y - 1.5), sky: [top[sx * 4], top[sx * 4 + 1], top[sx * 4 + 2]] as number[] };
-        }) : [];
-        const bottom = P.y + P.h;
-        // Below: the softened lawn against the picture's last row, both averaged over the window's width.
+        // The softened fill against the poster's last row, both averaged across the poster's width.
         const avg = (cy: number): number[] => {
           const n = 64;
           const sum = [0, 0, 0];
-          for (let i = 0; i < n; i++) px(((i + 0.5) * window.innerWidth) / n, cy).forEach((v, j) => (sum[j] = (sum[j] ?? 0) + v / n));
+          for (let i = 0; i < n; i++) px(P.x + ((i + 0.5) * P.w) / n, cy).forEach((v, j) => (sum[j] = (sum[j] ?? 0) + v / n));
           return sum;
         };
-        const below = bottom < window.innerHeight - 4 ? [{ fill: avg(bottom + 1.5), picture: avg(bottom - 1 / k) }] : [];
-        return { above, below };
-      }, { P: p.picture, sign: p.box });
+        const bottom = P.y + P.h;
+        // Far below: one plain colour across the window (no streaks).
+        const spread = (cy: number): number => {
+          const v = Array.from({ length: 24 }, (_, i) => px(((i + 0.5) * window.innerWidth) / 24, cy));
+          return Math.max(...[0, 1, 2].map((j) => Math.max(...v.map((c) => c[j] ?? 0)) - Math.min(...v.map((c) => c[j] ?? 0))));
+        };
+        return bottom < window.innerHeight - 80 ? { fill: avg(bottom + 1.5), poster: avg(bottom - 1 / k), spread: spread(window.innerHeight - 2) } : null;
+      }, { P: p.shown });
+      expect(out, 'a fill under the poster').not.toBeNull();
       const near = (a: number[], b: number[], tol: number): boolean => a.every((v, i) => Math.abs(v - (b[i] ?? 0)) <= tol);
-      expect(out.above.length + out.below.length, 'a fill to check').toBeGreaterThan(0);
-      for (const a of out.above) {
-        expect(near(a.fill, a.sky, 10), `fill ${a.fill} vs sky top ${a.sky}`).toBe(true);
-        expect(near(a.seam, a.sky, 10), `seam ${a.seam} vs sky top ${a.sky}`).toBe(true);
+      if (out) {
+        expect(near(out.fill, out.poster, 12), `fill ${out.fill} vs the poster's last row ${out.poster}`).toBe(true);
+        expect(out.spread, 'the ground under the menu is one colour').toBeLessThanOrEqual(2);
       }
-      for (const b of out.below) expect(near(b.fill, b.picture, 12), `lawn fill ${b.fill} vs the picture's last row ${b.picture}`).toBe(true);
       await ctx.close();
     });
   }
@@ -276,10 +272,10 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
       const p = await placed(page);
       const plate = await page.locator('.title-plate').boundingBox();
       if (!plate) throw new Error('no plate');
-      // The plate (or sheet) starts under the sign (low windows: 8 px from the top, as design E) and ends in the
+      // The plate (or sheet) starts under the name (low windows: 8 px from the top, as design E) and ends in the
       // window; a long list scrolls inside it.
       const kind = await page.locator('.title-screen').getAttribute('data-kind');
-      expect(plate.y).toBeGreaterThanOrEqual(kind === 'low' ? 0 : p.box.y + p.box.h - 0.5);
+      expect(plate.y).toBeGreaterThanOrEqual(kind === 'low' ? 0 : p.title.y + p.title.h - 0.5);
       expect(plate.y + plate.height).toBeLessThanOrEqual(s.h + 0.5);
       await first.scrollIntoViewIfNeeded();
       const r = await first.boundingBox();
@@ -290,7 +286,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     });
   }
 
-  test('a failed title download: the menu works, the gradient stays, no error is shown', async ({ browser }) => {
+  test('a failed title download: the menu and the name work, the sky fill stays, no error is shown', async ({ browser }) => {
     const { ctx, page, errors } = await open(browser, SIZES[0]);
     await page.route('**/art/real/title/**', (r) => r.abort());
     await page.goto('/');
@@ -298,6 +294,11 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     await page.waitForTimeout(800);
     await expect(ready(page)).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(await page.locator('.title-screen').evaluate((el) => getComputedStyle(el).backgroundImage)).toContain('linear-gradient');
+    // The name at the top, inside the window, above the menu.
+    const name = await page.getByRole('heading', { level: 1, name: 'Thrills & Chills' }).boundingBox();
+    const menu = await page.locator('.title-menu').boundingBox();
+    expect(name && menu && name.x >= 0 && name.x + name.width <= 390 && name.y >= 0 && name.y + name.height <= menu.y).toBe(true);
     await shot(page, 'failed-download-390x844');
     await page.getByTestId('title-new').click();
     await expect(page.getByTestId('title-newgame')).toBeVisible();
@@ -306,7 +307,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     await ctx.close();
   });
 
-  test('a slow title download: the menu first, the panorama when it arrives', async ({ browser }) => {
+  test('a slow title download: the menu first, the poster when it arrives', async ({ browser }) => {
     const { ctx, page } = await open(browser, SIZES[3]);
     await page.route('**/art/real/title/**', async (r) => {
       await new Promise((res) => setTimeout(res, 1500));
@@ -329,7 +330,9 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     // Hold the wide pictures back; every frame meanwhile still shows the tall ones.
     let release: () => void = () => undefined;
     const gate = new Promise<void>((r) => (release = r));
-    await page.route('**/art/real/title/wide-*', async (r) => {
+    // The tall framing crops the same file: once the route is on (it turns the HTTP cache off), the wide framing's
+    // own decode fetches it again and waits here.
+    await page.route('**/art/real/title/poster-*', async (r) => {
       await gate;
       await r.continue();
     });
@@ -343,13 +346,13 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     release();
     await expect.poll(async () => (await placed(page)).framing, { timeout: 10_000 }).toBe('wide');
     await expect(ready(page)).toHaveCount(1);
-    // Only one framing decoded at a time: 4 pictures and 2 signs.
-    expect(await liveBesideCards(page)).toBe(6);
+    // Only one framing decoded at a time: one poster.
+    expect(await liveBesideCards(page)).toBe(1);
     await shot(page, 'rotated-844x390');
     await ctx.close();
   });
 
-  test('reduced motion: no drift and a still wheel; without it the picture moves', async ({ browser }) => {
+  test('reduced motion: no drift and no twinkle; without it the picture moves', async ({ browser }) => {
     for (const rm of ['reduce', 'no-preference'] as const) {
       const { ctx, page } = await open(browser, SIZES[3], rm);
       await page.goto('/');
@@ -372,7 +375,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     const live = (): Promise<number> => liveBesideCards(page);
     await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
     const atTitle = await live();
-    expect(atTitle).toBe(6);
+    expect(atTitle).toBe(1);
     for (let i = 0; i < 3; i++) {
       await page.getByTestId('title-new').click();
       await page.getByTestId('title-name').fill(`Trip ${i}`);
@@ -392,7 +395,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
       await expect(page.locator('.title-screen')).toBeVisible();
       await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
       // Back at the title: the park released (nothing resident but the card pictures: no ground chunk, no tint page),
-      // the title's own 6 pictures.
+      // the title's own poster.
       const parkAtTitle = await released(page);
       expect(parkAtTitle).not.toBeNull();
       expect(parkAtTitle).toMatchObject({ tints: 0, ground: 0 });
@@ -410,7 +413,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     test.skip(!(await hasTitleArt(page)), 'no title art in art/real/title/');
     const live = (): Promise<number> => liveBesideCards(page);
     await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
-    expect(await live()).toBe(6);
+    expect(await live()).toBe(1);
     // Count the title's frames: the canvas's drawImage calls.
     await page.evaluate(() => {
       const c = document.querySelector('canvas.title-real-scene') as HTMLCanvasElement;
@@ -433,7 +436,7 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     expect(await draws()).toBe(before);
     await page.evaluate(() => ((document.querySelector('.title-screen') as HTMLElement).hidden = false));
     await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
-    expect(await live()).toBe(6);
+    expect(await live()).toBe(1);
     const park = await released(page);
     if (park) expect(park).toMatchObject({ tints: 0, ground: 0 });
     expect(errors).toEqual([]);
@@ -476,12 +479,36 @@ test.describe('realistic title screen (VITE_ART=real build)', () => {
     await ctx.close();
   });
 
-  test('axe: no serious issues on the realistic title; the hidden heading names the dialog', async ({ browser }) => {
+  test('the name: each word at least 4.5:1 against its outline, the outline drawn round it, axe clean; the heading names the dialog', async ({ browser }) => {
     for (const s of [SIZES[0], SIZES[3]]) {
       const { ctx, page } = await open(browser, s);
       await page.goto('/');
       await expect(page.getByTestId('title-new')).toBeVisible();
+      if (await hasTitleArt(page)) await expect(ready(page)).toHaveCount(1, { timeout: 10_000 });
+      await page.evaluate(() => document.fonts.ready);
       await page.waitForTimeout(500);
+      const words = await page.locator('.title-logo .tr-word').evaluateAll((els) =>
+        els.map((e) => {
+          const cs = getComputedStyle(e);
+          const shadow = cs.textShadow;
+          return { text: e.textContent, color: cs.color, shadow, font: parseFloat(cs.fontSize) };
+        }),
+      );
+      expect(words.map((w) => w.text)).toEqual(['Thrills', '&', 'Chills']);
+      const rgb = (c: string): number[] => (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+      const lum = (c: number[]): number => {
+        const v = c.map((x) => x / 255).map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * (v[0] ?? 0) + 0.7152 * (v[1] ?? 0) + 0.0722 * (v[2] ?? 0);
+      };
+      const ratio = (a: number[], b: number[]): number => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05);
+      for (const w of words) {
+        // The outline: the first shadows of the ring, solid (no blur), offset about 0.06 em in every direction.
+        const first = /rgba?\([^)]*\)\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+0px/.exec(w.shadow);
+        expect(first, `${w.text}: no outline ring in ${w.shadow.slice(0, 80)}`).not.toBeNull();
+        const outline = rgb(w.shadow);
+        expect(Math.hypot(Number(first?.[1]), Number(first?.[2])), `${w.text}: outline width`).toBeGreaterThanOrEqual(1.2);
+        expect(ratio(rgb(w.color), outline), `${w.text} ${w.color} on ${outline}`).toBeGreaterThanOrEqual(4.5);
+      }
       await scan(page, `title-real ${s.name}`);
       await expect(page.getByRole('dialog', { name: 'Thrills & Chills' })).toBeVisible();
       await ctx.close();
