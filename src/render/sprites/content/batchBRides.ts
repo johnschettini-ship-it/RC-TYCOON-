@@ -8,8 +8,8 @@
  */
 import { shade } from '../../palette';
 import type { RideArtState } from '../rides';
-import { box, circlePt, cylinder, disc, line3, nearness, poly3, sx, sy, type Ctx } from '../shapes';
-import { TAU, axes, dot, dot3, drawSorted, line2, platform, rider, seatsFilled, type Item } from './kit';
+import { box, circlePt, cone, cylinder, disc, line3, nearness, poly3, rrect, sx, sy, type Ctx } from '../shapes';
+import { TAU, axes, dot, dot3, drawSorted, line2, oval, platform, rider, seatsFilled, star, type Item } from './kit';
 
 type V3 = [number, number, number];
 
@@ -318,4 +318,121 @@ export function drawLoopSwing(ctx: Ctx, ex: number, ey: number, st: RideArtState
   frame(near * 1.05, '#c4552c');
   const hub = at(0, near * 1.05);
   dot3(ctx, hub.u, hub.v, LOOP_AXLE, 4, '#f5c518');
+}
+
+// ------------------------------------------------------------------ Carousel Deluxe (4×4, chill, covered)
+
+/** The ride repeats every 60 degrees (6 of each design round each ring); its horses rise and fall 6 times a turn. */
+export const DELUXE_PERIOD = Math.PI / 3;
+const DELUXE_DECK = 40;
+const DELUXE_ROOF = 76;
+
+/** A carousel horse in profile at screen (x, y), facing `dir` (±1). */
+function horse(ctx: Ctx, x: number, y: number, dir: number, body: string): void {
+  oval(ctx, x, y, 5.5, 3.2, body);
+  ctx.fillStyle = body;
+  ctx.fillRect(x + dir * 3.5, y - 6, dir * 3, 5);
+  ctx.strokeStyle = shade(body, 0.6);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x - 3, y + 2);
+  ctx.lineTo(x - 4, y + 6);
+  ctx.moveTo(x + 3, y + 2);
+  ctx.lineTo(x + 4, y + 6);
+  ctx.stroke();
+}
+
+export function drawCarouselDeluxe(ctx: Ctx, ex: number, ey: number, st: RideArtState): void {
+  const cu = ex / 2;
+  const cv = ey / 2;
+  platform(ctx, ex, ey, '#e6e0d4', '#5d6f8f');
+  cylinder(ctx, cu, cv, 1.85, 3, 8, '#8a7a5a', '#efe3c6');
+  const spin = TAU * st.angle;
+  const filled = seatsFilled(36, st.occupancy);
+  let seat = 0;
+  const lower: Item[] = [];
+  const horseCols = ['#f4f1ea', '#2b2522'];
+  // Lower deck: 6 horses and 6 two-seat carriages on the outer ring, 6 horses on the inner one.
+  for (let i = 0; i < 12; i++) {
+    const th = (i / 12) * TAU + spin;
+    const p = circlePt(cu, cv, 1.55, th);
+    const bob = 16 + 4 * Math.sin(6 * th);
+    const k = seat;
+    seat += i % 2 ? 2 : 1;
+    lower.push({
+      n: nearness(p.u, p.v),
+      draw: () => {
+        line3(ctx, p.u, p.v, 8, p.u, p.v, DELUXE_DECK, '#e0b84a', 1.4);
+        const x = sx(p.u, p.v);
+        if (i % 2) {
+          const y = sy(p.u, p.v, 12);
+          ctx.fillStyle = '#7a2a4a';
+          ctx.beginPath();
+          rrect(ctx, x - 7, y - 7, 14, 9, 3, 2);
+          ctx.fill();
+          ctx.fillStyle = '#e0b84a';
+          ctx.fillRect(x - 7, y - 7, 14, 1.5);
+          if (k < filled) rider(ctx, x - 3, y - 8, k);
+          if (k + 1 < filled) rider(ctx, x + 3, y - 8, k + 1);
+        } else {
+          const y = sy(p.u, p.v, bob);
+          horse(ctx, x, y, -Math.sin(th) + Math.cos(th) >= 0 ? 1 : -1, '#f4f1ea');
+          if (k < filled) rider(ctx, x, y - 6, k);
+        }
+      },
+    });
+  }
+  for (let i = 0; i < 6; i++) {
+    const th = (i / 6) * TAU + spin + TAU / 12;
+    const p = circlePt(cu, cv, 1.0, th);
+    const y0 = 18 + 4 * Math.sin(6 * th + Math.PI);
+    const k = seat++;
+    lower.push({
+      n: nearness(p.u, p.v),
+      draw: () => {
+        line3(ctx, p.u, p.v, 8, p.u, p.v, DELUXE_DECK, '#e0b84a', 1.4);
+        const x = sx(p.u, p.v);
+        const y = sy(p.u, p.v, y0);
+        horse(ctx, x, y, -Math.sin(th) + Math.cos(th) >= 0 ? 1 : -1, '#c9a46a');
+        if (k < filled) rider(ctx, x, y - 6, k);
+      },
+    });
+  }
+  lower.push({ n: nearness(cu, cv), draw: () => cylinder(ctx, cu, cv, 0.45, 8, DELUXE_ROOF, '#c8a24a', '#f0d66e') });
+  drawSorted(lower);
+  // Upper deck: a gilded floor, 12 horses on its ring, the inner stair drum.
+  cylinder(ctx, cu, cv, 1.6, DELUXE_DECK, DELUXE_DECK + 4, '#c8a24a', '#efe3c6');
+  const upper: Item[] = [];
+  for (let i = 0; i < 12; i++) {
+    const th = (i / 12) * TAU + spin + TAU / 24;
+    const p = circlePt(cu, cv, 1.2, th);
+    const bob = DELUXE_DECK + 14 + 4 * Math.sin(6 * th);
+    const k = seat++;
+    upper.push({
+      n: nearness(p.u, p.v),
+      draw: () => {
+        line3(ctx, p.u, p.v, DELUXE_DECK + 4, p.u, p.v, DELUXE_ROOF, '#e0b84a', 1.4);
+        const x = sx(p.u, p.v);
+        const y = sy(p.u, p.v, bob);
+        horse(ctx, x, y, -Math.sin(th) + Math.cos(th) >= 0 ? 1 : -1, horseCols[i % 2] as string);
+        if (k < filled) rider(ctx, x, y - 6, k);
+      },
+    });
+  }
+  upper.push({ n: nearness(cu, cv), draw: () => cylinder(ctx, cu, cv, 0.5, DELUXE_DECK + 4, DELUXE_ROOF, '#5d6f8f', '#8a9ab5') });
+  drawSorted(upper);
+  // The canopy is the colour part: a striped cone with a gilded cupola and bulbs at both eaves.
+  const canopy = st.colour ?? '#2f6fb5';
+  cone(ctx, cu, cv, 1.95, DELUXE_ROOF, DELUXE_ROOF + 14, [canopy, '#f4ead2'], 24);
+  cylinder(ctx, cu, cv, 0.4, DELUXE_ROOF + 14, DELUXE_ROOF + 19, '#c8a24a', '#f0d66e');
+  cone(ctx, cu, cv, 0.5, DELUXE_ROOF + 19, DELUXE_ROOF + 26, [shade(canopy, 0.85), '#e0b84a'], 8);
+  for (const [r, h] of [[1.95, DELUXE_ROOF], [1.6, DELUXE_DECK + 3]] as const) {
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * TAU + spin;
+      if (Math.cos(a) + Math.sin(a) < -0.2) continue;
+      const p = circlePt(cu, cv, r, a);
+      dot(ctx, sx(p.u, p.v), sy(p.u, p.v, h) + 1, 1.3, k % 2 ? '#fff3b0' : '#ffd166');
+    }
+  }
+  star(ctx, sx(cu, cv), sy(cu, cv, DELUXE_ROOF + 29), 4.5, 2, 5, '#f5c518');
 }

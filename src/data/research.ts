@@ -61,6 +61,7 @@ export const RESEARCH_ORDER: readonly ResearchItem[] = Object.freeze([
   { id: 'gyro_globe', category: 'thrill', cost: 550 },
   { id: 'spin_wheel_drop', category: 'thrill', cost: 600 }, // new rides batch B
   { id: 'fireworks_launcher', category: 'scenery', cost: 350 },
+  { id: 'carousel_deluxe', category: 'gentle', cost: 350 }, // new rides batch B
   { id: 'monorail', category: 'gentle', cost: 450 },
   { id: 'inverted_coaster', category: 'coasters', cost: 650 },
   { id: 'loop_swing', category: 'thrill', cost: 650 }, // new rides batch B: late

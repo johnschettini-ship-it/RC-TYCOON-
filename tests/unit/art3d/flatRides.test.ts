@@ -467,6 +467,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     out.chair_swing_twist = rb.twistKeys();
     out.spin_wheel_drop = rb.wheelKeys();
     out.loop_swing = rb.loopKeys();
+    out.carousel_deluxe = rb.deluxeKeys();
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }
@@ -484,7 +485,7 @@ describe('density 2: fewer pictures, the same frames', () => {
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
     // New rides batch B (2026-11-17).
     chair_swing_twist: { step: 2, d4: 17, d2: 17 }, spin_wheel_drop: { step: 2, d4: 17, d2: 17 },
-    loop_swing: { step: 2, d4: 10, d2: 10 },
+    loop_swing: { step: 2, d4: 10, d2: 10 }, carousel_deluxe: { step: 2, d4: 9, d2: 9 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -751,5 +752,23 @@ describe('new rides batch B frames', () => {
     expect(LOOP_GATES.entrance[1]).toBeLessThan((def.d * 4) / 2);
     expect(LOOP_GATES.exit[1]).toBeLessThan(-(def.d * 4) / 2 + 4);
     expect(LOOP_GATES.exit[1]).toBeGreaterThan(-(def.d * 4) / 2);
+  });
+
+  it('carousel_deluxe: repeats every 60 degrees, so 8 pictures 7.5 degrees apart show every even slot (22.5 degrees), one at rest', async () => {
+    const { deluxeKeys, deluxeStep, DELUXE } = await load('items/ridesB.js');
+    const today = await import('../../../src/render/sprites/content/batchBRides');
+    expect(DELUXE.period).toBe(today.DELUXE_PERIOD);
+    expect(DELUXE.step * DELUXE.steps).toBeCloseTo(DELUXE.period, 12);
+    const m: Keys = deluxeKeys();
+    expect(m.size).toBe(8 + 1);
+    for (let a = 0; a < 32; a++) {
+      expect(pictureOf(m, keyAt('carousel_deluxe', a, false)), `slot ${a}`).toBe('rest');
+      // the picture's angle is the slot's angle folded into the period
+      const ang = (((a & ~1) / 32) * 2 * Math.PI) % DELUXE.period;
+      expect(deluxeStep(a & ~1) * DELUXE.step, `slot ${a}`).toBeCloseTo(ang, 9);
+      expect(pictureOf(m, keyAt('carousel_deluxe', a, true))).toBe(`s${deluxeStep(a & ~1)}`);
+    }
+    // consecutive even slots move 3 steps forward (22.5 degrees), never backwards within the period's fold
+    for (let a = 0; a < 32; a += 2) expect((deluxeStep(a + 2) - deluxeStep(a) + 8) % 8).toBe(3);
   });
 });

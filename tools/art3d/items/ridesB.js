@@ -110,3 +110,22 @@ export function loopKeys() {
  * column floor((w - 1) / 2) = 1 for w = 3 is x = 0, on the front and back rows (d = 4: z in (4, 8) and (-8, -4)).
  */
 export const LOOP_GATES = { entrance: [0, 7.3], exit: [0, -7.3] };
+
+// ------------------------------------------------------------------ Carousel Deluxe
+
+/**
+ * Carousel Deluxe (today's drawCarouselDeluxe): one turn per turn, and the whole ride repeats every 60 degrees (6 of each
+ * design round each ring, horses rising and falling 6 times a turn). The game's even angle slots are 22.5 degrees
+ * apart, which fold into a 60 degree period at 8 places 7.5 degrees apart: 8 pictures show every angle.
+ */
+export const DELUXE = { period: Math.PI / 3, steps: 8, step: Math.PI / 24 };
+
+/** The picture (0..7, 7.5 degree steps within the 60 degree period) of an even angle slot. */
+export const deluxeStep = (a) => (3 * (a >> 1)) % DELUXE.steps;
+
+/** Carousel Deluxe frame keys: `s<step>` full, `rest` empty; density 2 keeps all 8 (4 would turn 15 degrees a step). */
+export function deluxeKeys() {
+  const opts = { period: 32 };
+  const pick = fullOrRest((a) => `s${deluxeStep(a)}`);
+  return cycleD2('carousel_deluxe', cycleKeys('carousel_deluxe', opts, pick), opts, pick, 2);
+}
