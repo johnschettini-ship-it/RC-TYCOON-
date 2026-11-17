@@ -132,9 +132,9 @@ test('a research message opens its deck, closes the Messages panel, and shows th
   expect(await focusedName(page)).toBe(before);
   if (isPhone(test.info())) return;
   // With the keyboard (desktop) the focus moves to the new card.
-  const next = await unlockFar(page, 'drop_tower');
+  const next = await unlockFar(page, 'flip_arm');
   expect(await inHandView(next), 'the second card starts out of view').toBe(false);
-  await researchMessage(page, 'drop_tower', 'Drop Tower');
+  await researchMessage(page, 'flip_arm', 'Flip Arm');
   await tabTo(page, page.getByTestId('message-row').first());
   await page.keyboard.press('Enter');
   await expect(page.locator('.panel')).toBeHidden();

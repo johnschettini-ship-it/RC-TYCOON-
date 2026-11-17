@@ -48,7 +48,7 @@ test.describe('Phase 3 management UI', () => {
 
     await openTool(page, 'research');
     await expect(page.locator('.panel[data-kind=research]')).toBeVisible();
-    await expect(page.getByTestId('research-current')).toContainText('Spiral Slide');
+    await expect(page.getByTestId('research-current')).toContainText('Ice Cream Cart');
     await page.getByTestId('research-level-high').click();
     await expect(page.getByTestId('research-level-high')).toHaveAttribute('aria-pressed', 'true');
 
