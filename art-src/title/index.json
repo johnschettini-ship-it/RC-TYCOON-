@@ -1,5 +1,6 @@
 {
  "format": "cover/1",
+ "arch": { "x": 690, "y": 560 },
  "wide": {
   "file": "poster-wide.webp",
   "w": 1376,

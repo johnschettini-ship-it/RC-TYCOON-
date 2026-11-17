@@ -9,8 +9,13 @@
  *
  * - The title shows at once over a sky-coloured fill (CSS), the name with it; the poster fades in when decoded. A slow
  *   or failed download leaves the fill, the name and the menu, with no error shown.
- * - `show` releases the park's art first (`releasePark`), then decodes the poster; `hide` (a park opens) closes every
- *   title bitmap and empties the canvas. While the title covers the window the renderer draws no park (`titleHolds`).
+ * - `show` releases the park's art first (`releasePark`), then decodes the poster; `hide` closes every title bitmap and
+ *   empties the canvas. While the title covers the window the renderer draws no park (`titleHolds`).
+ * - `leave` (a park opens; title-to-play bridge §1): the push through the arch (`push.ts`). The park draws under the
+ *   title from its first frame; the poster zooms into the arch, the menu and the name fade, the title layer dissolves,
+ *   then the title hides, every title bitmap is closed and `arrived` (`../../bridge/arrival.ts`) starts the glow and
+ *   the welcome card. A tap or a key skips it; with reduced motion it is a 300 ms cross-fade. Shown again mid-push,
+ *   the title stops the push and stays, its poster still decoded.
  * - A rotation keeps the old framing on screen until the new one is decoded (no blank frame), then closes the old.
  * - Reduced motion: no drift and no twinkle (no frame loop at all). A change while the title shows (the setting, or the
  *   system's `prefers-reduced-motion`, both applied as the `tc-rm` class on the document by `src/a11y`) takes effect
@@ -25,6 +30,8 @@ import type { TitleLayoutInput } from '../layout';
 import { findBulbs, type Bulb } from './bulbs';
 import { coverLayout, TITLE_EM, type CoverLayout, type Framing, type TitleKind } from './layout';
 import { createTitleSession, loadTitleArt, type FramingArt } from './load';
+import { startPush, type Push } from './push';
+import { arrived } from '../../bridge/arrival';
 
 /** Where the title pictures live, relative to the page. */
 export const TITLE_ART_BASE = 'art/real/title/';
@@ -45,6 +52,8 @@ const BULB_SCAN_W = 800;
 export interface RealTitle {
   show(): void;
   hide(): void;
+  /** A park opened behind the title: the push through the arch, then `hideTitle` (hides the element) and the art closed. */
+  leave(hideTitle: () => void): void;
   /** The window and menu changed: place the picture again (draws at once, no blank frame). */
   place(input: TitleLayoutInput): void;
 }
@@ -88,6 +97,9 @@ const css = (): string => {
 @media (prefers-reduced-motion: reduce) {
   .title-screen[data-art='real'] .title-real-scene { transition: none; }
 }
+.title-screen[data-art='real'].tc-leaving { cursor: default; }
+.title-screen[data-art='real'].tc-leaving > :not(.title-real-scene) { opacity: var(--tr-ui, 0); transition: none; }
+.title-screen[data-art='real'].tc-leaving .title-real-scene { transition: none; will-change: transform; }
 `;
 };
 
@@ -225,6 +237,8 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
   /** The title is open (`show` … `hide`); its art lives while it is open and its element is not hidden. */
   let isOpen = false;
   let live = false;
+  /** The push through the arch, while it runs (the art stays decoded; the park draws under the title). */
+  let leaving: { push: Push; undo(): void } | null = null;
   let input: TitleLayoutInput | null = null;
   let lay: CoverLayout | null = null;
   let reduced = displayPrefs().reducedMotion;
@@ -244,7 +258,7 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
   };
   /** Opens the title art when the title is open and shown, closes it otherwise. */
   const sync = (): void => {
-    const want = isOpen && !el.hidden;
+    const want = (isOpen || leaving !== null) && !el.hidden;
     if (want === live) return;
     live = want;
     if (want) session.open();
@@ -413,15 +427,96 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     raf = requestAnimationFrame(tick);
   };
 
+  /** The arch on screen, CSS px (the push zooms about it): the index's arch, else the focus box's centre. */
+  const archOnScreen = (): { x: number; y: number } | null => {
+    const idx = session.index();
+    if (!idx || !lay) return null;
+    const F = idx[lay.framing];
+    const a = idx.arch ?? { x: F.focus.x + F.focus.w / 2, y: F.focus.y + F.focus.h / 2 };
+    return { x: lay.ox + a.x * lay.s, y: lay.oy + a.y * lay.s };
+  };
+
+  const leave = (hideTitle: () => void): void => {
+    if (leaving) return;
+    isOpen = false;
+    if (el.hidden || !live) {
+      // Hidden by someone else (the bench): nothing to push through.
+      hideTitle();
+      sync();
+      return;
+    }
+    stopLoop();
+    const reducedNow = displayPrefs().reducedMotion;
+    // No poster on screen (still decoding, or a failed download): the cross-fade alone.
+    const art = session.current() !== null && canvas.hasAttribute('data-ready');
+    const at = archOnScreen();
+    if (at) canvas.style.transformOrigin = `${at.x.toFixed(1)}px ${at.y.toFixed(1)}px`;
+    el.classList.add('tc-leaving');
+    el.setAttribute('aria-hidden', 'true');
+    // The menu's focus goes with it (the park takes the keys once the push ends).
+    if (document.activeElement instanceof HTMLElement && el.contains(document.activeElement)) document.activeElement.blur();
+    const skip = (e: Event): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      leaving?.push.skip();
+    };
+    el.addEventListener('pointerdown', skip, true);
+    window.addEventListener('keydown', skip, true);
+    const undo = (): void => {
+      el.removeEventListener('pointerdown', skip, true);
+      window.removeEventListener('keydown', skip, true);
+      el.classList.remove('tc-leaving');
+      el.removeAttribute('aria-hidden');
+      el.style.removeProperty('opacity');
+      el.style.removeProperty('--tr-ui');
+      canvas.style.removeProperty('transform');
+      canvas.style.removeProperty('transform-origin');
+    };
+    const push = startPush(
+      {
+        now: () => performance.now(),
+        frame: (cb) => requestAnimationFrame(cb),
+        cancel: (id) => cancelAnimationFrame(id),
+        apply(f) {
+          canvas.style.transform = f.scale === 1 ? '' : `scale(${f.scale.toFixed(4)})`;
+          el.style.opacity = f.layer.toFixed(3);
+          el.style.setProperty('--tr-ui', f.ui.toFixed(3));
+        },
+        end() {
+          // Hidden first, then the art closed (`sync`: the poster and the canvas emptied), then the park's arrival.
+          undo();
+          leaving = null;
+          hideTitle();
+          sync();
+          arrived({ reduced: reducedNow });
+        },
+      },
+      reducedNow || !art,
+    );
+    leaving = push.running() ? { push, undo } : null;
+  };
+
   return {
     show() {
+      if (leaving) {
+        // Shown again mid-push: the title stays, with its poster.
+        leaving.push.stop();
+        leaving.undo();
+        leaving = null;
+      }
       isOpen = true;
       sync();
     },
     hide() {
+      if (leaving) {
+        leaving.push.stop();
+        leaving.undo();
+        leaving = null;
+      }
       isOpen = false;
       sync();
     },
+    leave,
     place(next) {
       input = next;
       refresh();

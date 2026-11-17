@@ -36,6 +36,7 @@ import logoLine from './titleScreen/art/logo-line.json';
 import logoStack from './titleScreen/art/logo-stack.json';
 import { artStyle } from '../render/artStyle';
 import { createRealTitle } from './titleScreen/real/view';
+import { markNewPark } from './bridge/arrival';
 
 /** Free-play map size the form starts on (see the file comment). */
 export const NEW_PARK_DEFAULT_SIZE = 96;
@@ -156,6 +157,8 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
           return;
         }
         const seed = randomSeed();
+        // Title-to-play bridge: the welcome card follows a new park (`bridge/arrival.ts`).
+        if (import.meta.env.VITE_ART === 'real') markNewPark();
         game.setWorld(mapSize === CLASSIC_SIZE ? createWorld({ seed, parkName: v.name }) : createWorld({ seed, parkName: v.name, mapSize, layout: 'freePlay' }));
         hide();
         game.setSpeed(1);
@@ -471,9 +474,10 @@ export function createTitleScreen(ctx: UiContext): { el: HTMLElement; show(): vo
     open = false;
     popModal();
     releaseUi();
-    el.hidden = true;
-    // Realistic title: its bitmaps are closed before the park draws.
-    if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.hide();
+    // Realistic title: the push through the arch, then the title hides and its bitmaps are closed
+    // (`titleScreen/real/push.ts`).
+    if (import.meta.env.VITE_ART === 'real' && realTitle) realTitle.leave(() => (el.hidden = true));
+    else el.hidden = true;
   }
 
   const openAt = (view: TitleView): void => {

@@ -44,6 +44,8 @@ import { localizeReason } from '../i18n';
 import { confirmDialog } from './dialogs';
 import { text } from '../data/strings/en';
 import type { Command } from '../sim/commands/types';
+import { artStyle } from '../render/artStyle';
+import { mountBridge } from './bridge';
 
 /** Window event the input layer fires for a demolish that needs the player's yes (Settings → Confirm demolish). */
 export const CONFIRM_DEMOLISH_EVENT = 'tc-confirm-demolish';
@@ -232,6 +234,8 @@ export function mountUI(root: HTMLElement, game: Game): void {
     plainHiddenUntil = 0;
   });
   const title = createTitleScreen(ctx);
+  // Title-to-play bridge (realistic look only): the arrival glow, the welcome card and the poster goal (`./bridge`).
+  if (import.meta.env.VITE_ART === 'real' && artStyle() === 'real') mountBridge(ctx);
   // Phase 7 §4.8: one tip at a time.
   const tip = createTipBubble(ctx);
   // Build 2 tool bars, legends, sheets, and dialogs (Wave 3 extensions).

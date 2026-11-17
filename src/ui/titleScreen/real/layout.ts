@@ -52,6 +52,12 @@ export interface CoverIndex {
   format: 'cover/1';
   wide: CoverFraming;
   tall: CoverFraming;
+  /**
+   * The lit arch's centre in the wide file's px (the push through the arch zooms about it; title-to-play bridge §1).
+   * The tall framing crops the same file. Optional for the reader (an older index pushes about the focus box's centre);
+   * the art check (`tools/art3d/titleIndex.ts` `checkCoverFolder`) requires it.
+   */
+  arch?: { x: number; y: number };
   /** Written by the copy step for the record; not needed by the reader. */
   bytes?: { compressed: number; decoded: { wide: number; tall: number } };
 }
@@ -210,6 +216,12 @@ export function checkCoverIndex(raw: unknown): CoverIndex | Error {
     if (!inside(lights, file)) return new Error(`cover index: ${f} lights outside the file`);
     if (title.y + title.h > wheel.y + wheel.h / 2) return new Error(`cover index: ${f} title anchor reaches below the wheel's hub`);
     if (f === 'wide' && crop.w <= crop.h) return new Error('cover index: wide crop is not wider than tall');
+  }
+  if (o.arch !== undefined) {
+    const a = o.arch as Partial<{ x: number; y: number }> | null;
+    const W = o.wide as CoverFraming;
+    if (!a || typeof a !== 'object' || !isNum(a.x) || !isNum(a.y)) return new Error('cover index: arch is not a point');
+    if (a.x < 0 || a.y < 0 || a.x > W.w || a.y > W.h) return new Error('cover index: arch outside the wide file');
   }
   return o as CoverIndex;
 }

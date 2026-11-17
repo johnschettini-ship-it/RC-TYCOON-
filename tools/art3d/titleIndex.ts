@@ -134,6 +134,8 @@ export function checkCoverFolder(raw: unknown, files: TitleFiles): string[] {
   const idx = checkCoverIndex(raw);
   if (idx instanceof Error) return [idx.message];
   const problems: string[] = [];
+  // The title-to-play bridge reads these (the push zooms about the arch); the reader treats them as optional.
+  if (!idx.arch) problems.push('no arch point (the push through the arch zooms about it)');
   const named = new Set<string>();
   for (const k of ['wide', 'tall'] as const) {
     const F = idx[k];

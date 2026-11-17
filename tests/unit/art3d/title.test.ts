@@ -230,6 +230,13 @@ describe('checkCoverFolder (title/: the poster cover)', () => {
     expect(checkCoverFolder(u.index, u.files).some((p) => /tall/.test(p))).toBe(true);
     expect(checkCoverFolder({ ...u.index, format: 'x' }, u.files)[0]).toMatch(/format/);
   });
+  it('the arch point (the push through the arch) is required', () => {
+    const t = fixtureCover();
+    const { arch: _arch, ...noArch } = t.index as CoverIndex;
+    void _arch;
+    expect(checkCoverFolder(noArch, t.files).some((p) => p.includes('no arch point'))).toBe(true);
+    expect(checkCoverFolder({ ...t.index, arch: { x: -1, y: 4 } }, t.files)[0]).toMatch(/arch outside/);
+  });
   it('the copy step\'s source (art-src/title/) passes with the real file', () => {
     const src = new URL('../../../art-src/title/', import.meta.url);
     const files: TitleFiles = new Map();
