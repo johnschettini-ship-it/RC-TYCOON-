@@ -13,6 +13,7 @@ import { contentInfo, isUnlocked } from '../../../src/sim/research/api';
 import { hourlyResearch, pickNextResearch } from '../../../src/sim/research/update';
 import { TICKS_PER_MONTH } from '../../../src/data/tuning/core';
 import { makeTestWorld } from '../../helpers/world';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 
 const THEMES = ['frost_peaks', 'volcano_ridge', 'spooky_hollow', 'jungle_lagoon', 'starport'];
 
@@ -22,8 +23,8 @@ describe('Phase 4 research entries', () => {
   });
 
   it('adds Rapids Raft 540 and 240 per theme after the 12 Build 1 items (the Log Flume starts unlocked)', () => {
-    // Build 3 (W4-D) appends 11 more items after these (tests/unit/content/research.test.ts).
-    expect(RESEARCH_ORDER).toHaveLength(18 + 11);
+    // Build 3 (W4-D) appends 11 more items after these, and new rides batch B 5 (tests/unit/content/research.test.ts).
+    expect(RESEARCH_ORDER).toHaveLength(18 + 11 + RIDES_B_IDS.length);
     const build2 = RESEARCH_ORDER.slice(12, 18);
     expect(build2.map((r) => [r.id, r.category, r.cost])).toEqual([
       ['frost_peaks', 'scenery', 240],

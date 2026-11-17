@@ -9,6 +9,7 @@ import { advance } from '../../../src/loop';
 import { FLAT_RIDES, STALLS, TRACK_RIDES, PATH_ITEMS, SHOW_SITES, STAFF, getFlatRideDef, gateIndex, temperamentGroup } from '../../../src/data/catalog';
 import { GROUND_LEVEL, START_TICK } from '../../../src/data/tuning/core';
 import { makeTestWorld, stateHash } from '../../helpers/world';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 
 describe('rng', () => {
   it('is deterministic for a seed', () => {
@@ -140,8 +141,8 @@ describe('loop (Phase 0 §4.6)', () => {
 
 describe('catalog data (content-catalog.md)', () => {
   it('has the Build 1, Build 2, and Build 3 counts (Phase 6 §4.5)', () => {
-    // + the 4 family flat rides of new rides batch A (phase 1, unlocked at the start).
-    expect(FLAT_RIDES).toHaveLength(14 + 4 + 4);
+    // + the 4 family flat rides of new rides batch A (phase 1, unlocked at the start) and the batch B rides (phase 6).
+    expect(FLAT_RIDES).toHaveLength(14 + 4 + 4 + RIDES_B_IDS.length);
     expect(TRACK_RIDES).toHaveLength(9 + 3);
     expect(STALLS).toHaveLength(11 + 3);
     expect(SHOW_SITES).toHaveLength(2);

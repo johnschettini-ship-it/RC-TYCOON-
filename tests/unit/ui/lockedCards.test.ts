@@ -52,8 +52,9 @@ describe('locked preview cards: which and in what order', () => {
     const ids = lockedCards(w, 'rides').map((c) => c.id);
     expect(ids).toEqual(['ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft', 'magic_carpet', 'merry_mill']);
     // The last research rides: fewer than 6 left.
-    w.state.management.research.unlocked.push(...RESEARCH_ORDER.map((r) => r.id).filter(isRide).slice(0, 9));
-    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['gyro_globe', 'monorail', 'inverted_coaster']);
+    // (17 research rides with new rides batch B; the first 14 researched leave 3.)
+    w.state.management.research.unlocked.push(...RESEARCH_ORDER.map((r) => r.id).filter(isRide).slice(0, 14));
+    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['monorail', 'inverted_coaster', 'loop_swing']);
   });
 
   it('follows the order research will take: the current item first, then the focused categories', () => {

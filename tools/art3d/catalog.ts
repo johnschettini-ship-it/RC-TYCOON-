@@ -46,6 +46,12 @@ const RIDE_HEIGHT_M: Readonly<Record<string, number>> = {
   mini_pirate_ship: 7, // realistic: 6.25 m axle and its bearings (today's px count the 3x4 floor depth)
   balloon_wheel: 9, // the top balloon's pin
   frog_hopper: 7.5, // the frog on the lily pad
+  // New rides batch B (2026-11-17): the batch 1 rule, today's drawn height / 8.
+  chair_swing_twist: 14,
+  spin_wheel_drop: 12,
+  loop_swing: 16,
+  carousel_deluxe: 14,
+  station_show: 10,
 };
 const STALL_HEIGHT_M: Readonly<Record<string, number>> = {
   snack_shack: 3.5,

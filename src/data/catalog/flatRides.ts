@@ -44,6 +44,12 @@ export const FLAT_RIDES: readonly FlatRideDef[] = Object.freeze([
   ride('mini_pirate_ship', 'Mini Pirate Ship', 1, 'start', 'family', F(), 3, 4, 3.8, 2.8, 2.0, 16, 20, 2000, 60, 2),
   ride('balloon_wheel', 'Balloon Wheel', 1, 'start', 'family', F(), 2, 2, 2.8, 0.7, 0.3, 16, 25, 1300, 40, 2),
   ride('frog_hopper', 'Frog Hopper', 1, 'start', 'family', F(), 2, 2, 2.6, 1.8, 0.8, 8, 20, 1100, 35, 1),
+  // New rides batch B (2026-11-17 new rides design): flat thrill and chill rides, unlocked by research.
+  ride('chair_swing_twist', 'Chair Swing Twist', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 5.6, 5.0, 3.0, 24, 30, 3800, 100, 3),
+  ride('spin_wheel_drop', 'Spinning Wheel Drop', 6, 'thrill', 'thrill', F(false, false, true), 3, 3, 6.8, 8.0, 6.8, 16, 30, 5600, 150, 4),
+  ride('loop_swing', 'Loop Swing', 6, 'thrill', 'thrill', F(false, false, true), 3, 4, 7.5, 9.0, 7.0, 16, 30, 6500, 170, 5),
+  ride('carousel_deluxe', 'Carousel Deluxe', 6, 'gentle', 'chill', F(true), 4, 4, 3.4, 1.0, 0.5, 36, 30, 2800, 70, 3),
+  ride('station_show', 'Train Station Show', 6, 'gentle', 'chill', F(true), 4, 3, 3.0, 0.5, 0.0, 18, 40, 2000, 50, 2),
 ]);
 
 /**

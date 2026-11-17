@@ -27,7 +27,8 @@ import { canOpenTrackRide } from '../../src/sim/rides/track/api';
 import { addGuestDirect } from '../helpers/world';
 import { SCALE_SCENE, type PerfSceneId } from './sceneInfo';
 import { FLAT_RIDES, gateIndex } from '../../src/data/catalog/flatRides';
-import { CELL_H, CELL_W, RIDES_CELLS, RIDES_COLOURS, RIDES_EXTRA, RIDES_FOCUS } from './ridesLayout';
+import { CELL_H, CELL_W, RIDES_CELLS, RIDES_CELL_X, RIDES_COLOURS, RIDES_EXTRA, RIDES_FOCUS } from './ridesLayout';
+import { RIDES_CELLS_B } from './ridesLayout';
 
 export { PERF_SCENES, SCALE_SCENE, SCENE_SAVED_AT, type PerfSceneId, type PerfSceneInfo } from './sceneInfo';
 
@@ -325,7 +326,7 @@ function buildScale(): World {
 
 /**
  * The rides park (phase 8c batch 1): every flat ride type once and a second carousel, in the compact band of
- * `ridesLayout.ts` (cells of 5 × 7 tiles) that the bench camera sees: all 23 in view at zoom 0.5. Six rides are coloured
+ * `ridesLayout.ts` (cells of 5 × 7 tiles) that the bench camera sees: all 28 in view at zoom 0.5. Six rides are coloured
  * (`RIDES_COLOURS`, `RIDES_EXTRA`): the two carousels in two colours. Footpath lines run along every cell edge of
  * the band, each ride's exit tile is on the line north of it, and a queue runs from its entrance (front edge, tile
  * `gateIndex(w)`) to the line south of it. A footprint refusal throws (the layout is fixed so none is dropped).
@@ -333,8 +334,9 @@ function buildScale(): World {
 function buildRides(): World {
   const world = createWorld({ seed: 8181, parkName: 'Rides Perf Park' });
   world.state.park.cash = 100_000_000;
-  const is = RIDES_CELLS.map((c) => c[0]);
-  const js = RIDES_CELLS.map((c) => c[1]);
+  const cells = [...RIDES_CELLS, ...Object.values(RIDES_CELLS_B)];
+  const is = cells.map((c) => c[0]);
+  const js = cells.map((c) => c[1]);
   const x0 = RIDES_FOCUS.x + CELL_W * Math.min(...is);
   const x1 = RIDES_FOCUS.x + CELL_W * (Math.max(...is) + 1);
   const y0 = RIDES_FOCUS.y + CELL_H * Math.min(...js);
@@ -344,14 +346,14 @@ function buildRides(): World {
   const place = (def: (typeof FLAT_RIDES)[number], [ci, cj]: readonly [number, number], colour: number | undefined): void => {
     const l = RIDES_FOCUS.x + CELL_W * ci;
     const m = RIDES_FOCUS.y + CELL_H * cj;
-    const x = l + 1;
+    const x = l + (RIDES_CELL_X[def.id] ?? 1);
     const y = m + 1;
     const id = run(world, { type: 'placeRide', defId: def.id, x, y, rotation: 0 });
     run(world, { type: 'buildPathLine', x0: x + gateIndex(def.w), y0: y + def.d, x1: x + gateIndex(def.w), y1: m + CELL_H - 1, kind: 'queue' });
     if (colour !== undefined) run(world, { type: 'setRideColour', rideId: id, colour });
     run(world, { type: 'setRideOpen', rideId: id, open: true });
   };
-  FLAT_RIDES.forEach((def, k) => place(def, RIDES_CELLS[k] as readonly [number, number], RIDES_COLOURS[def.id]));
+  FLAT_RIDES.forEach((def, k) => place(def, (RIDES_CELLS_B[def.id] ?? RIDES_CELLS[k]) as readonly [number, number], RIDES_COLOURS[def.id]));
   const extra = FLAT_RIDES.find((d) => d.id === RIDES_EXTRA.defId);
   if (!extra) throw new Error(`rides: no flat ride ${RIDES_EXTRA.defId}`);
   place(extra, RIDES_EXTRA.cell, RIDES_EXTRA.colour);

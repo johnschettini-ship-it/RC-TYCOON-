@@ -12,6 +12,7 @@ import { drawStallArt, stallArtBounds } from '../../../../src/render/sprites/sta
 import { defHash, spriteKey } from '../../../../src/render/spriteCache';
 import type { Dir } from '../../../../src/sim/map';
 import { Recorder } from './recorder';
+import { RIDES_B_IDS } from '../../../helpers/ridesB';
 
 const RIDES = FLAT_RIDES.filter((d) => d.phase === 6);
 const STALL_IDS = STALLS.filter((d) => d.phase === 6).map((d) => d.id);
@@ -38,9 +39,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+/** New rides batch B: the walk-through (no riders, one occupancy state). */
+const WALK_THROUGHS = ['station_show'];
+
 describe('Phase 6 flat ride art', () => {
-  it('has its own art for each of the 4 rides', () => {
-    expect(RIDES.map((d) => d.id)).toEqual(['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe']);
+  it('has its own art for each of the 4 rides, and the new rides of batch B', () => {
+    expect(RIDES.map((d) => d.id)).toEqual(['magic_carpet', 'kiddie_cars', 'merry_mill', 'gyro_globe', ...RIDES_B_IDS]);
     for (const d of RIDES) expect(CONTENT_RIDE_ART[d.id], d.id).toBeDefined();
   });
 
@@ -82,11 +86,20 @@ describe('Phase 6 flat ride art', () => {
     }
   });
 
-  it.each(RIDES.map((d) => d.id))('%s is deterministic, animates with the cycle, and shows its riders', (id) => {
+  it.each(RIDES.filter((d) => !WALK_THROUGHS.includes(d.id)).map((d) => d.id))('%s is deterministic, animates with the cycle, and shows its riders', (id) => {
     const a = rideOps(id, state(1, 0.4, 3)).ops.join(';');
     expect(rideOps(id, state(1, 0.4, 3)).ops.join(';')).toBe(a);
     expect(rideOps(id, state(1, 0.2, 3)).ops.join(';')).not.toBe(a);
     expect(rideOps(id, state(1, 0.4, 0)).ops.join(';')).not.toBe(a);
+  });
+
+  // Walk-throughs (Phase 3 §4.11, as the mirror maze and haunted manor): visitors stay hidden inside, so the picture
+  // does not change with occupancy; it still animates (its light change) with the cycle.
+  it.each(WALK_THROUGHS)('%s (walk-through) is deterministic, animates with the cycle, and hides its visitors', (id) => {
+    const a = rideOps(id, state(1, 0.4, 3)).ops.join(';');
+    expect(rideOps(id, state(1, 0.4, 3)).ops.join(';')).toBe(a);
+    expect(rideOps(id, state(1, 0.2, 3)).ops.join(';')).not.toBe(a);
+    expect(rideOps(id, state(1, 0.4, 0)).ops.join(';')).toBe(a);
   });
 
   it.each(RIDES.map((d) => d.id))('%s looks different in each of the 4 rotations', (id) => {

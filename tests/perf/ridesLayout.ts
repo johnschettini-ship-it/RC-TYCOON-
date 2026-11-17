@@ -17,8 +17,15 @@ export const RIDES_CELLS: ReadonlyArray<readonly [number, number]> = [
   [-1, -2], [-3, -1], [0, 0], [3, 3], [0, -1], [2, 2], [-2, 0], [0, 1], [1, 0],
   [-1, -1], [-2, -1], [3, 1], [2, 0], [1, 1], [-5, -3], [-1, 0], [-2, -2], [2, 1],
   // New rides batch A (dodgem_boats, mini_pirate_ship, balloon_wheel, frog_hopper): free cells of the band, in view at zoom 0.5.
-  [-3, -2], [-4, -3], [3, 2], [-3, -3],
+  // The Frog Hopper (2 x 2) shares the Spiral Slide's (2 x 2) cell, beside it (`RIDES_CELL_X`), so that batch B has a
+  // whole cell for each of its rides.
+  [-3, -2], [-4, -3], [3, 2], [-2, 0],
 ];
+/**
+ * The ride's x tile in its cell, where it is not the usual +1: a second 2 x 2 ride in a cell stands at +3, beside the
+ * first (tiles +1..+2 and +3..+4 between the path lines at +0 and +5; each queue runs down its own gate column).
+ */
+export const RIDES_CELL_X: Readonly<Record<string, number>> = { frog_hopper: 3 };
 
 /**
  * Flat-ride colours (2026-11-16): six rides are painted, each in a different one of the six `RIDE_COLOUR_CHOICES`
@@ -34,3 +41,18 @@ export const RIDES_COLOURS: Readonly<Record<string, number>> = {
 };
 /** The second carousel, in sky, in a free cell of the band that is inside the zoom 0.5 view at rotations 0 and 2. */
 export const RIDES_EXTRA = { defId: 'carousel', cell: [1, 2] as const, colour: 4 } as const;
+
+/**
+ * New rides batch B (2026-11-17 new rides design): a cell per ride, by id, among the free cells of the band whose
+ * footprints stay inside the zoom 0.5 view at rotations 0 and 2. Merged after batch A, which took (-4, -3) and (3, 2):
+ * the Chair Swing Twist (3 x 3) has (4, 3), which holds up to 3 x 3, and the Carousel Deluxe (4 x 4) has (-4, -4).
+ * No whole cell of the band in view at zoom 0.5 is left (measured at the merge): a later 2 x 2 ride can still stand
+ * beside the Observation Tower (0, 1) or the Balloon Wheel (3, 2) through `RIDES_CELL_X`.
+ */
+export const RIDES_CELLS_B: Readonly<Record<string, readonly [number, number]>> = {
+  chair_swing_twist: [4, 3],
+  spin_wheel_drop: [-3, -3],
+  loop_swing: [-4, -2],
+  carousel_deluxe: [-4, -4],
+  station_show: [4, 2],
+};

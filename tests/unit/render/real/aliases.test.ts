@@ -4,6 +4,7 @@ import { setKey, type RealIndex, type RealSetEntry } from '../../../../src/rende
 import { createRealLook } from '../../../../src/render/real/look';
 import { SetManager, type Decoded, type SetIO } from '../../../../src/render/real/setManager';
 import { FLAT_RIDES } from '../../../../src/data/catalog/flatRides';
+import { RIDES_B_IDS } from '../../../helpers/ridesB';
 
 const F = { sheet: 'carousel-0.webp', sx: 0, sy: 0, w: 4, h: 4, ox: 0, oy: 0 };
 
@@ -22,9 +23,9 @@ function index(): RealIndex {
 describe('alias sets for the scale park (round 3 item 7)', () => {
   it('maps every flat ride type to its own alias of a baked ride, in turn', () => {
     const ids = FLAT_RIDES.map((d) => d.id);
-    expect(ids).toHaveLength(22);
+    expect(ids).toHaveLength(22 + RIDES_B_IDS.length);
     const m = aliasItemMap(ids);
-    expect(new Set(Object.values(m)).size).toBe(22);
+    expect(new Set(Object.values(m)).size).toBe(22 + RIDES_B_IDS.length);
     expect(m.carousel).toBe('carousel@carousel');
     expect(m.big_wheel).toBe('swing_tower@big_wheel');
     expect(m[ids[2]!]).toBe(`big_wheel@${ids[2]}`);

@@ -21,6 +21,8 @@ const BAKED = [
   'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc',
   // New rides batch A (2026-11-17).
   'dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper',
+  // New rides batch B (2026-11-17).
+  'chair_swing_twist', 'spin_wheel_drop', 'loop_swing', 'carousel_deluxe', 'station_show',
 ] as const;
 
 /** Unbaked items drawn with a baked stand-in. */

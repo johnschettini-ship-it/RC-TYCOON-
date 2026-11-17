@@ -12,6 +12,7 @@ import { TICKS_PER_MONTH } from '../../../src/data/tuning/core';
 import { contentInfo, isUnlocked } from '../../../src/sim/research/api';
 import { hourlyResearch, pickNextResearch } from '../../../src/sim/research/update';
 import { makeTestWorld } from '../../helpers/world';
+import { RIDES_B, RIDES_B_IDS } from '../../helpers/ridesB';
 
 /** Card W4-D (open question 1, master R25): provisional costs by category. */
 const BUILD3: Record<string, [string, number]> = {
@@ -35,9 +36,9 @@ describe('Build 3 research entries (catalog §9, master R25)', () => {
     expect(BUILD_MAX_PHASE).toBe(6);
   });
 
-  it('appends the 11 Phase 6 research items after the 18 Build 1 and Build 2 items: 4,050 points', () => {
-    expect(RESEARCH_ORDER).toHaveLength(18 + 11);
-    const build3 = RESEARCH_ORDER.slice(18);
+  it('appends the 11 Phase 6 research items after the 18 Build 1 and Build 2 items: 4,050 points (and the new rides of batch B among them)', () => {
+    expect(RESEARCH_ORDER).toHaveLength(18 + 11 + RIDES_B_IDS.length);
+    const build3 = RESEARCH_ORDER.slice(18).filter((r) => !RIDES_B[r.id]);
     expect(new Set(build3.map((r) => r.id))).toEqual(new Set(Object.keys(BUILD3)));
     for (const r of build3) expect([r.category, r.cost], r.id).toEqual(BUILD3[r.id]);
     expect(build3.reduce((a, r) => a + r.cost, 0)).toBe(4200 - 150);
@@ -46,7 +47,7 @@ describe('Build 3 research entries (catalog §9, master R25)', () => {
   });
 
   it('covers every Phase 6 catalog item, each in its catalog category', () => {
-    expect(PHASE6).toHaveLength(11);
+    expect(PHASE6).toHaveLength(11 + RIDES_B_IDS.length);
     expect(getResearchItem('kiddie_cars')).toBeUndefined();
     for (const d of PHASE6) {
       const item = getResearchItem(d.id);
@@ -97,5 +98,45 @@ describe('Build 3 research entries (catalog §9, master R25)', () => {
     }
     expect(pickNextResearch(r)).toBeNull();
     for (const id of Object.keys(BUILD3)) expect(seen).toContain(id);
+  });
+});
+
+// New rides batch B (2026-11-17 new rides design): five research flat rides, each in its catalogue category at its cost,
+// placed among the Build 3 items by cost: within its category the Build 3 block stays in rising cost order.
+describe('new rides batch B research entries', () => {
+  it('each is a research item of its catalogue category at its cost, after the Build 1 and Build 2 items', () => {
+    for (const [id, [category, cost]] of Object.entries(RIDES_B)) {
+      const def = FLAT_RIDES.find((d) => d.id === id);
+      expect(def, id).toBeDefined();
+      expect(def!.unlock, id).toBe(category);
+      expect(def!.phase, id).toBe(6);
+      expect(getResearchItem(id), id).toEqual({ id, category, cost });
+      expect(RESEARCH_ORDER.findIndex((r) => r.id === id), id).toBeGreaterThanOrEqual(18);
+      if (category === 'thrill') {
+        expect(cost, id).toBeGreaterThanOrEqual(450);
+        expect(cost, id).toBeLessThanOrEqual(650);
+      }
+    }
+  });
+
+  it('inserted by cost: within each category the Build 3 block keeps rising costs', () => {
+    const build3 = RESEARCH_ORDER.slice(18);
+    for (const cat of new Set(build3.map((r) => r.category))) {
+      const costs = build3.filter((r) => r.category === cat).map((r) => r.cost);
+      expect(costs, cat).toEqual([...costs].sort((a, b) => a - b));
+    }
+  });
+
+  it('each is locked at start, researched in the default order, and then placeable', () => {
+    const w = makeTestWorld();
+    const r = w.state.management.research;
+    for (const id of RIDES_B_IDS) expect(isUnlocked(w, id), id).toBe(false);
+    r.unlocked = [];
+    for (let k = 0; k < RESEARCH_ORDER.length; k++) {
+      const next = pickNextResearch(r);
+      if (next === null) break;
+      r.unlocked.push(next);
+    }
+    for (const id of RIDES_B_IDS) expect(isUnlocked(w, id), id).toBe(true);
   });
 });

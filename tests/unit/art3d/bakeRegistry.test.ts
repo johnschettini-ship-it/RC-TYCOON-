@@ -4,10 +4,14 @@ import { describe, expect, it } from 'vitest';
 import { FLAT_RIDES } from '../../../src/data/catalog';
 import { REAL_FALLBACK } from '../../../src/render/real/fallbacks';
 import { itemSpec } from '../../../tools/art3d/catalog';
+import { RIDES_B_IDS } from '../../helpers/ridesB';
 
 // Plain JS build tools without types: import by a computed path so they load as `any`.
 /** The baked items the stage 1 reader (Task 7 fallbacks.ts) maps game ids to. */
 const REAL_FALLBACK_IDS = ['carousel', 'swing_tower', 'big_wheel', 'snack_shack', 'oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole', 'bench', 'bin', 'steel_coaster', 'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill', 'observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide', 'pendulum_ship', 'magic_carpet', 'flip_arm', 'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc', 'dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'];
+/** New rides batch B (2026-11-17): baked flat rides, each its own item. */
+const RIDES_B = RIDES_B_IDS;
+REAL_FALLBACK_IDS.push(...RIDES_B);
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -37,6 +41,7 @@ describe('stage 1 bake list', () => {
 
 describe('batch 1 flat rides', () => {
   const BAKED_RIDES = ['carousel', 'swing_tower', 'big_wheel', 'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill', 'observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide', 'pendulum_ship', 'magic_carpet', 'flip_arm', 'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc', 'dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'];
+  BAKED_RIDES.push(...RIDES_B);
   it('every baked ride is in the registry and is its own baked item (not a stand-in)', async () => {
     const { ITEM_LIST } = await load('items/registry.js');
     const ids = new Set(ITEM_LIST.map((x: { id: string }) => x.id));
