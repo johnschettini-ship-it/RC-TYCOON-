@@ -15,6 +15,14 @@ export function markNewPark(): void {
   newPark = true;
 }
 
+/**
+ * Clears the mark without an arrival: the title shown again (mid-push, or after a park opened while the title was
+ * hidden and so had no push). Without it, the next Continue or Load would take the stale mark for a new park.
+ */
+export function clearNewPark(): void {
+  newPark = false;
+}
+
 /** Whether the park that just opened is new; clears the mark. */
 export function takeNewPark(): boolean {
   const v = newPark;
@@ -26,6 +34,21 @@ export interface Arrival {
   reduced: boolean;
 }
 let listener: ((a: Arrival) => void) | null = null;
+/** The push through the arch runs: the park shows under the title, but nothing may speak or pop up yet. */
+let arriving = false;
+
+/** The push started (true) or was stopped without an arrival (false). */
+export function setArriving(on: boolean): void {
+  arriving = on;
+}
+
+/**
+ * True while the push runs: the tip bubble waits (`tips/bubble.ts`), so no tip shows, nor is read out, before the park
+ * has arrived and the welcome card (when it shows) has opened; the card then holds the tips as a modal.
+ */
+export function arrivalHolds(): boolean {
+  return arriving;
+}
 
 export function onArrival(fn: ((a: Arrival) => void) | null): void {
   listener = fn;
@@ -33,7 +56,11 @@ export function onArrival(fn: ((a: Arrival) => void) | null): void {
 
 /** The push ended and the park shows (called by the title). */
 export function arrived(a: Arrival): void {
-  listener?.(a);
+  try {
+    listener?.(a);
+  } finally {
+    arriving = false;
+  }
 }
 
 /** After a title transition: the glow unless reduced motion; the welcome card for a new sandbox or free-play park. */

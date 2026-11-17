@@ -17,6 +17,7 @@ import type { UiPart } from '../extensions';
 import { icon } from '../icons';
 import { overlayChipsOpen } from '../overlays';
 import { modalOpen, titleOpen } from '../scenario/shared';
+import { arrivalHolds } from '../bridge/arrival';
 import { dropStale, matchingTips, shownTip, tipInput, type Tip, type TipId } from './model';
 
 export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } {
@@ -99,6 +100,8 @@ export function createTipBubble(ctx: UiContext): UiPart & { live: HTMLElement } 
       const blocked =
         modalOpen() ||
         titleOpen() ||
+        // Realistic build: the push through the arch runs (the welcome card, when it shows, holds the tips after it).
+        (import.meta.env.VITE_ART === 'real' && arrivalHolds()) ||
         game.tool.tool !== 'inspect' ||
         game.tool.overlay !== 'none' ||
         overlayChipsOpen(ctx) ||

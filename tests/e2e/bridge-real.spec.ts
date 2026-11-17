@@ -9,6 +9,7 @@
  * Screenshots go to `$SHOT_DIR` (default: the test's output folder), named `bridge-<name>.png`.
  */
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import { scan } from './helpers';
 
 const REAL = process.env.VITE_ART === 'real';
@@ -318,4 +319,115 @@ test.describe('title-to-play bridge (VITE_ART=real build)', () => {
       });
     }
   }
+
+  /** A park saved in slot 1 and the title back on screen with its poster. */
+  async function savedParkAtTitle(page: Page, name: string): Promise<void> {
+    await toForm(page, name);
+    await page.getByTestId('title-start').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
+    await page.getByTestId('tool-menu').click();
+    await page.getByTestId('menu-save').click();
+    await page.getByTestId('slot-1').click();
+    await page.getByTestId('tool-menu').click();
+    await page.getByTestId('menu-quit').click();
+    const yes = page.getByRole('button', { name: 'Quit', exact: true });
+    if (await yes.isVisible().catch(() => false)) await yes.click();
+    await expect(page.getByTestId('title-continue')).toBeVisible();
+    await expect(posterReady(page)).toHaveCount(1, { timeout: 10_000 });
+  }
+
+  test('review 1: a new park opened while the title was hidden (no push) leaves no welcome mark for the next Continue', async ({ browser }) => {
+    const { ctx, page } = await open(browser, DESKTOP);
+    await savedParkAtTitle(page, 'Mark Park');
+    // As the bench does: the title hidden by someone else, then a new park from it (no push, so no arrival).
+    await page.evaluate(() => {
+      const el = document.querySelector('.title-screen') as HTMLElement;
+      el.hidden = true;
+      (document.querySelector('[data-testid="title-new"]') as HTMLButtonElement).click();
+      (document.querySelector('[data-testid="title-size-64"]') as HTMLButtonElement).click();
+      (document.querySelector('[data-testid="title-start"]') as HTMLButtonElement).click();
+    });
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+    // Back to the title, then Continue the saved park: no welcome card.
+    await page.getByTestId('tool-menu').click();
+    await page.getByTestId('menu-quit').click();
+    const yes = page.getByRole('button', { name: 'Quit', exact: true });
+    if (await yes.isVisible().catch(() => false)) await yes.click();
+    await expect(page.getByTestId('title-continue')).toBeVisible();
+    await page.getByTestId('title-continue').click();
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.waitForTimeout(400);
+    await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+    await ctx.close();
+  });
+
+  test('review 2: no tip shows (nor is read out) during the push, before the welcome card', async ({ browser }) => {
+    const { ctx, page } = await open(browser, DESKTOP);
+    await toForm(page, 'Tip Park');
+    const t = Date.now();
+    await page.clock.install({ time: t });
+    await page.clock.pauseAt(t + 100);
+    await page.getByTestId('title-start').click();
+    await page.clock.runFor(50);
+    await expect(page.locator('.title-screen.tc-leaving')).toHaveCount(1);
+    // A settings change makes the tips check at once (the new park's "no ride yet" tip matches).
+    await page.evaluate(() => (window as unknown as { __tc: { settings: { set(k: string, v: unknown): void } } }).__tc.settings.set('textScale', 125));
+    for (let i = 0; i < 8; i++) {
+      await page.clock.runFor(80);
+      expect(await page.getByTestId('tip').isHidden(), `tip hidden at ${i}`).toBe(true);
+      expect(await page.getByTestId('tip-live').textContent()).toBe('');
+    }
+    await page.clock.runFor(400);
+    await expect(page.getByTestId('welcome-card')).toBeVisible();
+    await expect(page.getByTestId('tip')).toBeHidden();
+    await ctx.close();
+  });
+
+  test('review 3: the welcome title has no prohibited ARIA and is named "Welcome to Thrills & Chills"', async ({ browser }) => {
+    const { ctx, page } = await open(browser, DESKTOP);
+    await toWelcome(page, 'Aria Park');
+    await expect(page.getByRole('dialog', { name: 'Welcome to Thrills & Chills' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Welcome to Thrills & Chills' })).toBeVisible();
+    const r = await new AxeBuilder({ page }).include('[data-testid="welcome-card"]').withRules(['aria-prohibited-attr']).analyze();
+    expect(r.violations.map((v) => v.id)).toEqual([]);
+    expect(await page.locator('[data-testid="welcome-card"] span[aria-label]').count()).toBe(0);
+    await ctx.close();
+  });
+
+  for (const dev of [DESKTOP, PHONES[0]]) test(`review 4 (${dev.mobile ? 'touch' : 'mouse'}): the click of a tap that skips the push does not reach the park (nothing built, selected or opened)`, async ({ browser }) => {
+    const { ctx, page } = await open(browser, dev);
+    await savedParkAtTitle(page, 'Tap Park');
+    await page.getByTestId('title-continue').click();
+    await expect(page.locator('.title-screen.tc-leaving')).toHaveCount(1);
+    // A Big Wheel card held in the park behind the title, then a tap on the map skips the push.
+    await page.evaluate(() => {
+      const g = (window as unknown as { __tc: { tool: { tool: string; defId: string | null } } }).__tc;
+      g.tool.tool = 'placeRide';
+      g.tool.defId = 'big_wheel';
+    });
+    const rides = (): Promise<number> => page.evaluate(() => (window as unknown as { __tc: { world: { state: { rides: unknown[] } } } }).__tc.world.state.rides.length);
+    // The UI opens the held card's details panel on its next frame.
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+    const before = await rides();
+    const panelsBefore = await page.locator('.panel:not([hidden])').count();
+    // Count what reaches the park canvas.
+    await page.evaluate(() => {
+      const w = window as unknown as { __reached: string[] };
+      w.__reached = [];
+      const c = document.getElementById('game') as HTMLCanvasElement;
+      for (const type of ['pointerup', 'click']) c.addEventListener(type, () => w.__reached.push(type));
+    });
+    if (dev.mobile) await page.touchscreen.tap(195, 500);
+    else await page.mouse.click(683, 420);
+    await expect(page.locator('.title-screen')).toBeHidden();
+    await page.waitForTimeout(400);
+    expect(await rides()).toBe(before);
+    expect(await page.evaluate(() => (window as unknown as { __tc: { tool: { selectedEntity: unknown } } }).__tc.tool.selectedEntity)).toBeNull();
+    // (Holding the card opened its details panel: no other panel opens.)
+    await expect(page.locator('.panel:not([hidden])')).toHaveCount(panelsBefore);
+    expect(await page.evaluate(() => (window as unknown as { __reached: string[] }).__reached)).toEqual([]);
+    await ctx.close();
+  });
 });

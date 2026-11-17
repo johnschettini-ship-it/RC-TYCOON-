@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PUSH_MS, PUSH_RM_MS, PUSH_SCALE, pushFrame, startPush, type PushDeps } from '../../../src/ui/titleScreen/real/push';
 import { GLOW_MS, GLOW_START, glowOpacity, glowWanted } from '../../../src/ui/bridge/glow';
-import { arrivalPlan, arrived, markNewPark, onArrival, takeNewPark } from '../../../src/ui/bridge/arrival';
+import { arrivalHolds, arrivalPlan, arrived, clearNewPark, markNewPark, onArrival, setArriving, takeNewPark } from '../../../src/ui/bridge/arrival';
 import { createTitleSession, loadTitleArt, type TitleBitmap } from '../../../src/ui/titleScreen/real/load';
 import { checkCoverIndex, type CoverIndex } from '../../../src/ui/titleScreen/real/layout';
 import COVER from '../../../art-src/title/index.json';
@@ -219,5 +219,28 @@ describe('arrival (what follows the push)', () => {
     onArrival(null);
     arrived({ reduced: false });
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+  it('clearNewPark drops a mark no arrival took (the title shown again, or no push)', () => {
+    markNewPark();
+    clearNewPark();
+    expect(takeNewPark()).toBe(false);
+  });
+  it('the push holds the tips until the arrival has run its listener (even one that throws)', () => {
+    expect(arrivalHolds()).toBe(false);
+    setArriving(true);
+    expect(arrivalHolds()).toBe(true);
+    let held: boolean | null = null;
+    onArrival(() => {
+      held = arrivalHolds();
+      throw new Error('listener');
+    });
+    expect(() => arrived({ reduced: false })).toThrow();
+    // Still held while the listener ran (the welcome card opens as a modal first), then released.
+    expect(held).toBe(true);
+    expect(arrivalHolds()).toBe(false);
+    onArrival(null);
+    setArriving(true);
+    setArriving(false);
+    expect(arrivalHolds()).toBe(false);
   });
 });

@@ -31,7 +31,7 @@ import { findBulbs, type Bulb } from './bulbs';
 import { coverLayout, TITLE_EM, type CoverLayout, type Framing, type TitleKind } from './layout';
 import { createTitleSession, loadTitleArt, type FramingArt } from './load';
 import { startPush, type Push } from './push';
-import { arrived } from '../../bridge/arrival';
+import { arrived, clearNewPark, setArriving } from '../../bridge/arrival';
 
 /** Where the title pictures live, relative to the page. */
 export const TITLE_ART_BASE = 'art/real/title/';
@@ -444,7 +444,8 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     if (leaving) return;
     isOpen = false;
     if (el.hidden || !live) {
-      // Hidden by someone else (the bench): nothing to push through.
+      // Hidden by someone else (the bench): nothing to push through, no arrival (the new-park mark goes too).
+      clearNewPark();
       hideTitle();
       sync();
       return;
@@ -462,6 +463,7 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
     const skip = (e: Event): void => {
       e.preventDefault();
       e.stopPropagation();
+      if (e.type === 'pointerdown') swallowRest();
       leaving?.push.skip();
     };
     el.addEventListener('pointerdown', skip, true);
@@ -498,6 +500,27 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
       reducedNow || !art,
     );
     leaving = push.running() ? { push, undo } : null;
+    setArriving(leaving !== null);
+  };
+
+  /**
+   * The pointerup and click of the tap that skipped the push land on the park once the title hides (a touch's click
+   * does): swallowed, so the tap never places, selects or opens anything there. Until the click, or 600 ms.
+   */
+  const swallowRest = (): void => {
+    const eat = (e: Event): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === 'click') done();
+    };
+    const done = (): void => {
+      window.removeEventListener('pointerup', eat, true);
+      window.removeEventListener('click', eat, true);
+      clearTimeout(timer);
+    };
+    window.addEventListener('pointerup', eat, true);
+    window.addEventListener('click', eat, true);
+    const timer = setTimeout(done, 600);
   };
 
   return {
@@ -508,6 +531,9 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
         leaving.undo();
         leaving = null;
       }
+      // No arrival follows: a new park opened before is not the park the next Continue or Load opens.
+      setArriving(false);
+      clearNewPark();
       isOpen = true;
       sync();
     },
@@ -517,6 +543,8 @@ export function createRealTitle(el: HTMLElement, logo: HTMLElement, sceneLabel: 
         leaving.undo();
         leaving = null;
       }
+      setArriving(false);
+      clearNewPark();
       isOpen = false;
       sync();
     },

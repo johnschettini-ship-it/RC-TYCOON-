@@ -40,7 +40,8 @@ export function openWelcome(ctx: UiContext): WelcomeCard {
       { id: titleId, class: 'tc-welcome-title' },
       h('span', { class: 'tc-welcome-to', text: text('ui.welcome.to') }),
       ' ',
-      h('span', { class: 'tc-welcome-name', 'aria-label': name }, ...nameWords(name).flatMap((w, i) => (i === 0 ? [w] : [' ', w]))),
+      // The name as plain text in coloured words (spaced, so it reads "Thrills & Chills"; no ARIA on the span).
+      h('span', { class: 'tc-welcome-name' }, ...nameWords(name).flatMap((w, i) => (i === 0 ? [w] : [' ', w]))),
     ),
     h('p', { class: 'tc-welcome-body', text: text('ui.welcome.body') }),
     go,
