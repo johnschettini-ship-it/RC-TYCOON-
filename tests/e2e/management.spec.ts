@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openTool, setSpeed } from './helpers';
+import { newPark as sharedNewPark, openTool, setSpeed } from './helpers';
 
 /** "$14,774.45" → 1477445 cents; "−$5" → −500. */
 function cents(text: string): number {
@@ -8,14 +8,10 @@ function cents(text: string): number {
   return neg ? -v : v;
 }
 
+/** The shared new park (64 × 64, and in the realistic build the welcome card closed), paused so hourly costs do not
+ * move the cash during the checks. */
 async function newPark(page: Page): Promise<void> {
-  await page.goto('/');
-  await page.locator('[data-testid=title-new]').click();
-  // The classic 64 × 64 Build 1 layout these tile coordinates use (New Park starts on 96 × 96).
-  await page.locator('[data-testid=title-size-64]').click();
-  await page.locator('[data-testid=title-start]').click();
-  await expect(page.locator('.title-screen')).toBeHidden();
-  // Pause so hourly costs do not move the cash during the checks.
+  await sharedNewPark(page);
   await setSpeed(page, 'Pause');
 }
 

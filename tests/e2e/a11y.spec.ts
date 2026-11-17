@@ -6,7 +6,7 @@
  * The layout test boots in W4-G's pseudo-locale `en-XA` (Phase 6 §4.8) at 175% text scale.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, isPhone, newPark, openTool, pickCard, presetSettings, scan, watchErrors } from './helpers';
+import { cardOf, dismissWelcome, isPhone, newPark, openTool, pickCard, presetSettings, scan, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Tc = {
@@ -373,6 +373,8 @@ async function largePseudoLayout(page: Page, phone: boolean, blockFonts: boolean
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  // The realistic build welcomes a new park with a modal card; closed as every other test does.
+  await dismissWelcome(page);
   await page.evaluate(() => (window as unknown as { __tc: Tc }).__tc.setSpeed(0));
   await check('HUD and toolbar');
   for (const id of ['park', 'finance', 'research']) {
