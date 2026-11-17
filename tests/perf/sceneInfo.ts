@@ -25,15 +25,17 @@ export const PERF_SCENES: readonly PerfSceneInfo[] = [
   { id: 'phone', file: 'phone-800-guests.tcsave.json', mapSize: 64, guests: 800, trackRides: 10, flatRides: 14, shows: 0, focus: { x: 40, y: 30 } },
   { id: 'coaster', file: 'coaster-600-guests.tcsave.json', mapSize: 64, guests: 600, trackRides: 1, flatRides: 1, shows: 0, focus: { x: 14, y: 8 } },
   // Phase 8c batch 1: all 18 flat ride types side by side (memory with many different rides on screen). Flat-ride
-  // colours: six coloured, carousel twice in two colours (19 rides; the file name keeps its batch 1 name).
-  { id: 'rides', file: 'rides-18-flat-rides-300-guests.tcsave.json', mapSize: 64, guests: 300, trackRides: 0, flatRides: 19, shows: 0, focus: { x: RIDES_FOCUS.x, y: RIDES_FOCUS.y } },
+  // colours: six coloured, carousel twice in two colours. New rides batch A adds its family rides (23 rides; the file
+  // name keeps its batch 1 name).
+  { id: 'rides', file: 'rides-18-flat-rides-300-guests.tcsave.json', mapSize: 64, guests: 300, trackRides: 0, flatRides: 23, shows: 0, focus: { x: RIDES_FOCUS.x, y: RIDES_FOCUS.y } },
 ];
 
 /**
- * Stage 1 round 3 item 7: the scale park, a synthetic bench scene for the realistic look at full scale: every one of
- * the 18 flat ride types (2 rides each), 5,000 scenery items of the baked kinds, and 3,000 guests on the 128 × 128
- * map. Only the bench runs it (not the Phase 6 perf runs). In the bench, each ride type is drawn from its own copy of
- * a baked ride's sets (alias sets, `src/render/real/aliases.ts`), so 18 types decode and count as 18 would.
+ * Stage 1 round 3 item 7: the scale park, a synthetic bench scene for the realistic look at full scale: the 18 flat
+ * ride types of batch 1 (2 rides each; the first 18 of `FLAT_RIDES`, so the new rides of batch A leave its save as it
+ * was), 5,000 scenery items of the baked kinds, and 3,000 guests on the 128 × 128 map. Only the bench runs it (not
+ * the Phase 6 perf runs). In the bench, each ride type is drawn from its own copy of a baked ride's sets (alias sets,
+ * `src/render/real/aliases.ts`), so 18 types decode and count as 18 would.
  */
 export interface ScaleSceneInfo extends Omit<PerfSceneInfo, 'id'> {
   id: 'scale';

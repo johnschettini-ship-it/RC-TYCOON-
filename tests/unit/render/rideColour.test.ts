@@ -82,14 +82,14 @@ describe('flat ride colour in today’s look', () => {
   }
   const golden = existsSync(GOLDEN) ? (JSON.parse(readFileSync(GOLDEN, 'utf8')) as Record<string, string>) : {};
 
-  it('covers all 18 flat rides', () => {
-    expect(RIDE_IDS).toHaveLength(18);
+  it('covers all 22 flat rides (batch 1 and new rides batch A)', () => {
+    expect(RIDE_IDS).toHaveLength(22);
   });
 
   it('Original (colour absent) draws exactly today’s ops for every ride, rotation and state', () => {
     const want: Record<string, string> = {};
     for (const [k, v] of Object.entries(golden)) if (k.startsWith('original:')) want[k.slice('original:'.length)] = v;
-    expect(Object.keys(want)).toHaveLength(18 * 4 * STATES.length);
+    expect(Object.keys(want)).toHaveLength(22 * 4 * STATES.length);
     expect(compute()).toEqual(want);
   });
 

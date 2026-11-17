@@ -23,6 +23,7 @@ describe('itemSpec', () => {
     bumper_cars: 106, rocket_rounds: 84, spiral_slide: 114, observation_tower: 200, mirror_maze: 82, haunted_manor: 116,
     pendulum_ship: 142, thunder_disc: 106, drop_tower: 208, flip_arm: 136,
     magic_carpet: 132, kiddie_cars: 78, merry_mill: 116, gyro_globe: 148,
+    dodgem_boats: 52, mini_pirate_ship: 72, balloon_wheel: 72, frog_hopper: 60,
   };
   // The px / 8 rule is a starting value. A ride may deviate (a realistic height) with a one-line reason here.
   const HEIGHT_EXCEPTIONS: Record<string, { m: number; why: string }> = {
@@ -38,6 +39,7 @@ describe('itemSpec', () => {
     flip_arm: { m: 13, why: 'real proportions: 7 m hub and a 5 m arm keep the gondola inside the 12 m footprint and just above its deck; its footrest peaks at 13 m' },
     bumper_cars: { m: 7.5, why: 'a real one-storey pavilion: 4.7 m clear under the fascia, crown sign to 7.5 m; 106 px counts the 4x4 floor depth' },
     mirror_maze: { m: 8, why: 'a 5.3 m pavilion with the crystal on its roof stand to 8 m; 82 px counts the 3x3 floor depth' },
+    mini_pirate_ship: { m: 7, why: 'a kid-sized swing ship: 6.25 m axle (today\'s 50 px pivot), its bearing housings top out near 6.7 m; today\'s 72 px count the 3x4 floor depth' },
     thunder_disc: { m: 11, why: 'U-track ends at 8 m (as today: 74 px / 8 = 9.25 m to the rail) plus the lightning signs; 106 px counts the floor depth' },
   };
 

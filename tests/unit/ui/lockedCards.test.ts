@@ -18,9 +18,9 @@ const isRide = (id: string): boolean => ['flatRide', 'trackRide'].includes(conte
 const isStall = (id: string): boolean => contentInfo(id)?.kind === 'stall';
 
 describe('locked preview cards: which and in what order', () => {
-  it('a new park: the Rides deck shows 18 unlocked cards, then the next 6 research rides in research order', () => {
+  it('a new park: the Rides deck shows 22 unlocked cards, then the next 6 research rides in research order', () => {
     const w = makeTestWorld();
-    expect(rideCards(w)).toHaveLength(18);
+    expect(rideCards(w)).toHaveLength(22);
     const locked = lockedCards(w, 'rides');
     expect(LOCKED_CARDS_MAX).toBe(6);
     expect(locked.map((c) => c.id)).toEqual(RESEARCH_ORDER.map((r) => r.id).filter(isRide).slice(0, 6));

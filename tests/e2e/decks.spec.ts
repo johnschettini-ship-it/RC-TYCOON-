@@ -662,21 +662,21 @@ test('phone: a touch drag from a card to the map holds no card and builds nothin
   await expect(page.getByTestId('hand')).toBeVisible();
 });
 
-// Starting roster and locked preview cards (owner, 2026-11-17): 18 ride cards at the start, then the next 6 rides
+// Starting roster and locked preview cards (owner, 2026-11-17): 22 ride cards at the start (18 + the 4 new family rides), then the next 6 rides
 // research unlocks as greyed cards in research order. A press opens the Research panel; it never holds the card.
 const LOCKED_RIDES = ['thunder_disc', 'go_karts', 'ghost_train', 'haunted_manor', 'flip_arm', 'rapids_raft'];
 const LOCKED_NAMES = ['Thunder Disc', 'Go-Kart Track', 'Ghost Train', 'Haunted Manor', 'Flip Arm', 'Rapids Raft'];
 for (const size of [{ w: 1366, h: 768, project: 'desktop' }, { w: 390, h: 844, project: 'phone' }]) {
   test.describe(`${size.w} × ${size.h}: the Rides deck`, () => {
     test.use({ viewport: { width: size.w, height: size.h } });
-    test('shows 18 unlocked ride cards, then the next 6 locked rides in research order', async ({ page }, info) => {
+    test('shows 22 unlocked ride cards, then the next 6 locked rides in research order', async ({ page }, info) => {
       test.skip(info.project.name !== size.project, `${size.project} size`);
       const hand = page.getByTestId('hand');
       await expect(hand).toHaveAttribute('data-deck', 'rides');
       const order = await hand.locator('.content-card').evaluateAll((els) => els.map((e) => ((e as HTMLElement).dataset.locked ? `L:${(e as HTMLElement).dataset.def}` : (e as HTMLElement).dataset.def)));
       const firstLocked = order.findIndex((d) => d?.startsWith('L:'));
-      expect(firstLocked).toBe(18);
-      expect(order.slice(18)).toEqual(LOCKED_RIDES.map((id) => `L:${id}`));
+      expect(firstLocked).toBe(22);
+      expect(order.slice(22)).toEqual(LOCKED_RIDES.map((id) => `L:${id}`));
       for (const [i, id] of LOCKED_RIDES.entries()) {
         const card = page.getByTestId(`locked-${id}`);
         await expect(card).toHaveAccessibleName(`${LOCKED_NAMES[i]}, locked, unlocks with research`);

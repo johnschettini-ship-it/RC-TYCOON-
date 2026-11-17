@@ -15,6 +15,8 @@ const RIDE_DEPS = ['items/flatRides.js'];
 const TOWER_DEPS = [...RIDE_DEPS, 'items/towerMotion.js'];
 const SWINGER_DEPS = [...RIDE_DEPS, 'items/swingers.js', 'items/swingParts.js'];
 const ARENA_DEPS = [...RIDE_DEPS, 'items/arenaKeys.js', 'items/arenaKit.js'];
+/** New rides batch A (family flat rides): their keys, the motion they share with today's look, and the kit parts they use. */
+const FAMILY_DEPS = [...RIDE_DEPS, 'items/familyKeys.js', '../../src/render/sprites/content/familyMotion.ts', 'items/swingParts.js', 'items/arenaKit.js'];
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = SCENERY_DEPS; // bench and bin bake through items/scenery.js, which imports sprites.ts
 
@@ -42,6 +44,8 @@ export const CARD_ITEMS = [
   { id: 'rocket_rounds', kind: 'ride' },
   { id: 'kiddie_cars', kind: 'ride' },
   { id: 'merry_mill', kind: 'ride' },
+  // New rides batch A (2026-11-17).
+  { id: 'dodgem_boats', kind: 'ride' }, { id: 'mini_pirate_ship', kind: 'ride' }, { id: 'balloon_wheel', kind: 'ride' }, { id: 'frog_hopper', kind: 'ride' },
 ];
 
 export const ITEM_LIST = [
@@ -79,6 +83,11 @@ export const ITEM_LIST = [
   { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
   { id: 'kiddie_cars', file: 'items/kiddie_cars.js', catalog: ['ride', 'kiddie_cars'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
   { id: 'merry_mill', file: 'items/merry_mill.js', catalog: ['ride', 'merry_mill'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
+  // New rides batch A (2026-11-17): family flat rides, unlocked at the start.
+  { id: 'dodgem_boats', file: 'items/dodgem_boats.js', catalog: ['ride', 'dodgem_boats'], deps: FAMILY_DEPS },
+  { id: 'mini_pirate_ship', file: 'items/mini_pirate_ship.js', catalog: ['ride', 'mini_pirate_ship'], deps: FAMILY_DEPS },
+  { id: 'balloon_wheel', file: 'items/balloon_wheel.js', catalog: ['ride', 'balloon_wheel'], deps: FAMILY_DEPS },
+  { id: 'frog_hopper', file: 'items/frog_hopper.js', catalog: ['ride', 'frog_hopper'], deps: FAMILY_DEPS },
 ];
 
 // The earlier title panorama (items/title.js): a whole park scene from a free camera and the name signs, written to

@@ -10,17 +10,21 @@ import { d2FloorOk, keyAt, keysAt, periodOk, pictureOf, type Keys } from './fram
 // Plain JS build tool without types: import by a computed path so it loads as `any`.
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
+/** Rides that bake rots [0, 1, 2, 3]: batch 1's (flatRides.js) and new rides batch A's (familyKeys.js). */
+async function nonRound(): Promise<string[]> {
+  return [...(await load('items/flatRides.js')).NON_ROUND, ...(await load('items/familyKeys.js')).FAMILY_NON_ROUND];
+}
 
 describe('NON_ROUND', () => {
   it('names flat rides only', async () => {
-    const { NON_ROUND } = await load('items/flatRides.js');
+    const NON_ROUND = await nonRound();
     const ids = new Set(FLAT_RIDES.map((d) => d.id));
     for (const id of NON_ROUND) expect(ids.has(id), id).toBe(true);
   });
   // The list is what the bake turns by: each ride module bakes one set per view turn exactly when it has a front.
   for (const { id } of FLAT_RIDES) {
     it(`${id}: its module bakes rots [0, 1, 2, 3] if it is in NON_ROUND, else one 'all' set`, async () => {
-      const { NON_ROUND } = await load('items/flatRides.js');
+      const NON_ROUND = await nonRound();
       const src = readFileSync(new URL(`items/${id}.js`, dir), 'utf8');
       const rots = [...src.matchAll(/rots: (\[0, 1, 2, 3\]|'all')/g)].map((m) => m[1]);
       expect(rots, `${id}: one bakeObject call`).toHaveLength(1);
@@ -456,12 +460,14 @@ describe('density 2: fewer pictures, the same frames', () => {
     const sw = await load('items/swingers.js');
     const ar = await load('items/arenaKeys.js');
     const sp = await load('items/spinnerMotion.js');
+    const fam = await load('items/familyKeys.js');
     const out: Record<string, Keys> = {
       carousel: fr.carouselKeys(), swing_tower: fr.swingTowerKeys(4), big_wheel: fr.bigWheelKeys(),
       pendulum_ship: sw.shipKeys(), magic_carpet: sw.carpetKeys(), flip_arm: sw.flipKeys(),
       bumper_cars: ar.bumperKeys(), thunder_disc: ar.thunderKeys(), mirror_maze: ar.mirrorKeys(), haunted_manor: ar.manorKeys(),
     };
     for (const id of ['observation_tower', 'drop_tower', 'gyro_globe', 'spiral_slide']) out[id] = tm.towerKeys(id);
+    Object.assign(out, { dodgem_boats: fam.dodgemKeys(), mini_pirate_ship: fam.miniShipKeys(), balloon_wheel: fam.balloonKeys(), frog_hopper: fam.frogKeys() });
     for (const [id, c] of [['teacup_twirl', sp.TEACUP], ['rocket_rounds', sp.ROCKET], ['kiddie_cars', sp.KIDDIE], ['merry_mill', sp.MILL]] as const) {
       out[id] = fr.cycleD2(id, fr.cycleKeys(id, { period: c.period }, pick), { period: c.period }, pick, c.d2Step);
     }
@@ -477,6 +483,8 @@ describe('density 2: fewer pictures, the same frames', () => {
     mirror_maze: { step: 2, d4: 4, d2: 4, walkThrough: true }, haunted_manor: { step: 2, d4: 4, d2: 4, walkThrough: true },
     teacup_twirl: { step: 2, d4: 16, d2: 9 }, rocket_rounds: { step: 2, d4: 16, d2: 9 }, kiddie_cars: { step: 2, d4: 16, d2: 9 },
     merry_mill: { step: 2, d4: 8, d2: 5 }, carousel: { step: 2, d4: 32, d2: 17 },
+    // New rides batch A: frog_hopper keeps every picture at density 2 (its hops are 4 steps long).
+    dodgem_boats: { step: 8, d4: 9, d2: 5 }, mini_pirate_ship: { step: 4, d4: 10, d2: 6 }, balloon_wheel: { step: 2, d4: 9, d2: 9 }, frog_hopper: { step: 2, d4: 7, d2: 7 },
   };
   const used = (m: Keys, d: 2 | 4) => [...m.entries()].filter(([, e]) => (d === 2 ? e.keys2 ?? e.keys : e.keys).length > 0).map(([id]) => id);
 
@@ -663,4 +671,132 @@ describe('ride colour part', () => {
       expect(src, id).toMatch(/colour(Part|Mesh)\(/);
     });
   }
+});
+
+// New rides batch A (2026-11-17): dodgem_boats, mini_pirate_ship, balloon_wheel, frog_hopper. Their bake modules pose
+// from src/render/sprites/content/familyMotion.ts, the functions today's look draws with; these tests check that each
+// game frame shows the realistic picture of today's pose at that frame, that slot 32 wraps to slot 0, and that a
+// whole run ends on its start picture.
+describe('new rides batch A', () => {
+  const IDS = ['dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'];
+  async function maps(): Promise<Record<string, Keys>> {
+    const fam = await load('items/familyKeys.js');
+    return { dodgem_boats: fam.dodgemKeys(), mini_pirate_ship: fam.miniShipKeys(), balloon_wheel: fam.balloonKeys(), frog_hopper: fam.frogKeys() };
+  }
+
+  it('run 2 turns per run (no REVOLUTIONS entry), so every motion here, whole in a turn, starts and ends at rest', () => {
+    for (const id of IDS) {
+      const d = getFlatRideDef(id)!;
+      expect(rideAnimation(id, { phase: 'running', ticks: d.cycleTicks }, d.cycleTicks).turn, id).toBe(2);
+    }
+  });
+
+  it('every slot has a picture, slot 32 wraps to slot 0, an empty ride is one rest picture', async () => {
+    const m = await maps();
+    for (const id of IDS) {
+      for (const full of [false, true]) expect(pictureOf(m[id]!, keyAt(id, 0, full)), id).toBe(pictureOf(m[id]!, keyAt(id, 32 & 31, full)));
+      for (let a = 0; a < 32; a++) {
+        expect(pictureOf(m[id]!, keyAt(id, a, true)), `${id} slot ${a}`).toBeDefined();
+        expect(pictureOf(m[id]!, keyAt(id, a, false)), `${id} slot ${a}`).toBe('rest');
+      }
+    }
+  });
+
+  it('dodgem_boats: 8 pictures per turn in order, picture k posed at turn share k / 8 (the slot floored to it)', async () => {
+    const fam = await load('items/familyKeys.js');
+    const m = (await maps()).dodgem_boats!;
+    for (let a = 0; a < 32; a++) {
+      const id = pictureOf(m, keyAt('dodgem_boats', a, true))!;
+      expect(fam.dodgemTime(id).t, `slot ${a}`).toBe(Math.floor(((a & ~1) / 32) * 8) / 8);
+    }
+  });
+
+  it('mini_pirate_ship: 9 swing poses, each slot shows today\'s swing at that slot exactly, the bow on today\'s side', async () => {
+    const fam = await load('items/familyKeys.js');
+    const { miniShipTheta } = await import('../../../src/render/sprites/content/familyMotion');
+    const m = (await maps()).mini_pirate_ship!;
+    expect(m.size).toBe(10);
+    for (let a = 0; a < 32; a += 2) {
+      const id = pictureOf(m, keyAt('mini_pirate_ship', a, true))!;
+      expect(fam.miniShipLevelTheta(Number(id.split(':')[0])), `slot ${a}`).toBeCloseTo(miniShipTheta(a / 32), 9);
+    }
+    const src = readFileSync(new URL('items/mini_pirate_ship.js', dir), 'utf8');
+    expect(src).toContain('swing.rotation.x = -theta;');
+  });
+
+  it('balloon_wheel: every slot shows the true wheel at that slot (car places, colours and riders), so nothing jumps', async () => {
+    const fam = await load('items/familyKeys.js');
+    const { BALLOON_CARS } = await import('../../../src/render/sprites/content/familyMotion');
+    const m = (await maps()).balloon_wheel!;
+    /** The wheel at angle slot a (one turn per 32 slots, today's rimPt): each car's angle with the look it carries. */
+    const state = (a: number) => Array.from({ length: BALLOON_CARS }, (_, i) => {
+      const turn = (((i / BALLOON_CARS + a / 32) % 1) + 1) % 1;
+      return `${Math.round(turn * 4 * BALLOON_CARS) % (4 * BALLOON_CARS)}:${fam.balloonLook(i)}`;
+    }).sort().join(' ');
+    for (let a = 0; a < 32; a++) {
+      const id = pictureOf(m, keyAt('balloon_wheel', a, true))!;
+      // the bake poses picture `id` at fam.balloonSlot(id); phones show even slots (odd slots use the even one below)
+      expect(state(fam.balloonSlot(id)), `slot ${a} shows ${id}`).toBe(state(a & ~1));
+    }
+    periodOk(m, 'balloon_wheel', fam.BALLOON_PERIOD, true);
+    const src = readFileSync(new URL('items/balloon_wheel.js', dir), 'utf8');
+    expect(src).toContain('BALLOON_COLOURS[balloonLook(i)], 720 + balloonLook(i) * 2');
+    expect(src).toContain('balloonSlot(id)');
+  });
+
+  it('frog_hopper: each slot shows today\'s seat height within half a level; the hops rise and fall', async () => {
+    const fam = await load('items/familyKeys.js');
+    const { frogShare } = await import('../../../src/render/sprites/content/familyMotion');
+    const m = (await maps()).frog_hopper!;
+    for (let a = 0; a < 32; a += 2) {
+      const id = pictureOf(m, keyAt('frog_hopper', a, true))!;
+      expect(Math.abs(Number(id.slice(1)) / fam.FROG_Q - frogShare(a / 32)), `slot ${a}`).toBeLessThanOrEqual(0.5 / fam.FROG_Q);
+    }
+    // four hops: the ring is back at the bottom every quarter turn
+    for (const a of [0, 8, 16, 24]) expect(pictureOf(m, keyAt('frog_hopper', a, true))).toBe('h0');
+    expect(pictureOf(m, keyAt('frog_hopper', 4, true))).not.toBe('h0');
+  });
+
+  it('frog_hopper: the frog on top turns with each baked view turn so it faces the camera at every turn (today\'s look)', async () => {
+    const { frogYaw } = await load('items/familyKeys.js');
+    // placeOnFootprint (items/common.js) turns the ride by -k * PI / 2 for sprite rotation k; the frog turns back
+    for (const k of [0, 1, 2, 3]) {
+      const world = -k * Math.PI / 2 + frogYaw(k);
+      expect(Math.abs(Math.atan2(Math.sin(world), Math.cos(world))), `turn ${k}`).toBeLessThan(1e-9);
+    }
+    const common = readFileSync(new URL('items/common.js', dir), 'utf8');
+    expect(common).toContain('holder.rotation.set(0, (-k * Math.PI) / 2, 0);');
+    const src = readFileSync(new URL('items/frog_hopper.js', dir), 'utf8');
+    expect(src).toContain('m.frog.rotation.y = frogYaw(k);');
+    expect(src).toMatch(/rots: \[0, 1, 2, 3\]/);
+  });
+
+  it('each model\'s entrance and exit sit on the sim\'s gate column (gateIndex), front row and back row', async () => {
+    const { FAMILY_GATES } = await load('items/familyKeys.js');
+    for (const id of IDS) {
+      const def = getFlatRideDef(id)!;
+      const x = (gateIndex(def.w) + 0.5) * 4 - (def.w * 4) / 2;
+      const { entrance, exit } = FAMILY_GATES[id];
+      expect(entrance[0], id).toBe(x);
+      expect(exit[0], id).toBe(x);
+      // inside the footprint, on the front and back rows (tile depth 4 m)
+      expect(entrance[1], id).toBeGreaterThan((def.d * 4) / 2 - 4);
+      expect(entrance[1], id).toBeLessThan((def.d * 4) / 2);
+      expect(exit[1], id).toBeLessThan(-(def.d * 4) / 2 + 4);
+      expect(exit[1], id).toBeGreaterThan(-(def.d * 4) / 2);
+    }
+  });
+
+  it('are baked: registry, card, BAKED, rots [0, 1, 2, 3] (FAMILY_NON_ROUND), start rides', async () => {
+    const { ITEM_LIST, CARD_ITEMS } = await load('items/registry.js');
+    const NON_ROUND = await nonRound();
+    const { REAL_FALLBACK } = await import('../../../src/render/real/fallbacks');
+    for (const id of IDS) {
+      expect(ITEM_LIST.some((x: { id: string }) => x.id === id), id).toBe(true);
+      expect(CARD_ITEMS.some((x: { id: string; kind: string }) => x.id === id && x.kind === 'ride'), id).toBe(true);
+      expect(REAL_FALLBACK[id], id).toBe(id);
+      expect(NON_ROUND, id).toContain(id);
+      expect(getFlatRideDef(id)).toMatchObject({ unlock: 'start', tag: 'family' });
+    }
+  });
 });

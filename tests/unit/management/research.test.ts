@@ -74,12 +74,12 @@ describe('starting roster (owner, 2026-11-17)', () => {
     }
   });
 
-  it('a new free play park offers 18 rides at the start (12 flat, 6 track); 12 rides wait for research', () => {
+  it('a new free play park offers 22 rides at the start (16 flat incl. the 4 new family rides, 6 track); 12 rides wait for research', () => {
     const w = makeTestWorld();
     const flat = FLAT_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
     const track = TRACK_RIDES.filter((d) => isUnlocked(w, d.id)).map((d) => d.id);
     expect(flat.sort()).toEqual(
-      ['carousel', 'big_wheel', 'swing_tower', 'teacup_twirl', 'spiral_slide', 'rocket_rounds', 'pendulum_ship', 'bumper_cars', 'kiddie_cars', 'mirror_maze', 'observation_tower', 'drop_tower'].sort(),
+      ['carousel', 'big_wheel', 'swing_tower', 'teacup_twirl', 'spiral_slide', 'rocket_rounds', 'pendulum_ship', 'bumper_cars', 'kiddie_cars', 'mirror_maze', 'observation_tower', 'drop_tower', 'dodgem_boats', 'mini_pirate_ship', 'balloon_wheel', 'frog_hopper'].sort(),
     );
     expect(track.sort()).toEqual(['steel_coaster', 'junior_coaster', 'mini_railway', 'wooden_coaster', 'spinning_mouse', 'log_flume'].sort());
     const researched = RESEARCH_ORDER.filter((r) => FLAT_RIDES.some((d) => d.id === r.id) || TRACK_RIDES.some((d) => d.id === r.id)).map((r) => r.id);
