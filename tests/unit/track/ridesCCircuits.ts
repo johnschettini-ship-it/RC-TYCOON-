@@ -50,3 +50,16 @@ export const LAUNCH_COASTER: PieceSpec[] = [
   'turn_medium_right', 'turn_medium_right', 'turn_medium_left', 'turn_medium_right', 'turn_medium_left', 'turn_medium_right',
   'straight', 'straight', 'turn_small_right',
 ];
+
+/**
+ * Water Coaster from (6, 4) heading +x: a 16 m chain hill, a 16 m drop into the Log Flume's splashdown and channel
+ * straight, a small chain hill, and turns home.
+ */
+export const WATER_COASTER: PieceSpec[] = [
+  'station', 'station',
+  chain('flat_to_gentle_up'), chain('gentle_to_steep_up'), chain('steep_up'), chain('steep_to_gentle_up'), chain('gentle_up_to_flat'),
+  'turn_medium_right', 'flat_to_gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat',
+  'flume_splashdown', 'flume_straight', chain('flat_to_gentle_up'), chain('gentle_up_to_flat'),
+  'turn_medium_right', 'flat_to_gentle_down', 'gentle_down_to_flat',
+  'turn_medium_right', 'turn_medium_left', 'turn_small_right', ...times(8, 'straight'), 'turn_small_left', 'turn_small_right', 'turn_small_right',
+];

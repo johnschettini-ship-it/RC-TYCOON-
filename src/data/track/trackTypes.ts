@@ -254,6 +254,17 @@ const RIDES_C_EXTRAS: Extra[] = [
     render: { rail: 'steel', supports: 'round', car: 'launch', colours: { track: 10, supports: 9, cars: 2 } },
   },
   {
+    // Water Coaster: the Steel Coaster's plain groups (no loops or corkscrews: boats stay upright) and the Log Flume's
+    // splashdown and channel straight (`alsoPieces`), where the splash brake slows the boats to 4 m/s and wets the
+    // riders. Boats are 3 m long; friction and drag a little over the Steel Coaster's; rating terms between the Steel
+    // and the Inverted Coaster (the splash extras come from the water table); costs between the Wooden Coaster (2,800)
+    // and the Inverted Coaster (3,500).
+    id: 'water_coaster', groups: COASTER, alsoPieces: ['flume_splashdown', 'flume_straight'], chain: true, mu: 0.02, cd: 0.001, chainSpeedMms: 2500, carLengthMm: 3000, defaultCars: 2,
+    ratings: { e: 1.2, i: 0.4, n: 0.2, kAir: 1.0, extra: 'none' },
+    costs: { base: 3200, pieceFactorPermille: 1000, runBase: 120, extraTrain: 600 },
+    render: { rail: 'steel', supports: 'round', car: 'boat', colours: { track: 5, supports: 9, cars: 2 } },
+  },
+  {
     // Mine Train: the Junior Coaster's groups (no steep slopes, no loops: low drops) plus the helix, for many turns; the
     // Spinning Mouse's small-turn rating extra rewards a twisty layout. Friction, chain and costs sit between the
     // Junior Coaster (1,500) and the Bobsled Run (2,600); rating terms a touch over the Junior's (themed, longer trains).

@@ -14,7 +14,10 @@ import type { World } from '../../../src/sim/types';
 import { deserialize, serialize, validateState } from '../../../src/save';
 import { makeTestWorld } from '../../helpers/world';
 import { addAll, dataOf, EAST, place, rideOf } from './helpers';
-import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN, testLap } from './ridesCCircuits';
+import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN, testLap, WATER_COASTER } from './ridesCCircuits';
+import { rideWetsRiders } from '../../../src/sim/rides/track/waterHooks';
+import { getLayout } from '../../../src/sim/rides/track/layout';
+import { waterRatingExtras } from '../../../src/sim/rides/track/ratings';
 import { LAUNCH_ACCEL } from '../../../src/data/tuning/track';
 import { add } from './helpers';
 
@@ -114,8 +117,10 @@ describe('Launch Coaster (thrill, research)', () => {
   });
 
   it('the launch accelerates at LAUNCH_ACCEL: 5 pieces take the train from 2 m/s to 22 m/s, and 2 pieces do not', () => {
-    // v² = 2² + 2·a·d over the 20 m of five launch pieces with a train 10 m long (4 cars) gives just over 22 m/s.
-    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (20 + 3.75))).toBeGreaterThan(22);
+    // The motors push while any car's centre is on the launch: five pieces (20 m) plus the 7.5 m between the first and
+    // the last of 4 cars give v² = 2² + 2·a·27.5, over 22 m/s; two pieces (8 m + 7.5 m) give under 20 m/s.
+    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (20 + 7.5))).toBeGreaterThan(22);
+    expect(Math.sqrt(4 + 2 * LAUNCH_ACCEL * (8 + 7.5))).toBeLessThan(20);
     const w = makeTestWorld();
     const pieces = LAUNCH_COASTER.map((p, i) => (p === 'launch' && i >= 4 ? 'straight' : p));
     const id = buildCircuit(w, 'launch_coaster', 6, 4, pieces);
@@ -133,5 +138,50 @@ describe('Launch Coaster (thrill, research)', () => {
     addAll(w, s, ['station']);
     expect(nextTrackPieces(w, s).map((p) => p.id)).not.toContain('launch');
     expect(add(w, s, 'launch').ok).toBe(false);
+  });
+});
+
+describe('Water Coaster (thrill, research)', () => {
+  it('catalogue row and track type: boats on a coaster track with the Log Flume\'s splashdown', () => {
+    expect(getTrackRideDef('water_coaster')).toMatchObject({ phase: 6, unlock: 'coasters', tag: 'thrill', drive: 'gravity', seatsPerCar: 4, carsMin: 1, carsMax: 3, maxTrains: 3, maxHeightM: 40, intensityHeightM: 25, defaultPrice: 500 });
+    const t = getTrackTypeDef('water_coaster')!;
+    expect(t).toMatchObject({ medium: 'rail', pieceSet: 'rail', chain: true, alsoPieces: ['flume_splashdown', 'flume_straight'] });
+    // Boats stay upright: no loops, corkscrews or launches.
+    for (const g of ['L', 'Cs', 'Ln']) expect(t.groups, g).not.toContain(g);
+    expect(t.render).toEqual({ rail: 'steel', supports: 'round', car: 'boat', colours: { track: 5, supports: 9, cars: 2 } });
+  });
+
+  it('is a research item, locked in a new park', () => {
+    expect(isUnlocked(makeTestWorld(), 'water_coaster')).toBe(false);
+  });
+
+  it('a hill into a splashdown builds with commands, wets its riders and rates as a thrill ride with the splash extras', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'water_coaster', 6, 4, WATER_COASTER);
+    const t = testLap(w, id);
+    expectSound(w, id, t);
+    expect(t.inversions).toBe(0);
+    expect(t.dropMaxMm).toBe(16_000);
+    expect(rideWetsRiders(w, id)).toBe(true);
+    const extras = waterRatingExtras(getLayout(dataOf(w, id)).statics.map((st) => st.def));
+    expect(extras.e).toBeGreaterThan(0);
+    expect(t.excitement).toBeGreaterThan(450);
+    expect(t.excitement).toBeLessThan(700);
+    expect(t.intensity).toBeGreaterThan(250);
+    expect(t.intensity).toBeLessThan(550);
+    expect(t.nausea).toBeLessThan(400);
+  });
+
+  it('builds the splashdown and channel straight from the palette after a flat end; other rail types and the flume set do not mix', () => {
+    const w = makeTestWorld();
+    const id = place(w, 'water_coaster', 6, 4, EAST);
+    addAll(w, id, ['station', 'straight']);
+    const ids = nextTrackPieces(w, id).map((p) => p.id);
+    expect(ids).toEqual(expect.arrayContaining(['flume_splashdown', 'flume_straight', 'straight']));
+    for (const no of ['flume_drop', 'flume_lift', 'flume_station', 'launch', 'vertical_loop_right']) expect(ids, no).not.toContain(no);
+    expect(add(w, id, 'flume_drop').ok).toBe(false);
+    const s = place(w, 'steel_coaster', 6, 12, EAST);
+    addAll(w, s, ['station']);
+    expect(add(w, s, 'flume_splashdown').ok).toBe(false);
   });
 });

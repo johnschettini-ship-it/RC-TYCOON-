@@ -42,6 +42,16 @@ export function previewPieces(typeId: string): TrackPieceInstance[] {
       piece('gentle_up_to_flat', 2, 3, 1, 1),
     ];
   }
+  if (type && type.alsoPieces.includes('flume_splashdown')) {
+    // Batch C, the Water Coaster: a short hill down into the splashdown channel.
+    return [
+      piece('station', 0, 0, 0, 0),
+      piece('station', 1, 0, 0, 0),
+      piece('turn_small_right', 2, 0, 0, 0),
+      piece('flat_to_gentle_down', 2, 1, 0, 1),
+      piece('flume_splashdown', 2, 2, -1, 1),
+    ];
+  }
   if (typeId === 'inverted_coaster') {
     return [piece('station', 0, 0, 0, 0), piece('station', 1, 0, 0, 0), piece('corkscrew_right', 2, 0, 0, 0)];
   }

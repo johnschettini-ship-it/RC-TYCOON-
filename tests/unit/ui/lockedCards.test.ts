@@ -63,7 +63,7 @@ describe('locked preview cards: which and in what order', () => {
     const r = w.state.management.research;
     for (const k of Object.keys(r.focus) as (keyof typeof r.focus)[]) r.focus[k] = k === 'coasters';
     r.current = 'ghost_train';
-    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['ghost_train', 'bobsled_run', 'launch_coaster', 'inverted_coaster', 'thunder_disc', 'go_karts']);
+    expect(lockedCards(w, 'rides').map((c) => c.id)).toEqual(['ghost_train', 'bobsled_run', 'launch_coaster', 'water_coaster', 'inverted_coaster', 'thunder_disc']);
   });
 
   it('the item research is on now is marked current with its progress; the others are not', () => {

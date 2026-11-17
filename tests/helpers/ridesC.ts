@@ -5,6 +5,7 @@
  */
 export const RIDES_C: Readonly<Record<string, readonly [string, number]>> = {
   launch_coaster: ['coasters', 550],
+  water_coaster: ['coasters', 600],
 };
 export const RIDES_C_IDS: readonly string[] = Object.keys(RIDES_C);
 export const RIDES_C_START: readonly string[] = ['mine_train'];

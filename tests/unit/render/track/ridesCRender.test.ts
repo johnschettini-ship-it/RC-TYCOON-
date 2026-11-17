@@ -12,7 +12,7 @@ import { PX_Z, viewFrame } from '../../../../src/render/track/project';
 import { executeCommand } from '../../../../src/sim/commands';
 import { makeTestWorld } from '../../../helpers/world';
 import type { PieceSpec } from '../../track/helpers';
-import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN } from '../../track/ridesCCircuits';
+import { buildCircuit, LAUNCH_COASTER, MINE_TRAIN, WATER_COASTER } from '../../track/ridesCCircuits';
 
 export function recorder(): { ctx: CanvasRenderingContext2D; pts: Array<[number, number]>; ops: string[] } {
   const pts: Array<[number, number]> = [];
@@ -118,6 +118,7 @@ describe('batch C cars', () => {
 export const CIRCUITS: ReadonlyArray<readonly [string, number, number, readonly PieceSpec[]]> = [
   ['mine_train', 6, 4, MINE_TRAIN],
   ['launch_coaster', 6, 4, LAUNCH_COASTER],
+  ['water_coaster', 6, 4, WATER_COASTER],
 ];
 
 describe('batch C rides in today\'s look', () => {
@@ -184,6 +185,18 @@ describe('batch C rides in today\'s look', () => {
     expect(launches).toHaveLength(5);
     for (const l of launches) expect(l).toContain('strokeStyle=#5ec8ff');
     for (const o of opsOf(null)) expect(o).not.toContain('#5ec8ff');
+  });
+
+  it('Water Coaster: the splashdown and channel straight paint as a water channel with ripples; the rest as rails', () => {
+    const w = makeTestWorld();
+    const id = buildCircuit(w, 'water_coaster', 6, 4, WATER_COASTER);
+    const f = viewFrame(0, w.state.map.width, w.state.map.height);
+    const slices = buildRideSlices(w, id, f);
+    const water = slices.filter((sl) => sl.water);
+    // 2 splashdown tiles and 1 channel straight tile.
+    expect(water).toHaveLength(3);
+    for (const sl of water) expect(sl.look.channel).toBeGreaterThan(0);
+    for (const sl of slices.filter((x) => !x.water)) expect(sl.look).toBe(lookFor(getTrackTypeDef('water_coaster')!));
   });
 
   it('Mine Train: dark rails on wooden sleepers, wooden trestles, ore carts', () => {

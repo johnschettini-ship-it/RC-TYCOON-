@@ -5,7 +5,7 @@
  * yaw, pitch, and roll; cars roll with the track; the picker previews use buildable pieces.
  */
 import { describe, expect, it } from 'vitest';
-import { ALL_TRACK_TYPES, EXTRA_PIECES, getTrackPieceDef, getTrackTypeDef } from '../../../../src/data/track';
+import { ALL_TRACK_TYPES, EXTRA_PIECES, getTrackPieceDef, getTrackTypeDef, typeBuildsPiece } from '../../../../src/data/track';
 import { paletteColour } from '../../../../src/render/track/colours';
 import { buildRideSlices, paintSlice, TrackLayer, type DrawSink } from '../../../../src/render/track/layer';
 import { CAR_BOUNDS, HANG_M, lookFor, paintCar, paintRun, paintSupport, Projector } from '../../../../src/render/track/paint';
@@ -206,8 +206,8 @@ describe('picker previews', () => {
     for (const type of RAIL_TYPES) {
       for (const p of previewPieces(type.id)) {
         const def = getTrackPieceDef(p.defId)!;
-        expect(type.groups, `${type.id} ${p.defId}`).toContain(def.group);
-        expect(type.excludePieces).not.toContain(p.defId);
+        // The build rule (its set and groups, or its `alsoPieces`: new rides batch C's Water Coaster splashdown).
+        expect(typeBuildsPiece(type, def), `${type.id} ${p.defId}`).toBe(true);
       }
       const r = recorder();
       drawTrackPreview(r.ctx, type.id, 112, 80);
