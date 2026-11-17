@@ -318,6 +318,9 @@ This gate repeats Task 9 for the 5c types: `tracks` complete with all 17 types, 
 
 ## Decisions for the owner
 
+**Decided by the owner on 2026-11-17 ("Yes" to all five proposals):** D1 (a) a live soft ellipse; D2 (a) every pose class at both densities, with (b) only if the `coasters` stress scene fails; D3 (a) batch 5 bakes the new types after `rides-c1` (merged at 473a112); D4 ghost_train and go_karts in 5b; D5 live water and chain motion over baked channels and troughs.
+
+
 - **D1 Car shadows:** (a) a soft ellipse drawn live under each car, with no art and almost no memory (proposal); (b) baked per pose, which doubles car frames; (c) none, as today.
 - **D2 Cars in rare poses:** (a) every pose class at both densities; the ladder handles big parks (proposal); (b) cars in loops, corkscrews and helixes baked at d2 only (soft at zoom 2 but about 40 MiB less per big coaster), applied only if the `coasters` stress scene fails S2 or thrashes.
 - **D3 Who bakes the new track types:** (a) batch 5 tasks bake them after `rides-c1` merges, and rides batch C ships the game side and today's look only (proposal; one track kit, one review); (b) rides batch C bakes them on the batch 5 kit.
