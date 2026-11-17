@@ -12,6 +12,8 @@ import { frameKey, withColour, type RealIndex, type RealKind, type SetKey } from
 import type { ReadySet } from '../setManager';
 import type { CanvasLike } from '../tint';
 import { createTinter, TINT_NO_ROOM, TINT_WAIT } from './tint';
+import { poseClasses, poseClassesReady } from '../trackClasses';
+import { getTrackTypeDef } from '../../../data/track';
 import type { ItemRec, RealLookOptions, RealSets, Resolved, SetMeta, SupportPart } from './types';
 
 /**
@@ -86,6 +88,14 @@ export interface LookCore {
    * manager from the Original entries. `rec` itself when the bake gives the ride no base colour (nothing to tint).
    */
   colourRec(rec: ItemRec, colour: number): ItemRec;
+  /**
+   * A track record's class record (batch 5 Task 2): the item's `<item>~<class>` sets (`rail:<type>~<class>`,
+   * `car:<type>~<class>`); for an item in the stage 1 layout (its own `rail:<type>` / `car:<type>` sets, no class sets),
+   * `rec` itself, read as class `base` holding every class (no flag day for the stage 1 bake), but only while the item
+   * has no class set of that kind at all; else a missing record
+   * (`fallbacksUsed` lists `<kind>:<item>~<class>`). Made once per (record, class).
+   */
+  classRec(rec: ItemRec, cls: string): ItemRec;
   /** Lists `id` in `fallbacksUsed`. */
   noteFallback(id: string): void;
   /** Guests by body x 4 + outfit. */
@@ -200,6 +210,24 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     }
     return null;
   }
+  /** `<kind>:<item>` of every item with class sets (`<item>~<class>`). */
+  const classed = new Set(index.sets.filter((e) => e.item.includes('~')).map((e) => `${e.kind}:${e.item.slice(0, e.item.indexOf('~'))}`));
+  // Pose classes of the baked track types, made now rather than on the first car drawn (review fix).
+  for (const e of index.sets) if (e.kind === 'car') { const t = e.item.split('~')[0] as string; if (getTrackTypeDef(t) && !poseClassesReady(t)) poseClasses(t); }
+  /** Class records by item record, then class (`classRec`). */
+  const classRecs = new WeakMap<ItemRec, Map<string, ItemRec>>();
+  function classRec(rec: ItemRec, cls: string): ItemRec {
+    let m = classRecs.get(rec);
+    if (!m) classRecs.set(rec, (m = new Map()));
+    let c = m.get(cls);
+    if (!c) {
+      const item = `${rec.item}~${cls}`;
+      // Stage 1 sets serve only an item with no class set of that kind: a mixed index never loads both layouts.
+      c = recOf(rec.kind, item) ?? (!classed.has(`${rec.kind}:${rec.item}`) && (rec.k2.length || rec.k4.length) ? rec : missing(rec.kind, item));
+      m.set(cls, c);
+    }
+    return c;
+  }
   /** A ride with a colour in play (a coloured record, or an Original one with coloured siblings): never drawn as nothing. */
   const colourInPlay = (rec: ItemRec): boolean => rec.base !== undefined || colourRecs.has(rec);
   const metas = new WeakMap<ReadySet, SetMeta>();
@@ -209,7 +237,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       const sheetOf = new Map<string, number>();
       rs.sheets.forEach((s, i) => sheetOf.set(s.file, i));
       const maskOf = rs.sheets.map((s) => (s.mask === undefined ? -1 : sheetOf.get(s.mask) ?? -1));
-      m = { maskOf, tids: 0, codes: new Map(), rails: new Map() };
+      m = { maskOf, alpha: rs.sheets.map((s) => s.tint === 'alpha'), tids: 0, codes: new Map(), rails: new Map() };
       metas.set(rs, m);
     }
     return m;
@@ -393,6 +421,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     recOf,
     gameRec,
     colourRec,
+    classRec,
     noteFallback: (id) => { fallbacks.add(id); },
     guestRecs,
     groundRec,

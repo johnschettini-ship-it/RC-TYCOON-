@@ -6,7 +6,7 @@ import type { RealIndex } from '../../src/render/real/indexFormat';
 import { checkIndex, type TitleFolder } from './checkIndex';
 import { webpSize, type TitleFiles } from './titleIndex';
 import { FLAT_RIDES } from '../../src/data/catalog';
-import { S5_LIMIT_BYTES, formatRideSizeRows, formatSizeReport, rideSizeRows, sizeReport } from './sizeReport';
+import { S5_LIMIT_BYTES, formatRideSizeRows, formatSizeReport, formatTrackSizeRows, rideSizeRows, sizeReport, trackSizeRows } from './sizeReport';
 
 const mb = (n: number): string => (n / 1e6).toFixed(2);
 
@@ -28,7 +28,7 @@ export function titleFolder(tdir: string, label = 'title'): TitleFolder | undefi
   return { index, files };
 }
 
-/** Runs the checks on a baked folder and returns the exit code (0 pass, 1 problems, S5, ride size rules or missing files, 2 usage). */
+/** Runs the checks on a baked folder and returns the exit code (0 pass, 1 problems, S5, ride or track size rules or missing files, 2 usage). */
 export function run(dir: string | undefined): number {
   if (!dir) { console.error('usage: tsx tools/art3d/checkIndex.ts <dir>'); return 2; }
   const index = JSON.parse(readFileSync(join(dir, 'index.json'), 'utf8')) as RealIndex;
@@ -51,7 +51,12 @@ export function run(dir: string | undefined): number {
   for (const l of formatRideSizeRows(rides)) console.log(l);
   const rideProblems = rides.flatMap((y) => y.problems);
   for (const x of rideProblems) console.error(`SIZE RULE FAIL: ${x}`);
-  return problems.length === 0 && !over && r.missingFiles.length === 0 && rideProblems.length === 0 ? 0 : 1;
+  // per-type track size rules (batch 5): compressed and per-set limits of every baked track type
+  const tracks = trackSizeRows(r);
+  if (tracks.length) for (const l of formatTrackSizeRows(tracks)) console.log(l);
+  const trackProblems = tracks.flatMap((y) => y.problems);
+  for (const x of trackProblems) console.error(`TRACK SIZE RULE FAIL: ${x}`);
+  return problems.length === 0 && !over && r.missingFiles.length === 0 && rideProblems.length === 0 && trackProblems.length === 0 ? 0 : 1;
 }
 
 export function main(dir: string | undefined): void {

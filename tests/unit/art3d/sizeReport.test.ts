@@ -3,8 +3,13 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { ASSUMED_MEAN_BYTES, BIG_RIDES, S5_LIMIT_BYTES, catalogueEntries, rideSizeRows, sizeReport, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
-import type { RealIndex, RealKind, RealSetEntry } from '../../../src/render/real/indexFormat';
+import { ASSUMED_MEAN_BYTES, BIG_RIDES, S5_LIMIT_BYTES, catalogueEntries, railTileRanges, rideSizeRows, sizeReport, trackSizeRows, typePieces, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
+import { checkIndex, trackComplete } from '../../../tools/art3d/checkIndex';
+import { reachedPoses } from '../../../tools/art3d/poses';
+import { STAGE1_TRACK } from '../../../tools/art3d/trackBudget';
+import { getTrackPieceDef } from '../../../src/data/track';
+import { pieceClass, poseClassOf, poseCode } from '../../../src/render/real/trackClasses';
+import type { RealFrame, RealIndex, RealKind, RealSetEntry } from '../../../src/render/real/indexFormat';
 
 function set(kind: RealKind, item: string, density: 2 | 4, rot: RealSetEntry['rot'], file: string, w = 10, h = 10): RealSetEntry {
   return { key: `${kind}:${item}:d${density}:r${rot}`, kind, item, density, rot, sheets: [{ file, w, h }], frames: {} };
@@ -44,17 +49,236 @@ describe('sizeReport', () => {
     expect(r.projectedFull).toBe(100 + 2 * ASSUMED_MEAN_BYTES.people);
   });
 
-  it('projects track from measured bytes per piece over each type\'s piece count', () => {
-    const rail = (rot: 0 | 1, file: string): RealSetEntry => ({ ...set('rail', 'tc', 2, rot, file), frames: { 'p1:t0': {} as never, 'p2:t0': {} as never } });
-    const idx = index([rail(0, 'r0.webp'), rail(1, 'r1.webp'), set('support', 'tc', 2, 0, 's.webp'), set('car', 'tc', 2, 0, 'c.webp')]);
-    const files = new Map([['r0.webp', 100], ['r1.webp', 300], ['s.webp', 10], ['c.webp', 30]]);
-    // 2 baked pieces, 400 B rail => 200 B/piece; supports+cars 40 B per type
-    const cats: CatalogueEntry[] = [{ kind: 'track', id: 'tc', pieces: 2 }, { kind: 'track', id: 'u1', pieces: 10 }, { kind: 'track', id: 'u2', pieces: 5 }];
-    const r = sizeReport(idx, files, cats);
-    expect(r.track).toMatchObject({ bytesPerPiece: 200, bakedPieces: 2, fixedBytesPerType: 40 });
-    expect(r.track!.types.map((t) => t.projectedBytes)).toEqual([440, 2040, 1040]);
-    expect(r.track!.projectedBytes).toBe(3520);
-    expect(r.projectedFull).toBe(3520); // baked 440 replaced by the type's full list
+  it('projects track by frame area: measured frames kept, missing ones modelled from their rail height range', () => {
+    // steel_coaster baked with one piece (straight, 1 rail tile) at every heading and both densities, 40 x 25 px (d2)
+    // and 80 x 50 px (d4) frames; cars 2 frames per density.
+    const fr = (w: number, h: number): RealFrame => ({ sheet: 'x', sx: 0, sy: 0, w, h, ox: 0, oy: 0 });
+    const rails = ([2, 4] as const).flatMap((d) => ([0, 1, 2, 3] as const).map((r) => ({ ...set('rail', 'steel_coaster', d, r, `r${d}${r}.webp`, 20 * d, 25 * d), frames: { 'straight:t0': fr(20 * d, 25 * d) } })));
+    const cars = ([2, 4] as const).map((d) => ({ ...set('car', 'steel_coaster', d, 'all', `c${d}.webp`, 30 * d, 15 * d), frames: { 'y0:p0:r0:full': fr(15 * d, 15 * d), 'y0:p0:r0:empty': fr(15 * d, 15 * d) } }));
+    const files = new Map<string, number>([...rails.map((s) => [s.sheets[0]!.file, 1000] as [string, number]), ['c2.webp', 450], ['c4.webp', 1800]]);
+    const cats: CatalogueEntry[] = [{ kind: 'track', id: 'steel_coaster', pieces: 34 }, { kind: 'track', id: 'junior_coaster', pieces: 20 }];
+    const r = sizeReport(index([...rails, ...cars]), files, cats);
+    const t = r.track!;
+    // straight: dz 0, so h0 is the frame height; w the frame width
+    expect(t.rail.d4).toEqual({ w: 80, h0: 100, pxPerM: 39.2 });
+    expect(t.rail.d2).toEqual({ w: 40, h0: 50, pxPerM: 19.6 });
+    // 8000 B over 4 x (40 x 50) + 4 x (80 x 100) frame px
+    expect(t.railBytesPerPx).toBeCloseTo(8000 / 40000, 6);
+    const steel = t.types.find((y) => y.id === 'steel_coaster')!;
+    expect(steel).toMatchObject({ baked: true, pieces: 34, measuredBytes: 10250 });
+    expect(steel.expectedFrames.rail).toBe(368);
+    expect(steel.carPoses).toBe(472);
+    // A loop tile (16 m of rail range) costs several times a straight one (dz 0) in the model.
+    const loopDz = Math.max(...railTileRanges('vertical_loop_left', 0));
+    expect(loopDz).toBeGreaterThanOrEqual(10);
+    const area = (dz: number): number => t.rail.d4.w * (t.rail.d4.h0 + dz * t.rail.d4.pxPerM);
+    expect(area(loopDz) / area(0)).toBeGreaterThan(4);
+    // so steel (loops, corkscrews, helixes) projects more per rail tile than junior (none)
+    const junior = t.types.find((y) => y.id === 'junior_coaster')!;
+    expect(junior.baked).toBe(false);
+    expect((steel.projectedBytes - steel.measuredBytes) / (steel.expectedFrames.rail - 4)).toBeGreaterThan(junior.projectedBytes / junior.expectedFrames.rail);
+    expect(r.projectedFull).toBe(t.projectedBytes);
+  });
+
+  it('track rows hold every heading, the car set and the masks (stage 1 steel coaster: about 29 MiB at d4, not one turn)', () => {
+    // The stage 1 sheets as baked (merge-b art, 2026-11-17): rails 755x817 (r0, r1) and 754x816 (r2, r3) at d4 with
+    // masks, the car sheet 1159x1140 with its mask, supports 56x130 with masks.
+    const masked = (kind: RealKind, rot: RealSetEntry['rot'], w: number, h: number): RealSetEntry => {
+      const f = `${kind}${rot}.webp`;
+      return { ...set(kind, 'steel_coaster', 4, rot, f), sheets: [{ file: f, w, h, mask: `${kind}${rot}-m.png` }, { file: `${kind}${rot}-m.png`, w, h }] };
+    };
+    const sets = [masked('rail', 0, 755, 817), masked('rail', 1, 755, 817), masked('rail', 2, 754, 816), masked('rail', 3, 754, 816),
+      masked('support', 0, 56, 130), masked('support', 1, 56, 130), masked('support', 2, 56, 130), masked('support', 3, 56, 130), masked('car', 'all', 1159, 1140)];
+    const r = sizeReport(index(sets), new Map(sets.flatMap((s) => s.sheets.map((x) => [x.file, 10] as [string, number]))), [{ kind: 'track', id: 'steel_coaster', pieces: 34 }]);
+    const row = r.perItem.find((p) => p.id === 'steel_coaster')!;
+    const rails = (2 * 755 * 817 + 2 * 754 * 816) * 4 * 2;
+    const total = rails + 4 * 56 * 130 * 8 + 1159 * 1140 * 8;
+    expect(row.residentAllClasses).toEqual({ d2: 0, d4: total });
+    expect(total / 1024 / 1024).toBeCloseTo(29.1, 1);
+    // not the old single-rotation peak (10.6 MiB: the car sheet and mask)
+    expect(row.decodedPerTurn.d4).toBe(total);
+    expect(row.perSet![0]).toEqual({ key: 'car:steel_coaster:d4:rall', d4Bytes: 1159 * 1140 * 8 });
+    expect(row.perSet).toHaveLength(9);
+  });
+
+  it('track sets of the class layout (`rail:<type>~<class>`) count under their type', () => {
+    const a = { ...set('rail', 'steel_coaster~base', 4, 0, 'a.webp', 10, 10), sheets: [{ file: 'a.webp', w: 10, h: 10, tint: 'alpha' as const }] };
+    const b = set('rail', 'steel_coaster~loop', 4, 0, 'b.webp', 10, 20);
+    const r = sizeReport(index([a, b]), new Map([['a.webp', 5], ['b.webp', 7]]), [{ kind: 'track', id: 'steel_coaster', pieces: 34 }]);
+    expect(r.perItem).toHaveLength(1);
+    expect(r.perItem[0]).toMatchObject({ id: 'steel_coaster', kind: 'track', compressedBytes: 12, residentAllClasses: { d2: 0, d4: 1200 } });
+  });
+
+  describe('track size rule (trackBudget)', () => {
+    const MiB = 1024 * 1024;
+    const over = (item: string): ReturnType<typeof trackSizeRows> => {
+      // 8 MiB + 4 px: over the per-set limit at d4
+      const s = { ...set('rail', item, 4, 0, 'a.webp', 1024, 2049), sheets: [{ file: 'a.webp', w: 1024, h: 2049 }] };
+      return trackSizeRows(sizeReport(index([s]), new Map([['a.webp', 100]]), [{ kind: 'track', id: 'steel_coaster', pieces: 34 }, { kind: 'track', id: 'junior_coaster', pieces: 20 }]));
+    };
+    it('a set over 8 MiB decoded at d4 fails', () => {
+      const r = over('junior_coaster~base');
+      expect(r[0]!.problems).toEqual([`rail:junior_coaster~base:d4:r0: ${(1024 * 2049 * 4 / MiB).toFixed(2)} MiB decoded with masks, over 8.00 MiB`]);
+      expect(over('steel_coaster~base')[0]!.problems).toHaveLength(1);
+    });
+    it('a stage 1 layout set of a declared type is reported, not failed', () => {
+      const r = over('steel_coaster');
+      expect(r[0]!.overSets).toEqual([{ key: 'rail:steel_coaster:d4:r0', d4Bytes: 1024 * 2049 * 4, allowed: true }]);
+      expect(r[0]!.problems).toEqual([]);
+    });
+    it('compressed over the type limit fails (3 MB without loops, corkscrews or helixes)', () => {
+      const s = set('rail', 'junior_coaster~base', 4, 0, 'a.webp');
+      const r = trackSizeRows(sizeReport(index([s]), new Map([['a.webp', 3_000_001]]), [{ kind: 'track', id: 'junior_coaster', pieces: 20 }]));
+      expect(r[0]!.problems).toEqual(['junior_coaster: 3.00 MB compressed, over 3.00 MB']);
+    });
+  });
+
+  describe('TRACK_COMPLETE', () => {
+    const fr = (sheet: string): RealFrame => ({ sheet, sx: 0, sy: 0, w: 1, h: 1, ox: 0, oy: 0 });
+    /** Pieces whose frames have untinted parts (station deck, brake fins, water): on a masked sheet. */
+    const MASKED_GROUPS = ['S', 'Br', 'BB', 'W'];
+    /**
+     * A complete fake bake of `type`'s `pieces` at both densities, in the class layout: each rail frame in
+     * `<type>~<its piece class>` (an alpha sheet `a.webp`, or the masked sheet `m.webp` for station, brakes and water),
+     * each car pose in `<type>~<its pose class>`. `d4Sheet` sizes the d4 r0 base alpha sheet.
+     */
+    const complete = (type: string, pieces: readonly string[], d4Sheet: [number, number] = [8, 8]): RealSetEntry[] => {
+      const out: RealSetEntry[] = [];
+      for (const d of [2, 4] as const) {
+        for (const r of [0, 1, 2, 3] as const) {
+          const byClass = new Map<string, Record<string, RealFrame>>();
+          for (const pc of pieces) {
+            const cls = pieceClass(pc);
+            const masked = MASKED_GROUPS.includes(getTrackPieceDef(pc)!.group);
+            const f = byClass.get(cls) ?? {};
+            railTileRanges(pc, r).forEach((_, ti) => { f[`${pc}:t${ti}`] = fr(masked ? 'm.webp' : 'a.webp'); });
+            byClass.set(cls, f);
+          }
+          for (const [cls, frames] of byClass) {
+            const [w, h] = d === 4 && r === 0 && cls === 'base' ? d4Sheet : [8, 8];
+            out.push({ ...set('rail', `${type}~${cls}`, d, r, 'a.webp'), sheets: [{ file: 'a.webp', w, h, tint: 'alpha' }, { file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }], frames });
+          }
+        }
+        const byClass = new Map<string, Record<string, RealFrame>>();
+        for (const p of reachedPoses(type, [...pieces])) {
+          const cls = poseClassOf(type, poseCode(p.yaw, p.pitch, p.roll));
+          const f = byClass.get(cls) ?? {};
+          for (const occ of ['full', 'empty']) f[`y${p.yaw}:p${p.pitch}:r${p.roll}:${occ}`] = fr('m.webp');
+          byClass.set(cls, f);
+        }
+        for (const [cls, frames] of byClass) out.push({ ...set('car', `${type}~${cls}`, d, 'all', 'm.webp'), sheets: [{ file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }], frames });
+      }
+      return out;
+    };
+    /** The stage 1 layout: one masked rail set per heading, one car set (`rail:<type>`, `car:<type>`). */
+    const stage1 = (type: string, pieces: readonly string[]): RealSetEntry[] => {
+      const out: RealSetEntry[] = [];
+      const sheets = [{ file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }];
+      for (const d of [2, 4] as const) {
+        for (const r of [0, 1, 2, 3] as const) {
+          const frames: Record<string, RealFrame> = {};
+          for (const pc of pieces) railTileRanges(pc, r).forEach((_, ti) => { frames[`${pc}:t${ti}`] = fr('m.webp'); });
+          out.push({ ...set('rail', type, d, r, 'm.webp'), sheets, frames });
+        }
+        const frames: Record<string, RealFrame> = {};
+        for (const p of reachedPoses(type, [...pieces])) for (const occ of ['full', 'empty']) frames[`y${p.yaw}:p${p.pitch}:r${p.roll}:${occ}`] = fr('m.webp');
+        out.push({ ...set('car', type, d, 'all', 'm.webp'), sheets, frames });
+      }
+      return out;
+    };
+    const FILES = new Set(['a.webp', 'm.webp', 'mm.webp']);
+    const steel = STAGE1_TRACK.steel_coaster!.pieces;
+    const junior = typePieces('junior_coaster');
+    const inverted = typePieces('inverted_coaster');
+    /** Moves frame `fk` from set `from` to set `to` (same density and turn). */
+    const move = (sets: RealSetEntry[], from: string, to: string, fk: string): void => {
+      const a = sets.find((s) => s.key === from)!;
+      const b = sets.find((s) => s.key === to)!;
+      b.frames[fk] = a.frames[fk]!;
+      delete a.frames[fk];
+    };
+
+    it('a complete bake passes, in the class layout and in the stage 1 layout', () => {
+      expect(trackComplete(index(complete('junior_coaster', junior)))).toEqual([]);
+      expect(checkIndex(index(complete('junior_coaster', junior)), FILES)).toEqual([]);
+      expect(checkIndex(index(complete('inverted_coaster', inverted)), FILES)).toEqual([]);
+      expect(checkIndex(index(stage1('steel_coaster', steel)), new Set(['m.webp', 'mm.webp']))).toEqual([]);
+    });
+    it('a missing piece frame fails, per density and heading, naming its class set', () => {
+      const sets = complete('junior_coaster', junior);
+      delete sets.find((s) => s.key === 'rail:junior_coaster~turn:d4:r1')!.frames['turn_medium_left:t2'];
+      expect(trackComplete(index(sets))).toEqual(['TRACK_COMPLETE rail:junior_coaster~turn d4 r1: 1 rail frame(s) missing (turn_medium_left:t2)']);
+    });
+    it('a missing car pose fails', () => {
+      const sets = complete('junior_coaster', junior);
+      delete sets.find((s) => s.key === 'car:junior_coaster~base:d2:rall')!.frames['y8:p0:r0:empty'];
+      expect(trackComplete(index(sets))).toEqual(['TRACK_COMPLETE car:junior_coaster~base d2: 1 car frame(s) missing (y8:p0:r0:empty)']);
+    });
+    it('a frame filed in the wrong class set fails (the game looks it up in its own class, review P1)', () => {
+      const sets = complete('inverted_coaster', inverted);
+      move(sets, 'rail:inverted_coaster~loop:d2:r0', 'rail:inverted_coaster~base:d2:r0', 'vertical_loop_left:t0');
+      expect(trackComplete(index(sets))).toEqual(['TRACK_COMPLETE rail:inverted_coaster~loop d2 r0: 1 rail frame(s) missing (vertical_loop_left:t0)']);
+      const cars = complete('inverted_coaster', inverted);
+      const loopPose = Object.keys(cars.find((s) => s.key === 'car:inverted_coaster~loop:d4:rall')!.frames)[0]!;
+      move(cars, 'car:inverted_coaster~loop:d4:rall', 'car:inverted_coaster~base:d4:rall', loopPose);
+      expect(trackComplete(index(cars))).toEqual([`TRACK_COMPLETE car:inverted_coaster~loop d4: 1 car frame(s) missing (${loopPose})`]);
+    });
+    it('a type not declared stage 1 must hold every piece it builds', () => {
+      const part = trackComplete(index(complete('junior_coaster', junior.slice(0, 5))));
+      expect(part.length).toBeGreaterThan(0);
+      expect(part[0]).toMatch(/^TRACK_COMPLETE rail:junior_coaster~\w+ d2 r0: \d+ rail frame\(s\) missing/);
+    });
+    it('station, brake, block brake and water frames never sit on an alpha-tint sheet (review P1)', () => {
+      const sets = complete('junior_coaster', junior);
+      const base = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r0')!;
+      base.frames['station:t0'] = fr('a.webp');
+      base.frames['brakes:t0'] = fr('a.webp');
+      expect(checkIndex(index(sets), FILES)).toEqual([
+        'rail:junior_coaster~base:d2:r0: frame station:t0 (group S: untinted parts) is on alpha-tint sheet a.webp; it needs a masked sheet',
+        'rail:junior_coaster~base:d2:r0: frame brakes:t0 (group Br: untinted parts) is on alpha-tint sheet a.webp; it needs a masked sheet',
+      ]);
+      // straights and slopes may be alpha
+      expect(base.frames['straight:t0']!.sheet).toBe('a.webp');
+    });
+    it('a type declared stage 1 with class sets fails: Task 3 deletes the declaration (review P2)', () => {
+      const p = trackComplete(index(complete('steel_coaster', steel)));
+      expect(p).toContain('TRACK_COMPLETE steel_coaster: declared stage 1 (STAGE1_TRACK) but has class sets: delete its declaration');
+    });
+    it('a type with both layouts fails (review P2)', () => {
+      const p = trackComplete(index([...complete('junior_coaster', junior), ...stage1('junior_coaster', junior).filter((s) => s.kind === 'rail')]));
+      expect(p).toContain('TRACK_COMPLETE junior_coaster: rail sets in both layouts (rail:junior_coaster and rail:junior_coaster~<class>)');
+    });
+
+    it('class names and alpha tint are checked: known classes on rail and car sets, alpha only on rail sheets without a mask', () => {
+      const sets = complete('junior_coaster', junior);
+      const rail = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r0')!;
+      const car = sets.find((s) => s.key === 'car:junior_coaster~base:d2:rall')!;
+      rail.sheets = [{ file: 'a.webp', w: 8, h: 8, tint: 'alpha', mask: 'mm.webp' }, { file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }];
+      car.sheets = [{ file: 'm.webp', w: 8, h: 8, tint: 'alpha' }, { file: 'mm.webp', w: 8, h: 8 }];
+      const sup = { ...set('support', 'junior_coaster~base', 2, 0, 'a.webp'), frames: {} };
+      const odd = { ...set('rail', 'junior_coaster~zigzag', 2, 0, 'a.webp'), frames: {} };
+      const p = checkIndex(index([...sets, sup, odd]), FILES).filter((x) => !x.startsWith('TRACK_COMPLETE') && !x.includes('missing density'));
+      expect(p).toEqual([
+        'rail:junior_coaster~base:d2:r0: sheet a.webp is alpha-tinted and has a mask',
+        'car:junior_coaster~base:d2:rall: sheet m.webp is alpha-tinted; only rail sheets may be',
+        'support:junior_coaster~base:d2:r0: only rail and car sets have track classes',
+        "rail:junior_coaster~zigzag:d2:r0: unknown track class 'zigzag'",
+      ]);
+    });
+
+    it('the command line exits 1 when a baked type breaks its per-set limit, 0 within it', () => {
+      const run = (d4Sheet: [number, number]): { status: number; out: string } => {
+        const dir = mkdtempSync(join(tmpdir(), 'trackfix-'));
+        for (const f of FILES) writeFileSync(join(dir, f), Buffer.alloc(100));
+        writeFileSync(join(dir, 'index.json'), JSON.stringify(index(complete('junior_coaster', junior, d4Sheet))));
+        const p = spawnSync('npx', ['tsx', 'tools/art3d/checkIndexCli.ts', dir], { encoding: 'utf8' });
+        return { status: p.status ?? -1, out: `${p.stdout}${p.stderr}` };
+      };
+      const bad = run([2048, 1025]); // 8.01 MiB: over 8 MiB
+      expect(bad.out).toMatch(/TRACK SIZE RULE FAIL: rail:junior_coaster~base:d4:r0: 8\.01 MiB/);
+      expect(bad.status).toBe(1);
+      expect(run([2048, 1023]).status).toBe(0); // 8 MiB less a row, plus the 8 x 8 masked sheet and mask
+    }, 60000);
   });
 
   it('reports missing files', () => {

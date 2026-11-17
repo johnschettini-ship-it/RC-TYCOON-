@@ -554,4 +554,22 @@ describe('TintAtlas (Task 4: per-frame tint in a shared atlas)', () => {
     expect(a.bytes()).toBe(0);
     expect(sets.held.size).toBe(0);
   });
+
+  it('an alpha-tint frame (no mask: batch 5 rails) tints as with a full-white mask', () => {
+    const base = noise(64, 64, 11);
+    const white = new PixCanvas(64, 64);
+    white.data.fill(255);
+    const whiteD: Decoded = { image: white as unknown as CanvasImageSource, bytes: 64 * 64 * 4, close() {} };
+    const { a } = atlas();
+    const rect = { x: 8, y: 4, w: 20, h: 30 };
+    a.beginFrame();
+    expect(a.request(1, 0, 0x8844cc, base, null, rect)).toBe(true);
+    expect(a.request(2, 0, 0x8844cc, base, whiteD, rect)).toBe(true);
+    a.step(Number.POSITIVE_INFINITY);
+    const px = (sp: ReturnType<typeof a.get>): number[] => {
+      const page = sp!.image as unknown as PixCanvas;
+      return Array.from((page.getContext() as { getImageData(x: number, y: number, w: number, h: number): { data: Uint8ClampedArray } }).getImageData(sp!.sx!, sp!.sy!, sp!.w, sp!.h).data);
+    };
+    expect(px(a.get(1, 0, 0x8844cc))).toEqual(px(a.get(2, 0, 0x8844cc)));
+  });
 });

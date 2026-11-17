@@ -99,9 +99,10 @@ interface Entry {
   x: number;
   slotW: number;
   rect: TintFrameRect;
-  /** Set while queued. */
+  /** Set while queued (`mask` stays null for an alpha-tint sheet's frame: `alpha`). */
   base: Decoded | null;
   mask: Decoded | null;
+  alpha: boolean;
   sprite: Sprite | undefined;
   gone: boolean;
   used: number;
@@ -163,9 +164,10 @@ export class TintAtlas {
    * Reserves a slot for (sheet, frame, colour) and queues its tint (`step` makes it); `colour` is 0xrrggbb. True when
    * the frame is queued or there already; false when there is no room this frame (atlas full of frames drawn this
    * frame or the one before, the set manager refused a page, the frame is bigger than a page, the sheet failed, or the
-   * atlas stopped after TINT_CANVAS_FAIL_LIMIT canvas failures in a row).
+   * atlas stopped after TINT_CANVAS_FAIL_LIMIT canvas failures in a row). `mask` null: an alpha-tint sheet (track
+   * rails, batch 5), tinted as with a full-white mask, the frame's alpha kept.
    */
-  request(sheetKey: number, frame: number, colour: number, base: Decoded, mask: Decoded, rect: TintFrameRect): boolean {
+  request(sheetKey: number, frame: number, colour: number, base: Decoded, mask: Decoded | null, rect: TintFrameRect): boolean {
     if (this.failedSheets.has(sheetKey) || this.stopped()) return false;
     const key = sheetKey * FRAME_SPAN + frame;
     let byColour = this.frames.get(key);
@@ -181,7 +183,7 @@ export class TintAtlas {
     }
     if (!at) return false;
     const e: Entry = {
-      key, colour, sheetKey, page: at.page, shelf: at.shelf, x: at.x, slotW: at.slotW, rect, base, mask,
+      key, colour, sheetKey, page: at.page, shelf: at.shelf, x: at.x, slotW: at.slotW, rect, base, mask, alpha: mask === null,
       sprite: undefined, gone: false, used: this.tick, prev: null, next: null,
     };
     if (!byColour) this.frames.set(key, (byColour = new Map()));
@@ -224,7 +226,7 @@ export class TintAtlas {
       try {
         // The whole slot, gutter included: a reused slot may hold a bigger frame's pixels.
         pageCtx.clearRect?.(e.x, e.shelf.y, e.slotW, e.shelf.h);
-        tintRect(e.base as Decoded, e.mask as Decoded, e.rect, rgbOf(e.colour), e.page.canvas, e.x, e.shelf.y, scratch);
+        tintRect(e.base as Decoded, e.alpha ? null : (e.mask as Decoded), e.rect, rgbOf(e.colour), e.page.canvas, e.x, e.shelf.y, scratch);
         e.sprite = {
           image: e.page.canvas as unknown as CanvasImageSource, sx: e.x, sy: e.shelf.y, w, h,
           ox: e.rect.ox ?? 0, oy: e.rect.oy ?? 0, scale: e.rect.scale ?? 1,

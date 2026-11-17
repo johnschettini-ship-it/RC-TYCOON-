@@ -247,7 +247,7 @@ const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 
   // size report beside index.json; S5 (app art <= 150 MB) fails the bake when the projected full art passes it
   const sizes = new Map(readdirSync(outDir).map((n) => [n, statSync(join(outDir, n)).size]));
   const sr = N.sizeReport(index, sizes);
-  writeFileSync(join(outDir, 'size-report.json'), JSON.stringify({ ...sr, s5LimitBytes: N.S5_LIMIT_BYTES, note: 'track is projected per piece from the baked pieces; kinds with no baked item use assumed means (assumedKinds)' }, null, 1));
+  writeFileSync(join(outDir, 'size-report.json'), JSON.stringify({ ...sr, s5LimitBytes: N.S5_LIMIT_BYTES, note: 'track is projected by frame area from the baked rail and car frames (sizeReport.ts header); kinds with no baked item use assumed means (assumedKinds)' }, null, 1));
   console.log(`size: baked ${mb(sr.totalCompressed)} MB, projected full ${mb(sr.projectedFull)} MB (S5 limit ${mb(N.S5_LIMIT_BYTES)} MB; see the table)`);
   for (const l of N.formatSizeReport(sr)) console.log(l);
   const s5 = sr.projectedFull > N.S5_LIMIT_BYTES;

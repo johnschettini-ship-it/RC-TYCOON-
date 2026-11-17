@@ -12,6 +12,8 @@ import { getFlatRideDef } from '../../../data/catalog/flatRides';
 import { CARD_SET } from '../cards';
 import type { RealKind, SetKey } from '../indexFormat';
 import type { LookCore } from './core';
+import { carClassesOf, pieceClass } from '../trackClasses';
+import { poseTypeOf } from './track';
 import type { Combo, ItemRec, RealSets, ScopeObject } from './types';
 
 /**
@@ -44,7 +46,7 @@ export interface LookScope {
 }
 
 export function makeScope(core: LookCore, sets: RealSets): LookScope {
-  const { gameRec, colourRec, recOf, staffRec, resolveAt, twinOf, groundItems, guestItems } = core;
+  const { gameRec, colourRec, classRec, recOf, staffRec, resolveAt, twinOf, groundItems, guestItems } = core;
   const combos: Combo[] = [];
   const comboIds = new Map<ItemRec, number[]>();
   function combo(rec: ItemRec, turn: number, everyTurn = false): number {
@@ -86,17 +88,22 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
   let seen = new Uint8Array(0);
   const affine: ViewAffine = viewAffine(0, 1, 1);
 
-  /** What changes when the park's built objects change (not guests): lists, their last ids, track piece counts. */
+  /** What changes when the park's built objects change (not guests): lists, their last ids, each track's pieces. */
   function sigOf(world: World): unknown[] {
     const s = world.state;
-    let pieces = 0;
     // Ride colours (Task 5): a colour change wants other sets, so the coloured rides are part of the signature.
     let colours = '';
+    // Track content (batch 5 review fix): each ride's piece list, its length and its last piece object, as the sim's
+    // own layout cache keys it (pieces are pushed and popped at the end): an undo then a place in one tick keeps the
+    // count but changes the last piece, so the classes and headings wanted are found again.
+    const track: unknown[] = [];
     for (const r of s.rides) {
-      if (r.kind === 'track') pieces += s.track.rides[String(r.id)]?.pieces.length ?? 0;
-      else if (r.colour != null) colours += `${r.id}:${r.colour},`;
+      if (r.kind === 'track') {
+        const p = s.track.rides[String(r.id)]?.pieces;
+        track.push(p, p?.length ?? 0, p?.at(-1));
+      } else if (r.colour != null) colours += `${r.id}:${r.colour},`;
     }
-    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, pieces, s.staff.members.length, colours];
+    return [s, s.map, s.rides.length, s.rides.at(-1)?.id, s.stalls.length, s.stalls.at(-1)?.id, s.scenery.length, s.scenery.at(-1)?.id, s.staff.members.length, colours, ...track];
   }
 
   function indexObjects(world: World): void {
@@ -110,7 +117,6 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     const zAt = (x: number, y: number): number => (s.map.heights[y * s.map.width + x] as number | undefined) ?? 0;
     for (const r of s.rides) {
       if (r.kind === 'track') {
-        // Rails and supports are keyed by a heading in the view (piece, saddle), so every heading of them is wanted.
         const pieces = s.track.rides[String(r.id)]?.pieces ?? [];
         if (!pieces.length) continue;
         let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, top = 0;
@@ -119,7 +125,9 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
         }
         // Pieces reach a tile or two past their entry tile; heights are metres.
         x0 -= 2; y0 -= 2; x1 += 2; y1 += 2;
-        obj((x0 + x1) / 2, (y0 + y1) / 2, 0, x1 - x0 + y1 - y0, top * PX_PER_M + 64, gameCombo('rail', r.defId, 0, true), gameCombo('car', r.defId, 0), gameCombo('support', r.defId, 0, true));
+        const ids = trackCombos(r.defId, pieces);
+        // One scope object per three combos, all with the ride's bounds.
+        for (let i = 0; i < ids.length; i += 3) obj((x0 + x1) / 2, (y0 + y1) / 2, 0, x1 - x0 + y1 - y0, top * PX_PER_M + 64, ids[i] ?? -1, ids[i + 1] ?? -1, ids[i + 2] ?? -1);
         continue;
       }
       const def = getFlatRideDef(r.defId);
@@ -155,6 +163,39 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     if (marks.length < combos.length) marks = new Uint8Array(combos.length * 2);
     scopedRot = -1;
     scopeWalks++;
+  }
+
+  /**
+   * A track ride's combos (batch 5 Task 2): only what its built pieces use. Rails: one combo per (piece class, piece
+   * direction), turned like any object (its set is the heading `(dir + view turn) mod 4`), so a circuit without loops
+   * never wants a loop set and only the headings its pieces face are wanted (the next turn's ahead, at density 2).
+   * Cars: the pose classes its pieces reach (`rall`). Supports: every saddle heading (small sets). A stage 1 bake (one
+   * rail set per heading, read as every class) is wanted at the union of the pieces' headings.
+   */
+  function trackCombos(defId: string, pieces: readonly { defId: string; dir: number }[]): number[] {
+    const out: number[] = [];
+    const railRec = gameRec('rail', defId);
+    if (railRec) {
+      const seen = new Set<string>();
+      for (const p of pieces) {
+        const cls = pieceClass(p.defId);
+        const k = `${cls}/${p.dir & 3}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const id = combo(classRec(railRec, cls), p.dir & 3);
+        if (!out.includes(id)) out.push(id);
+      }
+    }
+    const carRec = gameRec('car', defId);
+    if (carRec) {
+      for (const cls of carClassesOf(poseTypeOf(carRec, defId), new Set(pieces.map((p) => p.defId)))) {
+        const id = combo(classRec(carRec, cls), 0);
+        if (!out.includes(id)) out.push(id);
+      }
+    }
+    const sup = gameCombo('support', defId, 0, true);
+    if (sup >= 0) out.push(sup);
+    return out;
   }
 
   /** Path item kinds in the park (bench, bin, lamp), scanned every `PATH_ITEM_SCAN_EVERY` prepares. */
@@ -272,6 +313,8 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
         const tw = twinOf(rec, r, k);
         if (tw !== undefined) twins.add(tw);
       };
+      /** Pairs (record, ahead turn) whose ahead set `want` adds once every `now` set is known. */
+      const aheads: (ItemRec | ViewRotation)[] = [];
       const want = (ids: readonly number[]): void => {
         for (const id of ids) {
           const { rec, everyTurn, turn } = combos[id] as Combo;
@@ -282,12 +325,9 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
           addNow(rec, ((turn + rot) % 4) as ViewRotation);
           // The ahead turn at density 2 only (cheap), for the same objects: after a turn they show at once from these
           // sets and sharpen when the turn's density-4 sets land. A set for every turn (rot 'all') is already wanted.
-          const ar = ((turn + ahead) % 4) as ViewRotation;
-          const a = resolveAt(rec, ar, density);
-          if (a !== undefined && !now.has(a)) {
-            const low = density === 4 ? resolveAt(rec, ar, 2) : a;
-            if (low !== undefined) later.add(low);
-          }
+          // Decided once every object's set for this turn is wanted (`aheads` below): a track ride's rail combos turn
+          // into each other's headings, so an ahead heading is often one another combo wants now.
+          aheads.push(rec, ((turn + ahead) % 4) as ViewRotation);
           // A coloured ride with a set per turn also wants the turn back (counter-clockwise) at density 2, ahead: its
           // set needs a decode and a tint (one at a time, in the shared tint budget), so a turn back would otherwise
           // wait for both (Task 6 bench: +~270 ms on the rides park's last turn). Ahead sets are still dropped first
@@ -319,6 +359,14 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
       want(on);
       want(always.slice(groundItems.length));
       want(pathCombos);
+      for (let i = 0; i < aheads.length; i += 2) {
+        const rec = aheads[i] as ItemRec;
+        const ar = aheads[i + 1] as ViewRotation;
+        const a = resolveAt(rec, ar, density);
+        if (a === undefined || now.has(a)) continue;
+        const low = density === 4 ? resolveAt(rec, ar, 2) : a;
+        if (low !== undefined) later.add(low);
+      }
       wantMargin(margin);
       // The card pictures: one small set, always loaded (src/render/real/cards.ts).
       if (core.has(CARD_SET)) now.add(CARD_SET);

@@ -48,11 +48,14 @@ export function tintPixels(base: Uint8ClampedArray, mask: Uint8ClampedArray, rgb
   return out;
 }
 
-/** `tintPixels` into `px` itself (no copy). */
-function tintInPlace(px: Uint8ClampedArray, mask: Uint8ClampedArray, rgb: Rgb): void {
+/**
+ * `tintPixels` into `px` itself (no copy). `mask` null: an alpha-tint sheet (track rails, batch 5): every pixel takes
+ * the whole colour, exactly as with a full-white mask; the picture's own alpha (kept) is what clips the colour.
+ */
+function tintInPlace(px: Uint8ClampedArray, mask: Uint8ClampedArray | null, rgb: Rgb): void {
   const [tr, tg, tb] = rgb;
   for (let i = 0; i + 3 < px.length; i += 4) {
-    const s = (mask[i] ?? 0) / 255;
+    const s = mask === null ? 1 : (mask[i] ?? 0) / 255;
     if (s === 0) continue;
     const r = px[i] as number;
     const g = px[i + 1] as number;
@@ -223,13 +226,14 @@ function ctx2d(c: CanvasLike, read = false): Ctx2D {
 export interface Rect { x: number; y: number; w: number; h: number }
 
 /**
- * Tints one frame (Task 4): rectangle `rect` of `base`, mixed by the same rectangle of its `mask` (as `tintPixels`),
+ * Tints one frame (Task 4): rectangle `rect` of `base`, mixed by the same rectangle of its `mask` (as `tintPixels`; a
+ * null mask is an alpha-tint sheet's: the whole colour on every pixel, as a full-white mask, batch 5),
  * written to `dst` at (`dx`, `dy`); nothing else of `dst` changes. Both rectangles are read through `scratch` (a canvas
  * at least `rect` big, asked for `willReadFrequently`, so the reads stay in CPU memory) and the result is only written
  * to `dst` (`putImageData`), never read back. Without `scratch` the reads go through `dst` itself at (`dx`, `dy`).
  * Throws when a canvas has no 2D context.
  */
-export function tintRect(base: Decoded, mask: Decoded, rect: Rect, rgb: Rgb, dst: CanvasLike, dx: number, dy: number, scratch?: CanvasLike): void {
+export function tintRect(base: Decoded, mask: Decoded | null, rect: Rect, rgb: Rgb, dst: CanvasLike, dx: number, dy: number, scratch?: CanvasLike): void {
   const { x, y, w, h } = rect;
   const out = ctx2d(dst);
   const rd = scratch ? ctx2d(scratch, true) : out;
@@ -240,8 +244,8 @@ export function tintRect(base: Decoded, mask: Decoded, rect: Rect, rgb: Rgb, dst
     rd.drawImage(img, x, y, w, h, rx, ry, w, h);
     return rd.getImageData(rx, ry, w, h);
   };
-  const m = cut(mask.image);
+  const m = mask === null ? null : cut(mask.image);
   const b = cut(base.image);
-  tintInPlace(b.data, m.data, rgb);
+  tintInPlace(b.data, m === null ? null : m.data, rgb);
   out.putImageData(b, dx, dy);
 }
