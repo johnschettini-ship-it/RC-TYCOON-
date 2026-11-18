@@ -526,10 +526,12 @@ test.describe('phone at text scale 175% (D4)', () => {
     await newPark(page, 'Large Park');
   });
 
-  test('the Height bar: 44 px buttons and chips; the selected chip is ink with white text, the others readable', async ({ page }, info) => {
+  test('the Height and slope menu: 44 px buttons and chips; the selected chip is ink with white text, the others readable', async ({ page }, info) => {
     test.skip(!isPhone(info), 'the phone at 175%');
     await openTool(page, 'footpath');
-    const bar = page.getByTestId('path-height-bar');
+    // The path builder row's Height and slope menu (touch controls spec 2026-11-18 §3) holds the height controls.
+    await page.getByTestId('path-slope').click();
+    const bar = page.getByTestId('path-slope-menu');
     await expect(bar).toBeVisible();
     for (const id of ['path-height-down', 'path-height-up', 'path-ramp-flat', 'path-ramp-up', 'path-ramp-down']) {
       const b = await page.getByTestId(id).boundingBox();

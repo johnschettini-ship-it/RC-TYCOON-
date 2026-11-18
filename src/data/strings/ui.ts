@@ -38,9 +38,6 @@ export const uiStrings: Record<string, string> = {
   'ui.status.confirm': 'Confirm',
   'ui.status.cancel': 'Cancel',
   'ui.status.placeCost': '{name} · {cost}',
-  'ui.status.pathHint': 'Drag to draw a line, tap to build one tile',
-  'ui.status.pathTiles': '{count} tiles · {cost}',
-  'ui.status.pathTile': '1 tile · {cost}',
   'ui.status.demolishHint': 'Tap something to remove it',
 
   // Ride and stall cards and their details

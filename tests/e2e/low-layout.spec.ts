@@ -101,8 +101,8 @@ test.describe('low layout (Task 19)', () => {
       await expect(page.locator('.tool-status').first()).toBeVisible();
       expect(await freeMapShare(page), 'a held Carousel card').toBeGreaterThanOrEqual(need.held);
       // The tool status bar is one row: its text and its buttons side by side.
-      const line = await boxOf(page, '.tool-status:not(.path-height-bar) .status-line');
-      const actions = await boxOf(page, '.tool-status:not(.path-height-bar) .status-actions');
+      const line = await boxOf(page, '.tool-status:not(.path-panel) .status-line');
+      const actions = await boxOf(page, '.tool-status:not(.path-panel) .status-actions');
       expect(actions.top, 'the buttons are on the row of the text').toBeLessThan(line.bottom);
       watch.expectNoErrors();
     });
@@ -191,10 +191,10 @@ test.describe('low layout (Task 19)', () => {
     await expect(page.locator('.panel .panel-title')).toHaveText('Carousel');
     await expect(page.locator('.panel')).toHaveAttribute('data-layout', 'side');
     await frames(page);
-    const status = await boxOf(page, '.tool-status:not(.path-height-bar)');
+    const status = await boxOf(page, '.tool-status:not(.path-panel)');
     const panel = await boxOf(page, '.panel');
     expect(overlaps(status, panel), `status ${JSON.stringify(status)} panel ${JSON.stringify(panel)}`).toBe(false);
-    // Footpath held: the Height bar, the tool status bar and the open panel do not overlap each other.
+    // Footpath held: the path builder row and the open panel do not overlap each other.
     await openTool(page, 'inspect');
     await openTool(page, 'finance');
     await expect(page.locator('.panel')).toBeVisible();
@@ -418,10 +418,10 @@ test.describe('low layout (Task 19)', () => {
     await pickCard(page, 'flat', 'carousel');
     await expect(panel).toBeVisible();
     await frames(page);
-    const status = await boxOf(page, '.tool-status:not(.path-height-bar)');
+    const status = await boxOf(page, '.tool-status:not(.path-panel)');
     const o = await boxOf(page, '[data-testid="objectives-panel"]');
     expect(overlaps(status, o), `status ${JSON.stringify(status)} objectives ${JSON.stringify(o)}`).toBe(false);
-    // Footpath held: the Height bar and the tool status bar keep clear of the objectives too.
+    // Footpath held: the path builder row (one bar since the touch controls spec 2026-11-18 §3) keeps clear of them too.
     await openTool(page, 'inspect');
     await openTool(page, 'footpath');
     await expect(panel).toBeVisible();
@@ -432,7 +432,7 @@ test.describe('low layout (Task 19)', () => {
         return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
       }),
     );
-    expect(boxes.length).toBeGreaterThanOrEqual(3);
+    expect(boxes.length).toBeGreaterThanOrEqual(2);
     for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) expect(overlaps(boxes[i]!, boxes[j]!), `${i} / ${j}`).toBe(false);
   });
 });

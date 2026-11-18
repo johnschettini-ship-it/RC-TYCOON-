@@ -7,9 +7,10 @@
  * where the next tile starts (as for a drag today: "its start edge is at `z`").
  *
  * Commands (the build rules and costs do not change; these are the commands the game already has):
- * - the first step from an unbuilt start: `buildPathLine` start → next, with `pathCommandHeight` (a two-tile drag);
- * - each later step: `buildPathLine` next → next (ground, or elevated flat at `z`), or `buildPath` with `rampDir` for
- *   an elevated up or down tile (a one-tile line cannot carry a ramp direction);
+ * - each step builds one tile (the start itself first, then the tile ahead): `buildPathLine` tile → tile (ground, or
+ *   elevated flat at `z`), or `buildPath` with `rampDir` for an elevated up or down tile (a one-tile line cannot carry
+ *   a ramp direction);
+ * - a tap next to an unbuilt start: `buildPathLine` start → that tile with `pathCommandHeight` (a two-tile drag);
  * - Undo: `demolish` for the tiles the last step added (paths refund nothing, as today).
  * The ghost and its cost come from the command's own dry run (`previewPathCommand`).
  *
@@ -167,54 +168,66 @@ function turned(dir: Dir, move: StepMove): Dir {
 }
 
 /** The step toward map direction `d` from the end (null: no start, or not a path tool). */
-function planToward(game: PathBuilderHost, d: Dir): StepPlan | null {
+/**
+ * The step toward map direction `d` (null: no start, or not a path tool). From an unbuilt start, an arrow builds the
+ * start tile itself (`line` false) and a tap on a neighbour builds the start and that tile (`line` true, the two-tile
+ * line a drag sends); from a built end, the next tile.
+ */
+function planToward(game: PathBuilderHost, d: Dir, line = false): StepPlan | null {
   const s = current(game);
   const tool = game.tool;
   const kind: PathKind | null = pathKindOf(tool.tool);
   if (s.end < 0 || !kind) return null;
   const map = game.world.state.map;
   const w = map.width;
-  const next = stepTile(map, s.end, d);
-  if (next < 0) return { cmd: null, tiles: [], dir: d, nodes: [], zAfter: tool.pathHeight.z, cost: 0, reason: TERRAIN_ERR.outsidePark };
   const z = tool.pathHeight.z;
   const ramp = z === null ? 'flat' : tool.pathHeight.ramp;
-  const nx = next % w;
-  const ny = Math.floor(next / w);
-  let cmd: StepPlan['cmd'];
-  let tiles: number[];
-  let nodes: BuiltTile[];
-  let zAfter = z;
-  if (!s.started) {
-    tiles = [s.end, next];
-    cmd = { type: 'buildPathLine', x0: s.end % w, y0: Math.floor(s.end / w), x1: nx, y1: ny, kind, ...pathCommandHeight(tool) };
-    if (z === null) nodes = [{ tile: s.end, z: null }, { tile: next, z: null }];
-    else if (ramp === 'up') {
-      nodes = [{ tile: s.end, z }, { tile: next, z: z + 1 }];
-      zAfter = z + 2;
-    } else if (ramp === 'down') {
-      nodes = [{ tile: s.end, z: z - 1 }, { tile: next, z: z - 2 }];
-      zAfter = z - 2;
-    } else nodes = [{ tile: s.end, z }, { tile: next, z }];
-  } else {
-    tiles = [next];
-    if (z === null) {
-      cmd = { type: 'buildPathLine', x0: nx, y0: ny, x1: nx, y1: ny, kind };
-      nodes = [{ tile: next, z: null }];
-    } else if (ramp === 'up') {
-      cmd = { type: 'buildPath', x: nx, y: ny, kind, z, rampDir: d };
-      nodes = [{ tile: next, z }];
-      zAfter = z + 1;
-    } else if (ramp === 'down') {
-      cmd = { type: 'buildPath', x: nx, y: ny, kind, z: z - 1, rampDir: ((d + 2) & 3) as Dir };
-      nodes = [{ tile: next, z: z - 1 }];
-      zAfter = z - 1;
-    } else {
-      cmd = { type: 'buildPathLine', x0: nx, y0: ny, x1: nx, y1: ny, kind, z, ramp: 'flat' };
-      nodes = [{ tile: next, z }];
-    }
+  const next = stepTile(map, s.end, d);
+  if (!s.started && line && next >= 0) {
+    const nodes: BuiltTile[] =
+      z === null
+        ? [{ tile: s.end, z: null }, { tile: next, z: null }]
+        : ramp === 'up'
+          ? [{ tile: s.end, z }, { tile: next, z: z + 1 }]
+          : ramp === 'down'
+            ? [{ tile: s.end, z: z - 1 }, { tile: next, z: z - 2 }]
+            : [{ tile: s.end, z }, { tile: next, z }];
+    const zAfter = z === null ? null : ramp === 'up' ? z + 2 : ramp === 'down' ? z - 2 : z;
+    const cmd: StepPlan['cmd'] = { type: 'buildPathLine', x0: s.end % w, y0: Math.floor(s.end / w), x1: next % w, y1: Math.floor(next / w), kind, ...pathCommandHeight(tool) };
+    return withPreview(game, { cmd, tiles: [s.end, next], dir: d, nodes, zAfter, cost: 0, reason: null });
   }
-  const r = previewPathCommand(game.world, cmd);
-  return { cmd, tiles, dir: d, nodes, zAfter, cost: r.ok ? r.cost : 0, reason: r.ok ? null : (r.reason ?? null) };
+  const target = s.started ? next : s.end;
+  if (target < 0) return { cmd: null, tiles: [], dir: d, nodes: [], zAfter: z, cost: 0, reason: TERRAIN_ERR.outsidePark };
+  const x = target % w;
+  const y = Math.floor(target / w);
+  let cmd: StepPlan['cmd'];
+  let node: BuiltTile;
+  let zAfter = z;
+  if (z === null) {
+    cmd = { type: 'buildPathLine', x0: x, y0: y, x1: x, y1: y, kind };
+    node = { tile: target, z: null };
+  } else if (ramp === 'up') {
+    cmd = { type: 'buildPath', x, y, kind, z, rampDir: d };
+    node = { tile: target, z };
+    zAfter = z + 1;
+  } else if (ramp === 'down') {
+    cmd = { type: 'buildPath', x, y, kind, z: z - 1, rampDir: ((d + 2) & 3) as Dir };
+    node = { tile: target, z: z - 1 };
+    zAfter = z - 1;
+  } else {
+    cmd = { type: 'buildPathLine', x0: x, y0: y, x1: x, y1: y, kind, z, ramp: 'flat' };
+    node = { tile: target, z };
+  }
+  return withPreview(game, { cmd, tiles: [target], dir: d, nodes: [node], zAfter, cost: 0, reason: null });
+}
+
+/** The plan with the command's dry-run cost or reason. */
+function withPreview(game: PathBuilderHost, plan: StepPlan): StepPlan {
+  if (!plan.cmd) return plan;
+  const r = previewPathCommand(game.world, plan.cmd);
+  plan.cost = r.ok ? r.cost : 0;
+  plan.reason = r.ok ? null : (r.reason ?? null);
+  return plan;
 }
 
 /** The step a move would make from the end (the ghost shows Forward), or null without a start. */
@@ -254,7 +267,7 @@ export function tapAt(game: PathBuilderHost, tile: number): CommandResult | null
     startAt(game, tile);
     return null;
   }
-  return apply(game, planToward(game, d as Dir));
+  return apply(game, planToward(game, d as Dir, true));
 }
 
 /** Undo the last step: demolish the tiles it added and put the end, heading and height back. */
@@ -274,13 +287,6 @@ export function undoStep(game: PathBuilderHost): boolean {
   game.tool.pathHeight.z = rec.z;
   refreshPathGhost(game);
   return true;
-}
-
-/** The slope button: flat → up → down → flat (elevated paths only; ground paths follow the land). */
-export function cycleSlope(tool: ToolState): void {
-  if (tool.pathHeight.z === null) return;
-  const r = tool.pathHeight.ramp;
-  tool.pathHeight.ramp = r === 'flat' ? 'up' : r === 'up' ? 'down' : 'flat';
 }
 
 /** The ghost of the next Forward in `tool.drag` (tiles, cost, the reason it would fail, its heading). */

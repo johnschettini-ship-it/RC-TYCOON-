@@ -4,7 +4,7 @@ import { Game } from '../../../src/game';
 import { centerOnMap } from '../../../src/input/camera';
 import { InputController } from '../../../src/input/controller';
 import type { GesturePointerEvent } from '../../../src/input/gestures';
-import { canUndoStep, cycleSlope, nextStep, pathBuilderOf, startAt, stepPath, tapAt, undoStep } from '../../../src/input/pathBuilder';
+import { canUndoStep, nextStep, pathBuilderOf, startAt, stepPath, tapAt, undoStep } from '../../../src/input/pathBuilder';
 import { worldToScreen } from '../../../src/render/camera';
 import { tileToScreen } from '../../../src/render/iso';
 import { previewPathCommand } from '../../../src/sim/commands/build/paths';
@@ -27,26 +27,27 @@ function setup(tool: 'footpath' | 'queue' = 'footpath') {
 }
 
 describe('path step builder: start and steps', () => {
-  it('a tap sets the start and builds nothing; the ghost is the start plus the next tile with the line cost', () => {
+  it('a tap sets the start and builds nothing; the ghost is the start tile with the command\'s cost', () => {
     const { game, cmds, T } = setup();
     startAt(game, T(30, 30), 1);
     expect(cmds).toEqual([]);
-    expect(game.tool.drag?.tiles).toEqual([T(30, 30), T(31, 30)]);
-    const want = previewPathCommand(game.world, { type: 'buildPathLine', x0: 30, y0: 30, x1: 31, y1: 30, kind: 'footpath' });
+    expect(game.tool.drag?.tiles).toEqual([T(30, 30)]);
+    const want = previewPathCommand(game.world, { type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath' });
     expect(want.ok && want.cost).toBe(game.tool.drag?.cost);
-    expect(game.tool.drag?.cost).toBe(2000);
+    expect(game.tool.drag?.cost).toBe(1000);
     expect(game.tool.drag?.reason).toBeNull();
   });
 
-  it('Forward builds the start and the next tile with one buildPathLine, then one tile per press', () => {
+  it('Forward builds the start first, then one tile ahead per press', () => {
     const { game, cmds, map, T } = setup();
     startAt(game, T(30, 30), 1);
     expect(stepPath(game)?.ok).toBe(true);
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 31, y1: 30, kind: 'footpath' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath' }]);
+    expect(game.tool.drag?.tiles).toEqual([T(31, 30)]);
     expect(stepPath(game)?.ok).toBe(true);
-    expect(cmds[1]).toEqual({ type: 'buildPathLine', x0: 32, y0: 30, x1: 32, y1: 30, kind: 'footpath' });
-    expect(map.content[T(32, 30)]).toBe(Content.Footpath);
-    expect(game.tool.drag?.tiles).toEqual([T(33, 30)]);
+    expect(cmds[1]).toEqual({ type: 'buildPathLine', x0: 31, y0: 30, x1: 31, y1: 30, kind: 'footpath' });
+    expect(map.content[T(31, 30)]).toBe(Content.Footpath);
+    expect(game.tool.drag?.tiles).toEqual([T(32, 30)]);
     expect(game.tool.drag?.cost).toBe(1000);
   });
 
@@ -54,25 +55,36 @@ describe('path step builder: start and steps', () => {
     const { game, cmds, T } = setup();
     startAt(game, T(30, 30), 1);
     stepPath(game);
+    stepPath(game);
     stepPath(game, 'right');
-    expect(cmds[1]).toMatchObject({ x0: 31, y0: 31 });
+    expect(cmds[2]).toMatchObject({ x0: 31, y0: 31 });
     stepPath(game, 'left');
-    expect(cmds[2]).toMatchObject({ x0: 32, y0: 31 });
+    expect(cmds[3]).toMatchObject({ x0: 32, y0: 31 });
     expect(pathBuilderOf(game.tool).dir).toBe(1);
+  });
+
+  it('a tap next to an unbuilt start builds both with one two-tile buildPathLine', () => {
+    const { game, cmds, T } = setup();
+    startAt(game, T(30, 30), 1);
+    tapAt(game, T(30, 31));
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 31, kind: 'footpath' }]);
+    expect(pathBuilderOf(game.tool).end).toBe(T(30, 31));
+    expect(pathBuilderOf(game.tool).dir).toBe(2);
   });
 
   it('a tap on a 4-neighbour of the end builds it; a diagonal or far tap moves the start', () => {
     const { game, cmds, T } = setup();
     startAt(game, T(30, 30), 1);
     stepPath(game);
+    stepPath(game);
     tapAt(game, T(31, 29));
-    expect(cmds[1]).toEqual({ type: 'buildPathLine', x0: 31, y0: 29, x1: 31, y1: 29, kind: 'footpath' });
+    expect(cmds[2]).toEqual({ type: 'buildPathLine', x0: 31, y0: 29, x1: 31, y1: 29, kind: 'footpath' });
     expect(pathBuilderOf(game.tool).dir).toBe(0);
     tapAt(game, T(32, 28));
-    expect(cmds).toHaveLength(2);
+    expect(cmds).toHaveLength(3);
     expect(pathBuilderOf(game.tool).end).toBe(T(32, 28));
     tapAt(game, T(40, 40));
-    expect(cmds).toHaveLength(2);
+    expect(cmds).toHaveLength(3);
     expect(pathBuilderOf(game.tool).end).toBe(T(40, 40));
   });
 
@@ -110,9 +122,9 @@ describe('path step builder: start and steps', () => {
     stepPath(game);
     game.tool.tool = 'queue';
     ctl.update(16);
-    expect(pathBuilderOf(game.tool).end).toBe(T(31, 30));
+    expect(pathBuilderOf(game.tool).end).toBe(T(30, 30));
     stepPath(game);
-    expect(cmds[1]).toMatchObject({ kind: 'queue', x0: 32 });
+    expect(cmds[1]).toMatchObject({ kind: 'queue', x0: 31 });
     game.tool.tool = 'inspect';
     ctl.update(32);
     expect(pathBuilderOf(game.tool).end).toBe(-1);
@@ -143,6 +155,7 @@ describe('path step builder: failures and Undo', () => {
 
   it('a step off the map has no command and says why', () => {
     const { game, map, T } = setup();
+    placeFootpath(game.world, map.width - 1, 30);
     startAt(game, T(map.width - 1, 30), 1);
     expect(nextStep(game)).toMatchObject({ cmd: null, reason: 'Outside the park' });
     expect(stepPath(game)).toBeNull();
@@ -152,7 +165,7 @@ describe('path step builder: failures and Undo', () => {
     const { game, cmds, map, T } = setup();
     placeFootpath(game.world, 32, 30);
     startAt(game, T(30, 30), 1);
-    stepPath(game); // 30, 31
+    tapAt(game, T(31, 30)); // 30 and 31 in one line
     stepPath(game); // 32 was there already
     stepPath(game); // 33
     expect(undoStep(game)).toBe(true);
@@ -171,25 +184,12 @@ describe('path step builder: failures and Undo', () => {
 });
 
 describe('path step builder: heights and slopes', () => {
-  it('the slope cycles flat → up → down → flat, and not on the ground', () => {
-    const { game } = setup();
-    cycleSlope(game.tool);
-    expect(game.tool.pathHeight.ramp).toBe('flat');
-    game.tool.pathHeight.z = 12;
-    cycleSlope(game.tool);
-    expect(game.tool.pathHeight.ramp).toBe('up');
-    cycleSlope(game.tool);
-    expect(game.tool.pathHeight.ramp).toBe('down');
-    cycleSlope(game.tool);
-    expect(game.tool.pathHeight.ramp).toBe('flat');
-  });
-
   it('elevated flat steps send buildPathLine at z; up and down steps send buildPath with the ramp and move z', () => {
     const { game, cmds, T, ground } = setup();
     const z = ground + 3;
     game.tool.pathHeight = { z, ramp: 'flat' };
     startAt(game, T(30, 30), 1);
-    expect(stepPath(game)?.ok).toBe(true);
+    expect(tapAt(game, T(31, 30))?.ok).toBe(true);
     expect(cmds[0]).toEqual({ type: 'buildPathLine', x0: 30, y0: 30, x1: 31, y1: 30, kind: 'footpath', z, ramp: 'flat' });
     game.tool.pathHeight.ramp = 'up';
     expect(game.tool.drag?.stepDir).toBe(1);
@@ -219,11 +219,12 @@ describe('path step builder: heights and slopes', () => {
     game.tool.pathHeight = { z, ramp: 'up' };
     startAt(game, T(30, 30), 1);
     stepPath(game);
-    expect(game.tool.pathHeight.z).toBe(z + 2);
+    expect(cmds[0]).toEqual({ type: 'buildPath', x: 30, y: 30, kind: 'footpath', z, rampDir: 1 });
+    expect(game.tool.pathHeight.z).toBe(z + 1);
     stepPath(game);
-    expect(game.tool.pathHeight.z).toBe(z + 3);
-    undoStep(game);
-    expect(cmds.at(-1)).toEqual({ type: 'demolish', x: 32, y: 30, z: z + 2 });
     expect(game.tool.pathHeight.z).toBe(z + 2);
+    undoStep(game);
+    expect(cmds.at(-1)).toEqual({ type: 'demolish', x: 31, y: 30, z: z + 1 });
+    expect(game.tool.pathHeight.z).toBe(z + 1);
   });
 });

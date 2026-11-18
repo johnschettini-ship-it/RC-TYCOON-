@@ -552,9 +552,40 @@ button { font: inherit; color: inherit; }
    must, and scrolls inside: its last action row stays in view at the bar's bottom while the text above it scrolls. */
 #ui[data-layout='bottom'] .tool-status { max-height: calc(100% - var(--safe-top) - var(--toolbar-space) - 16px); overflow-y: auto; }
 #ui[data-layout='bottom'] .tool-status > .status-actions:last-child { position: sticky; bottom: 0; background: var(--surface); }
-/* The path height bar sits 8 px above the tool status bar, whose height the UI measures (`--tool-status-h`). */
-#ui[data-layout='side'] .path-height-bar { bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px + var(--tool-status-h, 60px) + 8px); }
-#ui[data-layout='bottom'] .path-height-bar { bottom: calc(var(--toolbar-space) + 8px + var(--tool-status-h, 60px) + 8px); }
+/*
+ * Path step builder (touch controls spec 2026-11-18 §3): one row of round 44 × 44 icon buttons, 8 px apart, where the
+ * tool status bar sits. The Height and slope menu opens above its button; the cost tag floats over the ghost.
+ */
+.tool-status.path-panel { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; overflow: visible; }
+#ui[data-layout='bottom'] .tool-status.path-panel { overflow: visible; max-height: none; }
+.path-row { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 8px; min-width: 0; }
+.path-row .path-hint { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.path-btn { flex: none; width: var(--touch); min-width: var(--touch); height: var(--touch); min-height: var(--touch); padding: 0; border-radius: 999px; }
+.btn.primary.path-btn { min-height: var(--touch); }
+.path-btn .icon { width: 22px; height: 22px; }
+.path-btn > span { font-size: calc(20px * var(--ts, 1)); line-height: 1; }
+.path-slope-wrap { position: relative; flex: none; display: flex; }
+.path-slope-menu {
+  position: absolute; bottom: calc(100% + 12px); right: -48px; z-index: 3; display: flex; flex-direction: column; gap: 8px;
+  padding: 8px; background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow);
+  width: max-content; max-width: calc(100vw - 20px - var(--safe-left) - var(--safe-right));
+}
+.path-slope-menu[hidden] { display: none; }
+.path-menu-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.path-height-value { flex: 1 1 auto; text-align: center; font-variant-numeric: tabular-nums; }
+.path-slope-menu .seg-btn { min-height: var(--touch); min-width: var(--touch); }
+.path-slope-menu .seg-btn:disabled { opacity: 1; border-style: dashed; }
+.path-slope-menu .seg-btn:disabled:not([aria-pressed='true']) { color: var(--muted-ink); }
+.path-tip { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.path-tip .status-detail { color: var(--ink); }
+.path-tip-close { flex: none; width: var(--touch); height: var(--touch); }
+.path-cost-tag {
+  position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  background: var(--surface); color: var(--ink); border: 2px solid var(--ok); font-weight: 700; font-size: calc(13px * var(--ts, 1));
+  font-variant-numeric: tabular-nums; box-shadow: var(--shadow);
+}
+.path-cost-tag.bad { border-color: var(--danger); color: var(--danger-text); }
+.path-cost-tag[hidden] { display: none; }
 
 /* Tip (Phase 7 §4.8): one sentence with its button, and Close (no mascot face since Task 23). Desktop: centred above the hand,
    where the tool status bar shows while a tool is active (the bubble hides then). Phone: below the chip row. */
@@ -1007,8 +1038,6 @@ button { font: inherit; color: inherit; }
 .segmented.compact .seg-btn { flex: 0 1 auto; }
 /* The path Height bar's ramp chips at ground level (ramps need an elevated line): they cannot be pressed, but the
  * selected one still looks selected (ink, white text) and the others stay readable; a dashed edge marks them. */
-.path-height-bar .seg-btn:disabled { opacity: 1; border-style: dashed; }
-.path-height-bar .seg-btn:disabled:not([aria-pressed='true']) { color: var(--muted-ink); }
 .meter.low .meter-fill { background: var(--danger); }
 
 /* Staff panel */

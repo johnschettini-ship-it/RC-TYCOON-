@@ -58,7 +58,8 @@ test('Put back, Esc, and Cancel select Inspect', async ({ page }) => {
   await page.keyboard.press('Escape');
   expect(await toolNow(page)).toBe('inspect');
   await openTool(page, 'footpath');
-  await page.getByRole('region', { name: 'Tool options' }).getByRole('button', { name: 'Cancel' }).click();
+  // The footpath tool's row is the path builder (touch controls spec 2026-11-18 §3): its Done ends the tool.
+  await page.getByRole('region', { name: 'Path builder' }).getByRole('button', { name: 'Done' }).click();
   expect(await toolNow(page)).toBe('inspect');
   await expect(page.getByTestId('card-put-back')).toHaveCount(0);
 });
@@ -375,13 +376,13 @@ test('no toolbar named Tools is on the screen', async ({ page }) => {
 test.describe('the hand tucks away on the phone while a card is pressed', () => {
   test.beforeEach(() => test.skip(!isPhone(test.info()), 'phone layout'));
 
-  test('a held Footpath card tucks the hand; Cancel brings it back with the Paths deck', async ({ page }) => {
+  test('a held Footpath card tucks the hand; Done brings it back with the Paths deck', async ({ page }) => {
     const hand = page.getByTestId('hand');
     await openTool(page, 'footpath');
     expect(await toolNow(page)).toBe('footpath');
     await expect(hand).toBeHidden();
     await expect(page.getByTestId('deck-paths')).toHaveAttribute('aria-pressed', 'false');
-    await page.getByRole('region', { name: 'Tool options' }).getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('region', { name: 'Path builder' }).getByRole('button', { name: 'Done' }).click();
     await expect(hand).toBeVisible();
     await expect(hand).toHaveAttribute('data-deck', 'paths');
     await expect(page.getByTestId('deck-paths')).toHaveAttribute('aria-pressed', 'true');

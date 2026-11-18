@@ -156,6 +156,10 @@ test('desktop, keyboard only: a tool card held with Enter gives up focus, so the
   await expect(line).toHaveText(/^Tile \d+, \d+: grass$/);
   const m = /(\d+), (\d+)/.exec((await line.textContent()) ?? '');
   const tile = Number(m?.[2]) * 64 + Number(m?.[1]);
+  // The step builder: Enter sets the start there, Enter on the next tile builds both.
+  await page.keyboard.press('Enter');
+  expect(await tc<number>(page, `g.world.state.map.content[${tile}]`)).toBe(0);
+  await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
   await expect.poll(() => tc<number>(page, `g.world.state.map.content[${tile}]`)).toBe(1);
   expect(await tc<string>(page, 'g.tool.tool')).toBe('footpath');
@@ -222,15 +226,14 @@ test('175% text: every control of the station builder can be scrolled into view'
   expect(hit).toBe(true);
 });
 
-test('phone, 175% text: the path height bar sits above the tool status bar', async ({ page }) => {
+test('phone, 175% text: the path builder is one row and no other tool bar shows with it', async ({ page }) => {
   test.skip(!isPhone(test.info()), 'phone layout');
   await textScale(page, 175);
   await openTool(page, 'footpath');
-  const bar = page.getByTestId('path-height-bar');
-  const status = page.locator('div.tool-status:has([data-testid="tool-status"])');
+  const bar = page.getByTestId('path-panel');
   await expect(bar).toBeVisible();
-  await expect(status).toBeVisible();
-  expect(intersects(await boxOf(bar), await boxOf(status))).toBe(false);
+  await expect(page.locator('div.tool-status:not(.path-panel):not([hidden])')).toHaveCount(0);
+  expect((await boxOf(bar)).height).toBeLessThanOrEqual(70);
 });
 
 test('desktop, keyboard only: Close of the tip keeps the focus on the page', async ({ page }) => {
