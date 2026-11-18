@@ -15,6 +15,7 @@ import { Owned } from '../../sim/map';
 import { unlimitedMoney } from '../../sim/scenario/api';
 import type { CommandResult } from '../../sim/commands/types';
 import type { TileAt, ToolRouter } from '../toolRouters';
+import { dragPaints } from '../dragPaint';
 
 /** The rectangle being dragged or waiting for Confirm, in map tiles (start and end corners as picked). */
 export interface BuySelection {
@@ -127,7 +128,8 @@ export function confirmBuyLand(game: Game): CommandResult | null {
 }
 
 export const buyLandRouter: ToolRouter = {
-  primaryDrag: () => 'build',
+  // One finger moves the map; a drag selects a rectangle only while the Paint toggle is on (spec §2).
+  primaryDrag: (game) => (dragPaints(game.tool) ? 'build' : 'pan'),
 
   gesture(game, a, tileAt: TileAt) {
     const s = stateOf(game);

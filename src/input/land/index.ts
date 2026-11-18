@@ -27,6 +27,7 @@ import { minCorner } from '../../sim/terrain/corners';
 import type { Corner } from '../../sim/terrain/types';
 import type { DragMode, GestureAction } from '../gestures';
 import type { TileAt, ToolRouter } from '../toolRouters';
+import { dragPaints } from '../dragPaint';
 
 /** Canvas size in CSS px (written by the browser glue into the side table), or null when unknown. */
 function viewportOf(game: Game): { width: number; height: number } | null {
@@ -263,6 +264,10 @@ function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
       clearRect(s);
       s.pressApplied = false;
       return true;
+    case 'panStart':
+      // The press moved the map: it applies nothing (a drag never builds by accident).
+      s.pressDown = false;
+      return false;
     default:
       return false;
   }
@@ -381,11 +386,15 @@ function update(game: Game, now: number): void {
     s.heldNextMs = nextRepeat(s.heldNextMs, now);
   }
   if (s.pressDown && !isLevel(tool)) {
-    if (!s.pressApplied) {
+    if (s.pressAt < 0) s.pressAt = now;
+    // Paint toggle off: a mouse press may still become a pan, so it applies only once held still for one repeat
+    // period (or on release, as a click: the tap handler).
+    const ready = dragPaints(tool) || now - s.pressAt >= LAND_REPEAT_MS;
+    if (!s.pressApplied && ready) {
       s.pressApplied = true;
       s.nextRepeatMs = now + LAND_REPEAT_MS;
       send(game, s, landCommand(tool, anchorOf(game, s), map.width, clickRaises(tool, s, s.pressShift)));
-    } else if (now >= s.nextRepeatMs) {
+    } else if (s.pressApplied && now >= s.nextRepeatMs) {
       s.nextRepeatMs = nextRepeat(s.nextRepeatMs, now);
       send(game, s, landCommand(tool, anchorOf(game, s), map.width, clickRaises(tool, s, s.pressShift)));
     }
@@ -393,9 +402,9 @@ function update(game: Game, now: number): void {
   refreshGhost(game, s, now);
 }
 
+/** One finger and a left mouse drag move the map; with the Paint toggle on a drag paints (or draws the Level rectangle). */
 function primaryDrag(game: Game): DragMode {
-  if (isLevel(game.tool)) return 'build';
-  return landToolOf(game.tool).pointer === 'mouse' ? 'build' : 'pan';
+  return dragPaints(game.tool) ? 'build' : 'pan';
 }
 
 function enter(game: Game): void {

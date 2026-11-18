@@ -34,6 +34,8 @@ export interface LandToolExtra {
   pressShift: boolean;
   /** The current press already applied once (its release tap must not apply again). */
   pressApplied: boolean;
+  /** Frame time the current press was first seen by the router (−1 until then). */
+  pressAt: number;
   nextRepeatMs: number;
   /** Bar buttons tapped since the last frame, in order (each applies once), and the bar button held (repeat every 300 ms). */
   queued: LandAction[];
@@ -61,6 +63,7 @@ export function landToolOf(tool: ToolState): LandToolExtra {
       pressDown: false,
       pressShift: false,
       pressApplied: false,
+      pressAt: -1,
       nextRepeatMs: 0,
       queued: [],
       held: null,
@@ -102,6 +105,7 @@ export function noteLandPointerDown(tool: ToolState, pointer: PointerKind, butto
   s.pressDown = true;
   s.pressShift = shift;
   s.pressApplied = false;
+  s.pressAt = -1;
 }
 
 /** The press ended (pointer up or cancel anywhere, or the window lost focus). */

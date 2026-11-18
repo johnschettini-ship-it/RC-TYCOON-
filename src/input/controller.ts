@@ -22,6 +22,7 @@ import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
 import { routerOf } from './toolRouters';
 import { changePathHeight, pathCommandHeight } from './pathHeight';
 import { cycleOverlay } from './overlays';
+import { setDragPaints, dragPaints } from './dragPaint';
 import { viewSize, viewToMap } from '../render/view';
 import { pickElevatedPath } from '../render/elevated/pick';
 import type { ElevatedPath } from '../sim/paths/types';
@@ -75,12 +76,17 @@ export class InputController {
     this.lastTool = game.tool.tool;
   }
 
-  /** Path tools build and the patrol tool paints with a primary drag; every other tool pans. */
+  /**
+   * One finger (and a left mouse drag) moves the map in every tool (touch controls spec §1). Path tools draw a line
+   * with a Shift + left mouse drag; the patrol tool (and the routers' drag tools) paint while the Paint toggle is on.
+   */
   primaryDrag(): DragMode {
     const tool = this.game.tool.tool;
     const router = routerOf(tool);
     if (router?.primaryDrag) return router.primaryDrag(this.game);
-    return pathKindOf(tool) || tool === 'patrol' ? 'build' : 'pan';
+    if (pathKindOf(tool)) return this.shiftPress ? 'build' : 'pan';
+    if (tool === 'patrol') return dragPaints(this.game.tool) ? 'build' : 'pan';
+    return 'pan';
   }
 
   pointer(ev: GesturePointerEvent): void {
@@ -234,6 +240,8 @@ export class InputController {
     routerOf(this.lastTool)?.leave?.(this.game);
     this.lastTool = t.tool;
     t.brush = null;
+    // The Paint toggle belongs to the tool that was open (spec §2: it resets when the tool closes).
+    setDragPaints(t, false);
     routerOf(t.tool)?.enter?.(this.game);
     this.apply(this.gestures.reset());
     this.stroke = null;
@@ -266,6 +274,8 @@ export class InputController {
         this.tap(a.x, a.y, a.pointerType === 'mouse');
         break;
       case 'longPress': {
+        // The path builder takes taps only: a long press there opens no panel over the builder.
+        if (pathKindOf(tool.tool)) break;
         const tile = this.tileAt(a.x, a.y);
         tool.selectedTile = tile;
         tool.selectedEntity = pickEntity(game.world, tile);

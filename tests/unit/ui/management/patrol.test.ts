@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../../../../src/game';
+import { setDragPaints } from '../../../../src/input/dragPaint';
 import { InputController } from '../../../../src/input/controller';
 import type { GesturePointerEvent } from '../../../../src/input/gestures';
 import { centerOnMap } from '../../../../src/input/camera';
@@ -110,6 +111,8 @@ function setup(): {
   toolOptions(game.tool).patrolMode = 'paint';
   toolOptions(game.tool).brush = 1;
   ctl.update(0);
+  // The Paint toggle on: a one-finger drag paints (touch controls spec §2; off, it pans: tests/unit/ui/dragPaint.test.ts).
+  setDragPaints(game.tool, true);
   return { game, ctl, cmds, at, ev, staffId };
 }
 

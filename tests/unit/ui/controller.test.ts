@@ -37,20 +37,20 @@ function setup(): {
 }
 
 describe('footpath and queue tools', () => {
-  it('a drag shows ghost tiles and cost, then builds the line on release via buildPathLine', () => {
+  it('a Shift + left mouse drag shows ghost tiles and cost, then builds the line on release via buildPathLine', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'footpath';
     ctl.update(0);
     const a = at(30, 30);
     const b = at(34, 31);
-    ev({ type: 'down', ...a });
-    ev({ type: 'move', ...b, t: 50 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...a });
+    ev({ type: 'move', pointerType: 'mouse', ...b, t: 50 });
     expect(game.tool.drag?.tiles.length).toBe(5);
     expect(game.tool.drag?.cost).toBe(5000);
     expect(game.tool.drag?.startTile).toBe(tileIndex(game.world.state.map, 30, 30));
     expect(game.tool.drag?.endTile).toBe(tileIndex(game.world.state.map, 34, 30));
     expect(cmds).toEqual([]);
-    ev({ type: 'up', ...b, t: 80 });
+    ev({ type: 'up', pointerType: 'mouse', ...b, t: 80 });
     expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 34, y1: 30, kind: 'footpath' }]);
     expect(game.tool.drag).toBeNull();
   });
@@ -65,15 +65,17 @@ describe('footpath and queue tools', () => {
     expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 40, kind: 'queue' }]);
   });
 
-  it('second finger cancels build drag: nothing gets built and a pinch zooms (Review Focus 4)', () => {
+  it('one finger pans in the path tool: nothing gets built; a second finger pinches (touch controls spec §1)', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'footpath';
     ctl.update(0);
     const a = at(30, 30);
     const b = at(36, 30);
+    const x0 = game.camera.centerX;
     ev({ type: 'down', id: 1, ...a });
     ev({ type: 'move', id: 1, ...b, t: 30 });
-    expect(game.tool.drag).not.toBeNull();
+    expect(game.tool.drag).toBeNull();
+    expect(game.camera.centerX).not.toBe(x0);
     const zoom0 = game.camera.zoom;
     ev({ type: 'down', id: 2, x: b.x + 100, y: b.y, t: 40 });
     expect(game.tool.drag).toBeNull();
@@ -89,12 +91,13 @@ describe('footpath and queue tools', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'footpath';
     ctl.update(0);
-    ev({ type: 'down', ...at(20, 20) });
-    ev({ type: 'move', ...at(25, 20), t: 30 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...at(20, 20) });
+    ev({ type: 'move', pointerType: 'mouse', ...at(25, 20), t: 30 });
+    expect(game.tool.drag).not.toBeNull();
     ctl.keyDown('Escape');
     expect(game.tool.tool).toBe('inspect');
     expect(game.tool.drag).toBeNull();
-    ev({ type: 'up', ...at(25, 20), t: 60 });
+    ev({ type: 'up', pointerType: 'mouse', ...at(25, 20), t: 60 });
     expect(cmds).toEqual([]);
   });
 });
@@ -255,11 +258,11 @@ describe('elevated paths (Phase 4 §4.2, §6–7: W3-B picking and the path prev
     ctl.update(0);
     const ground = game.world.state.map.heights[tileIndex(game.world.state.map, 30, 30)] as number;
     game.tool.pathHeight = { z: ground + 2, ramp: 'flat' };
-    ev({ type: 'down', ...at(30, 30) });
-    ev({ type: 'move', ...at(33, 30), t: 50 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...at(30, 30) });
+    ev({ type: 'move', pointerType: 'mouse', ...at(33, 30), t: 50 });
     expect(game.tool.drag).toMatchObject({ cost: 4 * (1000 + 2 * 200), reason: null });
     game.tool.pathHeight = { z: ground, ramp: 'flat' };
-    ev({ type: 'move', ...at(34, 30), t: 60 });
+    ev({ type: 'move', pointerType: 'mouse', ...at(34, 30), t: 60 });
     expect(game.tool.drag).toMatchObject({ cost: 0, reason: 'The path is below the land' });
   });
 

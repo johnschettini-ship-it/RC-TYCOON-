@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../../../src/game';
+import { setDragPaints } from '../../../src/input/dragPaint';
 import { InputController } from '../../../src/input/controller';
 import type { GesturePointerEvent, PointerKind } from '../../../src/input/gestures';
 import { centerOnTile, tileCentreWorld } from '../../../src/input/camera';
@@ -30,6 +31,8 @@ function setup(pointerType: PointerKind = 'mouse'): {
   const ctl = new InputController(game, { viewport: () => ({ width: VW, height: VH }) });
   game.tool.tool = 'buyLand';
   ctl.update(0);
+  // The Paint toggle on: a drag selects a rectangle (spec §2; off, it pans: tests/unit/ui/dragPaint.test.ts).
+  setDragPaints(game.tool, true);
   const at = (x: number, y: number): { x: number; y: number } => {
     const w = tileCentreWorld(map, tileIndex(map, x, y), game.camera.rotation);
     return worldToScreen(game.camera, w.sx, w.sy, VW, VH);

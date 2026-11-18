@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../../../src/game';
+import { setDragPaints } from '../../../src/input/dragPaint';
 import { InputController } from '../../../src/input/controller';
 import type { GesturePointerEvent, PointerKind } from '../../../src/input/gestures';
 import { centerOnMap } from '../../../src/input/camera';
@@ -96,10 +97,14 @@ describe('Land tool with a mouse (Phase 4 §7)', () => {
     expect(cmds[2]).toEqual({ type: 'lowerLand', x: 40, y: 40, size: 3 });
   });
 
-  it('holding the button repeats every 300 ms and the release does not apply again', () => {
+  it('holding the button still for 300 ms applies, then repeats every 300 ms; the release does not apply again', () => {
     const { game, cmds, map, at, hover, ev, frame } = setup();
     hover(at(20, 20));
     ev({ type: 'down', ...at(20, 20) });
+    // The press may still become a pan (touch controls spec §1): nothing until it was held still for one period.
+    frame(700);
+    frame(700 + LAND_REPEAT_MS - 1);
+    expect(cmds).toHaveLength(0);
     frame(1000);
     expect(cmds).toHaveLength(1);
     frame(1000 + LAND_REPEAT_MS - 1);
@@ -115,8 +120,9 @@ describe('Land tool with a mouse (Phase 4 §7)', () => {
     expect(game.tool.land.mode).toBe('raise');
   });
 
-  it('a held drag keeps applying under the cursor (brush stroke)', () => {
-    const { cmds, at, hover, ev, frame } = setup();
+  it('with the Paint toggle on, a held drag keeps applying under the cursor (brush stroke)', () => {
+    const { game, cmds, at, hover, ev, frame } = setup();
+    setDragPaints(game.tool, true);
     hover(at(20, 20));
     ev({ type: 'down', ...at(20, 20) });
     frame(100);
@@ -165,9 +171,10 @@ describe('Land tool with a mouse (Phase 4 §7)', () => {
     ]);
   });
 
-  it('level mode: drag a rectangle, release levels at the first tile’s lowest corner', () => {
+  it('level mode with the Paint toggle on: drag a rectangle, release levels at the first tile’s lowest corner', () => {
     const { game, cmds, map, at, hover, ev, frame } = setup();
     game.tool.land.mode = 'level';
+    setDragPaints(game.tool, true);
     setTileCorners(map, tileIndex(map, 20, 20), [10, 11, 11, 10]);
     hover(at(20, 20));
     ev({ type: 'down', ...at(20, 20) });
@@ -249,9 +256,10 @@ describe('Land tool with touch (Phase 4 §7)', () => {
     expect(cmds).toEqual([]);
   });
 
-  it('level: drag a rectangle, change the target with + and −, then Confirm', () => {
+  it('level with the Paint toggle on: drag a rectangle, change the target with + and −, then Confirm', () => {
     const { game, cmds, at, ev, frame } = setup();
     game.tool.land.mode = 'level';
+    setDragPaints(game.tool, true);
     ev({ type: 'down', ...at(20, 20), pointerType: 'touch' });
     ev({ type: 'move', ...at(23, 22), pointerType: 'touch' });
     ev({ type: 'up', ...at(23, 22), pointerType: 'touch' });
@@ -277,6 +285,7 @@ describe('Land tool with touch (Phase 4 §7)', () => {
   it('a second finger cancels the level drag: nothing is built', () => {
     const { game, cmds, at, ev } = setup();
     game.tool.land.mode = 'level';
+    setDragPaints(game.tool, true);
     ev({ type: 'down', ...at(20, 20), pointerType: 'touch', id: 1 });
     ev({ type: 'move', ...at(23, 22), pointerType: 'touch', id: 1 });
     ev({ type: 'down', ...at(25, 25), pointerType: 'touch', id: 2 });
