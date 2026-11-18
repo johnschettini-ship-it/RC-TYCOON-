@@ -8,6 +8,7 @@ import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
 import { createTrackRidePanel } from '../track/ridePanel';
+import { createReachStatus } from '../rides/reachStatus';
 import { RIDE_COLOUR_CHOICES } from '../../data/catalog/flatRides';
 import { TRACK_PALETTE } from '../../render/track/colours';
 
@@ -95,11 +96,13 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
   const incomeTotal = statRow(text('ui.ride.incomeTotal'));
   const colour = rideColourRow((c) => game.dispatch({ type: 'setRideColour', rideId, colour: c }));
   const warnings = warningList();
+  const reach = createReachStatus(ctx, rideId);
   const maintenance = createMaintenanceSection(ctx, rideId);
 
   const body = h(
     'div',
     { class: 'panel-content' },
+    reach.el,
     warnings.el,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
     section(null, price.el),
@@ -136,6 +139,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
       ridersTotal.set(String(r.totals.riders));
       income.set(formatMoney(r.totals.incomeThisMonth));
       incomeTotal.set(formatMoney(r.totals.income));
+      reach.update();
       warnings.set(rideWarnings(game.world, r));
       maintenance.update(r);
       return true;

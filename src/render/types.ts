@@ -132,6 +132,11 @@ export interface ToolState {
   scenery: SceneryToolOptions;
   /** Brush or rectangle ghost of the land, water, and buy-land tools, or null. */
   brush: BrushGhost | null;
+  /**
+   * Path clarity (spec 2026-11-18 §3): the spot Show me points at, pulsing until `until` (ms, `performance.now()`
+   * clock): a tile and the height to draw it at. UI state only; never saved.
+   */
+  pathFocus: { tile: number; z: number; until: number } | null;
 }
 
 export type OverlayId = 'none' | 'temperament' | 'patrol' | 'litter' | 'reliability' | 'calm' | 'buzz' | 'light';
@@ -154,6 +159,7 @@ export function defaultToolState(): ToolState {
     pathHeight: { z: null, ramp: 'flat' },
     scenery: { defId: null, edge: -1, repeat: false },
     brush: null,
+    pathFocus: null,
   };
 }
 

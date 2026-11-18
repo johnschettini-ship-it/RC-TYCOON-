@@ -8,11 +8,10 @@ import type { Ride } from '../sim/rides/types';
 import type { Stall } from '../sim/stalls/types';
 import type { World } from '../sim/types';
 
-/** Ride warnings (Phase 1 §4.1). The panel keeps showing them until fixed. */
+/** Ride warnings (Phase 1 §4.1). The panel keeps showing them until fixed. The entrance queue is the reach status line's (path clarity). */
 export function rideWarnings(world: World, ride: Ride): string[] {
   const c = world.state.map.content;
   const out: string[] = [];
-  if (ride.entrance && c[ride.entrance.outside] !== Content.Queue) out.push(text('ui.ride.entranceQueue'));
   if (ride.exit && c[ride.exit.outside] !== Content.Footpath) out.push(text('ui.ride.exitPath'));
   return out;
 }

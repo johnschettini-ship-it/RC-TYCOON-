@@ -1543,3 +1543,20 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 /* Queue clarity (spec 2026-11-18 §2): the queue card's count and Open ride share a row and come before warnings. */
 .queue-card .queue-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 8px; }
 .queue-card .queue-count { margin: 0; }
+
+/* Path clarity (spec 2026-11-18 §2–3): the ride reach status line with Show me. */
+.reach-status {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  padding: 8px 10px; margin-bottom: 8px;
+  border-radius: var(--radius);
+  border: 2px solid var(--warn);
+  background: color-mix(in srgb, var(--gold) 22%, var(--surface));
+}
+.reach-status[data-status='ok'] { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, var(--surface)); }
+.reach-status[data-status='closed'] { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface)); }
+.reach-status .reach-text { flex: 1 1 10em; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.reach-status .reach-ok { color: var(--ok); }
+.reach-status .reach-bad { color: var(--warn-text); }
+.reach-status[data-status='closed'] .reach-bad { color: var(--danger-text); }
+.reach-status .reach-show { flex: 0 0 auto; margin-left: auto; }
+.queue-card .reach-status { margin-bottom: 8px; }
