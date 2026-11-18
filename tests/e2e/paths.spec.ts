@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openTool } from './helpers';
+import { dismissWelcome, openTool } from './helpers';
 
 /**
  * Elevated paths (Phase 4 §4.2, §7 Path height row; W3-B): the path height mini-bar with `Page Up` / `Page Down`
@@ -26,6 +26,8 @@ async function newPark(page: Page): Promise<string[]> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  // The realistic build's welcome card (nothing in the website build).
+  await dismissWelcome(page);
   return errors;
 }
 
