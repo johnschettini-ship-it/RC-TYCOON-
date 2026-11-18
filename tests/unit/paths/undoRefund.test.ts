@@ -79,3 +79,34 @@ describe('undoPath (touch controls follow-up: Undo refunds)', () => {
     expect(other.state.park.cash).toBe(c0);
   });
 });
+
+describe('undoPath: only cash actually charged comes back (review P2)', () => {
+  it('a builder tile built as setup (free) refunds nothing', () => {
+    const { world, cash } = setup();
+    executeCommand(world, { type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath', undoable: true }, { setup: true });
+    const c0 = cash();
+    executeCommand(world, { type: 'undoPath', x: 30, y: 30 });
+    expect(cash()).toBe(c0);
+  });
+
+  it('a builder tile built with unlimited money (free) refunds nothing', () => {
+    const { world, refunds } = setup();
+    (world.state as unknown as { scenario: unknown }).scenario = { ...world.state.scenario, kind: 'sandbox', options: { unlimitedMoney: true } };
+    executeCommand(world, { type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath', undoable: true });
+    const r0 = refunds();
+    executeCommand(world, { type: 'undoPath', x: 30, y: 30 });
+    expect(refunds()).toBe(r0);
+  });
+
+  it('an arch over the builder tile: undoPath fails with the reason and removes nothing', () => {
+    const { world, map, cash } = setup();
+    executeCommand(world, { type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath', undoable: true });
+    expect(executeCommand(world, { type: 'placeScenery', defId: 'ticket_arch', x: 30, y: 30, rotation: 0, edge: -1 }).ok).toBe(true);
+    const c0 = cash();
+    const n = world.state.scenery.length;
+    expect(executeCommand(world, { type: 'undoPath', x: 30, y: 30 })).toEqual({ ok: false, reason: 'Remove the arch over this path first' });
+    expect(world.state.scenery.length).toBe(n);
+    expect(map.content[tileIndex(map, 30, 30)]).toBe(Content.Footpath);
+    expect(cash()).toBe(c0);
+  });
+});

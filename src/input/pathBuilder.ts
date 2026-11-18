@@ -174,6 +174,9 @@ export function startAtEntrance(game: PathBuilderHost, rideId: number): boolean 
   const d = dirTo(game.world.state.map, gate.gate, gate.outside);
   game.tool.pathHeight.z = null;
   startAt(game, gate.outside, d >= 0 ? (d as Dir) : undefined);
+  // The first step builds the gate tile itself as queue, also over an existing footpath (a conversion), so it links.
+  current(game).started = false;
+  refreshPathGhost(game);
   return true;
 }
 
@@ -289,14 +292,18 @@ export function tapAt(game: PathBuilderHost, tile: number): CommandResult | null
 /** Undo the last step: take back the tiles it added (full refund) and put the end, heading and height back. */
 export function undoStep(game: PathBuilderHost): boolean {
   const s = current(game);
-  const rec = s.history.pop();
+  const rec = s.history.at(-1);
   if (!rec) return false;
   const w = game.world.state.map.width;
-  for (const b of [...rec.built].reverse()) {
+  while (rec.built.length > 0) {
+    const b = rec.built[rec.built.length - 1] as BuiltTile;
     const x = b.tile % w;
     const y = Math.floor(b.tile / w);
-    game.dispatch(b.z === null ? { type: 'undoPath', x, y } : { type: 'undoPath', x, y, z: b.z });
+    // A refused Undo (an arch over the tile) keeps the step and the end; the UI shows the command's reason.
+    if (!game.dispatch(b.z === null ? { type: 'undoPath', x, y } : { type: 'undoPath', x, y, z: b.z }).ok) return false;
+    rec.built.pop();
   }
+  s.history.pop();
   s.end = rec.end;
   s.dir = rec.dir;
   s.started = rec.started;

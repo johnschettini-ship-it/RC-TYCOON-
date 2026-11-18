@@ -9,6 +9,8 @@ export const PATH_ERR = {
   tooHigh: 'The path cannot go higher',
   /** Bad command data from a caller (height or ramp out of range). */
   badHeight: 'Unknown path height',
+  /** Step builder Undo (`undoPath`) on a path with an arch over it: the arch would go instead. */
+  archInWay: 'Remove the arch over this path first',
 } as const;
 
 /** UI strings of the path mini-bar (`ui/paths`), keyed for `text()`. */
@@ -25,6 +27,7 @@ export const pathStrings: Record<string, string> = {
   'paths.rampUp': 'Up',
   'paths.rampDown': 'Down',
   'paths.err.tooHigh': PATH_ERR.tooHigh,
+  'paths.err.archInWay': PATH_ERR.archInWay,
   // Step builder (touch controls spec 2026-11-18 §3).
   'paths.builder': 'Path builder',
   'paths.hint': 'Tap a tile to start',

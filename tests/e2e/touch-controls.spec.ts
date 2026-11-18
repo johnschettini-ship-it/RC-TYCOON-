@@ -177,4 +177,31 @@ test.describe('touch controls on the phone', () => {
     await expect.poll(() => contentAt(page, outside % w, Math.floor(outside / w))).toBe(2);
     watch.expectNoErrors();
   });
+  test('a ride whose entrance opens onto an existing footpath: Forward turns that tile into the linked queue (review P1)', async ({ page }) => {
+    const watch = watchErrors(page);
+    // Learn where the carousel's entrance comes out at (29, 39), then put a footpath there.
+    const outside = await page.evaluate(() => {
+      const g = (window as unknown as { __tc: { dispatch(c: unknown): { ok: boolean; id?: number }; world: { state: { rides: Array<{ id: number; entrance: { outside: number } | null }>; map: { width: number } } } } }).__tc;
+      const r = g.dispatch({ type: 'placeRide', defId: 'carousel', x: 29, y: 39, rotation: 0 });
+      const out = g.world.state.rides.find((x) => x.id === r.id)?.entrance?.outside ?? -1;
+      g.dispatch({ type: 'demolish', x: 30, y: 40 });
+      const w = g.world.state.map.width;
+      g.dispatch({ type: 'buildPathLine', x0: out % w, y0: Math.floor(out / w), x1: out % w, y1: Math.floor(out / w), kind: 'footpath' });
+      return out;
+    });
+    expect(outside).toBeGreaterThanOrEqual(0);
+    const w = await tc(page, (g) => g.world.state.map.width);
+    expect(await contentAt(page, outside % w, Math.floor(outside / w))).toBe(1);
+    await pickCard(page, 'flat', 'carousel', { tap: true });
+    const p = await showTile(page, 30, 40);
+    await frames(page);
+    await page.touchscreen.tap(p.x, p.y);
+    await expect.poll(() => page.evaluate(() => { const t = (window as unknown as { __tc: { tool: { ghost: { tile: number; rotation: number } | null } } }).__tc.tool.ghost; return t ? [t.tile, t.rotation] : null; })).toEqual([39 * w + 29, 0]);
+    await page.getByRole('button', { name: 'Confirm', exact: true }).tap();
+    await expect.poll(() => tc(page, (g) => g.tool.tool)).toBe('queue');
+    await expect(page.getByTestId('path-cost-tag')).toHaveText('$12');
+    await page.getByTestId('path-forward').tap();
+    await expect.poll(() => contentAt(page, outside % w, Math.floor(outside / w))).toBe(2);
+    watch.expectNoErrors();
+  });
 });

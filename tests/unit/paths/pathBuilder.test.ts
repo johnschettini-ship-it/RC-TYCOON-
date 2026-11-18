@@ -258,3 +258,41 @@ describe('queue at the entrance (spec §6)', () => {
     expect(game.tool.tool).toBe('footpath');
   });
 });
+
+describe('review fixes', () => {
+  it('entrance on an existing footpath: Forward converts the gate tile itself to queue, so the queue links', () => {
+    // Where the carousel's entrance comes out, learned on a scratch park.
+    const scratch = new Game(makeTestWorld());
+    const placed = scratch.dispatch({ type: 'placeRide', defId: 'carousel', x: 20, y: 20, rotation: 0 });
+    const outside = scratch.world.state.rides.find((r) => placed.ok && r.id === placed.id)?.entrance?.outside as number;
+    expect(outside).toBeGreaterThanOrEqual(0);
+
+    const { game, ctl, cmds, map } = setup();
+    placeFootpath(game.world, outside % map.width, Math.floor(outside / map.width));
+    game.tool.tool = 'placeRide';
+    game.tool.defId = 'carousel';
+    ctl.update(16);
+    expect(game.dispatch({ type: 'placeRide', defId: 'carousel', x: 20, y: 20, rotation: 0 }).ok).toBe(true);
+    ctl.update(32);
+    expect(game.tool.tool).toBe('queue');
+    expect(game.tool.drag?.tiles).toEqual([outside]);
+    cmds.length = 0;
+    expect(stepPath(game)?.ok).toBe(true);
+    expect(cmds[0]).toMatchObject({ type: 'buildPathLine', x0: outside % map.width, y0: Math.floor(outside / map.width), kind: 'queue' });
+    expect(map.content[outside]).toBe(Content.Queue);
+  });
+
+  it('an Undo the game refuses (an arch over the tile) keeps the step: no rewind', () => {
+    const { game, cmds, T } = setup();
+    startAt(game, T(30, 30), 1);
+    stepPath(game);
+    stepPath(game);
+    expect(game.dispatch({ type: 'placeScenery', defId: 'ticket_arch', x: 31, y: 30, rotation: 0, edge: -1 }).ok).toBe(true);
+    const s = pathBuilderOf(game.tool);
+    expect(undoStep(game)).toBe(false);
+    expect(cmds.at(-1)).toEqual({ type: 'undoPath', x: 31, y: 30 });
+    expect(s.end).toBe(T(31, 30));
+    expect(canUndoStep(game)).toBe(true);
+    expect(game.world.state.map.content[T(31, 30)]).toBe(Content.Footpath);
+  });
+});

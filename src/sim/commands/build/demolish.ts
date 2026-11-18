@@ -22,6 +22,7 @@ import { fail, ok, type BuildCommand, type CommandContext, type CommandResult } 
 import { elevatedPathCost, pathCost, removeElevatedPath } from './paths';
 import { forgetPath, undoablePathCost } from '../../paths/undo';
 import { BUILD_STRINGS } from './strings';
+import { PATH_ERR } from '../../../data/strings/paths';
 import { sceneryHandlers } from '../../scenery/commands';
 import { centreSceneryAt } from '../../scenery/api';
 import { findShowSite } from '../../shows/api';
@@ -165,12 +166,15 @@ export function undoPath(world: World, cmd: Extract<BuildCommand, { type: 'undoP
   const c = map.content[i];
   if (z === null && c !== Content.Footpath && c !== Content.Queue) return fail(BUILD_STRINGS.nothingToRemove);
   if (z !== null && !elevatedOn(world, i).some((e) => e.z === z)) return fail(BUILD_STRINGS.nothingToRemove);
+  // An arch over a ground path would go first (`demolish`): Undo refuses instead, removing nothing.
+  if (z === null && centreSceneryAt(world, i)) return fail(PATH_ERR.archInWay);
   const price = undoablePathCost(world, i, z);
   const r = demolish(world, z === null ? { type: 'demolish', x: cmd.x, y: cmd.y } : { type: 'demolish', x: cmd.x, y: cmd.y, z }, ctx);
   if (!r.ok) return r;
-  // An arch over the path goes first (`demolish`); the path itself is still there, so nothing is refunded yet.
   const gone = z === null ? map.content[i] !== Content.Footpath && map.content[i] !== Content.Queue : !elevatedOn(world, i).some((e) => e.z === z);
-  if (!gone || price <= 0) return r;
-  if (!ctx.setup) recordLedger(world, 'demolitionRefunds', price);
-  return ok(r.cost - price);
+  // The price in total: demolish already refunded its share (`-r.cost`); the rest tops it up.
+  const rest = Math.max(0, price + r.cost);
+  if (!gone || rest <= 0) return r;
+  if (!ctx.setup) recordLedger(world, 'demolitionRefunds', rest);
+  return ok(r.cost - rest);
 }

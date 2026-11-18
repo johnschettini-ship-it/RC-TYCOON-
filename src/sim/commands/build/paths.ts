@@ -27,6 +27,7 @@ import type { World } from '../../types';
 import { fail, ok, type BuildCommand, type CommandContext, type CommandResult, type PathKind, type RampMode } from '../types';
 import { BUILD_STRINGS } from './strings';
 import { forgetPath, notePathBuilt } from '../../paths/undo';
+import { unlimitedMoney } from '../../scenario/api';
 
 type PathContent = typeof Content.Footpath | typeof Content.Queue;
 
@@ -86,8 +87,9 @@ function buildGroundTiles(world: World, coords: { x: number; y: number }[] | nul
   if (dryRun) return ok(cost);
 
   // Step builder Undo: new tiles it built refund their price; anything else changed here is not undoable.
+  const charged = !ctx.setup && !unlimitedMoney(world.state);
   for (const i of changed) {
-    if (undoable && map.content[i] === Content.Empty) notePathBuilt(world, i, null, pathCost(kind));
+    if (undoable && charged && map.content[i] === Content.Empty) notePathBuilt(world, i, null, pathCost(kind));
     else forgetPath(world, i, null);
   }
   for (const i of changed) {
@@ -177,8 +179,9 @@ function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: Pat
     forgetPath(world, i, p.z);
     if (kind === 'queue' && map.pathItemLevel[i] === p.id) clearItem(world, i);
   }
+  const charged = !ctx.setup && !unlimitedMoney(s);
   for (const { i, p } of fresh) {
-    if (undoable) notePathBuilt(world, i, p.z, elevatedPathCost(kind, p.z, map.heights[i] as number));
+    if (undoable && charged) notePathBuilt(world, i, p.z, elevatedPathCost(kind, p.z, map.heights[i] as number));
     else forgetPath(world, i, p.z);
     insertById(s.elevatedPaths, { id: allocId(s), x: p.x, y: p.y, z: p.z, kind, rampDir: p.rampDir });
   }
