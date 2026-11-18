@@ -1,4 +1,4 @@
-/** Queue clarity in the whole renderer (fake canvas): queueing guests placed on the line, and the entrance sign. */
+/** Queue clarity in the whole renderer (fake canvas): queueing guests placed on the line; no entrance sign (path clarity). */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { install, make } from './fakeCanvas';
 import { createCanvasRenderer } from '../../../src/render/renderer';
@@ -15,7 +15,7 @@ beforeAll(() => {
 });
 
 describe('queue clarity in the renderer', () => {
-  it('places every queueing guest on its line and draws the ride sign', () => {
+  it('places every queueing guest on its line and draws no ride name sign', () => {
     const world = createWorld({ seed: 7, parkName: 'Line Park', mapSize: 24 });
     const map = world.state.map;
     const ride = placeRideDirect(world, 'carousel', 8, 6, 0);
@@ -35,6 +35,6 @@ describe('queue clarity in the renderer', () => {
     const p = mapToViewContinuous(ex + 0.5, ey + 0.5, 0, map.width, map.height);
     r.draw(world, { centerX: (p.u - p.v) * 32, centerY: (p.u + p.v) * 16 - 64, zoom: 1, rotation: 0 }, defaultToolState(), 0);
     expect(canvas.dataset.queueGuests).toBe('7');
-    expect(canvas.dataset.queueSigns).toBe('Spin Line');
+    expect(canvas.dataset.queueSigns).toBeUndefined();
   });
 });

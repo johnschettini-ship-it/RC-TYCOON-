@@ -1,5 +1,5 @@
 /**
- * Queue clarity (spec 2026-11-18): read-only views of the queue flood fill for the sign, the tap card, the warnings
+ * Queue clarity (spec 2026-11-18): read-only views of the queue flood fill for the tap card, the warnings
  * and where queueing guests are drawn. Derived from the network cache (`./network.ts`), rebuilt only with it, never
  * saved, and never read by a game rule: ownership stays `computeQueueOwners`'s.
  */

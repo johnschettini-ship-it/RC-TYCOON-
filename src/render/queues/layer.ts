@@ -4,9 +4,8 @@
  *   ground nodes in `drawGround` (under the guests), deck nodes over the decks;
  * - while a path tool (footpath or queue) is on: queue groups that reach no ride entrance tinted, with one "!" badge
  *   per group;
- * - a ride name sign over every ride entrance (`./sign.ts`).
- * The canvas carries `data-queue-signs` (sign texts joined by "|") and `data-queue-warnings` (unlinked groups marked),
- * written only when they change, for e2e tests. Hints only: nothing here changes which ride owns a queue.
+ * The canvas carries `data-queue-warnings` (unlinked groups marked), written only when it changes, for e2e tests.
+ * Hints only: nothing here changes which ride owns a queue. (Path clarity, spec 2026-11-18, removed the entrance sign.)
  */
 import { nodeZOf } from '../../sim/paths/nodes';
 import { nodeTile, queueComponent, queueNodeOfKey, unlinkedQueueGroups } from '../../sim/pathing/queues';
@@ -17,10 +16,8 @@ import type { LayerFrame, WorldLayer } from '../layers';
 import type { ToolState } from '../types';
 import { mapToViewContinuous } from '../view';
 import { QUEUE_COLOURS } from './colours';
-import { createSignFit, SIGN_FONT_PX, signBoxes, signFont, signScale, type SignBox } from './sign';
 
 const corners: number[] = [];
-const signs: SignBox[] = [];
 
 /** Device-px corners (N, E, S, W) of path node `node`: the ground surface for a ground node, flat at `z` for a deck. */
 function nodeCorners(world: World, node: number, f: LayerFrame, out: number[]): number[] {
@@ -83,35 +80,7 @@ function drawBadge(ctx: CanvasRenderingContext2D, world: World, node: number, f:
   ctx.fillText('!', cx, cy + r * 0.05);
 }
 
-function drawSign(ctx: CanvasRenderingContext2D, s: SignBox, f: LayerFrame): void {
-  const k = s.fontPx / SIGN_FONT_PX;
-  // Post from the sign down to the entrance.
-  ctx.strokeStyle = QUEUE_COLOURS.signPost;
-  ctx.lineWidth = Math.max(1, 1.6 * k);
-  ctx.beginPath();
-  ctx.moveTo(s.footX, s.y + s.h);
-  ctx.lineTo(s.footX, s.footY);
-  ctx.stroke();
-  const r = Math.min(s.h / 2, 5 * k);
-  ctx.beginPath();
-  ctx.moveTo(s.x + r, s.y);
-  ctx.arcTo(s.x + s.w, s.y, s.x + s.w, s.y + s.h, r);
-  ctx.arcTo(s.x + s.w, s.y + s.h, s.x, s.y + s.h, r);
-  ctx.arcTo(s.x, s.y + s.h, s.x, s.y, r);
-  ctx.arcTo(s.x, s.y, s.x + s.w, s.y, r);
-  ctx.closePath();
-  ctx.fillStyle = QUEUE_COLOURS.sign;
-  ctx.fill();
-  ctx.lineWidth = Math.max(1, f.dpr);
-  ctx.strokeStyle = QUEUE_COLOURS.signEdge;
-  ctx.stroke();
-  ctx.fillStyle = QUEUE_COLOURS.signText;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(s.text, s.x + s.w / 2, s.y + s.h / 2 + s.fontPx * 0.06);
-}
-
-function setData(ctx: CanvasRenderingContext2D, key: 'queueSigns' | 'queueWarnings', value: string): void {
+function setData(ctx: CanvasRenderingContext2D, key: 'queueWarnings', value: string): void {
   const ds = (ctx.canvas as { dataset?: Record<string, string> } | undefined)?.dataset;
   if (ds && ds[key] !== value) ds[key] = value;
 }
@@ -139,7 +108,6 @@ function drawMarks(ctx: CanvasRenderingContext2D, world: World, tool: ToolState,
 }
 
 export function createQueueLayer(): WorldLayer {
-  const fitFor = createSignFit();
   return {
     name: 'queues',
     kinds: [],
@@ -160,13 +128,6 @@ export function createQueueLayer(): WorldLayer {
         marked = groups.length;
       }
       setData(ctx, 'queueWarnings', String(marked));
-      const zoom = f.scale / f.dpr;
-      // The font depends only on the zoom: set it once; text fits are measured once per name, zoom step and font.
-      const font = signFont(SIGN_FONT_PX * signScale(zoom) * f.dpr);
-      ctx.font = font;
-      signBoxes(world, f, fitFor((s) => ctx.measureText(s).width, font), signs);
-      for (const s of signs) drawSign(ctx, s, f);
-      setData(ctx, 'queueSigns', signs.map((s) => s.text).join('|'));
       ctx.restore();
     },
   };

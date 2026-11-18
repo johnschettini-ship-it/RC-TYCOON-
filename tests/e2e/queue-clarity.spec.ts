@@ -1,5 +1,5 @@
 /**
- * Queue clarity (spec 2026-11-18): the ride name sign over each entrance, the card of a tapped queue tile (ride name,
+ * Queue clarity (spec 2026-11-18): no ride name sign over an entrance (path clarity removed it), the card of a tapped queue tile (ride name,
  * "Queue: N guests", Open ride) with the queue highlighted, the unlinked-queue marker while a path tool is on, the
  * touching-queues message and card warning, and a line that fills with guests standing along it. Axe with the card
  * open; the card fits 390 × 844 and 812 × 375 at large pseudo-locale text. QC_SHOTS=<dir> saves screenshots.
@@ -137,22 +137,17 @@ async function shot(page: Page, name: string, phone: boolean): Promise<void> {
 }
 
 test.describe('queue clarity', () => {
-  test('entrance signs name each ride; a renamed ride shows its new name; none at the farthest zoom', async ({ page }, info) => {
+  test('no name sign over a ride entrance (path clarity removed it)', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page);
-    const { a } = await buildPark(page);
+    await buildPark(page);
     await tc(page, (g) => {
-      g.camera.zoom = 0.75;
+      g.camera.zoom = 1;
       g.camera.centerX = (29 - 47) * 32;
       g.camera.centerY = (29 + 47 + 1) * 16 - 64;
     }, null);
     await frames(page);
-    await expect.poll(() => canvasData(page, 'queueSigns')).toBe('Merry Spin|Sky Swing');
-    await shot(page, 'signs', isPhone(info));
-    await tc(page, (g, id) => void ((g.world.state.rides.find((r) => r.id === id) as Ride).name = 'Twirl Town'), a);
-    await expect.poll(() => canvasData(page, 'queueSigns')).toBe('Twirl Town|Sky Swing');
-    await tc(page, (g) => void (g.camera.zoom = 0.25), null);
-    await expect.poll(() => canvasData(page, 'queueSigns')).toBe('');
+    expect(await canvasData(page, 'queueSigns')).toBeUndefined();
     watch.expectNoErrors();
   });
 
