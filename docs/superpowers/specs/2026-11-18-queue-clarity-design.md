@@ -10,7 +10,7 @@ The player can see which line belongs to which ride, spot a broken line, and see
 
 ## Decisions
 
-1. **Entrance sign.** Each ride with an entrance shows a small sign over the entrance with the ride's name (the same name the ride panel shows, including a renamed ride). Both looks. It hides at the farthest zoom and when the ride's own panel is open is not required. Long names are cut with an ellipsis to fit the sign.
+1. **Entrance sign.** Each ride with an entrance shows a small sign over the entrance with the ride's name (the same name the ride panel shows, including a renamed ride). Both looks. It hides at the farthest zoom. Long names are cut with an ellipsis to fit the sign.
 2. **Tap a queue tile.** With the inspect tool (or no tool), tapping a queue tile highlights every tile of that queue and shows a small card: the ride's name, "Queue: N guests", and a button that opens the ride's panel. A queue tile with no owner shows "This queue reaches no ride".
 3. **Warnings.**
    - A queue section that reaches no ride entrance: a warning marker on it, visible while a path tool is on and in the tap card.
