@@ -95,6 +95,7 @@ describe('chain lifts (realistic, Task 5)', () => {
     const it = items.find((x) => x.sub === 1)!;
     const sl = slices[it.ref]!;
     const real = logCtx(names);
+    layer.drawItem(logCtx(names).ctx, it.ref, 0, look); // its realistic rail first, as the draw list orders them
     layer.drawItem(real.ctx, it.ref, 1, look);
     const today = logCtx(names);
     layer.drawItem(today.ctx, it.ref, 1, undefined);
@@ -113,5 +114,33 @@ describe('chain lifts (realistic, Task 5)', () => {
     const lum = (hex: string) => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
     expect(lum(rDash!.stroke)).toBeLessThan(lum(tDash!.stroke));
     expect(lum(rBase!.stroke)).toBeLessThanOrEqual(lum(tBase!.stroke));
+  });
+
+  it('a slice whose rail falls back to today\'s painted rail gets today\'s dashes, at today\'s height (review P2)', () => {
+    const { layer, items, slices } = collect();
+    const it = items.find((x) => x.sub === 1)!;
+    const sl = slices[it.ref]!;
+    // the realistic look is on, but this rail has no picture: today's painted slice draws
+    const noRail = { ...look, rail: () => undefined } as unknown as RealLook;
+    const fell = logCtx(names);
+    layer.drawItem(fell.ctx, it.ref, 0, noRail);
+    expect(fell.log.some((l) => l.op === 'draw:rail')).toBe(false);
+    layer.drawItem(fell.ctx, it.ref, 1, noRail);
+    const today = logCtx(names);
+    layer.drawItem(today.ctx, it.ref, 1, undefined);
+    const f = viewFrame(0, world.state.map.width, world.state.map.height);
+    const k = sl.runs[0]!;
+    const fr = trackFrame(sl.samples.yaw[k]!, sl.samples.pitch[k]!, sl.samples.bankSin[k]!, sl.samples.bankCos[k]!, new Float64Array(9));
+    const wx = sl.samples.x[k]! + fr[6]! * 0.05, wy = sl.samples.y[k]! + fr[7]! * 0.05, wz = sl.samples.z[k]! + fr[8]! * 0.05;
+    const move = fell.log.find((l) => l.op === 'moveTo')!;
+    expect(move.args[0]).toBeCloseTo(projectX(wx, wy, f), 6);
+    expect(move.args[1]).toBeCloseTo(projectY(wx, wy, wz, f), 6);
+    const strokes = (l: typeof fell.log) => l.filter((x) => x.op === 'stroke').map((x) => [x.lineWidth, x.stroke]);
+    expect(strokes(fell.log)).toEqual(strokes(today.log));
+    // and when the realistic rail draws again, the realistic dashes come back
+    const real = logCtx(names);
+    layer.drawItem(real.ctx, it.ref, 0, look);
+    layer.drawItem(real.ctx, it.ref, 1, look);
+    expect(strokes(real.log)).not.toEqual(strokes(today.log));
   });
 });

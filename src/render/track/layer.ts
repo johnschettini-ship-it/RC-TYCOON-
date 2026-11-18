@@ -74,6 +74,7 @@ import {
   newCarPose,
   pitchStep,
   projectX,
+  PX_Z,
   rollStep,
   projectY,
   tileDepthView,
@@ -87,7 +88,7 @@ import {
 } from './project';
 import { trackToolOf, type TrackPieceGhost } from './toolState';
 // Last: its imports must not move the website bundle's module order (it is realistic-only and folds away there).
-import { CAR_SHADOW_HALF_W, railShadowPlane, sunShift } from '../real/trackShadow';
+import { CAR_SHADOW_HALF_W, railShadowPlane, sunShift, withShadowReach } from '../real/trackShadow';
 import { CHAIN_LINE_M, CHAIN_STYLE } from '../real/trackChain';
 
 /** Draw-list kind for track drawables (outside the renderer's own kind numbers). */
@@ -511,6 +512,14 @@ export class TrackLayer {
   private carDef: string[] = [];
   private curDef = '';
   private look: RealLook | undefined;
+  /**
+   * The realistic test build only (declared, never emitted in the website build): the slices whose realistic rail
+   * drew at their last draw (their chain dashes take the realistic style and height); the map, for a car's ground under
+   * its shadow; and scratch bounds for culling with the shadow.
+   */
+  declare private realRails?: WeakSet<SliceRec>;
+  declare private shadowMap?: World['state']['map'];
+  declare private reach?: ArtBounds;
   /** Gate booth sprites by roof colour: [entrance × 3 buckets, exit × 3 buckets]. */
   private readonly gateCache = new Map<string, Array<Sprite | null>>();
   private readonly dash = [0, 0];
@@ -615,7 +624,10 @@ export class TrackLayer {
     let data: TrackRideData | undefined;
     for (let i = 0; i < this.slices.length; i++) {
       const sl = this.slices[i] as SliceRec;
-      const b = sl.bounds;
+      let b = sl.bounds;
+      // Realistic: the slice's shadow is drawn from its drawable, so cull with the shadow in (review P2). Everything in
+      // the slice stands between the ground and the bounds' height span over it.
+      if (import.meta.env.VITE_ART === 'real') b = withShadowReach(b, Math.min(0, sl.railMin - sl.ground), (b.bottom - b.top) / PX_Z, (this.reach ??= { left: 0, right: 0, top: 0, bottom: 0 }));
       if (sl.ax + b.right < view.x0 || sl.ax + b.left > view.x1 || sl.ay + b.bottom < view.y0 || sl.ay + b.top > view.y1) continue;
       sink.push(KIND_TRACK, i, SUB_SLICE, sl.ax, sl.ay, 0, sl.depth, sl.railMin, Layer.Object);
       if (sl.rideId !== lastRide) {
@@ -671,6 +683,7 @@ export class TrackLayer {
     const c = this.cars;
     const f = this.frameRef;
     c.reset();
+    if (import.meta.env.VITE_ART === 'real') this.shadowMap = s.map;
     for (const r of s.rides) {
       if (r.kind !== 'track') continue;
       const data = s.track.rides[String(r.id)];
@@ -718,7 +731,15 @@ export class TrackLayer {
     if (special === 'spooky') return;
     const ax = projectX(p.x, p.y, f);
     const ay = projectY(p.x, p.y, p.z, f);
-    if (ax + CAR_BOUNDS.right < view.x0 || ax + CAR_BOUNDS.left > view.x1 || ay + CAR_BOUNDS.bottom < view.y0 || ay + CAR_BOUNDS.top > view.y1) return;
+    if (ax + CAR_BOUNDS.right < view.x0 || ax + CAR_BOUNDS.left > view.x1 || ay + CAR_BOUNDS.bottom < view.y0 || ay + CAR_BOUNDS.top > view.y1) {
+      // Realistic: a car off screen may still cast its shadow on screen (review P2), over its tile's ground as
+      // `realShadow.ts` draws it.
+      if (import.meta.env.VITE_ART !== 'real' || !this.shadowMap) return;
+      const m = this.shadowMap;
+      const h = p.z - ((m.heights[Math.floor(p.y / TILE_M) * m.width + Math.floor(p.x / TILE_M)] as number | undefined) ?? 0);
+      const cb = withShadowReach(CAR_BOUNDS, Math.min(0, h), Math.max(0, h), (this.reach ??= { left: 0, right: 0, top: 0, bottom: 0 }));
+      if (ax + cb.right < view.x0 || ax + cb.left > view.x1 || ay + cb.bottom < view.y0 || ay + cb.top > view.y1) return;
+    }
     const c = this.cars;
     const i = c.add();
     if (import.meta.env.VITE_ART === 'real') this.carDef[i] = this.curDef;
@@ -789,6 +810,7 @@ export class TrackLayer {
     const sl = this.slices[i];
     if (!sl) return;
     const look = import.meta.env.VITE_ART === 'real' ? this.look : undefined;
+    if (import.meta.env.VITE_ART === 'real') (this.realRails ??= new WeakSet()).delete(sl);
     if (look) {
       // Realistic rail (Task 9b): one picture per (piece, rail tile, heading in the view), anchored at the tile centre
       // at the piece's entry height; its support stacked from foot, 1 m segments and top, drawn first.
@@ -798,6 +820,7 @@ export class TrackLayer {
       const rail = look.rail(type, sl.pieceId, sl.tile, rp.heading, sl.data.colours.track);
       if (rail === null) return;
       if (rail) {
+        if (import.meta.env.VITE_ART === 'real') this.realRails?.add(sl);
         const su = realSupportPlacement(sl, f);
         if (su) {
           for (const p of su.pieces) {
@@ -862,8 +885,9 @@ export class TrackLayer {
     const s = sl.samples;
     const f = this.frameRef;
     const fr = this.fr;
-    // Realistic (Task 5): on the baked trough's chain, at the rail line, not today's 5 cm over it.
-    const real = import.meta.env.VITE_ART === 'real' && this.look !== undefined;
+    // Realistic (Task 5): on the baked trough's chain, at the rail line, not today's 5 cm over it; only where the
+    // realistic rail drew (review P2): over today's painted rail, today's dashes.
+    const real = import.meta.env.VITE_ART === 'real' && this.look !== undefined && this.realRails?.has(sl) === true;
     ctx.beginPath();
     for (let r = 0; r < sl.runs.length; r += 2) {
       const k0 = sl.runs[r] as number;

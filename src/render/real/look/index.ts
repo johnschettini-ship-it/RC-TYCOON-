@@ -111,6 +111,7 @@ export function createRealLook(index: RealIndex, sets: RealSets, opts: RealLookO
     soft: core.soft,
     degraded: core.degraded,
     fallbacksUsed: core.fallbacksUsed,
+    missingOptional: core.missingOptional,
     scope: scope.stats,
 
     setItemMap(map) {

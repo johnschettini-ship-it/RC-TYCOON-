@@ -63,6 +63,7 @@ import {
 } from './view';
 // Last (realistic-only, folds away in the website build; its imports must not move the bundle's module order).
 import { drawTrackShadow } from './track/realShadow';
+import { shadowDaylight } from './real/shadowLight';
 
 const HW = TILE_W / 2;
 const HH = TILE_H / 2;
@@ -630,7 +631,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   function drawShadows(world: World): void {
     const s = world.state;
     const look = L as RealLook;
+    // Faded with the clock's darkness, none at full night (review P2): the baked sun is daylight only.
+    const day = shadowDaylight(s.tick + frame.alpha, s.park.afterDark);
+    if (day <= 0) return;
     if (shadowStamp.length < s.rides.length) shadowStamp = new Uint32Array(s.rides.length * 2);
+    const c = ctx as CanvasRenderingContext2D;
+    const was = c.globalAlpha;
+    c.globalAlpha = was * day;
     for (let i = 0; i < list.n; i++) {
       const kind = list.kind[i] as number;
       const ref = list.ref[i] as number;
@@ -653,6 +660,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       }
       if (sp) blit(sp, list.ax[i] as number, list.ay[i] as number);
     }
+    c.globalAlpha = was;
   }
 
   // ------------------------------------------------------------------ drawing
