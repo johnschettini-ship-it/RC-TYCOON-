@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TRACK_RIDES } from '../../../src/data/catalog';
-import { STAGE1_TRACK, TRACK_BENCH_MAX_D4, TRACK_COMPRESSED_MAX, TRACK_COMPRESSED_MAX_BIG, TRACK_SET_MAX_D4, stage1LayoutSet, trackBudget, trackTypeOfItem } from '../../../tools/art3d/trackBudget';
+import * as budget from '../../../tools/art3d/trackBudget';
+import { TRACK_BENCH_MAX_D4, TRACK_COMPRESSED_MAX, TRACK_COMPRESSED_MAX_BIG, TRACK_SET_MAX_D4, trackBudget, trackTypeOfItem } from '../../../tools/art3d/trackBudget';
 
 const MiB = 1024 * 1024;
 const dir = new URL('../../../tools/art3d/', import.meta.url);
@@ -21,18 +22,15 @@ describe('trackBudget (batch 5 size rule)', () => {
     expect(() => trackBudget('no_such_type')).toThrow(/no track type/);
   });
 
-  it('the stage 1 declaration matches the bake list and gives a reason', async () => {
-    const { COASTER_PIECES } = await load('items/registry.js');
-    expect(Object.keys(STAGE1_TRACK)).toEqual(['steel_coaster']);
-    expect([...STAGE1_TRACK.steel_coaster!.pieces]).toEqual(COASTER_PIECES);
-    expect(STAGE1_TRACK.steel_coaster!.reason).toMatch(/Task 3/);
+  it('no stage 1 exception remains: the steel coaster bakes every piece on the track kit (Task 3)', async () => {
+    const { COASTER_PIECES, TRACK_TYPES } = await load('items/registry.js');
+    expect(COASTER_PIECES).toBeUndefined();
+    expect(TRACK_TYPES.map((t: { type: string }) => t.type)).toContain('steel_coaster');
+    expect('STAGE1_TRACK' in budget).toBe(false);
   });
 
-  it('a set item names its type; only unclassed sets of a stage 1 type are in the stage 1 layout', () => {
+  it('a set item names its type', () => {
     expect(trackTypeOfItem('steel_coaster~loop')).toBe('steel_coaster');
     expect(trackTypeOfItem('steel_coaster')).toBe('steel_coaster');
-    expect(stage1LayoutSet('steel_coaster', 'steel_coaster')).toBe(true);
-    expect(stage1LayoutSet('steel_coaster', 'steel_coaster~base')).toBe(false);
-    expect(stage1LayoutSet('junior_coaster', 'junior_coaster')).toBe(false);
   });
 });

@@ -107,10 +107,8 @@ const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 
         return src && src.catalog ? { ...c, spec: N.itemSpec(src.catalog[0], src.catalog[1]) } : { ...c };
       }));
     }
-    if (it.track) {
-      input.track = { type: it.track.type, pieces: N.trackGeometry(it.track.pieces) };
-      input.poses = N.reachedPoses(it.track.type, it.track.pieces);
-    }
+    // a track type: every piece it builds at every heading, its classes and car poses (bakeNode.ts trackGeometry)
+    if (it.track) input.track = N.trackGeometry(it.track.type);
     const files = [...SHARED, it.file, ...(it.deps ?? [])].map((f) => join(HERE, f));
     for (const f of files) if (!existsSync(f)) throw new Error(`${it.id}: missing file ${f}`);
     const hash = N.cacheKey(files, input, o.densities);

@@ -5,8 +5,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { ASSUMED_MEAN_BYTES, BIG_RIDES, S5_LIMIT_BYTES, catalogueEntries, railTileRanges, rideSizeRows, sizeReport, trackSizeRows, typePieces, type CatalogueEntry } from '../../../tools/art3d/sizeReport';
 import { checkIndex, trackComplete } from '../../../tools/art3d/checkIndex';
-import { reachedPoses } from '../../../tools/art3d/poses';
-import { STAGE1_TRACK } from '../../../tools/art3d/trackBudget';
+import { carPoses, reachedPoses } from '../../../tools/art3d/poses';
 import { getTrackPieceDef } from '../../../src/data/track';
 import { pieceClass, poseClassOf, poseCode } from '../../../src/render/real/trackClasses';
 import type { RealFrame, RealIndex, RealKind, RealSetEntry } from '../../../src/render/real/indexFormat';
@@ -121,10 +120,10 @@ describe('sizeReport', () => {
       expect(r[0]!.problems).toEqual([`rail:junior_coaster~base:d4:r0: ${(1024 * 2049 * 4 / MiB).toFixed(2)} MiB decoded with masks, over 8.00 MiB`]);
       expect(over('steel_coaster~base')[0]!.problems).toHaveLength(1);
     });
-    it('a stage 1 layout set of a declared type is reported, not failed', () => {
+    it('a stage 1 layout set over the limit fails too: no type is exempt (Task 3 removed the stage 1 exception)', () => {
       const r = over('steel_coaster');
-      expect(r[0]!.overSets).toEqual([{ key: 'rail:steel_coaster:d4:r0', d4Bytes: 1024 * 2049 * 4, allowed: true }]);
-      expect(r[0]!.problems).toEqual([]);
+      expect(r[0]!.overSets).toEqual([{ key: 'rail:steel_coaster:d4:r0', d4Bytes: 1024 * 2049 * 4 }]);
+      expect(r[0]!.problems).toHaveLength(1);
     });
     it('compressed over the type limit fails (3 MB without loops, corkscrews or helixes)', () => {
       const s = set('rail', 'junior_coaster~base', 4, 0, 'a.webp');
@@ -142,7 +141,7 @@ describe('sizeReport', () => {
      * `<type>~<its piece class>` (an alpha sheet `a.webp`, or the masked sheet `m.webp` for station, brakes and water),
      * each car pose in `<type>~<its pose class>`. `d4Sheet` sizes the d4 r0 base alpha sheet.
      */
-    const complete = (type: string, pieces: readonly string[], d4Sheet: [number, number] = [8, 8]): RealSetEntry[] => {
+    const complete = (type: string, pieces: readonly string[], d4Sheet: [number, number] = [8, 8], opt: { spin?: boolean; front?: boolean } = {}): RealSetEntry[] => {
       const out: RealSetEntry[] = [];
       for (const d of [2, 4] as const) {
         for (const r of [0, 1, 2, 3] as const) {
@@ -160,10 +159,10 @@ describe('sizeReport', () => {
           }
         }
         const byClass = new Map<string, Record<string, RealFrame>>();
-        for (const p of reachedPoses(type, [...pieces])) {
+        for (const p of opt.spin ? carPoses(type, pieces) : reachedPoses(type, [...pieces])) {
           const cls = poseClassOf(type, poseCode(p.yaw, p.pitch, p.roll));
           const f = byClass.get(cls) ?? {};
-          for (const occ of ['full', 'empty']) f[`y${p.yaw}:p${p.pitch}:r${p.roll}:${occ}`] = fr('m.webp');
+          for (const occ of opt.front ? ['full', 'empty', 'full:front', 'empty:front'] : ['full', 'empty']) f[`y${p.yaw}:p${p.pitch}:r${p.roll}:${occ}`] = fr('m.webp');
           byClass.set(cls, f);
         }
         for (const [cls, frames] of byClass) out.push({ ...set('car', `${type}~${cls}`, d, 'all', 'm.webp'), sheets: [{ file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }], frames });
@@ -187,7 +186,7 @@ describe('sizeReport', () => {
       return out;
     };
     const FILES = new Set(['a.webp', 'm.webp', 'mm.webp']);
-    const steel = STAGE1_TRACK.steel_coaster!.pieces;
+    const steel = typePieces('steel_coaster');
     const junior = typePieces('junior_coaster');
     const inverted = typePieces('inverted_coaster');
     /** Moves frame `fk` from set `from` to set `to` (same density and turn). */
@@ -240,9 +239,37 @@ describe('sizeReport', () => {
       // straights and slopes may be alpha
       expect(base.frames['straight:t0']!.sheet).toBe('a.webp');
     });
-    it('a type declared stage 1 with class sets fails: Task 3 deletes the declaration (review P2)', () => {
-      const p = trackComplete(index(complete('steel_coaster', steel)));
-      expect(p).toContain('TRACK_COMPLETE steel_coaster: declared stage 1 (STAGE1_TRACK) but has class sets: delete its declaration');
+    it('the steel coaster must hold all 34 of its pieces: the stage 1 list of 18 no longer passes (Task 3)', () => {
+      expect(steel).toHaveLength(34);
+      expect(trackComplete(index(complete('steel_coaster', steel)))).toEqual([]);
+      const stage1Pieces = steel.filter((pc) => !['L', 'Cs', 'Hx', 'B', 'Ts'].includes(getTrackPieceDef(pc)!.group));
+      expect(stage1Pieces).toHaveLength(18);
+      const p = trackComplete(index(complete('steel_coaster', stage1Pieces)));
+      expect(p.some((x) => x.startsWith('TRACK_COMPLETE rail:steel_coaster~loop'))).toBe(true);
+      expect(p.some((x) => x.startsWith('TRACK_COMPLETE car:steel_coaster~cork'))).toBe(true);
+    });
+    it('a spinning type needs all 32 yaws of each reached tilt, filed under base when no piece reaches them (Task 3)', () => {
+      const mouse = typePieces('spinning_mouse');
+      const sets = complete('spinning_mouse', mouse);
+      const p = trackComplete(index(sets));
+      expect(p.length).toBeGreaterThan(0);
+      expect(p.every((x) => x.startsWith('TRACK_COMPLETE car:spinning_mouse~base'))).toBe(true);
+      expect(trackComplete(index(complete('spinning_mouse', mouse, [8, 8], { spin: true })))).toEqual([]);
+    });
+    it('a type with a front car needs the front variant of every pose (Task 3)', () => {
+      const rail = typePieces('mini_railway');
+      const p = trackComplete(index(complete('mini_railway', rail)));
+      expect(p.length).toBeGreaterThan(0);
+      expect(p[0]).toMatch(/^TRACK_COMPLETE car:mini_railway~\w+ d2: \d+ car frame\(s\) missing \(y\d+:p\d+:r\d+:full:front/);
+      expect(trackComplete(index(complete('mini_railway', rail, [8, 8], { front: true })))).toEqual([]);
+    });
+    it('a tall rail tile cut into sub-frames counts by its u0 frame (Task 3)', () => {
+      const sets = complete('junior_coaster', junior);
+      const s = sets.find((x) => x.key === 'rail:junior_coaster~base:d4:r0')!;
+      s.frames['straight:t0:u0'] = s.frames['straight:t0']!;
+      s.frames['straight:t0:u1'] = s.frames['straight:t0']!;
+      delete s.frames['straight:t0'];
+      expect(trackComplete(index(sets))).toEqual([]);
     });
     it('a type with both layouts fails (review P2)', () => {
       const p = trackComplete(index([...complete('junior_coaster', junior), ...stage1('junior_coaster', junior).filter((s) => s.kind === 'rail')]));

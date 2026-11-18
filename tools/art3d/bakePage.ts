@@ -469,7 +469,8 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
 }
 
 // ------------------------------------------------------------------ sets, packing and files
-interface SetPic { keys: string[]; shot: Shot }
+/** `alpha`: the picture takes the colour everywhere (track rails): it goes on an alpha-tint sheet, no mask (batch 5). */
+interface SetPic { keys: string[]; shot: Shot; alpha?: boolean }
 interface SetB { kind: RealKind; item: string; rot: 0 | 1 | 2 | 3 | 'all'; pics: SetPic[]; masked: boolean; baseColour?: string; maskLevels?: number }
 let sets: SetB[] = [];
 const files = new Map<string, string>(); // name -> data URL
@@ -512,7 +513,7 @@ function encode(canvas: HTMLCanvasElement, name: string, quality = 0.85): void {
 
 interface OutSet {
   kind: RealKind; item: string; density: BakeDensity; rot: 0 | 1 | 2 | 3 | 'all';
-  sheets: { file: string; w: number; h: number; mask?: string }[];
+  sheets: { file: string; w: number; h: number; mask?: string; tint?: 'alpha' }[];
   frames: Record<string, RealFrame>;
   pictures: number;
   /** Rides: the colour part's designed colour (index `baseColour`). */
@@ -527,8 +528,10 @@ interface OutSet {
   emptyMasks?: number;
 }
 
-function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
-  const pics = s.pics.map((p) => ({ keys: p.keys, pic: p.shot[d] })).filter((p): p is { keys: string[]; pic: Pic } => !!p.pic);
+interface PackPage { items: { p: Pic; x: number; y: number; keys: string[] }[]; usedW: number; usedH: number }
+
+/** Skyline-packs pictures onto pages of at most PAGE px. */
+function packPages(pics: { keys: string[]; pic: Pic }[], prefix: string): PackPage[] {
   const order = pics.slice().sort((a, b) => b.pic.canvas.height - a.pic.canvas.height || b.pic.canvas.width - a.pic.canvas.width);
   // skyline bottom-left packing: tall narrow pictures (supports) and wide low ones share a sheet without the empty
   // space a shelf packer leaves above the shorter pictures of a shelf
@@ -578,15 +581,24 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
     pg.items.push({ p: pic, x: at.x, y: at.y, keys });
     pg.usedW = Math.max(pg.usedW, at.x + w + PAD); pg.usedH = Math.max(pg.usedH, at.y + h + PAD);
   }
-  const out: OutSet = { kind: s.kind, item: s.item, density: d, rot: s.rot, sheets: [], frames: {}, pictures: pics.length };
+  return pages;
+}
+
+function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
+  const all = s.pics.map((p) => ({ keys: p.keys, pic: p.shot[d], alpha: !!p.alpha })).filter((p): p is { keys: string[]; pic: Pic; alpha: boolean } => !!p.pic);
+  const pics = all.filter((p) => !p.alpha);
+  const alphaPics = all.filter((p) => p.alpha);
+  const pages = packPages(pics, prefix);
+  const out: OutSet = { kind: s.kind, item: s.item, density: d, rot: s.rot, sheets: [], frames: {}, pictures: all.length };
   if (s.baseColour !== undefined) out.baseColour = s.baseColour;
   if (s.masked) {
     let sum = 0, n = 0, empty = 0;
-    for (const { pic } of pics) {
+    // An alpha-tint picture takes the colour on every drawn pixel (weight 1).
+    for (const { pic, alpha } of all) {
       const c = (pic.canvas.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, pic.canvas.width, pic.canvas.height).data;
       const m = pic.mask ? (pic.mask.getContext('2d') as CanvasRenderingContext2D).getImageData(0, 0, pic.canvas.width, pic.canvas.height).data : null;
       let ps = 0;
-      for (let i = 0; i < c.length; i += 4) if ((c[i + 3] as number) > 0) { n++; const v = m ? (m[i] as number) / 255 : 0; sum += v; ps += v; }
+      for (let i = 0; i < c.length; i += 4) if ((c[i + 3] as number) > 0) { n++; const v = alpha ? 1 : m ? (m[i] as number) / 255 : 0; sum += v; ps += v; }
       if (ps === 0) empty++;
     }
     out.maskCoverage = n ? +(sum / n).toFixed(4) : 0;
@@ -612,6 +624,20 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
       sheet.mask = mfile;
       out.sheets.push(sheet, { file: mfile, w: W, h: H });
     } else out.sheets.push(sheet);
+    for (const it of p.items) {
+      for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy };
+    }
+  });
+  // Alpha-tint pictures: their own sheets, no mask; the sheet's alpha is the mask (indexFormat.ts `tint: 'alpha'`).
+  packPages(alphaPics, prefix).forEach((p, i) => {
+    if (p.items.length === 0) return;
+    const W = Math.min(PAGE, p.usedW), H = Math.min(PAGE, p.usedH);
+    const file = `${prefix}-a${i}.webp`;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d') as CanvasRenderingContext2D;
+    for (const it of p.items) g.drawImage(it.p.canvas, it.x, it.y);
+    encode(c, file);
+    out.sheets.push({ file, w: W, h: H, tint: 'alpha' });
     for (const it of p.items) {
       for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy };
     }
@@ -686,8 +712,11 @@ export interface BakeApi {
   boxOf(obj: any): any;
   shoot(bs: BakeScene, o: ShootOpts): Shot;
   shootShadow(bs: BakeScene, target: any): Shot;
-  /** Start a set; `add` registers one picture under every frame key that shows it. */
-  set(kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all', masked?: boolean, baseColour?: string, maskLevels?: number): { add(keys: string[], shot: Shot): void };
+  /**
+   * Start a set; `add` registers one picture under every frame key that shows it. `{ alpha: true }`: the picture takes
+   * the colour everywhere (a track rail, shot without a mask): it goes on the set's alpha-tint sheets (batch 5).
+   */
+  set(kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all', masked?: boolean, baseColour?: string, maskLevels?: number): { add(keys: string[], shot: Shot, opts?: { alpha?: boolean }): void };
   /** Clip every render to vertical planes [nx, nz, k] (three.js x/z; kept where nx·x + nz·z + k >= 0); null clears. */
   clip(planes: [number, number, number][] | null): void;
   log(...a: unknown[]): void;
@@ -742,7 +771,12 @@ window.bakeItem = async (id, opts) => {
       if (maskLevels !== undefined) s.maskLevels = maskLevels;
       if (baseColour !== undefined) s.baseColour = baseColour;
       sets.push(s);
-      return { add: (keys, shot) => { s.pics.push({ keys, shot }); } };
+      return {
+        add: (keys, shot, opts) => {
+          if (opts?.alpha && kind !== 'rail') throw new Error(`${kind}:${item}: only rail pictures may be alpha-tinted`);
+          s.pics.push(opts?.alpha ? { keys, shot, alpha: true } : { keys, shot });
+        },
+      };
     },
     viewSS: VIEW_SS,
     renderView,

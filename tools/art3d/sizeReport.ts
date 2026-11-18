@@ -28,8 +28,8 @@ import { ALL_TRACK_PIECES, ALL_TRACK_TYPES, getTrackTypeDef, typeBuildsPiece } f
 import { FLAT_RIDES, PATH_ITEMS, SCENERY, SHOW_SITES, STALLS, STAFF, TRACK_RIDES } from '../../src/data/catalog';
 import type { RealIndex, RealSetEntry } from '../../src/render/real/indexFormat';
 import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
-import { reachedPoses, TILT_STEPS, YAW_STEPS } from './poses';
-import { STAGE1_TRACK, stage1LayoutSet, trackBudget, trackTypeOfItem } from './trackBudget';
+import { carPoses, hasFrontCar } from './poses';
+import { trackBudget, trackTypeOfItem } from './trackBudget';
 
 /** S5: the app's art may not pass 150 MB. */
 export const S5_LIMIT_BYTES = 150_000_000;
@@ -140,11 +140,9 @@ export function railTileRanges(pieceId: string, dir: 0 | 1 | 2 | 3): number[] {
 
 /** Car picture variants per reached pose: full and empty, × 32 yaws for spinning types, × 2 with a front car. */
 export function carFramesOf(typeId: string, pieces: readonly string[]): { poses: number; frames: number } {
-  const t = getTrackTypeDef(typeId);
-  if (!t) throw new Error(`carFramesOf: no track type '${typeId}'`);
-  const poses = reachedPoses(typeId, [...pieces]);
-  const n = t.vehicle.spins ? new Set(poses.map((p) => p.pitch * TILT_STEPS + p.roll)).size * YAW_STEPS : poses.length;
-  const front = t.render.car === 'loco' || t.render.car === 'monorail' ? 2 : 1;
+  if (!getTrackTypeDef(typeId)) throw new Error(`carFramesOf: no track type '${typeId}'`);
+  const n = carPoses(typeId, pieces).length;
+  const front = hasFrontCar(typeId) ? 2 : 1;
   return { poses: n, frames: n * 2 * front };
 }
 
@@ -448,8 +446,8 @@ export interface TrackSizeRow {
   compressedMax: number;
   /** Every set of the type with its masks (all headings, `rall`, every class), per density. */
   residentAllClasses: { d2: number; d4: number };
-  /** Density-4 sets over `setMaxD4`, with their bytes; `allowed`: a stage 1 layout set (`STAGE1_TRACK`). */
-  overSets: { key: string; d4Bytes: number; allowed: boolean }[];
+  /** Density-4 sets over `setMaxD4`, with their bytes. */
+  overSets: { key: string; d4Bytes: number }[];
   setMaxD4: number;
   problems: string[];
 }
@@ -458,10 +456,10 @@ export interface TrackSizeRow {
 export function trackSizeRows(r: SizeReport): TrackSizeRow[] {
   return r.perItem.filter((p) => p.kind === 'track').map((p) => {
     const b = trackBudget(p.id);
-    const overSets = (p.perSet ?? []).filter((x) => x.d4Bytes > b.setMaxD4).map((x) => ({ ...x, allowed: stage1LayoutSet(p.id, x.key.split(':')[1] ?? '') }));
+    const overSets = (p.perSet ?? []).filter((x) => x.d4Bytes > b.setMaxD4);
     const out: TrackSizeRow = { id: p.id, compressed: p.compressedBytes, compressedMax: b.compressedMax, residentAllClasses: p.residentAllClasses ?? { d2: 0, d4: 0 }, overSets, setMaxD4: b.setMaxD4, problems: [] };
     if (p.compressedBytes > b.compressedMax) out.problems.push(`${p.id}: ${mb(p.compressedBytes)} MB compressed, over ${mb(b.compressedMax)} MB`);
-    for (const x of overSets) if (!x.allowed) out.problems.push(`${x.key}: ${mib(x.d4Bytes)} MiB decoded with masks, over ${mib(b.setMaxD4)} MiB`);
+    for (const x of overSets) out.problems.push(`${x.key}: ${mib(x.d4Bytes)} MiB decoded with masks, over ${mib(b.setMaxD4)} MiB`);
     return out;
   });
 }
@@ -470,7 +468,7 @@ export function trackSizeRows(r: SizeReport): TrackSizeRow[] {
 export function formatTrackSizeRows(rows: readonly TrackSizeRow[]): string[] {
   const out = ['track type          compressed MB (limit)  all sets d2 / d4 MiB (masks incl.)  sets over the d4 set limit'];
   for (const y of rows) {
-    const over = y.overSets.map((x) => `${x.key} ${mib(x.d4Bytes)} MiB${x.allowed ? ` (allowed: ${STAGE1_TRACK[y.id]?.reason ?? ''})` : ''}`).join('; ');
+    const over = y.overSets.map((x) => `${x.key} ${mib(x.d4Bytes)} MiB`).join('; ');
     out.push(`${y.id.padEnd(19)} ${mb(y.compressed).padStart(7)} (${mb(y.compressedMax)})  ${`${mib(y.residentAllClasses.d2)} / ${mib(y.residentAllClasses.d4)}`.padStart(34)}  ${over || 'none'}${y.problems.length ? '  OVER' : ''}`);
   }
   return out;

@@ -30,7 +30,7 @@ beforeAll(() => {
 });
 afterAll(() => vi.unstubAllEnvs());
 
-/** Spine of the baked steel rail (steel_coaster.js railModel: box centred 0.42 m under the rail line, 0.3 m tall). */
+/** Spine of the baked steel rail (items/trackKit.js RAIL_STYLES.steel: box centred 0.42 m under the rail line, 0.3 m tall). */
 const SPINE_BOTTOM_BELOW_RAIL = 0.42 + 0.15;
 const SPINE_TOP_BELOW_RAIL = 0.42 - 0.15;
 
@@ -127,8 +127,9 @@ describe('support stacking (Task 9b)', () => {
 });
 
 describe('bake and reader agree on the support and spine sizes', () => {
-  it('steel_coaster.js builds the spine, plate and post the reader assumes, and names the reader\'s constant', () => {
-    const src = readFileSync(new URL('../../../../tools/art3d/items/steel_coaster.js', import.meta.url), 'utf8');
+  it('the track kit\'s steel rail and round supports (steel_coaster.js) build the spine, plate and post the reader assumes, and name the reader\'s constant', () => {
+    const src = readFileSync(new URL('../../../../tools/art3d/items/trackKit.js', import.meta.url), 'utf8');
+    expect(readFileSync(new URL('../../../../tools/art3d/items/steel_coaster.js', import.meta.url), 'utf8')).toMatch(/rail: 'steel',\s+supports: 'round'/);
     expect(src).toContain('boxProfile(0, -0.42, 0.26, 0.3)'); // spine: 0.27-0.57 m under the rail line
     expect(src).toContain('new THREE.BoxGeometry(0.3, 0.22, 1.3)'); // plate 0.22 m
     expect(src).toContain('new THREE.CylinderGeometry(0.12, 0.12, 0.45, 12)'); // post 0.45 m
