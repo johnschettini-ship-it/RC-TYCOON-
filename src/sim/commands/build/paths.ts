@@ -26,6 +26,7 @@ import type { ElevatedPath, RampDir } from '../../paths/types';
 import type { World } from '../../types';
 import { fail, ok, type BuildCommand, type CommandContext, type CommandResult, type PathKind, type RampMode } from '../types';
 import { BUILD_STRINGS } from './strings';
+import { forgetPath, notePathBuilt } from '../../paths/undo';
 
 type PathContent = typeof Content.Footpath | typeof Content.Queue;
 
@@ -58,7 +59,7 @@ export function groundPathBlock(world: World, i: number): string | null {
 }
 
 /** Validate and apply one ground path build over `coords` (all or nothing). `dryRun`: validate only. */
-function buildGroundTiles(world: World, coords: { x: number; y: number }[] | null, kind: PathKind, ctx: CommandContext, dryRun = false): CommandResult {
+function buildGroundTiles(world: World, coords: { x: number; y: number }[] | null, kind: PathKind, ctx: CommandContext, dryRun = false, undoable = false): CommandResult {
   const map = world.state.map;
   if (!coords || coords.length === 0) return fail(BUILD_STRINGS.notOwned);
   const tiles: number[] = [];
@@ -84,6 +85,11 @@ function buildGroundTiles(world: World, coords: { x: number; y: number }[] | nul
   if (cost > 0 && !canAfford(world, cost, ctx)) return fail(BUILD_STRINGS.notEnoughCash);
   if (dryRun) return ok(cost);
 
+  // Step builder Undo: new tiles it built refund their price; anything else changed here is not undoable.
+  for (const i of changed) {
+    if (undoable && map.content[i] === Content.Empty) notePathBuilt(world, i, null, pathCost(kind));
+    else forgetPath(world, i, null);
+  }
   for (const i of changed) {
     if (want === Content.Queue && map.pathItemLevel[i] !== 0) {
       // The tile's path item stands on an elevated path: keep it (setPathTile would remove it with the ground item).
@@ -137,7 +143,7 @@ function elevatedBlock(world: World, i: number, z: number, rampDir: RampDir, sam
 }
 
 /** Validate and apply one elevated path build (all or nothing). `dryRun`: validate only. */
-function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: PathKind, ctx: CommandContext, dryRun = false): CommandResult {
+function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: PathKind, ctx: CommandContext, dryRun = false, undoable = false): CommandResult {
   const s = world.state;
   const map = s.map;
   if (!plan || plan.length === 0 || !isPathKind(kind)) return fail(TERRAIN_ERR.outsidePark);
@@ -168,9 +174,12 @@ function buildElevatedTiles(world: World, plan: ElevatedPlan[] | null, kind: Pat
   for (const p of convert) {
     p.kind = kind;
     const i = p.y * map.width + p.x;
+    forgetPath(world, i, p.z);
     if (kind === 'queue' && map.pathItemLevel[i] === p.id) clearItem(world, i);
   }
-  for (const { p } of fresh) {
+  for (const { i, p } of fresh) {
+    if (undoable) notePathBuilt(world, i, p.z, elevatedPathCost(kind, p.z, map.heights[i] as number));
+    else forgetPath(world, i, p.z);
     insertById(s.elevatedPaths, { id: allocId(s), x: p.x, y: p.y, z: p.z, kind, rampDir: p.rampDir });
   }
   pay(world, cost, 'construction', ctx);
@@ -211,15 +220,17 @@ function elevatedLinePlan(world: World, x0: number, y0: number, x1: number, y1: 
 }
 
 export function buildPath(world: World, cmd: Extract<BuildCommand, { type: 'buildPath' }>, ctx: CommandContext): CommandResult {
-  if (cmd.z === undefined) return buildGroundTiles(world, [{ x: cmd.x, y: cmd.y }], cmd.kind, ctx);
-  return buildElevatedTiles(world, [{ x: cmd.x, y: cmd.y, z: cmd.z, rampDir: cmd.rampDir ?? -1 }], cmd.kind, ctx);
+  const u = cmd.undoable === true;
+  if (cmd.z === undefined) return buildGroundTiles(world, [{ x: cmd.x, y: cmd.y }], cmd.kind, ctx, false, u);
+  return buildElevatedTiles(world, [{ x: cmd.x, y: cmd.y, z: cmd.z, rampDir: cmd.rampDir ?? -1 }], cmd.kind, ctx, false, u);
 }
 
 /** A straight line along the axis with the larger distance from the start tile; one charge for all new tiles. */
 export function buildPathLine(world: World, cmd: Extract<BuildCommand, { type: 'buildPathLine' }>, ctx: CommandContext): CommandResult {
-  if (cmd.z === undefined) return buildGroundTiles(world, lineTiles(world.state.map, cmd.x0, cmd.y0, cmd.x1, cmd.y1), cmd.kind, ctx);
+  const u = cmd.undoable === true;
+  if (cmd.z === undefined) return buildGroundTiles(world, lineTiles(world.state.map, cmd.x0, cmd.y0, cmd.x1, cmd.y1), cmd.kind, ctx, false, u);
   if (!Number.isInteger(cmd.z)) return fail(PATH_ERR.badHeight);
-  return buildElevatedTiles(world, elevatedLinePlan(world, cmd.x0, cmd.y0, cmd.x1, cmd.y1, cmd.z, cmd.ramp), cmd.kind, ctx);
+  return buildElevatedTiles(world, elevatedLinePlan(world, cmd.x0, cmd.y0, cmd.x1, cmd.y1, cmd.z, cmd.ramp), cmd.kind, ctx, false, u);
 }
 
 /**

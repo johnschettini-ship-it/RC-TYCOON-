@@ -11,7 +11,8 @@
  *   elevated flat at `z`), or `buildPath` with `rampDir` for an elevated up or down tile (a one-tile line cannot carry
  *   a ramp direction);
  * - a tap next to an unbuilt start: `buildPathLine` start → that tile with `pathCommandHeight` (a two-tile drag);
- * - Undo: `demolish` for the tiles the last step added (paths refund nothing, as today).
+ * - every step is sent `undoable`; Undo sends `undoPath` for the tiles the last step added, which refunds the full
+ *   price of a tile built this session (`sim/paths/undo.ts`); other paths keep today's demolish rule (0%).
  * The ghost and its cost come from the command's own dry run (`previewPathCommand`).
  *
  * State lives beside the shared `ToolState` (keyed by that object, like the land tool's side table) and belongs to one
@@ -208,7 +209,7 @@ function planToward(game: PathBuilderHost, d: Dir, line = false): StepPlan | nul
             ? [{ tile: s.end, z: z - 1 }, { tile: next, z: z - 2 }]
             : [{ tile: s.end, z }, { tile: next, z }];
     const zAfter = z === null ? null : ramp === 'up' ? z + 2 : ramp === 'down' ? z - 2 : z;
-    const cmd: StepPlan['cmd'] = { type: 'buildPathLine', x0: s.end % w, y0: Math.floor(s.end / w), x1: next % w, y1: Math.floor(next / w), kind, ...pathCommandHeight(tool) };
+    const cmd: StepPlan['cmd'] = { type: 'buildPathLine', x0: s.end % w, y0: Math.floor(s.end / w), x1: next % w, y1: Math.floor(next / w), kind, ...pathCommandHeight(tool), undoable: true };
     return withPreview(game, { cmd, tiles: [s.end, next], dir: d, nodes, zAfter, cost: 0, reason: null });
   }
   const target = s.started ? next : s.end;
@@ -219,18 +220,18 @@ function planToward(game: PathBuilderHost, d: Dir, line = false): StepPlan | nul
   let node: BuiltTile;
   let zAfter = z;
   if (z === null) {
-    cmd = { type: 'buildPathLine', x0: x, y0: y, x1: x, y1: y, kind };
+    cmd = { type: 'buildPathLine', x0: x, y0: y, x1: x, y1: y, kind, undoable: true };
     node = { tile: target, z: null };
   } else if (ramp === 'up') {
-    cmd = { type: 'buildPath', x, y, kind, z, rampDir: d };
+    cmd = { type: 'buildPath', x, y, kind, z, rampDir: d, undoable: true };
     node = { tile: target, z };
     zAfter = z + 1;
   } else if (ramp === 'down') {
-    cmd = { type: 'buildPath', x, y, kind, z: z - 1, rampDir: ((d + 2) & 3) as Dir };
+    cmd = { type: 'buildPath', x, y, kind, z: z - 1, rampDir: ((d + 2) & 3) as Dir, undoable: true };
     node = { tile: target, z: z - 1 };
     zAfter = z - 1;
   } else {
-    cmd = { type: 'buildPathLine', x0: x, y0: y, x1: x, y1: y, kind, z, ramp: 'flat' };
+    cmd = { type: 'buildPathLine', x0: x, y0: y, x1: x, y1: y, kind, z, ramp: 'flat', undoable: true };
     node = { tile: target, z };
   }
   return withPreview(game, { cmd, tiles: [target], dir: d, nodes: [node], zAfter, cost: 0, reason: null });
@@ -285,7 +286,7 @@ export function tapAt(game: PathBuilderHost, tile: number): CommandResult | null
   return apply(game, planToward(game, d as Dir, true));
 }
 
-/** Undo the last step: demolish the tiles it added and put the end, heading and height back. */
+/** Undo the last step: take back the tiles it added (full refund) and put the end, heading and height back. */
 export function undoStep(game: PathBuilderHost): boolean {
   const s = current(game);
   const rec = s.history.pop();
@@ -294,7 +295,7 @@ export function undoStep(game: PathBuilderHost): boolean {
   for (const b of [...rec.built].reverse()) {
     const x = b.tile % w;
     const y = Math.floor(b.tile / w);
-    game.dispatch(b.z === null ? { type: 'demolish', x, y } : { type: 'demolish', x, y, z: b.z });
+    game.dispatch(b.z === null ? { type: 'undoPath', x, y } : { type: 'undoPath', x, y, z: b.z });
   }
   s.end = rec.end;
   s.dir = rec.dir;

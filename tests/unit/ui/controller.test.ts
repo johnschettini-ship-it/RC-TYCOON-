@@ -67,7 +67,7 @@ describe('footpath and queue tools', () => {
     const b = at(12, 41);
     ev({ type: 'down', ...b, t: 100 });
     ev({ type: 'up', ...b, t: 150 });
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 41, kind: 'queue' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 41, kind: 'queue', undoable: true }]);
   });
 
   it('one finger pans in the path tool: nothing gets built; a second finger pinches (touch controls spec §1)', () => {

@@ -20,6 +20,7 @@ import type { World } from '../../types';
 import type { Cents } from '../../units';
 import { fail, ok, type BuildCommand, type CommandContext, type CommandResult } from '../types';
 import { elevatedPathCost, pathCost, removeElevatedPath } from './paths';
+import { forgetPath, undoablePathCost } from '../../paths/undo';
 import { BUILD_STRINGS } from './strings';
 import { sceneryHandlers } from '../../scenery/commands';
 import { centreSceneryAt } from '../../scenery/api';
@@ -82,6 +83,7 @@ function demolishElevated(world: World, p: ElevatedPath, ctx: CommandContext): C
   const map = world.state.map;
   const tile = p.y * map.width + p.x;
   const amount = refundOf(elevatedPathCost(p.kind, p.z, map.heights[tile] as number), PATH_REFUND_PERCENT);
+  forgetPath(world, tile, p.z);
   removeElevatedPath(world, p, (t) => standUpFromBench(world, t));
   refund(world, amount, ctx);
   markNetworkDirty(world);
@@ -128,6 +130,7 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
     const arch = centreSceneryAt(world, i);
     if (arch) return sceneryHandlers.removeScenery(world, { type: 'removeScenery', id: arch.id }, ctx);
     clearGroundPath(world, i);
+    forgetPath(world, i, null);
     const amount = refundOf(pathCost(c === Content.Queue ? 'queue' : 'footpath'), PATH_REFUND_PERCENT);
     refund(world, amount, ctx);
     markNetworkDirty(world);
@@ -147,4 +150,27 @@ export function demolish(world: World, cmd: Extract<BuildCommand, { type: 'demol
   const above = cmd.z === undefined ? elevatedOn(world, i) : [];
   if (above.length > 0) return demolishElevated(world, above[above.length - 1] as ElevatedPath, ctx);
   return fail(BUILD_STRINGS.nothingToRemove);
+}
+
+/**
+ * Step builder Undo (`sim/paths/undo.ts`): demolish the path node at (x, y[, z]) as `demolish` does; when the step
+ * builder built it, refund the full price it paid (a `demolitionRefunds` ledger line, like the coaster builder's Undo of
+ * a never-opened piece). Any other path keeps today's rule (0%).
+ */
+export function undoPath(world: World, cmd: Extract<BuildCommand, { type: 'undoPath' }>, ctx: CommandContext): CommandResult {
+  const map = world.state.map;
+  const i = tileAt(map, cmd.x, cmd.y);
+  if (i < 0) return fail(BUILD_STRINGS.nothingToRemove);
+  const z = cmd.z ?? null;
+  const c = map.content[i];
+  if (z === null && c !== Content.Footpath && c !== Content.Queue) return fail(BUILD_STRINGS.nothingToRemove);
+  if (z !== null && !elevatedOn(world, i).some((e) => e.z === z)) return fail(BUILD_STRINGS.nothingToRemove);
+  const price = undoablePathCost(world, i, z);
+  const r = demolish(world, z === null ? { type: 'demolish', x: cmd.x, y: cmd.y } : { type: 'demolish', x: cmd.x, y: cmd.y, z }, ctx);
+  if (!r.ok) return r;
+  // An arch over the path goes first (`demolish`); the path itself is still there, so nothing is refunded yet.
+  const gone = z === null ? map.content[i] !== Content.Footpath && map.content[i] !== Content.Queue : !elevatedOn(world, i).some((e) => e.z === z);
+  if (!gone || price <= 0) return r;
+  if (!ctx.setup) recordLedger(world, 'demolitionRefunds', price);
+  return ok(r.cost - price);
 }

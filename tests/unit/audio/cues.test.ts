@@ -81,6 +81,7 @@ const SAMPLE: { [K in Command['type']]: Extract<Command, { type: K }> } = {
   placeRide: { type: 'placeRide', defId: 'carousel', x: 1, y: 1, rotation: 0 },
   placeStall: { type: 'placeStall', defId: 'snack_shack', x: 1, y: 1, rotation: 0 },
   demolish: { type: 'demolish', x: 1, y: 1 },
+  undoPath: { type: 'undoPath', x: 1, y: 1 },
   setRidePrice: { type: 'setRidePrice', rideId: 1, price: 100 },
   setRideColour: { type: 'setRideColour', rideId: 1, colour: 4 },
   setStallPrice: { type: 'setStallPrice', stallId: 1, price: 100 },
@@ -148,7 +149,7 @@ describe('command results → SFX (every command kind)', () => {
         .sort();
     expect(by('build_place')).toEqual(['addTrackPiece', 'autoFinishTrack', 'buildPathItem', 'placeRide', 'placeScenery', 'placeShowSite', 'placeStall', 'placeStation', 'placeTrackGate']);
     expect(by('build_path')).toEqual(['buildPath', 'buildPathLine', 'buyLand', 'levelLand', 'lowerCorner', 'lowerLand', 'lowerWater', 'paintTerrain', 'raiseCorner', 'raiseLand', 'raiseWater', 'smoothLand']);
-    expect(by('demolish')).toEqual(['demolish', 'removeLastTrackPiece', 'removePathItem', 'removeScenery']);
+    expect(by('demolish')).toEqual(['demolish', 'removeLastTrackPiece', 'removePathItem', 'removeScenery', 'undoPath']);
     expect(Object.keys(COMMAND_SFX).sort()).toEqual(Object.keys(SAMPLE).sort());
   });
 

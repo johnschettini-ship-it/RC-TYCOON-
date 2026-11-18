@@ -72,6 +72,8 @@ test.describe('touch controls on the phone', () => {
       await fingerDrag(page);
       expect(await tc(page, (g) => g.camera.centerX), `${tool}: the map moved`).not.toBe(cam);
       expect(await mapState(page), `${tool}: nothing changed`).toBe(before);
+      // Chrome's touch emulation drops a tap inside the double-tap window of the last lift.
+      await page.waitForTimeout(400);
     }
     watch.expectNoErrors();
   });

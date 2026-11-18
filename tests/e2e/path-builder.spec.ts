@@ -94,6 +94,8 @@ test('step builder: tap a start, Forward, Turn right, Undo, a far tap, Done', as
   expect(built).toHaveLength(4);
   await press(page, page.getByTestId('path-undo'), phone);
   await frames(page);
+  // Undo of a tile built in this session refunds its full price.
+  expect(await tc(page, (g) => g.world.state.park.cash)).toBe(cash0 - 3_000);
   let after = 0;
   for (let x = 26; x <= 34; x++) for (let y = 26; y <= 34; y++) if ((await contentAt(page, x, y)) === 1) after++;
   expect(after).toBe(3);

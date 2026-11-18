@@ -109,7 +109,7 @@ describe('a11yKeys (Phase 6 §4.7 keyboard play)', () => {
     expect(cmds).toEqual([]);
     key('ArrowRight');
     expect(key('Enter')).toBe(true);
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: t % map.width, y0: Math.floor(t / map.width), x1: (t % map.width) + 1, y1: Math.floor(t / map.width), kind: 'footpath' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: t % map.width, y0: Math.floor(t / map.width), x1: (t % map.width) + 1, y1: Math.floor(t / map.width), kind: 'footpath', undoable: true }]);
     expect(map.content[t]).toBe(Content.Footpath);
     key('ArrowLeft');
     // Inspect: a ride under the cursor gets selected (the UI opens its panel).

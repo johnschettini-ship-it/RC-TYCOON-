@@ -1,6 +1,6 @@
 /** Owner: W1-C. Phase 1 §4.1 building commands. */
 import type { BuildCommand, HandlerMap } from '../types';
-import { demolish } from './demolish';
+import { demolish, undoPath } from './demolish';
 import { buildPath, buildPathLine } from './paths';
 import { placeRide, placeStall } from './place';
 
@@ -14,4 +14,5 @@ export const buildHandlers: HandlerMap<BuildCommand> = {
   placeRide,
   placeStall,
   demolish,
+  undoPath,
 };

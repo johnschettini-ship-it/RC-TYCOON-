@@ -42,10 +42,10 @@ describe('path step builder: start and steps', () => {
     const { game, cmds, map, T } = setup();
     startAt(game, T(30, 30), 1);
     expect(stepPath(game)?.ok).toBe(true);
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 30, kind: 'footpath', undoable: true }]);
     expect(game.tool.drag?.tiles).toEqual([T(31, 30)]);
     expect(stepPath(game)?.ok).toBe(true);
-    expect(cmds[1]).toEqual({ type: 'buildPathLine', x0: 31, y0: 30, x1: 31, y1: 30, kind: 'footpath' });
+    expect(cmds[1]).toEqual({ type: 'buildPathLine', x0: 31, y0: 30, x1: 31, y1: 30, kind: 'footpath', undoable: true });
     expect(map.content[T(31, 30)]).toBe(Content.Footpath);
     expect(game.tool.drag?.tiles).toEqual([T(32, 30)]);
     expect(game.tool.drag?.cost).toBe(1000);
@@ -67,7 +67,7 @@ describe('path step builder: start and steps', () => {
     const { game, cmds, T } = setup();
     startAt(game, T(30, 30), 1);
     tapAt(game, T(30, 31));
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 31, kind: 'footpath' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 30, y1: 31, kind: 'footpath', undoable: true }]);
     expect(pathBuilderOf(game.tool).end).toBe(T(30, 31));
     expect(pathBuilderOf(game.tool).dir).toBe(2);
   });
@@ -78,7 +78,7 @@ describe('path step builder: start and steps', () => {
     stepPath(game);
     stepPath(game);
     tapAt(game, T(31, 29));
-    expect(cmds[2]).toEqual({ type: 'buildPathLine', x0: 31, y0: 29, x1: 31, y1: 29, kind: 'footpath' });
+    expect(cmds[2]).toEqual({ type: 'buildPathLine', x0: 31, y0: 29, x1: 31, y1: 29, kind: 'footpath', undoable: true });
     expect(pathBuilderOf(game.tool).dir).toBe(0);
     tapAt(game, T(32, 28));
     expect(cmds).toHaveLength(3);
@@ -102,7 +102,7 @@ describe('path step builder: start and steps', () => {
     tap(at(12, 40), 0);
     expect(cmds).toEqual([]);
     tap(at(13, 40), 100);
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 13, y1: 40, kind: 'queue' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 13, y1: 40, kind: 'queue', undoable: true }]);
   });
 
   it('a start on an existing path counts as built: the first step adds one tile; the heading points away from it', () => {
@@ -113,7 +113,7 @@ describe('path step builder: start and steps', () => {
     expect(pathBuilderOf(game.tool).dir).toBe(1);
     expect(game.tool.drag?.tiles).toEqual([T(31, 30)]);
     stepPath(game);
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 31, y0: 30, x1: 31, y1: 30, kind: 'footpath' }]);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 31, y0: 30, x1: 31, y1: 30, kind: 'footpath', undoable: true }]);
   });
 
   it('switching footpath ↔ queue keeps the end; the next step is a queue', () => {
@@ -161,15 +161,17 @@ describe('path step builder: failures and Undo', () => {
     expect(stepPath(game)).toBeNull();
   });
 
-  it('Undo demolishes only the tiles the last step added and puts the end back', () => {
+  it('Undo takes back only the tiles the last step added, refunds them in full, and puts the end back', () => {
     const { game, cmds, map, T } = setup();
     placeFootpath(game.world, 32, 30);
     startAt(game, T(30, 30), 1);
     tapAt(game, T(31, 30)); // 30 and 31 in one line
     stepPath(game); // 32 was there already
     stepPath(game); // 33
+    const cashBefore = game.world.state.park.cash;
     expect(undoStep(game)).toBe(true);
-    expect(cmds.at(-1)).toEqual({ type: 'demolish', x: 33, y: 30 });
+    expect(cmds.at(-1)).toEqual({ type: 'undoPath', x: 33, y: 30 });
+    expect(game.world.state.park.cash, 'the full $10 comes back').toBe(cashBefore + 1000);
     expect(pathBuilderOf(game.tool).end).toBe(T(32, 30));
     const n = cmds.length;
     expect(undoStep(game)).toBe(true);
@@ -190,15 +192,15 @@ describe('path step builder: heights and slopes', () => {
     game.tool.pathHeight = { z, ramp: 'flat' };
     startAt(game, T(30, 30), 1);
     expect(tapAt(game, T(31, 30))?.ok).toBe(true);
-    expect(cmds[0]).toEqual({ type: 'buildPathLine', x0: 30, y0: 30, x1: 31, y1: 30, kind: 'footpath', z, ramp: 'flat' });
+    expect(cmds[0]).toEqual({ type: 'buildPathLine', x0: 30, y0: 30, x1: 31, y1: 30, kind: 'footpath', z, ramp: 'flat', undoable: true });
     game.tool.pathHeight.ramp = 'up';
     expect(game.tool.drag?.stepDir).toBe(1);
     expect(stepPath(game)?.ok).toBe(true);
-    expect(cmds[1]).toEqual({ type: 'buildPath', x: 32, y: 30, kind: 'footpath', z, rampDir: 1 });
+    expect(cmds[1]).toEqual({ type: 'buildPath', x: 32, y: 30, kind: 'footpath', z, rampDir: 1, undoable: true });
     expect(game.tool.pathHeight.z).toBe(z + 1);
     game.tool.pathHeight.ramp = 'down';
     expect(stepPath(game)?.ok).toBe(true);
-    expect(cmds[2]).toEqual({ type: 'buildPath', x: 33, y: 30, kind: 'footpath', z, rampDir: 3 });
+    expect(cmds[2]).toEqual({ type: 'buildPath', x: 33, y: 30, kind: 'footpath', z, rampDir: 3, undoable: true });
     expect(game.tool.pathHeight.z).toBe(z);
     game.tool.pathHeight.ramp = 'flat';
     expect(stepPath(game)?.ok).toBe(true);
@@ -213,18 +215,18 @@ describe('path step builder: heights and slopes', () => {
     ]);
   });
 
-  it('Undo of an up step demolishes that deck at its height and puts z back', () => {
+  it('Undo of an up step takes that deck back at its height, refunds it, and puts z back', () => {
     const { game, cmds, T, ground } = setup();
     const z = ground + 3;
     game.tool.pathHeight = { z, ramp: 'up' };
     startAt(game, T(30, 30), 1);
     stepPath(game);
-    expect(cmds[0]).toEqual({ type: 'buildPath', x: 30, y: 30, kind: 'footpath', z, rampDir: 1 });
+    expect(cmds[0]).toEqual({ type: 'buildPath', x: 30, y: 30, kind: 'footpath', z, rampDir: 1, undoable: true });
     expect(game.tool.pathHeight.z).toBe(z + 1);
     stepPath(game);
     expect(game.tool.pathHeight.z).toBe(z + 2);
     undoStep(game);
-    expect(cmds.at(-1)).toEqual({ type: 'demolish', x: 31, y: 30, z: z + 1 });
+    expect(cmds.at(-1)).toEqual({ type: 'undoPath', x: 31, y: 30, z: z + 1 });
     expect(game.tool.pathHeight.z).toBe(z + 1);
   });
 });
