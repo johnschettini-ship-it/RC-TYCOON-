@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { guestPosition, type GuestPos } from '../../../src/render/guestPos';
 import { surfaceHeight } from '../../../src/render/iso';
 import { staffPosition, type StaffPos } from '../../../src/render/management/staffPos';
-import { createQueueWalker, queueSlot } from '../../../src/render/queue';
+import { queueSlot, type QueueSlotPos } from '../../../src/render/queue';
+import { markNetworkDirty } from '../../../src/sim/pathing';
+import { queueLine } from '../../../src/sim/pathing/queues';
 import { generateMap, tileIndex } from '../../../src/sim/map';
 import { makeTestWorld, placeQueue, placeRideDirect } from '../../helpers/world';
 
@@ -68,9 +70,12 @@ describe('walkers at their height', () => {
     const ride = placeRideDirect(world, 'carousel', 10, 10, 0);
     const q = placeQueue(world, 11, 13);
     map.slope[q] = 4 | 8;
-    const chain = createQueueWalker(map.width * map.height).chain(map, ride.entrance!.outside);
-    const out: GuestPos = { fx: 0, fy: 0, z: 0, tile: -1 };
-    queueSlot(map, chain, ride.entrance!.gate, 3, out);
+    markNetworkDirty(world);
+    const line = queueLine(world, ride.id);
+    expect(line).not.toBeNull();
+    const out: QueueSlotPos = { fx: 0, fy: 0, z: 0, tile: -1, dir: 0 };
+    queueSlot(world, line!, ride.entrance!.gate, 2, out);
+    expect(out.tile).toBe(q);
     expect(out.z).toBeCloseTo(surfaceHeight(map, out.fx, out.fy), 9);
     expect(out.z).toBeGreaterThan(8);
   });

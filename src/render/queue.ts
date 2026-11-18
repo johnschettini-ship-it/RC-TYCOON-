@@ -1,97 +1,156 @@
 /**
- * Queue drawing positions (Phase 1 §4.3 "spaced 4 per tile"). Owner: W1-A.
- * Queueing guests are drawn along their ride's queue tiles in queue order, starting at
- * `ride.entrance.outside`, independent of their own `tile` field.
+ * Queue drawing positions (queue clarity spec 2026-11-18 §4; first version Phase 1 §4.3). Owner: W1-A.
+ * Queueing guests are drawn along their ride's queue line (`sim/pathing/queues.ts` `queueLine`: the queue flood fill
+ * from the entrance, distance order, ties N, E, S, W), about 3 per tile, front guest at the entrance, independent of
+ * their own `tile` field (the simulation keeps that where the guest joined, so no game rule reads these positions).
+ * Guests past the line's room bunch on its far node. `createQueueEase` walks a guest to its slot when the line moves.
  */
-import { Content, DIR_DX, DIR_DY, type MapState } from '../sim/map';
-import type { GuestPos } from './guestPos';
-import { surfaceHeight } from './iso';
+import type { Dir } from '../sim/map';
+import { nodeZOf } from '../sim/paths/nodes';
+import { nodeTile, type QueueLine } from '../sim/pathing/queues';
+import type { World } from '../sim/types';
+import { nodeSurfaceHeight, type GuestPos } from './guestPos';
 
-export const QUEUE_SLOTS_PER_TILE = 4;
+export const QUEUE_SLOTS_PER_TILE = 3;
 
-export interface QueueWalker {
-  /** Ordered queue tiles from `start` (must be a queue tile), following the first unvisited queue neighbour in N, E, S, W order. */
-  chain(map: MapState, start: number, out?: number[]): number[];
-}
+/** Walking speed in the line: the guests' own pace, 1 tile per 10 ticks (`GUEST_WALK_TICKS_PER_TILE`). */
+export const QUEUE_WALK_TILES_PER_TICK = 0.1;
 
-/** A walker with its own visit stamps, so repeated walks do not allocate. */
-export function createQueueWalker(tileCount: number): QueueWalker {
-  let stamps = new Uint32Array(tileCount);
-  let stamp = 0;
-  return {
-    chain(map, start, out = []) {
-      out.length = 0;
-      const n = map.width * map.height;
-      if (start < 0 || start >= n || map.content[start] !== Content.Queue) return out;
-      if (stamps.length < n) stamps = new Uint32Array(n);
-      stamp++;
-      if (stamp === 0xffffffff) {
-        stamps.fill(0);
-        stamp = 1;
-      }
-      let cur = start;
-      const w = map.width;
-      while (cur >= 0) {
-        out.push(cur);
-        stamps[cur] = stamp;
-        const x = cur % w;
-        const y = (cur - x) / w;
-        let next = -1;
-        for (let d = 0; d < 4; d++) {
-          const nx = x + (DIR_DX[d] as number);
-          const ny = y + (DIR_DY[d] as number);
-          if (nx < 0 || ny < 0 || nx >= w || ny >= map.height) continue;
-          const j = ny * w + nx;
-          if (map.content[j] === Content.Queue && stamps[j] !== stamp) {
-            next = j;
-            break;
-          }
-        }
-        cur = next;
-      }
-      return out;
-    },
-  };
-}
+/** A larger jump (a new guest, a loaded park, a line rebuilt) is drawn at once instead of walked. */
+const SNAP_TILES = 1.2;
 
 /** Small sideways jitter so a line of guests does not look like one stroke. */
 const SIDE_JITTER = 0.04;
 
+/** Golden angle: overflow guests spread around the far node without two on one point. */
+const GOLDEN = 2.399963229728653;
+
+export interface QueueSlotPos extends GuestPos {
+  /** Facing (map direction): toward the front of the line, or the way the guest walks. */
+  dir: Dir;
+}
+
+/** Map direction of the unit step (ux, uy); `fallback` for no step. */
+function dirOf(ux: number, uy: number, fallback: Dir): Dir {
+  if (uy < 0) return 0;
+  if (ux > 0) return 1;
+  if (uy > 0) return 2;
+  if (ux < 0) return 3;
+  return fallback;
+}
+
 /**
- * Position of queue slot `k` (0 = front of the queue). Slot k stands on chain tile floor(k / 4);
- * slots on a tile run from the edge nearest the front (the previous tile, or `gateTile` for the
- * first tile) to the far edge. Guests past the chain's capacity stand on the last tile.
+ * Position of queue slot `k` (0 = front of the queue) on `line`. Slot k stands on node floor(k / 3); slots on a node
+ * run from the edge nearest the front (the node toward the entrance, or `gateTile` for the entrance node) to the far
+ * edge. Slots past 3 × nodes bunch on the last node. `out.tile` is −1 when the line has no node.
  */
-export function queueSlot(map: MapState, chain: readonly number[], gateTile: number, k: number, out: GuestPos): GuestPos {
-  const w = map.width;
-  if (chain.length === 0) {
+export function queueSlot(world: World, line: QueueLine, gateTile: number, k: number, out: QueueSlotPos): QueueSlotPos {
+  const n = line.nodes.length;
+  if (n === 0) {
     out.tile = -1;
     return out;
   }
+  const w = world.state.map.width;
   let j = Math.floor(k / QUEUE_SLOTS_PER_TILE);
-  let s = k - j * QUEUE_SLOTS_PER_TILE;
-  if (j >= chain.length) {
-    j = chain.length - 1;
-    s = QUEUE_SLOTS_PER_TILE - 1;
-  }
-  const tile = chain[j] as number;
-  const front = j === 0 ? gateTile : (chain[j - 1] as number);
+  const over = j >= n ? k - n * QUEUE_SLOTS_PER_TILE : -1;
+  if (over >= 0) j = n - 1;
+  const node = line.nodes[j] as number;
+  const tile = nodeTile(world, node);
+  const toward = line.toward[j] as number;
+  const front = toward >= 0 ? nodeTile(world, toward) : gateTile;
   const x = tile % w;
   const y = (tile - x) / w;
   let ux = 0;
   let uy = 0;
-  if (front >= 0) {
+  if (front >= 0 && front !== tile) {
     const fx = front % w;
-    const fy = (front - fx) / w;
     ux = Math.sign(fx - x);
-    uy = Math.sign(fy - y);
+    uy = Math.sign((front - fx) / w - y);
   }
-  // t runs from +0.375 (front edge side) to −0.375 (back edge side).
-  const t = 0.5 - (s + 0.5) / QUEUE_SLOTS_PER_TILE;
-  const side = (s & 1) === 0 ? SIDE_JITTER : -SIDE_JITTER;
-  out.fx = x + 0.5 + ux * t + uy * side;
-  out.fy = y + 0.5 + uy * t + ux * side;
-  out.z = surfaceHeight(map, out.fx, out.fy);
+  if (over >= 0) {
+    const r = 0.12 + 0.2 * ((over % 5) / 4);
+    const a = over * GOLDEN;
+    out.fx = x + 0.5 + r * Math.cos(a);
+    out.fy = y + 0.5 + r * Math.sin(a);
+  } else {
+    const s = k - j * QUEUE_SLOTS_PER_TILE;
+    // t: +1/3 (front edge side), 0, −1/3 (back edge side).
+    const t = 0.5 - (s + 0.5) / QUEUE_SLOTS_PER_TILE;
+    const side = (s & 1) === 0 ? SIDE_JITTER : -SIDE_JITTER;
+    out.fx = x + 0.5 + ux * t + uy * side;
+    out.fy = y + 0.5 + uy * t + ux * side;
+  }
+  out.z = nodeSurfaceHeight(world, tile, nodeZOf(world, node), out.fx, out.fy);
   out.tile = tile;
+  out.dir = dirOf(ux, uy, out.dir);
   return out;
+}
+
+interface EaseRec {
+  fx: number;
+  fy: number;
+  z: number;
+  t: number;
+  dir: Dir;
+  seen: boolean;
+}
+
+export interface QueueEase {
+  /**
+   * Drawn position of guest `id` whose slot is `target`, at sim time `t` (tick + alpha): walks toward the slot at
+   * `QUEUE_WALK_TILES_PER_TICK`, or snaps on first sight and over a long jump. True while walking.
+   */
+  step(id: number, target: QueueSlotPos, t: number, out: QueueSlotPos): boolean;
+  /** Forget the guests that `step` did not see since the last sweep (call once per frame, after placing). */
+  sweep(): void;
+}
+
+export function createQueueEase(): QueueEase {
+  const recs = new Map<number, EaseRec>();
+  return {
+    step(id, target, t, out) {
+      let r = recs.get(id);
+      out.tile = target.tile;
+      if (!r) {
+        r = { fx: target.fx, fy: target.fy, z: target.z, t, dir: target.dir, seen: true };
+        recs.set(id, r);
+      }
+      r.seen = true;
+      const dx = target.fx - r.fx;
+      const dy = target.fy - r.fy;
+      const dist = Math.hypot(dx, dy);
+      const dt = t - r.t;
+      r.t = t;
+      let moving = false;
+      if (dist > SNAP_TILES || dt < 0) {
+        r.fx = target.fx;
+        r.fy = target.fy;
+      } else if (dist > 1e-6) {
+        const step = dt * QUEUE_WALK_TILES_PER_TICK;
+        if (step >= dist) {
+          r.fx = target.fx;
+          r.fy = target.fy;
+        } else if (step > 0) {
+          r.fx += (dx / dist) * step;
+          r.fy += (dy / dist) * step;
+        }
+        moving = step < dist;
+        if (moving) r.dir = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 1 : 3) : dy > 0 ? 2 : 0;
+      }
+      if (!moving) r.dir = target.dir;
+      // Height follows the slot: the line's surface is continuous, and a step is a third of a tile.
+      r.z = target.z;
+      out.fx = r.fx;
+      out.fy = r.fy;
+      out.z = r.z;
+      out.dir = r.dir;
+      return moving;
+    },
+    sweep() {
+      for (const [id, r] of recs) {
+        if (!r.seen) recs.delete(id);
+        else r.seen = false;
+      }
+    },
+  };
 }

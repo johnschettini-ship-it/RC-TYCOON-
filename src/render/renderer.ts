@@ -24,7 +24,8 @@ import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } fr
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
 import { STEP_PX, TILE_H, TILE_W } from './iso';
 import { GHOST_FILL_INVALID, GHOST_FILL_VALID, GHOST_INVALID, GHOST_VALID, ghostLineWidth, mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS, withAlpha } from './palette';
-import { createQueueWalker, queueSlot } from './queue';
+import { createQueueEase, queueSlot, type QueueSlotPos } from './queue';
+import { queueLine } from '../sim/pathing/queues';
 import { SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { Ctx } from './sprites/shapes';
 import { GUEST_BALLOON, GUEST_UMBRELLA, guestFrame, guestSpriteKey, SPRITE_CACHE_MB, SpriteBank } from './sprites/bank';
@@ -326,8 +327,9 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   const frame: LayerFrame = { scale: 1, offX: 0, offY: 0, dpr: 1, bucket: 1, view: { x0: 0, y0: 0, x1: 0, y1: 0 }, rotation: 0, alpha: 0, width: 1, height: 1 };
   const list = new DrawList();
   const dots = new GuestDots();
-  const walker = createQueueWalker(64 * 64);
-  const chain: number[] = [];
+  const queueEase = createQueueEase();
+  const slot: QueueSlotPos = { fx: 0, fy: 0, z: 0, tile: -1, dir: 0 };
+  const eased: QueueSlotPos = { fx: 0, fy: 0, z: 0, tile: -1, dir: 0 };
   const pos: GuestPos = { fx: 0, fy: 0, z: 0, tile: -1 };
   // Phase 3 (W2-B): staff, path items, litter, weather, markers. Created below once `blit` exists.
   let mgmt: ManagementLayer;
@@ -348,6 +350,8 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   let qfy = new Float64Array(256);
   let qz = new Float64Array(256);
   let qdir = new Uint8Array(256);
+  /** 1 while a queueing guest walks forward to its slot (walking frames). */
+  let qmove = new Uint8Array(256);
   let frameNo = 0;
 
   // Frame-local camera transform (device px = world px × scale + off) and view rotation.
@@ -425,6 +429,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
     qfy = new Float64Array(cap);
     qz = new Float64Array(cap);
     qdir = new Uint8Array(cap);
+    qmove = new Uint8Array(cap);
   }
 
   /** View origin (min u, min v) of a map footprint [x, x + ex) × [y, y + ey). */
@@ -529,28 +534,32 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
     }
   }
 
-  /** Place queueing guests on their ride's queue tiles (4 per tile from the entrance outward). Map coordinates. */
-  function placeQueues(world: World): void {
+  /**
+   * Place queueing guests along their ride's queue line (queue clarity spec 2026-11-18 §4): flood-fill order from the
+   * entrance, 3 per tile, walking forward when the line moves. Map coordinates; positions are drawing only.
+   */
+  function placeQueues(world: World, alpha: number): void {
     const s = world.state;
-    const map = s.map;
-    const w = map.width;
+    const t = s.tick + alpha;
     for (const r of s.rides) {
       if (r.queue.length === 0 || !r.entrance) continue;
-      walker.chain(map, r.entrance.outside, chain);
-      if (chain.length === 0) continue;
+      const line = queueLine(world, r.id);
+      if (!line) continue;
       for (let k = 0; k < r.queue.length; k++) {
-        const gi = findGuestIndex(s.guests, r.queue[k] as number);
+        const id = r.queue[k] as number;
+        const gi = findGuestIndex(s.guests, id);
         if (gi < 0) continue;
-        queueSlot(map, chain, r.entrance.gate, k, pos);
+        queueSlot(world, line, r.entrance.gate, k, slot);
+        if (slot.tile < 0) continue;
+        qmove[gi] = queueEase.step(id, slot, t, eased) ? 1 : 0;
         qStamp[gi] = frameNo;
-        qfx[gi] = pos.fx;
-        qfy[gi] = pos.fy;
-        qz[gi] = pos.z;
-        const j = Math.min(Math.floor(k / 4), chain.length - 1);
-        const front = j === 0 ? r.entrance.gate : (chain[j - 1] as number);
-        qdir[gi] = dirBetween(w, chain[j] as number, front);
+        qfx[gi] = eased.fx;
+        qfy[gi] = eased.fy;
+        qz[gi] = eased.z;
+        qdir[gi] = eased.dir;
       }
     }
+    queueEase.sweep();
   }
 
   /**
@@ -590,6 +599,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         fy = qfy[gi] as number;
         z = qz[gi] as number;
         facing = (qdir[gi] as number) as Dir;
+        if (bob && qmove[gi] === 1) walk = 1 + ((Math.floor((s.tick + alpha) / 5) + g.id) & 1);
       } else {
         guestPosition(map, g, alpha, pos, heights);
         fx = pos.fx;
@@ -1345,7 +1355,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       collectRides(world);
       collectStalls(world);
       track.collect(world, list, view, bucket, scale, offX, offY, alpha, rot);
-      placeQueues(world);
+      placeQueues(world, alpha);
       mgmt.collect(world, alpha, list);
       for (const l of layers) l.collect?.(world, list, tool, frame);
       collectGuests(world, tool, alpha, lod);
