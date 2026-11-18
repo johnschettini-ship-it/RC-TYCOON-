@@ -179,6 +179,29 @@ describe('place ride and stall tools', () => {
     expect(cmds).toEqual([]);
   });
 
+  it('a touch tap on the ghost turns it and moves nothing; a tap off it moves it (touch controls spec §4)', () => {
+    const { game, ctl, cmds, at, ev } = setup();
+    game.tool.tool = 'placeRide';
+    game.tool.defId = 'carousel';
+    game.tool.rotation = 0;
+    ctl.update(0);
+    ev({ type: 'down', ...at(20, 20) });
+    ev({ type: 'up', ...at(20, 20), t: 30 });
+    const g0 = game.tool.ghost;
+    expect(g0).not.toBeNull();
+    const origin = g0?.tile;
+    // A tile inside the footprint (the carousel is 3 × 3 around the tapped tile).
+    ev({ type: 'down', ...at(21, 21), t: 100 });
+    ev({ type: 'up', ...at(21, 21), t: 130 });
+    expect(game.tool.rotation).toBe(1);
+    expect(game.tool.ghost?.tile).toBe(origin);
+    ev({ type: 'down', ...at(30, 30), t: 200 });
+    ev({ type: 'up', ...at(30, 30), t: 230 });
+    expect(game.tool.rotation).toBe(1);
+    expect(game.tool.ghost?.tile).not.toBe(origin);
+    expect(cmds).toEqual([]);
+  });
+
   it('a second finger during ghost placement starts a pinch: the ghost stays and nothing is placed', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'placeRide';

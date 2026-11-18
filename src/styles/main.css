@@ -228,6 +228,13 @@ button { font: inherit; color: inherit; }
 #ui[data-layout='bottom']:not([data-low='1']) .hud-mood { flex: none; }
 #ui[data-layout='bottom']:not([data-low='1']) .hud-controls { flex: none; margin-left: auto; }
 #ui[data-layout='bottom']:not([data-low='1']) .view-controls { margin-left: 0; }
+/* Touch controls spec 2026-11-18 §4: on the upright phone both turn-view buttons stay on screen, as a column at the right
+   edge of the map, a little above its middle (clear of the top row, the tip, and the bars and hand at the bottom). */
+#ui .view-controls.view-float {
+  position: absolute; right: calc(8px + var(--safe-right)); top: 42%; transform: translateY(-50%);
+  flex-direction: column; gap: 12px; pointer-events: none;
+}
+#ui .view-controls.view-float > .hud-btn { pointer-events: auto; box-shadow: var(--shadow); }
 #ui[data-layout='bottom']:not([data-low='1']) .speed-toggle { padding: 0 8px; }
 /* The chip shows one weather icon and the hour (the forecast is in the weather button's name, title and press). The
    weather button covers the whole chip and is at least 44 px high (it reaches past the 36 px plate at the top and
@@ -546,6 +553,9 @@ button { font: inherit; color: inherit; }
 /* The buttons go to a new line when they do not fit (phone, large text). */
 .tool-status .status-actions { flex-wrap: wrap; }
 .status-details { flex: none; }
+/* Touch controls spec §4: the large Rotate button of ride and stall placement. */
+.tool-status .btn.rotate-big { min-height: 56px; min-width: 56px; padding: 8px 18px; font-size: calc(16px * var(--ts, 1)); }
+.tool-status .btn.rotate-big .icon { width: 26px; height: 26px; }
 #ui[data-layout='side'] .tool-status { left: 50%; transform: translateX(-50%); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .tool-status { left: 10px; right: 10px; margin: 0 auto; bottom: calc(var(--toolbar-space) + 8px); }
 /* A tall bar (large text, the hand shown again over a held card) stays in the viewport, over the top region when it

@@ -16,7 +16,7 @@ import { GestureRecognizer, type DragMode, type GestureAction, type GesturePoint
 import { keyAction, keyboardPan, type PanDir } from './keyboard';
 import { PatrolStroke, brushTiles, strokeLine } from './patrol';
 import { pathItemCommand, pathItemGhost } from './pathItemTool';
-import { heldGhostAt, pathKindOf, pathLineEnd, pathLinePreview, pathLineTiles, pickEntity } from './tools';
+import { ghostTiles, heldGhostAt, pathKindOf, pathLineEnd, pathLinePreview, pathLineTiles, pickEntity } from './tools';
 import { pathItemAction, toolOptions } from '../render/management/toolOptions';
 import { refreshTrackTool, trackGesture, trackKeyDown } from './track';
 import { routerOf } from './toolRouters';
@@ -353,9 +353,14 @@ export class InputController {
       case 'placeRide':
       case 'placeStall': {
         if (tile === null) return;
+        // Touch: a tap on the ghost turns it (touch controls spec §4); a tap elsewhere moves it; Confirm places it.
+        if (!mouse && tool.ghost && ghostTiles(game.world, tool.ghost).includes(tile)) {
+          tool.rotation = ((tool.rotation + 1) % 4) as Dir;
+          this.refreshGhost();
+          return;
+        }
         tool.hoverTile = tile;
         this.refreshGhost();
-        // Touch: a tap only moves the ghost; the Confirm button places it.
         if (!mouse) return;
         const g = tool.ghost;
         if (!g) return;

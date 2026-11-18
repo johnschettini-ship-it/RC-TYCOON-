@@ -6,7 +6,7 @@
  */
 import { expect, test, type Page } from '@playwright/test';
 import { TICKS_PER_HOUR } from '../../src/data/tuning/core';
-import { isPhone, newPark, setSpeed, touch, watchErrors } from './helpers';
+import { isPhone, newPark, setSpeed, watchErrors } from './helpers';
 
 type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 
@@ -21,15 +21,14 @@ async function chipBoxes(page: Page): Promise<{ chip: Box; weather: Box; left: B
       return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
     };
     const chip = document.querySelector('[data-testid="day-pill"]') as HTMLElement;
-    const rotate = [...document.querySelectorAll<HTMLElement>('[data-testid^="view-rotate-"], [data-testid="view-turn"]')].filter((b) => !b.hidden);
-    const one = rotate.length === 1;
+    const rotate = [...document.querySelectorAll<HTMLElement>('[data-testid^="view-rotate-"]')].filter((b) => !b.hidden);
     return {
       chip: box('[data-testid="day-pill"]'),
       weather: box('[data-testid="hud-weather"]'),
-      left: box(one ? '[data-testid="view-turn"]' : '[data-testid="view-rotate-left"]'),
-      right: box(one ? '[data-testid="view-turn"]' : '[data-testid="view-rotate-right"]'),
+      left: box('[data-testid="view-rotate-left"]'),
+      right: box('[data-testid="view-rotate-right"]'),
       inChip: rotate.some((b) => chip.contains(b)),
-      inGroup: rotate.every((b) => b.closest('.hud .view-controls') !== null),
+      inGroup: rotate.length === 2 && rotate.every((b) => b.closest('.view-controls') !== null),
     };
   });
 }
@@ -62,15 +61,14 @@ test('the day chip is small, its weather button is a 44 px target, and the view 
   }
   if (!isPhone(info)) expect(b.right.left - b.left.right, 'gap between the rotate buttons').toBeGreaterThanOrEqual(8);
   expect(b.inChip, 'a rotate button inside the chip').toBe(false);
-  expect(b.inGroup, 'the rotate buttons in the view controls of the top region').toBe(true);
-  // The view controls are at the right of the chip; on the upright phone (Task 24) the one turn button is in the chip's
-  // row, after the Speed button, with Menu at the right edge.
+  expect(b.inGroup, 'both rotate buttons in the view controls').toBe(true);
+  // The view controls are at the right of the chip; on the upright phone (touch controls spec 2026-11-18 §4) they are a
+  // column at the right edge of the map, under the row, with Menu at the right end of the row.
   if (isPhone(info)) {
-    const speed = (await page.getByTestId('speed-toggle').boundingBox())!;
     const menu = (await page.getByTestId('tool-menu').boundingBox())!;
-    expect(Math.abs((b.right.top + b.right.bottom) / 2 - (b.chip.top + b.chip.bottom) / 2)).toBeLessThanOrEqual(1);
-    expect(b.right.left - (speed.x + speed.width)).toBeGreaterThanOrEqual(7.9);
-    expect(menu.x - b.right.right).toBeGreaterThanOrEqual(7.9);
+    expect(b.left.top).toBeGreaterThan(b.chip.bottom);
+    expect(b.right.top - b.left.bottom, 'gap between the rotate buttons').toBeGreaterThanOrEqual(8);
+    expect(Math.abs(b.right.right - (390 - 8))).toBeLessThanOrEqual(1);
     expect(Math.abs(menu.x + menu.width - (390 - 8))).toBeLessThanOrEqual(1);
   } else {
     expect(b.left.left).toBeGreaterThanOrEqual(b.chip.right + 8);
@@ -103,18 +101,13 @@ test('a press on the chip weather button shows the forecast toast; the view rota
   else await weather.click();
   await expect(page.getByTestId('toast')).toHaveText((await weather.getAttribute('title')) ?? 'missing');
   const canvas = page.locator('#game');
-  const controls = page.locator('.hud .view-controls');
+  const controls = page.locator('.view-controls');
   if (tap) {
-    // Task 24: the upright phone's one turn button: a tap turns right, a hold turns left.
-    const one = controls.getByTestId('view-turn');
-    await one.tap();
+    // Touch controls spec 2026-11-18 §4: both turn buttons on the upright phone too.
+    await controls.getByTestId('view-rotate-right').tap();
     await expect(canvas).toHaveAttribute('data-rotation', '1');
-    const b = (await one.boundingBox())!;
-    const cdp = await page.context().newCDPSession(page);
-    const p = { x: b.x + b.width / 2, y: b.y + b.height / 2, id: 1 };
-    await touch(cdp, 'touchStart', [p]);
+    await controls.getByTestId('view-rotate-left').tap();
     await expect(canvas).toHaveAttribute('data-rotation', '0');
-    await touch(cdp, 'touchEnd', []);
   } else {
     await controls.getByTestId('view-rotate-right').click();
     await expect(canvas).toHaveAttribute('data-rotation', '1');

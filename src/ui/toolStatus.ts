@@ -31,7 +31,9 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
     'button',
     {
       type: 'button',
-      class: 'btn',
+      // Touch controls spec §4: a large Rotate button (a tap on the ghost also turns it).
+      class: 'btn rotate-big',
+      'data-testid': 'status-rotate',
       'aria-label': text('ui.status.rotate'),
       onclick: () => {
         game.tool.rotation = ((game.tool.rotation + 1) % 4) as Dir;

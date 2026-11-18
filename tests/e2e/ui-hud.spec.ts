@@ -148,8 +148,8 @@ test.describe('HUD and deck list', () => {
     if (info.project.name === 'desktop') await expect(page.getByTestId('hud-name')).toHaveText('W'.repeat(32));
     const vp = page.viewportSize();
     if (!vp) throw new Error('no viewport');
-    // Task 24: on the upright phone Messages is in the Menu; the one turn button is in the row instead.
-    for (const id of ['status-pill', upright ? 'view-turn' : 'tool-messages', 'tool-menu']) {
+    // Task 24: on the upright phone Messages is in the Menu; the turn buttons stand at the right edge of the map.
+    for (const id of ['status-pill', ...(upright ? ['view-rotate-left', 'view-rotate-right'] : ['tool-messages']), 'tool-menu']) {
       const box = await page.getByTestId(id).boundingBox();
       expect(box, id).not.toBeNull();
       expect(box!.x, id).toBeGreaterThanOrEqual(0);

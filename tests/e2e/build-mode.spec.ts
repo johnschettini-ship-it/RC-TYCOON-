@@ -129,7 +129,8 @@ test.describe('build mode (Task 22): phone and low layout', () => {
       const upright = h > w;
       const messages = page.getByTestId('tool-messages');
       const messagesShown = async (): Promise<void> => (upright ? expect(messages).toBeHidden() : expect(messages).toBeVisible());
-      const turn = upright ? ['view-turn'] : ['view-rotate-left', 'view-rotate-right'];
+      // Touch controls spec 2026-11-18 §4: both turn buttons everywhere.
+      const turn = ['view-rotate-left', 'view-rotate-right'];
       await expect(ui).not.toHaveAttribute('data-build-mode', /.*/);
       await expect(chips).toBeVisible();
       await messagesShown();

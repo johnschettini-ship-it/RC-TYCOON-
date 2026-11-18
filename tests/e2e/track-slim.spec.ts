@@ -210,12 +210,12 @@ test.describe('slim track station row and colour key strip (Task 20)', () => {
       expect(seen).toContain('Thrill');
       expect(seen).not.toMatch(/\d/);
       await expect(legend.locator('li')).toHaveCount(3);
-      // The view controls shown (the two rotate buttons; on the upright phone, Task 24, the one turn button).
-      for (const id of ['view-rotate-left', 'view-rotate-right', 'view-turn']) {
+      // The view controls shown (the two rotate buttons).
+      for (const id of ['view-rotate-left', 'view-rotate-right']) {
         const control = page.getByTestId(id);
         if (await control.isVisible()) expect(overlaps(box, (await control.boundingBox())!), id).toBe(false);
       }
-      expect(await page.locator('.hud .view-controls button:not([hidden])').count()).toBeGreaterThan(0);
+      expect(await page.locator('.view-controls button:not([hidden])').count()).toBe(2);
       const label = (await legend.getAttribute('aria-label')) ?? '';
       for (const r of ['Chill 0–35', 'Family 36–64', 'Thrill 65–100']) expect(label).toContain(r);
     });
