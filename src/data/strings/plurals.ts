@@ -12,4 +12,6 @@ export const enPlurals: PluralTable = {
   'ui.tool.menuUnread': { one: 'Menu, {n} unread message', other: 'Menu, {n} unread messages' },
   // R1 (ride work 1 Task 8): the Auto-finish path the builder shows.
   'ui.track.autoFinishFound': { one: 'Adds {n} piece · {cost}', other: 'Adds {n} pieces · {cost}' },
+  // Queue clarity (spec 2026-11-18 §2): the guests standing in a tapped queue.
+  'queue.card.count': { one: 'Queue: {n} guest', other: 'Queue: {n} guests' },
 };

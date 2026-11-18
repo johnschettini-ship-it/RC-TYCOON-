@@ -3,6 +3,7 @@
  * Ghost validity is a local preview from the map (in bounds, owned, empty, cash).
  * The command result is the final word.
  */
+import { queueNodeAt } from '../sim/pathing/queues';
 import { getFlatRideDef, getStallDef } from '../data/catalog';
 import { text } from '../data/strings/en';
 import { extent, footprintTiles } from '../sim/footprint';
@@ -121,7 +122,7 @@ export function heldGhostAt(world: World, tool: ToolState, viewRotation: Dir, ti
 
 export type PickedEntity = NonNullable<ToolState['selectedEntity']>;
 
-/** What Inspect opens on a tile: a ride or stall building first, then a staff member, then a guest standing there. */
+/** What Inspect opens on a tile: a ride or stall building first, then a staff member, then a queue, then a guest standing there. */
 export function pickEntity(world: World, tile: number | null): PickedEntity | null {
   if (tile === null || tile < 0) return null;
   const s = world.state;
@@ -136,6 +137,10 @@ export function pickEntity(world: World, tile: number | null): PickedEntity | nu
   // Phase 3 §7.3: a tap or long-press on a staff member opens the staff panel.
   const member = s.staff.members.find((m) => m.tile === tile);
   if (member) return { kind: 'staff', id: member.id };
+  // Queue clarity (spec 2026-11-18 §2): a queue tile opens its queue card (queueing guests are drawn along the line,
+  // not on the tile they joined at, so a guest under the finger here is not the one the player sees).
+  const queue = queueNodeAt(world, tile);
+  if (queue >= 0) return { kind: 'queue', id: queue };
   const guest = s.guests.find((g) => g.tile === tile);
   if (guest) return { kind: 'guest', id: guest.id };
   return null;

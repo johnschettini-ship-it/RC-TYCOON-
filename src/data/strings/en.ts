@@ -30,6 +30,8 @@ import { perfStrings } from './perf';
 import { offlineStrings } from './offline';
 // Build 3 gate: content names generated from the catalogs (`content.<id>`).
 import { contentStrings } from './content';
+// Queue clarity (spec 2026-11-18): the queue card and queue warnings.
+import { queueStrings } from './queues';
 // Stage 1 realistic test: only the VITE_ART=real build has the benchmark, so only it carries its strings.
 import { realBenchStrings } from './realBench';
 // Realistic card frames: only the VITE_ART=real build marks the cards the park cannot pay for.
@@ -61,6 +63,7 @@ export const en: Record<string, string> = {
   ...perfStrings,
   ...offlineStrings,
   ...contentStrings,
+  ...queueStrings,
   ...(import.meta.env?.VITE_ART === 'real' ? realBenchStrings : {}),
   ...(import.meta.env?.VITE_ART === 'real' ? realCardsStrings : {}),
   ...(import.meta.env?.VITE_ART === 'real' ? realBridgeStrings : {}),
