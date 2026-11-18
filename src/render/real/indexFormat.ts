@@ -12,7 +12,12 @@ export type SetKey = string;
  * ox/oy: offset from the object's game anchor (the screen point tileToScreen gives for the
  * same world point today's sprite uses) to the frame's top-left, in density pixels.
  */
-export interface RealFrame { sheet: string; sx: number; sy: number; w: number; h: number; ox: number; oy: number }
+/**
+ * A frame: its rectangle on a sheet and its offset from the anchor (density px). `density` (batch 5 Task 4, track
+ * shadows): the picture is at this lower density than its set's (a soft shadow keeps no detail a density-2 picture
+ * lacks); the game draws it scaled up. Absent: the set's density.
+ */
+export interface RealFrame { sheet: string; sx: number; sy: number; w: number; h: number; ox: number; oy: number; density?: 2 }
 
 export interface RealSetEntry {
   key: SetKey;

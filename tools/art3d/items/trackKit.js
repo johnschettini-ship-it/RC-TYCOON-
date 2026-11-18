@@ -15,8 +15,8 @@
 //                                 anchor (track/layer.ts projects z = 0). A frame that takes the track colour everywhere
 //                                 sits on an alpha-tint sheet (no mask: its alpha is the mask); a piece with untinted
 //                                 parts (station deck, brake fins, water) is shot with a mask of its rail material and
-//                                 sits on a masked sheet. A tile over TALL_M of rail range is cut into stacked sub-frames
-//                                 (trackKeys.js), each clipped to its height band and anchored at the same point.
+//                                 sits on a masked sheet. One picture per tile: a tile over TALL_M of rail range fails
+//                                 the frame plan (trackKeys.js; the reader has no sub-frames).
 //   support:<type>:d*:r<t>        frames [`foot`], [`seg`], [`top`], stacked by the game (one picture per heading t):
 //                                 foot  anchored at the column axis on the ground (a concrete footing 0.25 m high);
 //                                 seg   a 1 m column segment anchored at its bottom centre on the axis: segment i goes
@@ -24,7 +24,8 @@
 //                                       stacks overlap;
 //                                 top   the saddle across the track heading t, anchored on the axis at the plate's
 //                                       bottom: plate 0.22 m high, then a 0.45 m post (0.67 m in all). The game puts
-//                                       this anchor SUPPORT_TOP_BELOW_RAIL = 1.2 m under the rail line
+//                                       this anchor SUPPORT_TOP_BELOW_RAIL = 1.2 m under the rail line (the steel
+//                                       spec's supportTopBelowRail, which the card stacks with)
 //                                       (src/render/real/supportStack.ts), so the post ends 0.53 m under it, just inside
 //                                       the bottom face of the steel spine (0.27-0.57 m under the rail line).
 //                                 Support mask (not the footing): the game tints it with the ride's support colour.
@@ -32,7 +33,20 @@
 //                                 of the class whose yaw is in quadrant q (trackClasses.ts carQuadrant: the game picks
 //                                 the set by the car's view yaw). Anchor: the car's centre on the rail line (the sampled
 //                                 track point). Car-body mask.
-// No shadows, chain troughs or water channels yet (Tasks 4, 5 and 14). Chain dashes stay live (track/layer.ts).
+// Shadows (Task 4, src/render/real/trackShadow.ts), untinted on plain sheets (no mask, no tint), and soft: every set
+// holds them at the bake's lowest density (frame `density`: 2; at d4 they cost 1.37 MB and 39 MiB decoded, which put
+// the steel coaster over its 6 MB size rule):
+//   rail    [pieceId, `t<i>`, `sh`] in the tile's rail set: the tile's share of the rail (cut by the tile's clip on
+//           the caster only, or the tile's runs) shadowed by the bake's sun onto a plane SHADOW_PLANE_BELOW_M under the
+//           tile's lowest rail, anchored like the rail. The game shifts it onto the ground along the sun.
+//   support [`foot`, `sh`], [`seg`, `sh`], [`top`, `sh`]: each part's shadow onto a plane at its own anchor (the
+//           segment's from a 1 m column, so stacked segment shadows meet without the 0.1 m overlap darkening).
+//   Car shadows are live ellipses (owner decision D1 a): no art.
+// Chain troughs (Task 5): [pieceId, `t<i>`, `chain`] for every rail tile of a chainable piece, in the rail's set on a plain
+//   sheet (untinted), anchored like the rail and clipped like it, the rail held out so the trough (drawn over the
+//   rail on a chained piece) never covers a rail in front. Its chain's top is CHAIN_LINE_M (src/render/real/
+//   trackChain.ts), where the game draws today's moving dashes, restyled (track/layer.ts drawChain).
+// No water channels yet (Task 14).
 //
 // Styles: one entry per `render.rail`, `render.supports` and `render.car` of the track types
 // (src/data/track/trackTypes.ts). Batch 5 adds a type's styles with its module (Tasks 6-7, 10-12, 14-15); Task 3 has
@@ -40,8 +54,10 @@
 import { THREE, kit } from './common.js';
 import { M, V } from '../kit.js';
 import { sweep, boxProfile, Beams, sitCar } from '../rides.js';
-import { bakeCamera } from '../camera.ts';
-import { SUB_M, SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey } from './trackKeys.js';
+import { CAR_TILT_STEPS, CAR_YAW_STEPS } from '../../../src/render/real/pose';
+import { SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey, supportShadowKey } from './trackKeys.js';
+import { SHADOW_PLANE_BELOW_M } from '../../../src/render/real/trackShadowPlane';
+import { CHAIN_LINE_M } from '../../../src/render/real/trackChain';
 
 const hex = (m) => (!Array.isArray(m) && m.color ? `#${m.color.getHexString()}` : '');
 
@@ -128,8 +144,33 @@ export const RAIL_STYLES = {
       }
       return g;
     },
+    // The chain lift trough (Task 5): a U channel between the rails under the rail line, a chain along its middle whose
+    // top is the game's CHAIN_LINE_M (the live dashes run on it), links every sample. Untinted (dark steel).
+    trough(K, F) {
+      const g = new THREE.Group();
+      g.add(sweep(F, boxProfile(0, -0.095, 0.24, 0.02), K.mat.darkSteel, { uvLen: 2 }));
+      for (const side of [-1, 1]) g.add(sweep(F, boxProfile(side * 0.11, -0.065, 0.02, 0.06), K.mat.darkSteel, { uvLen: 2 }));
+      g.add(sweep(F, boxProfile(0, CHAIN_LINE_M - 0.02, 0.05, 0.04), CHAIN_MAT(), { uvLen: 2 }));
+      const links = new Beams();
+      for (let i = 0; i <= F.NS; i++) {
+        const p = F.P[i], t = F.Tn[i], u = F.Up[i];
+        const c = p.clone().addScaledVector(u, CHAIN_LINE_M - 0.015);
+        links.add(c.clone().addScaledVector(t, -0.07), c.clone().addScaledVector(t, 0.07), 0.08, 0.03, u);
+      }
+      g.add(links.mesh(CHAIN_MAT()));
+      return g;
+    },
   },
 };
+
+let chainMat = null;
+const CHAIN_MAT = () => (chainMat ??= new THREE.MeshPhysicalMaterial({ color: '#34383e', roughness: 0.35, metalness: 0.85 }));
+
+/** A chain lift trough of one piece (Task 5), in `style` (default steel), clipped by the caller like the rail. */
+export function troughModel(K, s, style = RAIL_STYLES.steel) {
+  if (!style.trough) throw new Error('the rail style has no chain trough');
+  return style.trough(K, extended(framesOf(s))); // with the run-on, as the rail: slope seams meet
+}
 
 /** The rail of one piece from its game samples, in `style` (default steel). */
 export function railModel(K, s, special, mats, style = RAIL_STYLES.steel, gauge = style.gauge) {
@@ -208,9 +249,13 @@ export const CAR_STYLES = {
   },
 };
 
-/** Turns `car` to a quantised pose (yaw of 32, pitch and roll of 24 steps, src/render/real/pose.ts). */
+/**
+ * Turns `car` to a quantised pose: yaw in CAR_YAW_STEPS, pitch and roll in CAR_TILT_STEPS (src/render/real/pose.ts).
+ * The steps are the reader's, not a style's: the game quantises every type's cars with them (look/track.ts), so a type
+ * baked with steps of its own would be drawn in the wrong poses.
+ */
 export function poseCar(car, p) {
-  const yaw = (p.yaw / 32) * Math.PI * 2, pitch = (p.pitch / 24) * Math.PI * 2, roll = (p.roll / 24) * Math.PI * 2;
+  const yaw = (p.yaw / CAR_YAW_STEPS) * Math.PI * 2, pitch = (p.pitch / CAR_TILT_STEPS) * Math.PI * 2, roll = (p.roll / CAR_TILT_STEPS) * Math.PI * 2;
   const tn = V(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw)).normalize();
   const lat = lateralOf(tn, yaw, Math.cos(pitch));
   const up = tn.clone().cross(lat).normalize();
@@ -230,6 +275,8 @@ export function stylesOf(spec) {
 }
 
 // ------------------------------------------------------------------ the bake loop
+/** Writes depth, no colour: the rail held out while its chain trough is shot (Task 5). */
+const DEPTH_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false });
 /**
  * Bakes one track type from its style spec:
  *   spec = { item, rail, supports, car (style names or style objects), colours: { track, supports, cars } (the
@@ -245,7 +292,6 @@ export function bakeTrackType(B, spec) {
   const railMat = st.rail.material(spec.colours.track);
   const supMat = st.supports.material(spec.colours.supports);
   const bs = B.newScene();
-  const hs = bakeCamera(0, 4).heightScale;
 
   // ---- rails: per class, heading, piece and rail tile, clipped to the tile.
   // The clip planes are global, so they cut the hold-out ground to the tile too, and anything under the ground
@@ -284,28 +330,46 @@ export function bakeTrackType(B, spec) {
       holder.add(model);
       bs.world.add(holder);
       B.setEnv(holder);
-      cur = { at, model, holder };
+      cur = { at, model, holder, trough: null };
     }
     cur.model.position.set(-(f.tile.x + 0.5) * 4, 0, -(f.tile.y + 0.5) * 4);
-    const tileClip = clipOf(f.tile);
-    if (runs && f.sub === null) B.clip(null); // cut by its runs, across the track (bakeNode.ts trackRuns)
-    else if (f.sub === null) B.clip(tileClip);
-    else {
-      // a tall tile's sub-frame k: its band of SUB_M of rail range (the first takes all below, the last all above)
-      const planes = tileClip.map(([nx, nz, k]) => new THREE.Plane(new THREE.Vector3(nx, 0, nz), k));
-      const lo = f.tile.railMin + f.sub * SUB_M;
-      if (f.sub > 0) planes.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -lo * hs));
-      if (f.sub < f.subs - 1) planes.push(new THREE.Plane(new THREE.Vector3(0, -1, 0), (lo + SUB_M) * hs));
-      B.clipPlanes(planes);
-    }
+    B.clip(runs ? null : clipOf(f.tile)); // a piece cut by its runs is cut across the track (bakeNode.ts trackRuns)
     const shot = f.alpha ? B.shoot(bs, { target: cur.holder }) : B.shoot(bs, { target: cur.holder, masked: (m) => m.material === railMat });
     setOf(f.cls, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
     B.clip(null);
+    // its shadow: the caster cut to the tile on its own materials (a global clip would cut the catcher too)
+    const [x0, x1, y0, y1] = f.tile.clip ?? [-2, 2, -2, 2];
+    const sh = B.shootShadow(bs, cur.holder, { clip: runs ? undefined : clipOf(f.tile), plane: f.tile.railMin - SHADOW_PLANE_BELOW_M, region: runs ? undefined : [x0, x1, y0, y1] });
+    setOf(f.cls, f.heading).add([f.shadow], sh, { plain: true, low: true });
+    if (f.chain) {
+      // its chain trough (Task 5): clipped like the rail, the rail held out (depth only) so the trough's picture, drawn
+      // over the rail by the game, never covers a rail in front of it
+      if (!cur.trough) {
+        const pc = track.pieces[f.piece];
+        const tm = troughModel(K, pc.dirs[f.heading], st.rail);
+        const th = new THREE.Group();
+        th.add(tm);
+        B.setEnv(th);
+        cur.trough = { model: tm, holder: th };
+      }
+      cur.trough.model.position.copy(cur.model.position);
+      bs.world.add(cur.trough.holder);
+      const saved = [];
+      cur.model.traverse((o) => { if (o.isMesh) { saved.push([o, o.material]); o.material = DEPTH_ONLY; } });
+      B.clip(clipOf(f.tile));
+      // no hold-out ground: on a flat piece the trough is a few cm under the rail line, which the ground at the piece's
+      // height would hide in every picture (a flat chain straight lost its trough); the game shows the trough wherever
+      // it draws the dashes
+      setOf(f.cls, f.heading).add([f.chain], B.shoot(bs, { target: cur.trough.holder, noGround: true }), { plain: true });
+      B.clip(null);
+      for (const [o, m] of saved) o.material = m;
+      bs.world.remove(cur.trough.holder);
+    }
     n++;
   }
   if (cur) bs.world.remove(cur.holder);
   bs.ground.material = holdOut;
-  B.log(`${spec.item}: ${n} rail pictures`);
+  B.log(`${spec.item}: ${n} rail pictures and their shadows, ${railFrames(track).filter((f) => f.chain).length} chain troughs`);
 
   // ---- supports per heading: foot, 1 m segment, top (the game stacks them)
   for (let t = 0; t < 4; t++) {
@@ -315,6 +379,8 @@ export function bakeTrackType(B, spec) {
       bs.world.add(m);
       B.setEnv(m);
       set.add([supportKey(part)], B.shoot(bs, { target: m, masked: (x) => x.material === supMat, noGround: part !== 'foot' }));
+      if (part === 'seg') m.scale.y = 1 / SEG_H; // the shadow of a 1 m column: stacked shadows meet, never overlap
+      set.add([supportShadowKey(part)], B.shootShadow(bs, m, { plane: 0 }), { plain: true, low: true });
       bs.world.remove(m);
     }
   }

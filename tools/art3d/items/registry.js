@@ -20,8 +20,11 @@ const FAMILY_DEPS = [...RIDE_DEPS, 'items/familyKeys.js', '../../src/render/spri
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = SCENERY_DEPS; // bench and bin bake through items/scenery.js, which imports sprites.ts
 
-/** Code every track type's pictures are built from: the track kit and its frame plan (batch 5 Task 3). */
-const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js'];
+/**
+ * Code every track type's pictures are built from: the track kit, its frame plan, the specs of the baked types and the
+ * reader's car pose steps (batch 5 Task 3 and its review fix), and the shadow numbers shared with the game (Task 4).
+ */
+const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js', 'items/trackSpecs.js', '../../src/render/real/pose.ts', '../../src/render/real/trackShadowPlane.ts', '../../src/render/real/trackChain.ts'];
 
 /**
  * Baked track types (batch 5): the type id (TRACK_RIDES) and its module, a style spec on the track kit. The bake input

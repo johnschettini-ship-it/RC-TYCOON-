@@ -17,8 +17,10 @@ import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
 import { previewPieces } from '../../src/render/track/preview';
 import { paletteColour } from '../../src/render/track/colours';
 import { repackPng } from './pngRepack';
+import { MASK_COVERAGE_FLOOR, coverageKind } from './maskFloors';
+import { trackSpecOf, type TrackSpec } from './items/trackSpecs.js';
 
-export { itemSpec, contentHash, checkIndex, checkCoverFolder, coverDecoded, titleDecoded, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES, repackPng };
+export { itemSpec, contentHash, checkIndex, checkCoverFolder, coverDecoded, titleDecoded, reachedPoses, cacheKey, sizeReport, formatSizeReport, S5_LIMIT_BYTES, repackPng, MASK_COVERAGE_FLOOR, coverageKind };
 export type { ItemKind };
 
 /** One car pose (quantised yaw 0-31, pitch and roll 0-23: src/render/real/pose.ts) and its yaw quadrant (car set `r<q>`). */
@@ -31,11 +33,10 @@ export interface PieceDir {
 
 /** Rail samples running along a tile edge (the track's width across it) before a piece is cut by track runs, not planes. */
 export const STRADDLE_SAMPLES = 16;
-/** Half the width a rail tile's track takes across (the steel rails are 0.5 m off the rail line, 0.055 m thick). */
-const STRADDLE_HALF_M = 0.6;
 
 /**
- * A piece whose track runs ALONG a tile edge for more than STRADDLE_SAMPLES samples (4 m) is cut between its tile
+ * A piece whose track runs ALONG a tile edge (within `straddleHalfM`, the type spec's half track width, either side) for
+ * more than STRADDLE_SAMPLES samples (4 m) is cut between its tile
  * pictures by track runs instead of the tile's clip planes (`runs`: the sample ranges [a, b] each rail tile draws):
  * a plane along the track splits its rails and spine lengthwise, and the two halves, drawn by two tiles in the game's
  * tile order, overlap in a notch or an X (the vertical loop's top runs along y = 0 for about 10 m, fix wave). A run
@@ -46,12 +47,13 @@ const STRADDLE_HALF_M = 0.6;
 export function trackRuns<T extends { x: number; y: number; rail: boolean; clip?: [number, number, number, number] }>(
   s: { n: number; x: ArrayLike<number>; y: ArrayLike<number>; yaw: ArrayLike<number>; bankSin: ArrayLike<number>; bankCos: ArrayLike<number> },
   tiles: T[],
+  straddleHalfM: number,
 ): (T & { runs?: [number, number][] })[] {
   const tileOf = (x: number, y: number): string => `${Math.floor(x / 4)},${Math.floor(y / 4)}`;
   let run = 0, best = 0;
   for (let k = 0; k < s.n; k++) {
     const yaw = s.yaw[k] as number, roll = Math.atan2(s.bankSin[k] as number, s.bankCos[k] as number);
-    const lx = -Math.sin(yaw) * Math.cos(roll) * STRADDLE_HALF_M, ly = Math.cos(yaw) * Math.cos(roll) * STRADDLE_HALF_M;
+    const lx = -Math.sin(yaw) * Math.cos(roll) * straddleHalfM, ly = Math.cos(yaw) * Math.cos(roll) * straddleHalfM;
     const c = tileOf(s.x[k] as number, s.y[k] as number);
     const off = tileOf((s.x[k] as number) + lx, (s.y[k] as number) + ly) !== c || tileOf((s.x[k] as number) - lx, (s.y[k] as number) - ly) !== c;
     run = off ? run + 1 : 0;
@@ -110,7 +112,7 @@ export function clipRects<T extends { x: number; y: number; railMin: number; rai
 /**
  * The bake input of a track type (items/trackKit.js bakeTrackType, frame plan items/trackKeys.js):
  *   pieces   every piece the type builds (`typeBuildsPiece`), with its class, its special, whether it has untinted
- *            parts (`UNTINTED_GROUPS`: masked sheet, not alpha) and its samples and tiles at every heading;
+ *            parts (`UNTINTED_GROUPS`: masked sheet, not alpha), whether it takes a chain lift (`chainable`: Task 5's trough) and its samples and tiles at every heading;
  *   classes  in `TRACK_CLASSES` order, the class's pieces and its car poses (`poseClassOf`, as the game files them), each
  *            with its yaw quadrant `q` (`carQuadrant`: the car set `car:<type>~<class>:r<q>` it goes in);
  *   spins    `vehicle.spins`: every reached (pitch, roll) at all 32 yaws; a yaw no piece reaches files under `base`;
@@ -118,11 +120,11 @@ export function clipRects<T extends { x: number; y: number; railMin: number; rai
  */
 export interface TrackBakeInput {
   type: string; spins: boolean; front: boolean;
-  pieces: Record<string, { special: string | null; group: string; cls: TrackClass; untinted: boolean; dirs: PieceDir[] }>;
+  pieces: Record<string, { special: string | null; group: string; cls: TrackClass; untinted: boolean; chainable: boolean; dirs: PieceDir[] }>;
   classes: { cls: TrackClass; pieces: string[]; poses: BakePose[] }[];
 }
 
-export function trackGeometry(typeId: string): TrackBakeInput {
+export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHalfM'> = trackSpecOf(typeId)): TrackBakeInput {
   const type = getTrackTypeDef(typeId);
   if (!type) throw new Error(`trackGeometry: unknown track type ${typeId}`);
   const ids = typePieces(typeId);
@@ -136,10 +138,10 @@ export function trackGeometry(typeId: string): TrackBakeInput {
       const s = pieceWorldSamples(piece);
       dirs.push({
         n: s.n, x: [...s.x], y: [...s.y], z: [...s.z], yaw: [...s.yaw], pitch: [...s.pitch], bankSin: [...s.bankSin], bankCos: [...s.bankCos],
-        tiles: trackRuns(s, clipRects(pieceWorldTiles(piece))),
+        tiles: trackRuns(s, clipRects(pieceWorldTiles(piece)), spec.straddleHalfM),
       });
     }
-    pieces[id] = { special: def.special ?? null, group: def.group, cls: pieceClass(id), untinted: UNTINTED_GROUPS.includes(def.group), dirs };
+    pieces[id] = { special: def.special ?? null, group: def.group, cls: pieceClass(id), untinted: UNTINTED_GROUPS.includes(def.group), chainable: !!def.chainable, dirs };
   }
   const spins = type.vehicle.spins;
   const front = hasFrontCar(typeId);

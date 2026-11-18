@@ -66,6 +66,7 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
       if (!okNum(f.sx) || !okNum(f.sy) || !okNum(f.w) || !okNum(f.h)) { problems.push(`${set.key}: frame ${k} has a non-finite or negative rectangle`); continue; }
       if (f.sx + f.w > sh.w || f.sy + f.h > sh.h) problems.push(`${set.key}: frame ${k} outside sheet ${f.sheet}`);
       if (!Number.isFinite(f.ox) || !Number.isFinite(f.oy)) problems.push(`${set.key}: frame ${k} has non-finite ox/oy`);
+      if (f.density !== undefined && (f.density !== 2 || set.density === 2 || !UNTINTED_PART.test(k))) problems.push(`${set.key}: frame ${k} has density ${String(f.density)}; only an untinted track frame of a density-4 set may be kept at density 2`);
     }
   }
   // Track class sets and alpha tint (batch 5 Task 2): a `<type>~<class>` item names a known class and only rail and car
@@ -80,6 +81,17 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
       for (const [k, f] of Object.entries(set.frames)) {
         const g = getTrackPieceDef(k.split(':')[0] ?? '')?.group;
         if (g !== undefined && UNTINTED_GROUPS.includes(g) && alphaSheets.has(f.sheet)) problems.push(`${set.key}: frame ${k} (group ${g}: untinted parts) is on alpha-tint sheet ${f.sheet}; it needs a masked sheet`);
+      }
+    }
+    // Untinted track extras (batch 5 Tasks 4-5: shadows `…:sh`, chain troughs `…:chain`) sit on plain sheets (no mask,
+    // no tint, not a mask), and every other frame of a track set on a tinted one (a mask, or alpha-tint).
+    if (set.kind === 'rail' || set.kind === 'support' || set.kind === 'car') {
+      const masks = new Set(set.sheets.flatMap((s) => (s.mask === undefined ? [] : [s.mask])));
+      const plain = new Set(set.sheets.filter((s) => s.mask === undefined && s.tint === undefined && !masks.has(s.file)).map((s) => s.file));
+      for (const [k, f] of Object.entries(set.frames)) {
+        const extra = UNTINTED_PART.test(k);
+        if (extra && !plain.has(f.sheet)) problems.push(`${set.key}: frame ${k} (untinted) is on tinted sheet ${f.sheet}; it needs a plain sheet`);
+        else if (!extra && plain.has(f.sheet)) problems.push(`${set.key}: frame ${k} is on plain sheet ${f.sheet}; only shadows and chain troughs are untinted`);
       }
     }
     for (const s of set.sheets) {
@@ -184,9 +196,15 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
  *     finds it;
  *   - stage 1 layout (`rail:<type>`, `car:<type>`, which the game still reads): the one set per heading (and the one car
  *     set).
- * A type may not have both layouts (the game would load both). A rail tile cut into stacked sub-frames (trackKeys.js:
- * `<piece>:t<i>:u<k>`) counts as present when its `u0` frame is.
+ * A type may not have both layouts (the game would load both). A rail tile cut into stacked sub-frames
+ * (`<piece>:t<i>:u<k>`) is a problem: the reader draws one picture per tile and never looks a sub-frame up (Task 3
+ * review P2), so such a tile is both missing and carrying frames nothing draws.
  */
+/** A track frame that is never tinted (batch 5): a shadow (`…:sh`, Task 4) or a chain trough (`…:chain`, Task 5). */
+const UNTINTED_PART = /:(sh|chain)$/;
+/** Every frame of a support set of a class-layout type: the parts and their shadows. */
+const SUPPORT_FRAMES = ['foot', 'seg', 'top', 'foot:sh', 'seg:sh', 'top:sh'];
+
 export function trackComplete(index: RealIndex): string[] {
   const problems: string[] = [];
   const types = new Set(index.sets.filter((s) => s.kind === 'rail' || s.kind === 'car').map((s) => trackTypeOfItem(s.item)));
@@ -215,6 +233,13 @@ export function trackComplete(index: RealIndex): string[] {
     const carItem = (code: number): string => (classed('car') ? `${type}~${poseClassOf(type, code)}` : type);
     /** The set a car frame is in: its yaw quadrant's in the class layout, the one `rall` set in the stage 1 layout. */
     const carRot = (yaw: number): number | 'all' => (classed('car') ? carQuadrant(yaw) : 'all');
+    // A support set of a class-layout type holds every part and its shadow (Task 4).
+    if (classed('rail')) {
+      for (const s of index.sets.filter((x) => x.kind === 'support' && x.item === type)) {
+        const l = SUPPORT_FRAMES.filter((fk) => !(fk in s.frames));
+        if (l.length) problems.push(`TRACK_COMPLETE support:${type} d${s.density} r${s.rot}: ${l.length} support frame(s) missing (${l.join(', ')})`);
+      }
+    }
     const poses = carPoses(type, pieces);
     const occs = hasFrontCar(type) ? ['full', 'empty', 'full:front', 'empty:front'] : ['full', 'empty'];
     for (const d of index.densities) {
@@ -224,10 +249,38 @@ export function trackComplete(index: RealIndex): string[] {
           const item = railItem(pc);
           railTileRanges(pc, h).forEach((_, ti) => {
             const fk = `${pc}:t${ti}`;
-            if (!has('rail', item, d, h, fk) && !has('rail', item, d, h, `${fk}:u0`)) (lack.get(item) ?? lack.set(item, []).get(item)!).push(fk);
+            if (!has('rail', item, d, h, fk)) (lack.get(item) ?? lack.set(item, []).get(item)!).push(fk);
           });
         }
         for (const [item, l] of lack) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} rail frame(s) missing (${l.slice(0, 4).join(', ')})`);
+        // the class layout (batch 5) bakes every rail tile's shadow (Task 4)
+        if (classed('rail')) {
+          const noShadow = new Map<string, string[]>();
+          for (const pc of pieces) {
+            const item = railItem(pc);
+            railTileRanges(pc, h).forEach((_, ti) => {
+              const fk = `${pc}:t${ti}:sh`;
+              if (has('rail', item, d, h, `${pc}:t${ti}`) && !has('rail', item, d, h, fk)) (noShadow.get(item) ?? noShadow.set(item, []).get(item)!).push(fk);
+            });
+          }
+          for (const [item, l] of noShadow) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} rail shadow(s) missing (${l.slice(0, 4).join(', ')})`);
+          // and every rail tile's chain trough of a chainable piece (Task 5)
+          const noTrough = new Map<string, string[]>();
+          for (const pc of pieces) {
+            if (!getTrackPieceDef(pc)?.chainable) continue;
+            const item = railItem(pc);
+            railTileRanges(pc, h).forEach((_, ti) => {
+              const fk = `${pc}:t${ti}:chain`;
+              if (has('rail', item, d, h, `${pc}:t${ti}`) && !has('rail', item, d, h, fk)) (noTrough.get(item) ?? noTrough.set(item, []).get(item)!).push(fk);
+            });
+          }
+          for (const [item, l] of noTrough) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} chain trough(s) missing (${l.slice(0, 4).join(', ')})`);
+        }
+        for (const s of ofType) {
+          if (s.kind !== 'rail' || s.density !== d || s.rot !== h) continue;
+          const subs = Object.keys(s.frames).filter((fk) => /:u\d+$/.test(fk));
+          if (subs.length) problems.push(`TRACK_COMPLETE rail:${s.item} d${d} r${h}: sub-frame(s) the reader never draws (${subs.slice(0, 4).join(', ')})`);
+        }
       }
       const lack = new Map<string, string[]>();
       for (const p of poses) {

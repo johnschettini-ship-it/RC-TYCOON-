@@ -67,7 +67,7 @@ There are 56 pieces in all: 31 rail pieces in `pieces.ts`, 6 in `extraPieces.ts`
   - compressed ≤ 6 MB for types with loop, corkscrew or helix pieces, and ≤ 3 MB for the rest;
   - every set ≤ 8 MiB decoded at d4, mask included;
   - the bench circuit of the type ≤ 32 MiB resident at d4, masks included.
-- Tall rail tiles: a picture taller than 1024 px at d4 (the atlas's largest side) is cut into stacked sub-frames (`[pieceId, tN, 'u<k>']`), drawn bottom-up like supports. This is needed for any new piece over about 24 m in one tile.
+- Tall rail tiles: a picture taller than 1024 px at d4 (the atlas's largest side) cannot be tinted. **Changed in the Task 3 review fix (P2):** sub-frames (`[pieceId, tN, 'u<k>']`) are not used. The reader draws one picture per tile, so the frame plan (`trackKeys.js`) refuses a tile over `TALL_M` = 22 m of rail range and `checkIndex` rejects any `u<k>` frame. No piece of the 17 types needs one: the tallest tile is the vertical loop's, 13 m. A future piece over 22 m in one tile needs the reader to stack sub-frames first.
 - Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01Q5pHggx1eLkEH7W16KJFwP`.
 - Gate per task:
   - `npx tsc --noEmit`;
@@ -191,6 +191,7 @@ The instrument comes before the art, so later tasks are graded against a number 
 - Support shadow: one `seg` shadow per heading, repeated along the same shift for the column height, plus the footing's contact shadow.
 - Cars: decision D1 (proposal: a soft ellipse drawn live under each car at its ground point, shifted by height, no art).
 - [ ] Steps: failing placement tests (shift per metre, drawn after the ground and before depth-sorted objects, one draw per slice); implement; bake; look at a 20 m lift on grass and on a slope; commit `feat(real): track shadows`.
+- **Done (b5-t4).** As built: the rail shadow lies on a plane `SHADOW_PLANE_BELOW_M` = 1.5 m under the tile's lowest rail (`src/render/real/trackShadowPlane.ts`), not at the rail line, so a descending piece's spine is not under its own catcher; the game shifts it by `(plane − ground) × sunShift()`. Support shadows are `foot:sh`, `seg:sh` (from a 1 m column) and `top:sh`. Shadows sit on plain sheets (no mask, no tint) and every set keeps them at density 2 (frame `density: 2`): at d4 they cost 1.37 MB and 39 MiB decoded and put steel over its 6 MB rule. Cars: D1 (a), a live ellipse (`src/render/track/realShadow.ts`). Known limit: the ground is taken flat at the slice's (or car's) tile, so a shadow over a slope or past the map edge is not bent or cut.
 
 ### Task 5: Chain lifts
 
@@ -198,6 +199,7 @@ The instrument comes before the art, so later tasks are graded against a number 
 - Modify: `tools/art3d/items/trackKit.js` (chain trough frames for `chainable` pieces: `[pieceId, tN, 'chain']`, masked out, so untinted), `src/render/track/layer.ts` (realistic: draw the baked trough after the rail when `piece.chain`, then today's moving dashes, at the realistic rail line's height and in a darker, thinner style)
 - Test: `trackReal.test.ts`
 - [ ] Steps: failing test (a chained piece draws rail, trough, dashes in that order; an unchained one draws the rail only); implement; bake; look at it at zoom 2; commit `feat(real): baked chain troughs with live dashes`.
+- **Done (b5-t4).** Troughs for every rail tile of a `chainable` piece (28 for steel), on plain sheets at full density, shot with the rail held out (depth only) and without the hold-out ground (a flat chain straight's trough sat under it). The chain's top is `CHAIN_LINE_M` = −0.04 m (`src/render/real/trackChain.ts`), where the realistic dashes run (`CHAIN_STYLE`: thinner, darker). TRACK_COMPLETE wants every trough.
 
 ### Tasks 6–7: Dry gravity coaster modules (parallel worktrees)
 

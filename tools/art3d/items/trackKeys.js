@@ -4,33 +4,44 @@
 // The bake input (tools/art3d/bakeNode.ts trackGeometry(typeId)) carries the classes, computed with the game's own
 // src/render/real/trackClasses.ts: rail pieces grouped by `pieceClass`, car poses by `poseClassOf` (spin yaws a piece
 // never reaches resolve to `base` there, so they are filed under `~base`).
-//   rail:<type>~<class>:d*:r<t>   frames [pieceId, `t<rail tile>`] (stage 1 contract, steel_coaster.js), and for a tile
-//                                 taller than TALL_M of rail range, stacked sub-frames [pieceId, `t<i>`, `u<k>`]
-//                                 (k = 0 at the bottom), all anchored at the tile centre at piece.z, so the game draws
-//                                 them bottom-up at the one anchor.
-//   support:<type>:d*:r<t>        frames [`foot`], [`seg`], [`top`]
+//   rail:<type>~<class>:d*:r<t>   frames [pieceId, `t<rail tile>`] (stage 1 contract, steel_coaster.js), one picture per
+//                                 tile. No tile is cut into sub-frames: the reader draws one picture per tile, so a
+//                                 tile over TALL_M of rail range fails the plan (Task 3 review P2; the tallest tile of
+//                                 the 17 types is the vertical loop's, 13 m).
+//                                 Each rail tile also has its shadow [pieceId, `t<i>`, `sh`] (Task 4), and each tile of
+//                                 a chainable piece its chain trough [pieceId, `t<i>`, `chain`] (Task 5), untinted.
+//   support:<type>:d*:r<t>        frames [`foot`], [`seg`], [`top`], and their shadows [`<part>`, `sh`] (Task 4)
 //   car:<type>~<class>:d*:r<q>    frames [`y<yaw>`, `p<pitch>`, `r<roll>`, `full` | `empty`] and, for a type with a
 //                                 front car (input `front`), the same keys plus `front`. q: the pose's yaw quadrant
 //                                 (input pose `q`, trackClasses.ts carQuadrant; the game picks the set by the view yaw).
 import { frameKey } from '../../../src/render/real/indexFormat';
 
-/** A rail tile with more rail range than this (metres) is cut into sub-frames (d4 picture past the atlas's 1024 px). */
+/**
+ * The most rail range (metres) a rail tile may have: past it its d4 picture passes the tint atlas's 1024 px side and
+ * could not be tinted. The reader has no sub-frames, so the frame plan refuses such a tile instead of cutting it.
+ */
 export const TALL_M = 22;
-/** Rail range (metres) of one sub-frame of a tall tile. */
-export const SUB_M = 20;
 
 export const SUPPORT_PARTS = ['foot', 'seg', 'top'];
 
 /** The set item of a class: `<type>~<class>`. */
 export const classItem = (type, cls) => `${type}~${cls}`;
 
-/** Sub-frames a rail tile of `rangeM` metres of rail range is cut into (1: not cut). */
-export function subFrameCount(rangeM) {
-  return rangeM > TALL_M ? Math.ceil(rangeM / SUB_M) : 1;
+export function railKey(pieceId, ti) {
+  return frameKey([pieceId, `t${ti}`]);
 }
 
-export function railKey(pieceId, ti, sub = null) {
-  return frameKey(sub === null ? [pieceId, `t${ti}`] : [pieceId, `t${ti}`, `u${sub}`]);
+/**
+ * A rail tile's untinted extra picture (batch 5): `sh` its shadow (Task 4), `chain` its chain lift trough (Task 5).
+ * Frame [pieceId, `t<i>`, part] in the tile's rail set, on a plain sheet.
+ */
+export function railPartKey(pieceId, ti, part) {
+  return frameKey([pieceId, `t${ti}`, part]);
+}
+
+/** A support part's shadow (Task 4): frame [part, `sh`] in the support set, on a plain sheet. */
+export function supportShadowKey(part) {
+  return frameKey([part, 'sh']);
 }
 
 export function carKey(p, full, front = false) {
@@ -42,8 +53,8 @@ export function supportKey(part) {
 }
 
 /**
- * Every rail picture of the bake, in bake order: classes, then headings, then pieces, then rail tiles (then
- * sub-frames). `alpha`: the frame takes the track colour everywhere and goes on an alpha-tint sheet; a piece with
+ * Every rail picture of the bake, in bake order: classes, then headings, then pieces, then rail tiles; `shadow` the key
+ * of the tile's shadow (Task 4, shot with it), `chain` of a chainable piece's chain trough (Task 5; else null). `alpha`: the frame takes the track colour everywhere and goes on an alpha-tint sheet; a piece with
  * untinted parts (station deck, brake fins, water: input `untinted`) goes on a masked sheet.
  */
 export function railFrames(track) {
@@ -54,10 +65,8 @@ export function railFrames(track) {
       for (const id of c.pieces) {
         const pc = track.pieces[id];
         pc.dirs[t].tiles.filter((tile) => tile.rail).forEach((tile, ti) => {
-          const subs = subFrameCount(tile.railMax - tile.railMin);
-          for (let k = 0; k < subs; k++) {
-            out.push({ cls: c.cls, heading: t, piece: id, ti, tile, sub: subs > 1 ? k : null, subs, key: railKey(id, ti, subs > 1 ? k : null), alpha: !pc.untinted });
-          }
+          if (tile.railMax - tile.railMin > TALL_M) throw new Error(`${id} r${t} tile ${ti}: ${(tile.railMax - tile.railMin).toFixed(1)} m of rail, taller than ${TALL_M} m (no sub-frames: the reader draws one picture per tile)`);
+          out.push({ cls: c.cls, heading: t, piece: id, ti, tile, key: railKey(id, ti), shadow: railPartKey(id, ti, 'sh'), chain: pc.chainable ? railPartKey(id, ti, 'chain') : null, alpha: !pc.untinted });
         });
       }
     }

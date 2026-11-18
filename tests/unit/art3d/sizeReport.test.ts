@@ -139,7 +139,9 @@ describe('sizeReport', () => {
     /**
      * A complete fake bake of `type`'s `pieces` at both densities, in the class layout: each rail frame in
      * `<type>~<its piece class>` (an alpha sheet `a.webp`, or the masked sheet `m.webp` for station, brakes and water),
-     * each car pose in `<type>~<its pose class>`. `d4Sheet` sizes the d4 r0 base alpha sheet.
+     * each car pose in `<type>~<its pose class>`. `d4Sheet` sizes the d4 r0 base alpha sheet. Each rail tile's shadow
+     * (`<piece>:t<i>:sh`, Task 4) and a chainable piece's chain trough (`<piece>:t<i>:chain`, Task 5) are on the plain
+     * sheet `s.webp`.
      */
     const complete = (type: string, pieces: readonly string[], d4Sheet: [number, number] = [8, 8], opt: { spin?: boolean; front?: boolean } = {}): RealSetEntry[] => {
       const out: RealSetEntry[] = [];
@@ -150,12 +152,17 @@ describe('sizeReport', () => {
             const cls = pieceClass(pc);
             const masked = MASKED_GROUPS.includes(getTrackPieceDef(pc)!.group);
             const f = byClass.get(cls) ?? {};
-            railTileRanges(pc, r).forEach((_, ti) => { f[`${pc}:t${ti}`] = fr(masked ? 'm.webp' : 'a.webp'); });
+            const chain = !!getTrackPieceDef(pc)!.chainable;
+            railTileRanges(pc, r).forEach((_, ti) => {
+              f[`${pc}:t${ti}`] = fr(masked ? 'm.webp' : 'a.webp');
+              f[`${pc}:t${ti}:sh`] = fr('s.webp');
+              if (chain) f[`${pc}:t${ti}:chain`] = fr('s.webp');
+            });
             byClass.set(cls, f);
           }
           for (const [cls, frames] of byClass) {
             const [w, h] = d === 4 && r === 0 && cls === 'base' ? d4Sheet : [8, 8];
-            out.push({ ...set('rail', `${type}~${cls}`, d, r, 'a.webp'), sheets: [{ file: 'a.webp', w, h, tint: 'alpha' }, { file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }], frames });
+            out.push({ ...set('rail', `${type}~${cls}`, d, r, 'a.webp'), sheets: [{ file: 'a.webp', w, h, tint: 'alpha' }, { file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }, { file: 's.webp', w: 8, h: 8 }], frames });
           }
         }
         // cars by class and yaw quadrant (fix wave): `car:<type>~<class>:d*:r<q>`
@@ -189,7 +196,7 @@ describe('sizeReport', () => {
       }
       return out;
     };
-    const FILES = new Set(['a.webp', 'm.webp', 'mm.webp']);
+    const FILES = new Set(['a.webp', 'm.webp', 'mm.webp', 's.webp']);
     const steel = typePieces('steel_coaster');
     const junior = typePieces('junior_coaster');
     const inverted = typePieces('inverted_coaster');
@@ -272,13 +279,55 @@ describe('sizeReport', () => {
       expect(p[0]).toMatch(/^TRACK_COMPLETE car:mini_railway~\w+ d2 r\d: \d+ car frame\(s\) missing \(y\d+:p\d+:r\d+:full:front/);
       expect(trackComplete(index(complete('mini_railway', rail, [8, 8], { front: true })))).toEqual([]);
     });
-    it('a tall rail tile cut into sub-frames counts by its u0 frame (Task 3)', () => {
+    it('a rail tile cut into sub-frames is missing: the reader draws one picture per tile (Task 3 review P2)', () => {
       const sets = complete('junior_coaster', junior);
       const s = sets.find((x) => x.key === 'rail:junior_coaster~base:d4:r0')!;
       s.frames['straight:t0:u0'] = s.frames['straight:t0']!;
       s.frames['straight:t0:u1'] = s.frames['straight:t0']!;
       delete s.frames['straight:t0'];
-      expect(trackComplete(index(sets))).toEqual([]);
+      const p = trackComplete(index(sets));
+      expect(p).toContain('TRACK_COMPLETE rail:junior_coaster~base d4 r0: 1 rail frame(s) missing (straight:t0)');
+      expect(p).toContain('TRACK_COMPLETE rail:junior_coaster~base d4 r0: sub-frame(s) the reader never draws (straight:t0:u0, straight:t0:u1)');
+    });
+    it('a rail tile without its shadow fails; support sets need every part\'s shadow (Task 4)', () => {
+      const sets = complete('junior_coaster', junior);
+      delete sets.find((s) => s.key === 'rail:junior_coaster~base:d4:r0')!.frames['straight:t0:sh'];
+      const sup = { ...set('support', 'junior_coaster', 2, 1, 'sm.webp'), sheets: [{ file: 'sm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 's.webp', w: 8, h: 8 }], frames: Object.fromEntries(['foot', 'seg', 'top', 'foot:sh', 'top:sh'].map((k) => [k, fr(k.endsWith(':sh') ? 's.webp' : 'sm.webp')])) };
+      expect(trackComplete(index([...sets, sup]))).toEqual([
+        'TRACK_COMPLETE support:junior_coaster d2 r1: 1 support frame(s) missing (seg:sh)',
+        'TRACK_COMPLETE rail:junior_coaster~base d4 r0: 1 rail shadow(s) missing (straight:t0:sh)',
+      ]);
+    });
+    it('a chainable piece\'s rail tile without its chain trough fails; other pieces need none (Task 5)', () => {
+      const sets = complete('junior_coaster', junior);
+      const base = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r3')!;
+      delete base.frames['gentle_up:t0:chain'];
+      expect(trackComplete(index(sets))).toEqual(['TRACK_COMPLETE rail:junior_coaster~base d2 r3: 1 chain trough(s) missing (gentle_up:t0:chain)']);
+      expect(Object.keys(base.frames).some((k) => k.startsWith('station:') && k.endsWith(':chain'))).toBe(false);
+    });
+    it('shadows sit on plain sheets (no mask, no tint), and nothing else does (Task 4)', () => {
+      const sets = complete('junior_coaster', junior);
+      const rail = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r0')!;
+      rail.frames['straight:t0:sh'] = fr('a.webp'); // a shadow on the alpha sheet: it would be tinted
+      rail.frames['straight:t0'] = fr('s.webp'); // a rail on the plain sheet: it would never take the track colour
+      const p = checkIndex(index(sets), FILES).filter((x) => !x.startsWith('TRACK_COMPLETE'));
+      expect(p).toEqual([
+        'rail:junior_coaster~base:d2:r0: frame straight:t0 is on plain sheet s.webp; only shadows and chain troughs are untinted',
+        'rail:junior_coaster~base:d2:r0: frame straight:t0:sh (untinted) is on tinted sheet a.webp; it needs a plain sheet',
+      ]);
+    });
+    it('a shadow may be kept at density 2 in a density-4 set; nothing else may (Task 4)', () => {
+      const sets = complete('junior_coaster', junior);
+      const d4 = sets.find((s) => s.key === 'rail:junior_coaster~base:d4:r0')!;
+      const d2 = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r0')!;
+      d4.frames['straight:t0:sh'] = { ...d4.frames['straight:t0:sh']!, density: 2 };
+      expect(checkIndex(index(sets), FILES)).toEqual([]);
+      d4.frames['straight:t0'] = { ...d4.frames['straight:t0']!, density: 2 };
+      d2.frames['straight:t0:sh'] = { ...d2.frames['straight:t0:sh']!, density: 2 };
+      expect(checkIndex(index(sets), FILES)).toEqual([
+        'rail:junior_coaster~base:d2:r0: frame straight:t0:sh has density 2; only an untinted track frame of a density-4 set may be kept at density 2',
+        'rail:junior_coaster~base:d4:r0: frame straight:t0 has density 2; only an untinted track frame of a density-4 set may be kept at density 2',
+      ]);
     });
     it('a type with both layouts fails (review P2)', () => {
       const p = trackComplete(index([...complete('junior_coaster', junior), ...stage1('junior_coaster', junior).filter((s) => s.kind === 'rail')]));
@@ -289,7 +338,7 @@ describe('sizeReport', () => {
       const sets = complete('junior_coaster', junior);
       const rail = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r0')!;
       const car = sets.find((s) => s.key === 'car:junior_coaster~base:d2:r0')!;
-      rail.sheets = [{ file: 'a.webp', w: 8, h: 8, tint: 'alpha', mask: 'mm.webp' }, { file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }];
+      rail.sheets = [{ file: 'a.webp', w: 8, h: 8, tint: 'alpha', mask: 'mm.webp' }, { file: 'm.webp', w: 8, h: 8, mask: 'mm.webp' }, { file: 'mm.webp', w: 8, h: 8 }, { file: 's.webp', w: 8, h: 8 }];
       car.sheets = [{ file: 'm.webp', w: 8, h: 8, tint: 'alpha' }, { file: 'mm.webp', w: 8, h: 8 }];
       const sup = { ...set('support', 'junior_coaster~base', 2, 0, 'a.webp'), frames: {} };
       const odd = { ...set('rail', 'junior_coaster~zigzag', 2, 0, 'a.webp'), frames: {} };

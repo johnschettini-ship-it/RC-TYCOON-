@@ -1,5 +1,6 @@
 // The track kit's frame plan (batch 5 Task 3): what tools/art3d/items/trackKit.js shoots for a type, from the bake
 // input bakeNode.ts trackGeometry gives it, counted with the same plan (items/trackKeys.js) the kit loops over.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { TRACK_RIDES } from '../../../src/data/catalog';
 import { getTrackPieceDef, getTrackTypeDef } from '../../../src/data/track';
@@ -13,7 +14,7 @@ import { TRACK_SET_MAX_D4 } from '../../../tools/art3d/trackBudget';
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-interface RailFrame { cls: string; heading: number; piece: string; ti: number; sub: number | null; subs: number; key: string; alpha: boolean }
+interface RailFrame { cls: string; heading: number; piece: string; ti: number; key: string; shadow: string; chain: string | null; alpha: boolean }
 interface CarFrame { cls: string; q: number; pose: { yaw: number; pitch: number; roll: number }; full: boolean; front: boolean; key: string }
 
 describe('track kit frame plan', () => {
@@ -30,16 +31,19 @@ describe('track kit frame plan', () => {
     expect([t.spins, t.front]).toEqual([false, false]);
   });
 
-  it('per type: rail frames = rail tiles × 4 headings (+ sub-frames), car frames = poses × 2 (× 32 spin yaws, + front)', async () => {
-    const { railFrames, carFrames, subFrameCount } = await load('items/trackKeys.js');
+  it('per type: rail frames = rail tiles × 4 headings, car frames = poses × 2 (× 32 spin yaws, + front)', async () => {
+    const { railFrames, carFrames } = await load('items/trackKeys.js');
     for (const r of TRACK_RIDES) {
       const t = trackGeometry(r.id);
       const pieces = typePieces(r.id);
       let tiles = 0;
-      for (const pc of pieces) for (const h of [0, 1, 2, 3] as const) for (const range of railTileRanges(pc, h)) tiles += subFrameCount(range);
+      for (const pc of pieces) for (const h of [0, 1, 2, 3] as const) tiles += railTileRanges(pc, h).length;
       const rails: RailFrame[] = railFrames(t);
       expect(rails.length, r.id).toBe(tiles);
       expect(new Set(rails.map((f) => `${f.cls}|${f.heading}|${f.key}`)).size, `${r.id}: one picture per key and set`).toBe(rails.length);
+      for (const f of rails) expect(f.shadow, r.id).toBe(`${f.key}:sh`); // and its shadow (Task 4)
+      // and, for a chainable piece, its chain trough (Task 5)
+      for (const f of rails) expect(f.chain, `${r.id} ${f.key}`).toBe(getTrackPieceDef(f.piece)!.chainable ? `${f.key}:chain` : null);
       const cars: CarFrame[] = carFrames(t);
       expect(cars.length, r.id).toBe(carFramesOf(r.id, pieces).frames);
       const type = getTrackTypeDef(r.id)!;
@@ -63,7 +67,9 @@ describe('track kit frame plan', () => {
         sets.get(k)!.frames[key] = fr;
       };
       for (const d of [2, 4] as const) {
-        for (const f of railFrames(t) as RailFrame[]) add('rail', classItem(r.id, f.cls), d, f.heading as 0, f.key);
+        for (const f of railFrames(t) as RailFrame[]) {
+          for (const k of [f.key, f.shadow, ...(f.chain ? [f.chain] : [])]) add('rail', classItem(r.id, f.cls), d, f.heading as 0, k);
+        }
         for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.cls), d, f.q as 0, f.key);
       }
       const index: RealIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
@@ -96,18 +102,18 @@ describe('track kit frame plan', () => {
     }
   });
 
-  it('a tile taller than TALL_M is cut into stacked sub-frames u0.., bottom first', async () => {
-    const { railFrames, subFrameCount, TALL_M, SUB_M } = await load('items/trackKeys.js');
-    expect(subFrameCount(TALL_M)).toBe(1);
-    expect(subFrameCount(TALL_M + 0.1)).toBe(Math.ceil((TALL_M + 0.1) / SUB_M));
+  it('no sub-frames (Task 3 review P2): a tile taller than TALL_M fails the frame plan, and no piece of the 17 types has one', async () => {
+    const { railFrames, TALL_M } = await load('items/trackKeys.js');
     const t = trackGeometry('steel_coaster');
     const tall = structuredClone(t);
     tall.classes = [{ cls: 'base', pieces: ['straight'], poses: [] }];
-    tall.pieces.straight!.dirs[0]!.tiles = [{ x: 0, y: 0, railMin: 0, railMax: 41, rail: true }];
-    const f = (railFrames(tall) as RailFrame[]).filter((x) => x.heading === 0);
-    expect(f.map((x) => x.key)).toEqual(['straight:t0:u0', 'straight:t0:u1', 'straight:t0:u2']);
-    // no steel tile is that tall (the loop is 16 m): the steel coaster has no sub-frames
-    expect((railFrames(t) as RailFrame[]).some((x) => x.sub !== null)).toBe(false);
+    tall.pieces.straight!.dirs[0]!.tiles = [{ x: 0, y: 0, railMin: 0, railMax: TALL_M + 0.1, rail: true }];
+    expect(() => railFrames(tall)).toThrow(/straight.*taller than/);
+    // the tallest tile of any piece of any type is the vertical loop's (13 m): the plan never cuts a tile
+    let max = 0;
+    for (const r of TRACK_RIDES) for (const pc of typePieces(r.id)) for (const h of [0, 1, 2, 3] as const) for (const range of railTileRanges(pc, h)) max = Math.max(max, range);
+    expect(max).toBeLessThanOrEqual(TALL_M);
+    for (const r of TRACK_RIDES) expect((railFrames(trackGeometry(r.id)) as RailFrame[]).every((f) => !/:u\d+$/.test(f.key)), r.id).toBe(true);
   });
 });
 
@@ -212,5 +218,88 @@ describe('bake input', () => {
     expect(trackGeometry('mini_railway').front).toBe(true);
     expect(trackGeometry('monorail').front).toBe(true);
     expect(trackGeometry('junior_coaster').front).toBe(false);
+  });
+});
+
+describe('track frames: the loop fix changes nothing while the track points forward (Task 3 review P2)', () => {
+  /** The stage 1 frame (before the loop fix): lateral = world up × tangent, up = tangent × lateral, both banked. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const oldFrame = (T: any, yaw: number, pitch: number, roll: number) => {
+    const cp = Math.cos(pitch);
+    const t = new T.Vector3(cp * Math.cos(yaw), Math.sin(pitch), cp * Math.sin(yaw)).normalize();
+    const lat = new T.Vector3(0, 1, 0).cross(t).normalize();
+    const up = t.clone().cross(lat).normalize();
+    const q = new T.Quaternion().setFromAxisAngle(t, -roll);
+    return { lat: lat.applyQuaternion(q), up: up.applyQuaternion(q) };
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const near = (a: any, b: any): boolean => Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9 && Math.abs(a.z - b.z) < 1e-9;
+
+  it('framesOf: every sample of every piece of the 17 types with cos(pitch) > 0 keeps the cross-product frame', async () => {
+    const T = await load('vendor/three-0.160.0.module.min.js');
+    const { framesOf } = await load('items/trackKit.js');
+    let checked = 0, past = 0;
+    for (const r of TRACK_RIDES) {
+      const t = trackGeometry(r.id);
+      for (const [id, pc] of Object.entries(t.pieces)) {
+        for (const d of pc.dirs) {
+          const F = framesOf(d);
+          for (let k = 0; k < d.n; k++) {
+            if (!(Math.cos(d.pitch[k]!) > 0)) { past++; continue; }
+            const o = oldFrame(T, d.yaw[k]!, d.pitch[k]!, Math.atan2(d.bankSin[k]!, d.bankCos[k]!));
+            expect(near(F.Lt[k], o.lat) && near(F.Up[k], o.up), `${r.id} ${id} sample ${k}`).toBe(true);
+            checked++;
+          }
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(10000);
+    expect(past).toBeGreaterThan(0); // the loops' top halves exist, and are the only samples the fix may change
+  });
+
+  it('poseCar: every quantised pose with cos(pitch) > 0 turns the car as the cross-product frame did', async () => {
+    const T = await load('vendor/three-0.160.0.module.min.js');
+    const { poseCar } = await load('items/trackKit.js');
+    const car = new T.Object3D();
+    for (let yaw = 0; yaw < 32; yaw++) for (let pitch = 0; pitch < 24; pitch++) for (const roll of [0, 3, 7, 12, 18]) {
+      const p = (pitch / 24) * Math.PI * 2;
+      if (!(Math.cos(p) > 1e-9)) continue;
+      poseCar(car, { yaw, pitch, roll });
+      const o = oldFrame(T, (yaw / 32) * Math.PI * 2, p, (roll / 24) * Math.PI * 2);
+      const want = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(o.lat, o.up, o.lat.clone().cross(o.up)));
+      expect(Math.abs(car.quaternion.dot(want)), `y${yaw} p${pitch} r${roll}`).toBeGreaterThan(1 - 1e-9);
+    }
+  });
+});
+
+describe('style constants live in the type\'s spec (Task 3 review P2)', () => {
+  it('the steel spec carries its straddle half-width and support offset; the support offset is the one the game stacks with', async () => {
+    const { SPEC } = await load('items/steel_coaster.js');
+    const { SUPPORT_TOP_BELOW_RAIL } = await import('../../../src/render/real/supportStack');
+    expect(SPEC.straddleHalfM).toBe(0.6);
+    expect(SPEC.supportTopBelowRail).toBe(SUPPORT_TOP_BELOW_RAIL);
+    const { TRACK_SPECS, trackSpecOf } = await load('items/trackSpecs.js');
+    expect(TRACK_SPECS.steel_coaster).toBe(SPEC);
+    // a type with no module yet is measured with the steel spec until its module sets its own
+    expect(trackSpecOf('junior_coaster')).toBe(SPEC);
+  });
+
+  it('trackGeometry reads the straddle half-width from the spec it is given (the steel one by default)', async () => {
+    const { SPEC } = await load('items/steel_coaster.js');
+    const cut = (t: ReturnType<typeof trackGeometry>) => Object.entries(t.pieces).filter(([, pc]) => pc.dirs.some((d) => d.tiles.some((q) => q.runs))).map(([id]) => id).sort();
+    expect(trackGeometry('steel_coaster')).toEqual(trackGeometry('steel_coaster', SPEC));
+    expect(cut(trackGeometry('steel_coaster'))).toEqual(['vertical_loop_left', 'vertical_loop_right']);
+    // a wide track runs along tile edges for longer: more pieces are cut by runs
+    expect(cut(trackGeometry('steel_coaster', { ...SPEC, straddleHalfM: 1.9 })).length).toBeGreaterThan(2);
+  });
+
+  it('the kit reads no steel number outside the spec: the card support offset is the spec\'s, the car pose steps the reader\'s', () => {
+    const cards = readFileSync(new URL('items/cards.js', dir), 'utf8');
+    expect(cards).toContain('spec.supportTopBelowRail');
+    expect(cards).not.toMatch(/z - 1\.2/);
+    const kitSrc = readFileSync(new URL('items/trackKit.js', dir), 'utf8');
+    expect(kitSrc).toMatch(/p\.yaw \/ CAR_YAW_STEPS/);
+    expect(kitSrc).not.toMatch(/\/ (32|24)\)/);
+    expect(readFileSync(new URL('bakeNode.ts', dir), 'utf8')).not.toContain('STRADDLE_HALF_M = ');
   });
 });
