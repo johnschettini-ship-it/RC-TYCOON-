@@ -15,8 +15,8 @@
 //                                 anchor (track/layer.ts projects z = 0). A frame that takes the track colour everywhere
 //                                 sits on an alpha-tint sheet (no mask: its alpha is the mask); a piece with untinted
 //                                 parts (station deck, brake fins, water) is shot with a mask of its rail material and
-//                                 sits on a masked sheet. A tile over TALL_M of rail range is cut into stacked sub-frames
-//                                 (trackKeys.js), each clipped to its height band and anchored at the same point.
+//                                 sits on a masked sheet. One picture per tile: a tile over TALL_M of rail range fails
+//                                 the frame plan (trackKeys.js; the reader has no sub-frames).
 //   support:<type>:d*:r<t>        frames [`foot`], [`seg`], [`top`], stacked by the game (one picture per heading t):
 //                                 foot  anchored at the column axis on the ground (a concrete footing 0.25 m high);
 //                                 seg   a 1 m column segment anchored at its bottom centre on the axis: segment i goes
@@ -24,7 +24,8 @@
 //                                       stacks overlap;
 //                                 top   the saddle across the track heading t, anchored on the axis at the plate's
 //                                       bottom: plate 0.22 m high, then a 0.45 m post (0.67 m in all). The game puts
-//                                       this anchor SUPPORT_TOP_BELOW_RAIL = 1.2 m under the rail line
+//                                       this anchor SUPPORT_TOP_BELOW_RAIL = 1.2 m under the rail line (the steel
+//                                       spec's supportTopBelowRail, which the card stacks with)
 //                                       (src/render/real/supportStack.ts), so the post ends 0.53 m under it, just inside
 //                                       the bottom face of the steel spine (0.27-0.57 m under the rail line).
 //                                 Support mask (not the footing): the game tints it with the ride's support colour.
@@ -40,8 +41,8 @@
 import { THREE, kit } from './common.js';
 import { M, V } from '../kit.js';
 import { sweep, boxProfile, Beams, sitCar } from '../rides.js';
-import { bakeCamera } from '../camera.ts';
-import { SUB_M, SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey } from './trackKeys.js';
+import { CAR_TILT_STEPS, CAR_YAW_STEPS } from '../../../src/render/real/pose';
+import { SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey } from './trackKeys.js';
 
 const hex = (m) => (!Array.isArray(m) && m.color ? `#${m.color.getHexString()}` : '');
 
@@ -208,9 +209,13 @@ export const CAR_STYLES = {
   },
 };
 
-/** Turns `car` to a quantised pose (yaw of 32, pitch and roll of 24 steps, src/render/real/pose.ts). */
+/**
+ * Turns `car` to a quantised pose: yaw in CAR_YAW_STEPS, pitch and roll in CAR_TILT_STEPS (src/render/real/pose.ts).
+ * The steps are the reader's, not a style's: the game quantises every type's cars with them (look/track.ts), so a type
+ * baked with steps of its own would be drawn in the wrong poses.
+ */
 export function poseCar(car, p) {
-  const yaw = (p.yaw / 32) * Math.PI * 2, pitch = (p.pitch / 24) * Math.PI * 2, roll = (p.roll / 24) * Math.PI * 2;
+  const yaw = (p.yaw / CAR_YAW_STEPS) * Math.PI * 2, pitch = (p.pitch / CAR_TILT_STEPS) * Math.PI * 2, roll = (p.roll / CAR_TILT_STEPS) * Math.PI * 2;
   const tn = V(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw)).normalize();
   const lat = lateralOf(tn, yaw, Math.cos(pitch));
   const up = tn.clone().cross(lat).normalize();
@@ -245,7 +250,6 @@ export function bakeTrackType(B, spec) {
   const railMat = st.rail.material(spec.colours.track);
   const supMat = st.supports.material(spec.colours.supports);
   const bs = B.newScene();
-  const hs = bakeCamera(0, 4).heightScale;
 
   // ---- rails: per class, heading, piece and rail tile, clipped to the tile.
   // The clip planes are global, so they cut the hold-out ground to the tile too, and anything under the ground
@@ -287,17 +291,7 @@ export function bakeTrackType(B, spec) {
       cur = { at, model, holder };
     }
     cur.model.position.set(-(f.tile.x + 0.5) * 4, 0, -(f.tile.y + 0.5) * 4);
-    const tileClip = clipOf(f.tile);
-    if (runs && f.sub === null) B.clip(null); // cut by its runs, across the track (bakeNode.ts trackRuns)
-    else if (f.sub === null) B.clip(tileClip);
-    else {
-      // a tall tile's sub-frame k: its band of SUB_M of rail range (the first takes all below, the last all above)
-      const planes = tileClip.map(([nx, nz, k]) => new THREE.Plane(new THREE.Vector3(nx, 0, nz), k));
-      const lo = f.tile.railMin + f.sub * SUB_M;
-      if (f.sub > 0) planes.push(new THREE.Plane(new THREE.Vector3(0, 1, 0), -lo * hs));
-      if (f.sub < f.subs - 1) planes.push(new THREE.Plane(new THREE.Vector3(0, -1, 0), (lo + SUB_M) * hs));
-      B.clipPlanes(planes);
-    }
+    B.clip(runs ? null : clipOf(f.tile)); // a piece cut by its runs is cut across the track (bakeNode.ts trackRuns)
     const shot = f.alpha ? B.shoot(bs, { target: cur.holder }) : B.shoot(bs, { target: cur.holder, masked: (m) => m.material === railMat });
     setOf(f.cls, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
     B.clip(null);

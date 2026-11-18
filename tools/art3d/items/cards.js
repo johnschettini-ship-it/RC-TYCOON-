@@ -20,7 +20,7 @@ import { THREE, TILE, frameKey, kit } from './common.js';
 import { std, rep, tx } from '../kit.js';
 import { bakeCamera } from '../camera.ts';
 import { railModel, supportPiece, stylesOf, SEG_H } from './trackKit.js';
-import { SPEC as steel_coaster } from './steel_coaster.js';
+import { TRACK_SPECS } from './trackSpecs.js';
 import carousel from './carousel.js';
 import swing_tower from './swing_tower.js';
 import big_wheel from './big_wheel.js';
@@ -163,9 +163,6 @@ async function itemCard(B, card) {
   return shot;
 }
 
-/** Track types with a card picture: their style specs (the type modules, on the track kit). */
-const TRACK_SPECS = { steel_coaster };
-
 /** Today's track preview scene of a track type (`scene`: the placed rail samples bake.mjs passes in), in its style. */
 function trackCard(B, spec, scene) {
   const K = kit();
@@ -185,7 +182,8 @@ function trackCard(B, spec, scene) {
     group.add(g);
   }
   // Supports: under every raised piece (as today's preview: middle sample above 0.5 m), at its middle sample, stacked
-  // as the game stacks them (foot, 1 m segments to 1.2 m under the rail line, the saddle across the track there).
+  // as the game stacks them (foot, 1 m segments to the spec's supportTopBelowRail under the rail line, the saddle across
+  // the track there).
   for (const pc of scene.pieces) {
     const s = pc.samples;
     const k = Math.floor(s.n / 2);
@@ -193,7 +191,7 @@ function trackCard(B, spec, scene) {
     if (z <= 0.5) continue;
     const at = (o, y) => { o.position.set(s.x[k], y, s.y[k]); group.add(o); };
     at(supportPiece(K, 'foot', 0, supMat, st.supports), 0);
-    const top = Math.max(0.25, z - 1.2);
+    const top = Math.max(0.25, z - spec.supportTopBelowRail);
     for (let y = 0.25; y + 0.2 < top; y += 1) {
       const seg = supportPiece(K, 'seg', 0, supMat, st.supports);
       seg.scale.y = Math.min(1, (top - y) / SEG_H);

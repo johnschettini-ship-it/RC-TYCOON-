@@ -6,7 +6,8 @@
 //
 // Bundling: rolldown (Vite's bundler, already a dependency) builds two bundles into dist-art/.build/:
 //   bakePage.js  the in-browser bake (tools/art3d/bakePage.ts + the kit + items), `three` aliased to the vendored build
-//   bakeNode.mjs catalogue specs, content hashes, track geometry, car poses and checkIndex for this driver
+//   bakeNode.mjs catalogue specs, content hashes, track geometry (with the types' style specs, `three` aliased the
+//                same way), car poses and checkIndex for this driver
 // Cache: every item's sets and files go to dist-art/cache/<item>-<hash>/, keyed by cacheKey.ts: a content hash of the
 // files it is built from (items/registry.js SHARED + its module + its code deps) and the full computed input (spec,
 // track geometry, poses) with the densities. An unchanged item is copied, not re-baked.
@@ -47,7 +48,8 @@ async function bundle(buildDir) {
   const page = await rolldown({ input: join(HERE, 'bakePage.ts'), platform: 'browser', resolve: { alias: { three: vendor } }, logLevel: 'warn' });
   await page.write({ file: join(buildDir, 'bakePage.js'), format: 'esm', codeSplitting: false });
   await page.close();
-  const node = await rolldown({ input: join(HERE, 'bakeNode.ts'), platform: 'node', logLevel: 'warn' });
+  // the node bundle reads the track types' style specs (items/trackSpecs.js), whose modules import `three` too
+  const node = await rolldown({ input: join(HERE, 'bakeNode.ts'), platform: 'node', resolve: { alias: { three: vendor } }, logLevel: 'warn' });
   await node.write({ file: join(buildDir, 'bakeNode.mjs'), format: 'esm', codeSplitting: false });
   await node.close();
   cpSync(join(HERE, 'bake.html'), join(buildDir, 'bake.html'));
@@ -72,24 +74,7 @@ function webpSize(buf) {
 
 const mb = (n) => (n / 1e6).toFixed(2);
 
-/**
- * The least share of drawn pixels the tint masks of a kind may cover at the bake's largest density (mask weight over
- * pixels with alpha, all its sets together). Measured on the bake before the ride colour masks (81d24fb: rail 0.884,
- * car 0.562, support 0.712, guest 0.209) less 5%: a mask path change that cut the coaster rails to 30% (fix round 1)
- * fails the bake instead of reaching the game.
- */
-const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, carRolled: 0.49, support: 0.67, guest: 0.19 };
-/**
- * Track car class sets (batch 5) whose poses roll or turn the car over (banks, loops, corkscrews, helixes) show more of
- * its untinted chassis and wheels than the stage 1 poses the `car` floor was measured on, so they are measured apart
- * (`carRolled`), each kind against its own floor. Measured on the Task 3 steel coaster bake at d4 (fix wave, after the
- * loop's top half was turned the right way over): base 0.564 and turn 0.561 (stage 1 was 0.562: the `car` floor still
- * fits them); bank 0.525, loop 0.498, cork 0.525, helix 0.527, together 0.523; the floor is that less 5% (0.497),
- * rounded down, as the other floors are. Before the split, the steel coaster's all-classes mean (53.6 %) sat 0.6
- * points over the 53 % floor because of its pose mix, not its masks.
- */
-const ROLLED_CAR_CLASS = /~(bank|loop|cork|helix)$/;
-const coverageKind = (s) => (s.kind === 'car' && ROLLED_CAR_CLASS.test(s.item) ? 'carRolled' : s.kind);
+// Tint mask coverage floors, per kind and per track car class, with their measured shares: maskFloors.ts (N.*).
 
 (async () => {
   const t0 = Date.now();
@@ -265,12 +250,12 @@ const coverageKind = (s) => (s.kind === 'car' && ROLLED_CAR_CLASS.test(s.item) ?
   const emptyRides = [...maskedRides].filter(([, any]) => !any).map(([id]) => id);
   const byKind = {};
   for (const r of report) for (const s of r.sets) {
-    if (s.maskCoverage === undefined || s.density !== Math.max(...o.densities) || !(coverageKind(s) in MASK_COVERAGE_FLOOR)) continue;
-    const k = (byKind[coverageKind(s)] ??= { sum: 0, n: 0 });
+    if (s.maskCoverage === undefined || s.density !== Math.max(...o.densities) || !(N.coverageKind(s) in N.MASK_COVERAGE_FLOOR)) continue;
+    const k = (byKind[N.coverageKind(s)] ??= { sum: 0, n: 0 });
     k.sum += s.maskCoverage * (s.maskDrawn ?? 0); k.n += s.maskDrawn ?? 0;
   }
   const lowKinds = [];
-  for (const [kind, floor] of Object.entries(MASK_COVERAGE_FLOOR)) {
+  for (const [kind, floor] of Object.entries(N.MASK_COVERAGE_FLOOR)) {
     const k = byKind[kind];
     if (!k || !k.n) continue; // not in this bake (--only), or a cache entry from before maskDrawn
     const share = k.sum / k.n;

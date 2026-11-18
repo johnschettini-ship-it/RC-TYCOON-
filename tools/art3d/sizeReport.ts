@@ -293,7 +293,7 @@ function rangesOf(pieceId: string, dir: 0 | 1 | 2 | 3): number[] {
   return r;
 }
 
-/** `piece:t<i>` → [piece, i], or null for any other rail frame key (shadows, chain troughs, sub-frames). */
+/** `piece:t<i>` → [piece, i], or null for any other rail frame key (shadows, chain troughs). */
 function railFrame(fk: string): [string, number] | null {
   const m = /^([^:]+):t(\d+)$/.exec(fk);
   return m ? [m[1] as string, Number(m[2])] : null;

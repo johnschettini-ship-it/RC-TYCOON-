@@ -184,8 +184,9 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
  *     finds it;
  *   - stage 1 layout (`rail:<type>`, `car:<type>`, which the game still reads): the one set per heading (and the one car
  *     set).
- * A type may not have both layouts (the game would load both). A rail tile cut into stacked sub-frames (trackKeys.js:
- * `<piece>:t<i>:u<k>`) counts as present when its `u0` frame is.
+ * A type may not have both layouts (the game would load both). A rail tile cut into stacked sub-frames
+ * (`<piece>:t<i>:u<k>`) is a problem: the reader draws one picture per tile and never looks a sub-frame up (Task 3
+ * review P2), so such a tile is both missing and carrying frames nothing draws.
  */
 export function trackComplete(index: RealIndex): string[] {
   const problems: string[] = [];
@@ -224,10 +225,15 @@ export function trackComplete(index: RealIndex): string[] {
           const item = railItem(pc);
           railTileRanges(pc, h).forEach((_, ti) => {
             const fk = `${pc}:t${ti}`;
-            if (!has('rail', item, d, h, fk) && !has('rail', item, d, h, `${fk}:u0`)) (lack.get(item) ?? lack.set(item, []).get(item)!).push(fk);
+            if (!has('rail', item, d, h, fk)) (lack.get(item) ?? lack.set(item, []).get(item)!).push(fk);
           });
         }
         for (const [item, l] of lack) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} rail frame(s) missing (${l.slice(0, 4).join(', ')})`);
+        for (const s of ofType) {
+          if (s.kind !== 'rail' || s.density !== d || s.rot !== h) continue;
+          const subs = Object.keys(s.frames).filter((fk) => /:u\d+$/.test(fk));
+          if (subs.length) problems.push(`TRACK_COMPLETE rail:${s.item} d${d} r${h}: sub-frame(s) the reader never draws (${subs.slice(0, 4).join(', ')})`);
+        }
       }
       const lack = new Map<string, string[]>();
       for (const p of poses) {

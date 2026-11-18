@@ -67,7 +67,7 @@ There are 56 pieces in all: 31 rail pieces in `pieces.ts`, 6 in `extraPieces.ts`
   - compressed ≤ 6 MB for types with loop, corkscrew or helix pieces, and ≤ 3 MB for the rest;
   - every set ≤ 8 MiB decoded at d4, mask included;
   - the bench circuit of the type ≤ 32 MiB resident at d4, masks included.
-- Tall rail tiles: a picture taller than 1024 px at d4 (the atlas's largest side) is cut into stacked sub-frames (`[pieceId, tN, 'u<k>']`), drawn bottom-up like supports. This is needed for any new piece over about 24 m in one tile.
+- Tall rail tiles: a picture taller than 1024 px at d4 (the atlas's largest side) cannot be tinted. **Changed in the Task 3 review fix (P2):** sub-frames (`[pieceId, tN, 'u<k>']`) are not used. The reader draws one picture per tile, so the frame plan (`trackKeys.js`) refuses a tile over `TALL_M` = 22 m of rail range and `checkIndex` rejects any `u<k>` frame. No piece of the 17 types needs one: the tallest tile is the vertical loop's, 13 m. A future piece over 22 m in one tile needs the reader to stack sub-frames first.
 - Commit trailer: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` and `Claude-Session: https://claude.ai/code/session_01Q5pHggx1eLkEH7W16KJFwP`.
 - Gate per task:
   - `npx tsc --noEmit`;

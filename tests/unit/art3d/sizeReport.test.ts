@@ -272,13 +272,15 @@ describe('sizeReport', () => {
       expect(p[0]).toMatch(/^TRACK_COMPLETE car:mini_railway~\w+ d2 r\d: \d+ car frame\(s\) missing \(y\d+:p\d+:r\d+:full:front/);
       expect(trackComplete(index(complete('mini_railway', rail, [8, 8], { front: true })))).toEqual([]);
     });
-    it('a tall rail tile cut into sub-frames counts by its u0 frame (Task 3)', () => {
+    it('a rail tile cut into sub-frames is missing: the reader draws one picture per tile (Task 3 review P2)', () => {
       const sets = complete('junior_coaster', junior);
       const s = sets.find((x) => x.key === 'rail:junior_coaster~base:d4:r0')!;
       s.frames['straight:t0:u0'] = s.frames['straight:t0']!;
       s.frames['straight:t0:u1'] = s.frames['straight:t0']!;
       delete s.frames['straight:t0'];
-      expect(trackComplete(index(sets))).toEqual([]);
+      const p = trackComplete(index(sets));
+      expect(p).toContain('TRACK_COMPLETE rail:junior_coaster~base d4 r0: 1 rail frame(s) missing (straight:t0)');
+      expect(p).toContain('TRACK_COMPLETE rail:junior_coaster~base d4 r0: sub-frame(s) the reader never draws (straight:t0:u0, straight:t0:u1)');
     });
     it('a type with both layouts fails (review P2)', () => {
       const p = trackComplete(index([...complete('junior_coaster', junior), ...stage1('junior_coaster', junior).filter((s) => s.kind === 'rail')]));
