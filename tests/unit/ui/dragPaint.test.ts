@@ -146,3 +146,23 @@ describe('the Paint toggle (spec §2)', () => {
     expect(game.tool.brush?.tiles.length ?? 0).toBeGreaterThan(1);
   });
 });
+
+describe('land with touch and the Paint toggle on', () => {
+  it('a one-finger drag applies the mode once on each tile it enters', () => {
+    const { game, cmds, drag } = setup('land');
+    setDragPaints(game.tool, true);
+    drag('touch');
+    expect(cmds.length).toBeGreaterThan(1);
+    expect(cmds.every((c) => c.type === 'raiseLand')).toBe(true);
+    const at = cmds.map((c) => (c.type === 'raiseLand' ? `${c.x},${c.y}` : ''));
+    expect(new Set(at).size).toBe(at.length);
+  });
+
+  it('corner mode does not paint with a drag', () => {
+    const { game, cmds, drag } = setup('land');
+    game.tool.land.mode = 'corner';
+    setDragPaints(game.tool, true);
+    drag('touch');
+    expect(cmds).toEqual([]);
+  });
+});

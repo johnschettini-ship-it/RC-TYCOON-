@@ -273,8 +273,12 @@ export const uiStrings: Record<string, string> = {
   'ui.patrol.brushSize': '{n}×{n}',
   'ui.patrol.clear': 'Clear',
   'ui.patrol.done': 'Done',
-  'ui.patrol.hintMouse': 'Drag to paint · Shift + drag for the other mode · Right-drag pans',
-  'ui.patrol.hintTouch': 'Drag one finger to paint · Two fingers pan and zoom',
+  'ui.patrol.hintMouse': 'Click to paint · Shift-click for the other mode · Drag pans',
+  'ui.patrol.hintTouch': 'Tap to paint · One finger pans',
+  'ui.patrol.hintDrag': 'Drag to paint · Two fingers pan and zoom',
+  // Touch controls spec 2026-11-18 §2: the drag tools' toggle.
+  'ui.paintDrag': 'Drag to paint',
+  'ui.selectDrag': 'Drag to select',
   'ui.patrol.zoomHint': 'Zoom in to paint small areas',
   'ui.patrol.whole': 'No area painted: works in the whole park',
 

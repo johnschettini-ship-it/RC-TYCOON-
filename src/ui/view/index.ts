@@ -13,6 +13,8 @@ import { text } from '../../data/strings/en';
 import { localizeReason } from '../../i18n';
 import { rotateView } from '../../input/camera';
 import { buyLandSelection, cancelBuyLand, confirmBuyLand } from '../../input/landPurchase';
+import { dragPaints } from '../../input/dragPaint';
+import { paintToggle } from '../paintToggle';
 import { buyLandQuote } from '../../sim/land/commands';
 import type { UiContext } from '../context';
 import { h, setText, toggleClass } from '../dom';
@@ -176,6 +178,7 @@ function bar(ctx: UiContext): UiPart {
     },
     h('span', { text: text('land.buy.cancel') }),
   );
+  const select = paintToggle(game.tool, 'ui.selectDrag', 'buy-paint-drag');
   const legend = h(
     'span',
     { class: 'buy-legend', style: 'display:flex;flex-wrap:wrap;gap:4px 10px' },
@@ -186,7 +189,7 @@ function bar(ctx: UiContext): UiPart {
     'div',
     { class: 'tool-status buy-land-bar', role: 'region', 'aria-label': text('land.buy.label'), 'data-testid': 'buy-land-bar', hidden: true },
     h('div', { class: 'status-line', 'aria-live': 'polite' }, h('span', { class: 'status-texts' }, msg, detail, legend)),
-    h('div', { class: 'status-actions' }, confirm, cancel),
+    h('div', { class: 'status-actions' }, select.el, confirm, cancel),
   );
   return {
     el,
@@ -210,8 +213,9 @@ function bar(ctx: UiContext): UiPart {
         valid = b.valid;
       } else {
         setText(msg, text('land.tool.buyLand'));
-        setText(detail, coarsePointer() ? text('land.buy.hintTouch') : text('land.buy.hint'));
+        setText(detail, dragPaints(t) ? text('land.buy.hintDrag') : coarsePointer() ? text('land.buy.hintTouch') : text('land.buy.hint'));
       }
+      select.update();
       confirm.hidden = !sel?.pending;
       confirm.toggleAttribute('disabled', !(sel?.pending && b?.valid));
       toggleClass(el, 'valid', valid === true);

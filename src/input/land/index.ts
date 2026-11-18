@@ -199,6 +199,23 @@ function runAction(game: Game, s: LandToolExtra, action: LandAction): void {
   send(game, s, landCommand(tool, anchorOf(game, s), map.width, raise));
 }
 
+/** The last tile a touch paint stroke applied at (−1 before the first). */
+let paintedTile = -1;
+
+/**
+ * Touch with the Paint toggle on (touch controls spec §2): a one-finger drag applies the mode once on each tile it
+ * enters, like the mouse brush stroke. Corner and Level modes do not paint (a corner is marked by a tap; Level draws its
+ * rectangle). The mouse stroke is the press repeat in `update`.
+ */
+function touchPaint(game: Game, s: LandToolExtra, tile: number | null, first: boolean): void {
+  const tool = game.tool;
+  if (first) paintedTile = -1;
+  if (tile === null || s.pointer === 'mouse' || !dragPaints(tool) || tile === paintedTile) return;
+  if (tool.tool === 'land' && (tool.land.mode === 'corner' || tool.land.mode === 'level')) return;
+  paintedTile = tile;
+  send(game, s, landCommand(tool, tile, game.world.state.map.width, clickRaises(tool, s, false)));
+}
+
 function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
   lastTileAt = tileAt;
   const tool = game.tool;
@@ -236,6 +253,7 @@ function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
         return true;
       }
       setAnchor(game, s, tile, a.x, a.y);
+      touchPaint(game, s, tile, true);
       return true;
     }
     case 'dragMove': {
@@ -248,6 +266,7 @@ function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
         return true;
       }
       setAnchor(game, s, tile, a.x, a.y);
+      touchPaint(game, s, tile, false);
       return true;
     }
     case 'dragEnd': {

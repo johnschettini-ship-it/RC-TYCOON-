@@ -11,6 +11,8 @@
  * Browser glue: capture-phase pointer listeners note presses on the map canvas before the gesture recognizer reads
  * them (`noteLandPointerDown`), and a ResizeObserver keeps the canvas size in the tool's side table.
  */
+import { paintToggle } from '../paintToggle';
+import { dragPaints } from '../../input/dragPaint';
 import { text } from '../../data/strings/en';
 import { localizeReason } from '../../i18n';
 import { BRUSH_SIZES } from '../../data/tuning/terrain';
@@ -216,9 +218,10 @@ function createLandBar(ctx: UiContext): UiPart {
   }
   const target = h('span', { class: 'status-text land-target', 'data-testid': 'land-level-target', 'aria-live': 'polite' });
   const confirm = actionButton(ctx, 'confirm', text('landUi.confirm'), 'land-confirm', icon('check'), true);
+  const paintDrag = paintToggle(tool, 'ui.paintDrag', 'land-paint-drag');
   const done = h('button', { type: 'button', class: 'btn', 'data-testid': 'land-done', onclick: () => backToInspect(ctx) }, icon('check'), h('span', { text: text('landUi.done') }));
   const level = h('div', { class: 'status-actions land-level', role: 'group', 'aria-label': text('landUi.mode.level') }, targetDown, target, targetUp, confirm);
-  const actions = h('div', { class: 'status-actions wrap', role: 'group', 'aria-label': text('landUi.actions') }, raise, lower, apply, level, done);
+  const actions = h('div', { class: 'status-actions wrap', role: 'group', 'aria-label': text('landUi.actions') }, raise, lower, apply, level, paintDrag.el, done);
 
   const el = h(
     'div',
@@ -321,8 +324,10 @@ function createLandBar(ctx: UiContext): UiPart {
         setText(target, tgt === null ? '' : text('landUi.level.target', { h: tgt }));
         confirm.toggleAttribute('disabled', st.rectStart < 0 && tgt === null);
       }
+      paintDrag.update();
       let hintText: string;
-      if (isLevel) hintText = text(touch ? 'landUi.hint.levelTouch' : 'landUi.hint.levelMouse');
+      if (dragPaints(tool)) hintText = text(isLevel ? 'landUi.hint.levelDrag' : 'landUi.hint.drag');
+      else if (isLevel) hintText = text(touch ? 'landUi.hint.levelTouch' : 'landUi.hint.levelMouse');
       else if (corner) hintText = text(touch ? 'landUi.hint.cornerTouch' : 'landUi.hint.cornerMouse');
       else if (!touch) hintText = text('landUi.hint.mouse');
       else if (updown) hintText = text('landUi.hint.touch');

@@ -127,7 +127,7 @@ test.describe('desktop', () => {
     watch.expectNoErrors();
   });
 
-  test('buy land: the drag shows the total, release buys, cash drops (turned view)', async ({ page }) => {
+  test('buy land: with Drag to select on, the drag shows the total, release buys, cash drops (turned view)', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Land Park');
     await setSpeed(page, 'Pause');
@@ -136,6 +136,9 @@ test.describe('desktop', () => {
     await openTool(page, 'buyLand');
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
+    // Touch controls spec 2026-11-18 §2: a drag selects only with the toggle on (off, it moves the map).
+    await page.getByTestId('buy-paint-drag').click();
+    await expect(page.getByTestId('buy-paint-drag')).toHaveAttribute('aria-pressed', 'true');
     const a = await tilePointR(page, 10, 20);
     const b = await tilePointR(page, 13, 22);
     await page.mouse.move(a.x, a.y);
@@ -181,6 +184,7 @@ test.describe('phone', () => {
     await openTool(page, 'buyLand', { tap: true });
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
+    await page.getByTestId('buy-paint-drag').tap();
     const a = await tilePointR(page, 20, 30);
     const b = await tilePointR(page, 22, 31);
     const cdp = await page.context().newCDPSession(page);

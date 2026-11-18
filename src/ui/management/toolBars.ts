@@ -14,6 +14,8 @@ import { h, setAttr, setText, toggleClass } from '../dom';
 import { formatMoney } from '../format';
 import { mgmtIcon } from './icons';
 import { segmented } from './widgets';
+import { paintToggle } from '../paintToggle';
+import { dragPaints } from '../../input/dragPaint';
 
 const ZOOM_HINT_BELOW = 0.75;
 const BROKEN_COUNT_MS = 500;
@@ -67,13 +69,14 @@ export function createPatrolBar(ctx: UiContext): { el: HTMLElement; update(): vo
       if (id >= 0) game.dispatch({ type: 'clearPatrol', staffId: id });
     },
   });
+  const paint = paintToggle(game.tool, 'ui.paintDrag', 'patrol-paint-drag');
   // Strokes are sent at the end of each drag, so Done only closes the tool.
   const done = h('button', { type: 'button', class: 'btn primary', 'data-testid': 'patrol-done', onclick: () => backToInspect(ctx) }, mgmtIcon('done'), h('span', { text: text('ui.patrol.done') }));
   const el = h(
     'div',
     { class: 'tool-status mgmt-bar patrol-bar', role: 'region', 'aria-label': text('ui.patrol.label'), hidden: true },
     h('div', { class: 'status-line', 'aria-live': 'polite' }, mgmtIcon('paint'), h('span', { class: 'status-texts' }, title, hint)),
-    h('div', { class: 'status-actions wrap' }, mode.el, brush.el, clear, done),
+    h('div', { class: 'status-actions wrap' }, mode.el, brush.el, paint.el, clear, done),
   );
   const touch = coarsePointer();
   return {
@@ -86,7 +89,8 @@ export function createPatrolBar(ctx: UiContext): { el: HTMLElement; update(): vo
       const o = toolOptions(t);
       const m = game.world.state.staff.members.find((s) => s.id === o.patrolStaffId);
       setText(title, m ? text('ui.patrol.title', { name: m.name }) : text('ui.patrol.label'));
-      let h1 = touch ? text('ui.patrol.hintTouch') : text('ui.patrol.hintMouse');
+      paint.update();
+      let h1 = dragPaints(t) ? text('ui.patrol.hintDrag') : touch ? text('ui.patrol.hintTouch') : text('ui.patrol.hintMouse');
       if (m && m.patrol === null) h1 = `${text('ui.patrol.whole')} · ${h1}`;
       if (game.camera.zoom < ZOOM_HINT_BELOW) h1 = `${text('ui.patrol.zoomHint')} · ${h1}`;
       setText(hint, h1);
