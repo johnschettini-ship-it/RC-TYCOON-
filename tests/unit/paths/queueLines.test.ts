@@ -1,7 +1,8 @@
 /** Queue clarity (spec 2026-11-18 §4): queue lines, unlinked groups and conflicts from the queue flood fill. */
 import { describe, expect, it } from 'vitest';
 import { markNetworkDirty } from '../../../src/sim/pathing';
-import { queueComponent, queueConflicts, queueLine, queueNodeAt, unlinkedQueueGroups } from '../../../src/sim/pathing/queues';
+import { queueComponent, queueConflicts, queueKey, queueLine, queueNodeAt, queueNodeOfKey, unlinkedQueueGroups } from '../../../src/sim/pathing/queues';
+import { groundPath } from './helpers';
 import { tileIndex } from '../../../src/sim/map';
 import { makeTestWorld, placeQueue, placeRideDirect } from '../../helpers/world';
 import { elevated } from './helpers';
@@ -59,7 +60,7 @@ describe('queue lines', () => {
     expect(groups).toHaveLength(1);
     expect(groups[0]).toHaveLength(2);
     for (const n of groups[0] as number[]) expect(n).toBeGreaterThanOrEqual(tiles);
-    const node = queueNodeAt(world, tileIndex(world.state.map, 30, 30));
+    const node = queueNodeAt(world, tileIndex(world.state.map, 30, 30), h + 4);
     expect(node).toBeGreaterThanOrEqual(tiles);
     expect(queueComponent(world, node).owner).toBeNull();
     expect(queueComponent(world, node).nodes).toHaveLength(2);
@@ -111,5 +112,39 @@ describe('unlinked groups after a tap on a far tile', () => {
     queueComponent(world, u2);
     // Nodes ascending, so the marker sits on the same tile whichever tile was tapped first.
     expect(unlinkedQueueGroups(world)).toEqual([[u1, u2]]);
+  });
+});
+
+describe('queue tap identity', () => {
+  it('without a height, only the ground queue counts: a footpath under a queue deck is no queue', () => {
+    const world = makeTestWorld();
+    const t = groundPath(world, 30, 30, 'footpath');
+    const h = world.state.map.heights[t] as number;
+    elevated(world, 30, 30, h + 4, 'queue');
+    expect(queueNodeAt(world, t)).toBe(-1);
+    expect(queueNodeAt(world, t, h + 4)).toBeGreaterThanOrEqual(world.state.map.width * world.state.map.height);
+    const g = groundPath(world, 31, 31, 'queue');
+    expect(queueNodeAt(world, g)).toBe(g);
+  });
+
+  it('a queue key survives the removal of an earlier elevated path; a gone queue resolves to -1', () => {
+    const world = makeTestWorld();
+    const h = world.state.map.heights[tileIndex(world.state.map, 30, 30)] as number;
+    elevated(world, 20, 20, h + 2, 'footpath');
+    elevated(world, 30, 30, h + 4, 'queue');
+    const tile = tileIndex(world.state.map, 30, 30);
+    const node = queueNodeAt(world, tile, h + 4);
+    const key = queueKey(world, node);
+    expect(queueNodeOfKey(world, key)).toBe(node);
+    world.state.elevatedPaths.splice(0, 1);
+    markNetworkDirty(world);
+    const moved = queueNodeOfKey(world, key);
+    expect(moved).toBe(queueNodeAt(world, tile, h + 4));
+    expect(moved).not.toBe(node);
+    world.state.elevatedPaths.length = 0;
+    markNetworkDirty(world);
+    expect(queueNodeOfKey(world, key)).toBe(-1);
+    const g = groundPath(world, 31, 31, 'queue');
+    expect(queueNodeOfKey(world, queueKey(world, g))).toBe(g);
   });
 });

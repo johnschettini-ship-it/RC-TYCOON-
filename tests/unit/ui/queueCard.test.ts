@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { pickEntity } from '../../../src/input/tools';
 import { markNetworkDirty } from '../../../src/sim/pathing';
 import { tileIndex } from '../../../src/sim/map';
-import { queueCard } from '../../../src/ui/panels/queueCard';
+import { queueCard, resolveQueueCard } from '../../../src/ui/panels/queueCard';
+import { queueKey } from '../../../src/sim/pathing/queues';
 import { en } from '../../../src/data/strings/en';
 import { enPlurals } from '../../../src/data/strings/plurals';
 import { addGuestDirect, makeTestWorld, placeFootpath, placeQueue, placeRideDirect } from '../../helpers/world';
@@ -67,9 +68,32 @@ describe('a tap on a queue tile', () => {
     const q = placeQueue(w, 11, 13);
     markNetworkDirty(w);
     addGuestDirect(w, q);
-    expect(pickEntity(w, q)).toEqual({ kind: 'queue', id: q });
+    expect(pickEntity(w, q)).toEqual({ kind: 'queue', id: queueKey(w, q) });
     const path = placeFootpath(w, 30, 30);
     const g = addGuestDirect(w, path);
     expect(pickEntity(w, path)).toEqual({ kind: 'guest', id: g.id });
+  });
+});
+
+describe('the open card follows its queue by a stable key', () => {
+  it('resolves while the same ride owns the tapped tile; closes when the owner changes or the queue goes', () => {
+    const w = makeTestWorld();
+    const a = placeRideDirect(w, 'carousel', 10, 10, 0);
+    const q = placeQueue(w, 11, 13);
+    const q2 = placeQueue(w, 11, 14);
+    markNetworkDirty(w);
+    const key = queueKey(w, q2);
+    expect(resolveQueueCard(w, key, a.id)?.rideId).toBe(a.id);
+    // Cut the line: the tapped tile no longer reaches the ride.
+    placeFootpath(w, 11, 13);
+    markNetworkDirty(w);
+    expect(resolveQueueCard(w, key, a.id)).toBeNull();
+    placeQueue(w, 11, 13);
+    markNetworkDirty(w);
+    expect(resolveQueueCard(w, key, a.id)?.rideId).toBe(a.id);
+    placeFootpath(w, 11, 14);
+    markNetworkDirty(w);
+    expect(resolveQueueCard(w, key, a.id)).toBeNull();
+    expect(q).toBeGreaterThan(0);
   });
 });

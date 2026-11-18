@@ -1,6 +1,7 @@
 /**
  * Queue clarity overlay (spec 2026-11-18 §1–3), drawn in `drawOverlay` in both looks:
- * - the tapped queue (`selectedEntity` kind `queue`, id = a queue node): every node of its linked group highlighted;
+ * - the tapped queue (`selectedEntity` kind `queue`, id = a `queueKey`): every node of its linked group highlighted,
+ *   ground nodes in `drawGround` (under the guests), deck nodes over the decks;
  * - while a path tool (footpath or queue) is on: queue groups that reach no ride entrance tinted, with one "!" badge
  *   per group;
  * - a ride name sign over every ride entrance (`./sign.ts`).
@@ -8,7 +9,7 @@
  * written only when they change, for e2e tests. Hints only: nothing here changes which ride owns a queue.
  */
 import { nodeZOf } from '../../sim/paths/nodes';
-import { nodeTile, queueComponent, unlinkedQueueGroups } from '../../sim/pathing/queues';
+import { nodeTile, queueComponent, queueNodeOfKey, unlinkedQueueGroups } from '../../sim/pathing/queues';
 import type { World } from '../../sim/types';
 import { tileCorners } from '../a11y/layer';
 import { STEP_PX, TILE_H, TILE_W } from '../iso';
@@ -16,7 +17,7 @@ import type { LayerFrame, WorldLayer } from '../layers';
 import type { ToolState } from '../types';
 import { mapToViewContinuous } from '../view';
 import { QUEUE_COLOURS } from './colours';
-import { SIGN_FONT_PX, signBoxes, signFont, signScale, type SignBox } from './sign';
+import { createSignFit, SIGN_FONT_PX, signBoxes, signFont, signScale, type SignBox } from './sign';
 
 const corners: number[] = [];
 const signs: SignBox[] = [];
@@ -115,29 +116,55 @@ function setData(ctx: CanvasRenderingContext2D, key: 'queueSigns' | 'queueWarnin
   if (ds && ds[key] !== value) ds[key] = value;
 }
 
+/** Nodes of `nodes` on the ground (`ground` true) or on decks (false). */
+function nodesOn(world: World, nodes: readonly number[], ground: boolean, out: number[]): number[] {
+  const tiles = world.state.map.width * world.state.map.height;
+  out.length = 0;
+  for (const n of nodes) if (n < tiles === ground) out.push(n);
+  return out;
+}
+
+const part: number[] = [];
+
+/** The highlighted and the unlinked queue nodes on the ground (`ground`) or on decks. */
+function drawMarks(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame, ground: boolean): void {
+  const sel = tool.selectedEntity;
+  if (sel && sel.kind === 'queue') {
+    const group = queueComponent(world, queueNodeOfKey(world, sel.id));
+    if (nodesOn(world, group.nodes, ground, part).length > 0) drawNodes(ctx, world, part, QUEUE_COLOURS.highlightFill, QUEUE_COLOURS.highlight, f);
+  }
+  if (tool.tool === 'footpath' || tool.tool === 'queue') {
+    for (const g of unlinkedQueueGroups(world)) if (nodesOn(world, g, ground, part).length > 0) drawNodes(ctx, world, part, QUEUE_COLOURS.unlinkedFill, QUEUE_COLOURS.badge, f);
+  }
+}
+
 export function createQueueLayer(): WorldLayer {
+  const fitFor = createSignFit();
   return {
     name: 'queues',
     kinds: [],
+    // Ground queues are marked before the objects, so the guests standing in the line stay untinted on top.
+    drawGround(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame): void {
+      ctx.save();
+      drawMarks(ctx, world, tool, f, true);
+      ctx.restore();
+    },
     drawOverlay(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame): void {
       ctx.save();
-      const sel = tool.selectedEntity;
-      if (sel && sel.kind === 'queue') {
-        const group = queueComponent(world, sel.id);
-        if (group.nodes.length > 0) drawNodes(ctx, world, group.nodes, QUEUE_COLOURS.highlightFill, QUEUE_COLOURS.highlight, f);
-      }
+      // Decks are objects: their marks go over them.
+      drawMarks(ctx, world, tool, f, false);
       let marked = 0;
       if (tool.tool === 'footpath' || tool.tool === 'queue') {
         const groups = unlinkedQueueGroups(world);
-        for (const g of groups) drawNodes(ctx, world, g, QUEUE_COLOURS.unlinkedFill, QUEUE_COLOURS.badge, f);
         for (const g of groups) drawBadge(ctx, world, g[0] as number, f);
         marked = groups.length;
       }
       setData(ctx, 'queueWarnings', String(marked));
       const zoom = f.scale / f.dpr;
-      // The font depends only on the zoom: set it once, measure with it, draw with it.
-      ctx.font = signFont(SIGN_FONT_PX * signScale(zoom) * f.dpr);
-      signBoxes(world, f, (s) => ctx.measureText(s).width, signs);
+      // The font depends only on the zoom: set it once; text fits are measured once per name, zoom step and font.
+      const font = signFont(SIGN_FONT_PX * signScale(zoom) * f.dpr);
+      ctx.font = font;
+      signBoxes(world, f, fitFor((s) => ctx.measureText(s).width, font), signs);
       for (const s of signs) drawSign(ctx, s, f);
       setData(ctx, 'queueSigns', signs.map((s) => s.text).join('|'));
       ctx.restore();

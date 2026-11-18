@@ -34,6 +34,8 @@ export interface LayerFrame {
   /** Canvas size in device px. */
   width: number;
   height: number;
+  /** Camera zoom at or below which the renderer draws guests as dots (render quality and device dependent). */
+  guestLodZoom?: number;
   /** Realistic look (stage 1), when on: a layer draws `look`'s sprite, skips on `null`, today's art on `undefined`. */
   look?: RealLook;
 }

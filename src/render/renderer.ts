@@ -24,7 +24,7 @@ import { entranceOuterDir, fenceEdgeDepth, fenceSegments, type FenceSegment } fr
 import { guestPosition, walkerHeights, type GuestPos } from './guestPos';
 import { STEP_PX, TILE_H, TILE_W } from './iso';
 import { GHOST_FILL_INVALID, GHOST_FILL_VALID, GHOST_INVALID, GHOST_VALID, ghostLineWidth, mix32, rgbCss, SHIRT_COLOURS, SKY, tintStep, tintStepRgb, TINT_STEPS, withAlpha } from './palette';
-import { createQueueEase, queueSlot, type QueueSlotPos } from './queue';
+import { createQueueEase, drawnQueueGuests, queueSlot, type QueueSlotPos } from './queue';
 import { queueLine } from '../sim/pathing/queues';
 import { SpriteCache, spriteMemory, type Sprite } from './spriteCache';
 import type { Ctx } from './sprites/shapes';
@@ -559,9 +559,17 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         qz[gi] = eased.z;
         qdir[gi] = eased.dir;
         placed++;
+        const d = drawnQueueGuests.get(id);
+        if (d) {
+          d.fx = eased.fx;
+          d.fy = eased.fy;
+          d.z = eased.z;
+          d.frame = frameNo;
+        } else drawnQueueGuests.set(id, { id, fx: eased.fx, fy: eased.fy, z: eased.z, frame: frameNo });
       }
     }
     queueEase.sweep();
+    for (const [id, d] of drawnQueueGuests) if (d.frame !== frameNo) drawnQueueGuests.delete(id);
     // For e2e tests: how many queueing guests stand on a queue line this frame (written only when it changes).
     const placedText = String(placed);
     if (canvas.dataset.queueGuests !== placedText) canvas.dataset.queueGuests = placedText;
@@ -1319,6 +1327,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       ctx.imageSmoothingEnabled = true;
 
       frame.scale = scale;
+      frame.guestLodZoom = lodZoom;
       frame.offX = offX;
       frame.offY = offY;
       frame.dpr = dpr;

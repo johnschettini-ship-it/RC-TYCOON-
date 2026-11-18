@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { createQueueLayer } from '../../../src/render/queues/layer';
 import { fitSignText, signBoxes, type SignBox } from '../../../src/render/queues/sign';
+import { queueKey } from '../../../src/sim/pathing/queues';
 import type { LayerFrame } from '../../../src/render/layers';
 import { defaultToolState, type ToolState } from '../../../src/render/types';
 import { markNetworkDirty } from '../../../src/sim/pathing';
@@ -9,6 +10,10 @@ import type { World } from '../../../src/sim/types';
 import { makeTestWorld, placeQueue, placeRideDirect } from '../../helpers/world';
 
 const measure = (s: string): number => s.length * 6;
+const fit = (name: string, maxPx: number): { text: string; width: number } => {
+  const text = fitSignText(measure, name, maxPx);
+  return { text, width: measure(text) };
+};
 
 function frame(zoom = 1, dpr = 1): LayerFrame {
   // Camera centred near tile (12, 12) at the given zoom.
@@ -23,6 +28,8 @@ interface Call {
   stroke?: string;
 }
 
+const measured = { n: 0 };
+
 function recordingCtx(canvas: { dataset: Record<string, string> } = { dataset: {} }): { ctx: CanvasRenderingContext2D; calls: Call[]; canvas: { dataset: Record<string, string> } } {
   const calls: Call[] = [];
   const state: Record<string, unknown> = { fillStyle: '#000', strokeStyle: '#000', font: '', lineWidth: 1, globalAlpha: 1, textAlign: 'start', textBaseline: 'alphabetic' };
@@ -30,7 +37,7 @@ function recordingCtx(canvas: { dataset: Record<string, string> } = { dataset: {
     get(t, p: string) {
       if (p === 'canvas') return canvas;
       if (p in t) return t[p];
-      if (p === 'measureText') return (s: string) => ({ width: measure(s) });
+      if (p === 'measureText') return (s: string) => (measured.n++, { width: measure(s) });
       return (...args: unknown[]) => calls.push({ op: p, args, fill: String(t.fillStyle), stroke: String(t.strokeStyle) });
     },
     set(t, p: string, v) {
@@ -69,27 +76,33 @@ describe('signBoxes', () => {
   it('one box per ride with an entrance, text = ride.name; a renamed ride shows its new name', () => {
     const { world, a, b } = park();
     const out: SignBox[] = [];
-    signBoxes(world, frame(), measure, out);
+    signBoxes(world, frame(), fit, out);
     expect(out.map((s) => [s.rideId, s.text])).toEqual([
       [a, 'Carousel 1'],
       [b, 'Carousel 2'],
     ]);
     world.state.rides[0]!.name = 'Merry Spin';
-    signBoxes(world, frame(), measure, out);
+    signBoxes(world, frame(), fit, out);
     expect(out[0]?.text).toBe('Merry Spin');
     for (const s of out) expect(s.w).toBeGreaterThan(measure(s.text));
   });
 
   it('none at the farthest zoom (guests as dots)', () => {
     const { world } = park();
-    expect(signBoxes(world, frame(0.5), measure, [])).toEqual([]);
-    expect(signBoxes(world, frame(0.4, 2), measure, [])).toEqual([]);
-    expect(signBoxes(world, frame(0.75), measure, []).length).toBe(2);
+    expect(signBoxes(world, frame(0.5), fit, [])).toEqual([]);
+    expect(signBoxes(world, frame(0.4, 2), fit, [])).toEqual([]);
+    expect(signBoxes(world, frame(0.75), fit, []).length).toBe(2);
+  });
+
+  it('follows the renderer\'s own guest-dot zoom (low quality draws dots sooner)', () => {
+    const { world } = park();
+    expect(signBoxes(world, { ...frame(0.7), guestLodZoom: 0.75 }, fit, [])).toEqual([]);
+    expect(signBoxes(world, { ...frame(0.8), guestLodZoom: 0.75 }, fit, []).length).toBe(2);
   });
 
   it('the sign sits above its entrance', () => {
     const { world } = park();
-    const [s1, s2] = signBoxes(world, frame(), measure, []);
+    const [s1, s2] = signBoxes(world, frame(), fit, []);
     expect(s2!.x).toBeGreaterThan(s1!.x);
   });
 });
@@ -103,17 +116,32 @@ describe('queue layer', () => {
     expect(canvas.dataset.queueSigns).toBe('Carousel 1|Carousel 2');
   });
 
-  it('highlights the tapped queue only while one is selected', () => {
+  it('highlights the tapped queue on the ground (under the guests) only while one is selected', () => {
     const { world } = park();
     const tool: ToolState = defaultToolState();
     const layer = createQueueLayer();
     const r1 = recordingCtx();
-    layer.drawOverlay!(r1.ctx, world, tool, frame());
+    layer.drawGround!(r1.ctx, world, tool, frame());
     expect(r1.calls.some((c) => c.op === 'fill' && c.fill?.startsWith('rgba(57,208,255'))).toBe(false);
-    tool.selectedEntity = { kind: 'queue', id: world.state.map.width * 14 + 11 };
+    tool.selectedEntity = { kind: 'queue', id: queueKey(world, world.state.map.width * 14 + 11) };
     const r2 = recordingCtx();
-    layer.drawOverlay!(r2.ctx, world, tool, frame());
+    layer.drawGround!(r2.ctx, world, tool, frame());
     expect(r2.calls.filter((c) => c.op === 'fill' && c.fill?.startsWith('rgba(57,208,255')).length).toBe(2);
+    const r3 = recordingCtx();
+    layer.drawOverlay!(r3.ctx, world, tool, frame());
+    expect(r3.calls.some((c) => c.op === 'fill' && c.fill?.startsWith('rgba(57,208,255'))).toBe(false);
+  });
+
+  it('measures sign text once, not every frame', () => {
+    const { world } = park();
+    const layer = createQueueLayer();
+    layer.drawOverlay!(recordingCtx().ctx, world, defaultToolState(), frame());
+    measured.n = 0;
+    layer.drawOverlay!(recordingCtx().ctx, world, defaultToolState(), frame());
+    expect(measured.n).toBe(0);
+    world.state.rides[0]!.name = 'Renamed Ride';
+    layer.drawOverlay!(recordingCtx().ctx, world, defaultToolState(), frame());
+    expect(measured.n).toBeGreaterThan(0);
   });
 
   it('marks queues that reach no ride only while a path tool is on', () => {

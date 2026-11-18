@@ -5,7 +5,7 @@
  * open; the card fits 390 × 844 and 812 × 375 at large pseudo-locale text. QC_SHOTS=<dir> saves screenshots.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, presetSettings, scan, showTile, tilePoint, watchErrors } from './helpers';
+import { isPhone, newPark, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Ride {
@@ -96,19 +96,36 @@ async function frames(page: Page, n = 3): Promise<void> {
 
 const canvasData = (page: Page, key: string): Promise<string | undefined> => page.evaluate((k) => (document.getElementById('game') as HTMLCanvasElement).dataset[k], key);
 
-async function tapTile(page: Page, x: number, y: number, phone: boolean): Promise<void> {
+/** Page point of map point (fx, fy) on the ground of its tile, `lift` CSS px above it. */
+async function mapPoint(page: Page, fx: number, fy: number, lift = 0): Promise<{ x: number; y: number }> {
+  return page.evaluate(
+    ([px, py, up]) => {
+      const g = (window as unknown as { __tc: QcTc & { world: { state: { map: { heights: ArrayLike<number> } } } } }).__tc;
+      const map = g.world.state.map;
+      const h = map.heights[Math.floor(py) * map.width + Math.floor(px)] ?? 0;
+      const canvas = document.getElementById('game') as HTMLCanvasElement;
+      const r = canvas.getBoundingClientRect();
+      const wx = (px - py) * 32;
+      const wy = (px + py) * 16 - h * 8;
+      return { x: r.left + (wx - g.camera.centerX) * g.camera.zoom + r.width / 2, y: r.top + (wy - g.camera.centerY) * g.camera.zoom + r.height / 2 - up };
+    },
+    [fx, fy, lift] as const,
+  );
+}
+
+/** Tap map point (x + ox, y + oy) of tile (x, y) after bringing the tile into a clear part of the screen. */
+async function tapTile(page: Page, x: number, y: number, phone: boolean, ox = 0.5, oy = 0.5, lift = 0): Promise<void> {
   // Toasts (build warnings; large text makes them wide) can sit over the tile: dismiss them first.
   const toast = page.locator('button.toast');
   for (let k = 0; k < 10; k++) {
     await page.waitForTimeout(250);
     if (!(await toast.isVisible())) break;
-    if (process.env.QC_DEBUG) console.log('TOAST', await toast.textContent());
     await toast.click();
   }
   await showTile(page, x, y);
   await frames(page);
   // The canvas may not start at the window's corner (large text moves it): aim with its own rectangle.
-  const p = await tilePoint(page, x, y);
+  const p = await mapPoint(page, x + ox, y + oy, lift);
   if (phone) await page.touchscreen.tap(p.x, p.y);
   else await page.mouse.click(p.x, p.y);
   await frames(page);
@@ -153,7 +170,13 @@ test.describe('queue clarity', () => {
     const sel = await tc(page, (g) => g.tool.selectedEntity, null);
     expect(sel?.kind).toBe('queue');
     // On the phone the card opens low (peek), so the highlighted line stays in view above it.
-    if (phone) await expect(page.locator('.panel')).toHaveAttribute('data-sheet', 'peek');
+    if (phone) {
+      await expect(page.locator('.panel')).toHaveAttribute('data-sheet', 'peek');
+      // The low sheet is no taller than its content: no empty band under Open ride.
+      const panel = await page.locator('.panel').boundingBox();
+      const button = await page.getByTestId('queue-open-ride').boundingBox();
+      expect(panel && button && panel.y + panel.height - (button.y + button.height), 'space under Open ride').toBeLessThan(40);
+    }
     await shot(page, 'tap-card', phone);
     await scan(page, 'queue card open');
     await page.getByTestId('queue-open-ride').click();
@@ -216,13 +239,28 @@ test.describe('queue clarity', () => {
     }, a);
     expect(n).toBeGreaterThanOrEqual(10);
     const [x, y] = qa[1] as [number, number];
-    await tapTile(page, x, y, phone);
+    // A full line covers the middle of its tiles with guests: tap the queue beside them (the tile's south corner side).
+    await tapTile(page, x, y, phone, 0.9, 0.9);
     const counts = await tc(page, (g) => g.world.state.rides.map((r) => r.queue.length), null);
     const total = counts.reduce((s, c) => s + c, 0);
     await expect.poll(() => canvasData(page, 'queueGuests')).toBe(String(total));
     const mine = await tc(page, (g, id) => (g.world.state.rides.find((r) => r.id === id) as Ride).queue.length, a);
     await expect(page.getByTestId('queue-count')).toHaveText(`Queue: ${mine} guests`);
     await shot(page, 'full-line', phone);
+    // The front guest stands a third of a tile from the entrance gate, on the first queue tile: a tap on its body opens
+    // that guest, although its sim tile is wherever it joined the line.
+    await page.locator('.panel .panel-close').click();
+    const { front, gx, gy } = await tc(page, (g, id) => {
+      const r = g.world.state.rides.find((x) => x.id === id) as Ride;
+      const w = g.world.state.map.width;
+      const gate = (r.entrance as { gate: number }).gate;
+      return { front: r.queue[0] as number, gx: gate % w, gy: Math.floor(gate / w) };
+    }, a);
+    const [fx, fy] = qa[0] as [number, number];
+    await tc(page, (g) => void (g.camera.zoom = 2), null);
+    await tapTile(page, fx, fy, phone, 0.5 + (gx - fx) / 3, 0.5 + (gy - fy) / 3, 20);
+    expect(await tc(page, (g) => g.tool.selectedEntity, null)).toEqual({ kind: 'guest', id: front });
+    await expect(page.getByTestId('queue-card')).toHaveCount(0);
     watch.expectNoErrors();
   });
 

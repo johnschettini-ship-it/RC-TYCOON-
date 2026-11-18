@@ -136,6 +136,8 @@ export class PanelHost {
       return;
     }
     if (v.titleNow) setText(this.titleEl, v.titleNow());
+    // Its content may have grown or shrunk (a warning came or went).
+    if (v.fitContent) this.applySheet();
   }
 
   private applySheet(): void {
@@ -148,6 +150,15 @@ export class PanelHost {
     } else if (this.layout === 'bottom') {
       this.el.dataset.sheet = this.sheet;
       this.el.style.height = `${Math.round(SHEET_FRACTIONS[this.sheet] * 100)}vh`;
+      // A small panel at its own height (the queue card): no taller than its content, so no empty band under it.
+      const v = this.view;
+      if (v?.fitContent && v.sheet === this.sheet) {
+        // The body stretches to the sheet, so measure what is in it, not its scroll height.
+        const cs = getComputedStyle(this.bodyEl);
+        const inner = (this.bodyEl.firstElementChild as HTMLElement | null)?.offsetHeight ?? 0;
+        const full = Math.ceil(this.el.offsetHeight - this.bodyEl.clientHeight + inner + (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0));
+        if (full > 0 && full < this.el.offsetHeight) this.el.style.height = `${full}px`;
+      }
     } else {
       delete this.el.dataset.sheet;
       this.el.style.height = '';

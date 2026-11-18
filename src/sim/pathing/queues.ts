@@ -3,9 +3,9 @@
  * and where queueing guests are drawn. Derived from the network cache (`./network.ts`), rebuilt only with it, never
  * saved, and never read by a game rule: ownership stays `computeQueueOwners`'s.
  */
-import { nodeIdAt } from '../paths/nodes';
+import { nodeIdAt, nodeZOf } from '../paths/nodes';
 import type { World } from '../types';
-import { isQueueNode, network, nodesOnTile, type NetworkCache, type QueueComponentData } from './network';
+import { isQueueNode, network, type NetworkCache, type QueueComponentData } from './network';
 
 export interface QueueLine {
   rideId: number;
@@ -22,7 +22,6 @@ export interface QueueConflict {
   ownerId: number;
 }
 
-const scratch: number[] = [];
 const NONE: QueueComponentData = { owner: null, nodes: [] };
 
 /** The queue line of `rideId`, or null when its entrance has no queue it owns. */
@@ -30,16 +29,39 @@ export function queueLine(world: World, rideId: number): QueueLine | null {
   return network(world).queueLines.get(rideId) ?? null;
 }
 
-/** The queue node on `tile`: with `z` the node at that height, else the ground node, else the lowest elevated one; −1. */
+/**
+ * The queue node on `tile`: with `z` the node at that height (a picked deck), without it the ground queue node only
+ * (a tap on a footpath under a queue deck is not a tap on that queue); −1 when there is none.
+ */
 export function queueNodeAt(world: World, tile: number, z?: number): number {
   const c = network(world);
   if (z !== undefined) {
     const n = nodeIdAt(world, tile, z);
     return isQueueNode(c, n) ? n : -1;
   }
-  const count = nodesOnTile(c, tile, scratch);
-  for (let k = 0; k < count; k++) if (isQueueNode(c, scratch[k] as number)) return scratch[k] as number;
-  return -1;
+  return Number.isInteger(tile) && tile >= 0 && tile < c.tiles && isQueueNode(c, tile) ? tile : -1;
+}
+
+/** Layers per tile in a queue key: 0 = the ground node, z + 1 = the deck at height z. */
+const KEY_LAYERS = 1024;
+
+/**
+ * A stable key for queue node `node`: its tile and layer (ground, or the deck height). Unlike a node id it survives
+ * the removal of an earlier elevated path (deck node ids are tiles + list index). −1 for no node.
+ */
+export function queueKey(world: World, node: number): number {
+  const c = network(world);
+  if (!isQueueNode(c, node)) return -1;
+  const tile = c.nodeTile[node] as number;
+  return tile * KEY_LAYERS + (node < c.tiles ? 0 : nodeZOf(world, node) + 1);
+}
+
+/** The queue node a `queueKey` names now, or −1 when that tile and layer hold no queue any more. */
+export function queueNodeOfKey(world: World, key: number): number {
+  if (!Number.isInteger(key) || key < 0) return -1;
+  const tile = Math.floor(key / KEY_LAYERS);
+  const layer = key - tile * KEY_LAYERS;
+  return layer === 0 ? queueNodeAt(world, tile) : queueNodeAt(world, tile, layer - 1);
 }
 
 /** Tile of path node `node`. */

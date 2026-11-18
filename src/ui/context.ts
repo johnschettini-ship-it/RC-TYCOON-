@@ -76,4 +76,6 @@ export interface PanelView {
    * line shows above it). The next panel without one goes back to the height the player had.
    */
   sheet?: SheetHeight;
+  /** Phone: at its own `sheet` height, the sheet shrinks to its content (never grows past that height). */
+  fitContent?: boolean;
 }

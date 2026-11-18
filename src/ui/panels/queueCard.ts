@@ -6,7 +6,7 @@
  */
 import { t as plural } from '../../data/strings/index';
 import { text } from '../../data/strings/en';
-import { queueComponent, queueConflicts, type QueueConflict } from '../../sim/pathing/queues';
+import { queueComponent, queueConflicts, queueNodeOfKey, type QueueConflict } from '../../sim/pathing/queues';
 import type { World } from '../../sim/types';
 
 export interface QueueCard {
@@ -38,4 +38,14 @@ export function queueCard(world: World, node: number): QueueCard | null {
     .filter((c) => c.ownerId === ride.id)
     .map((c) => touchesText(world, c));
   return { rideId: ride.id, title: ride.name, count: plural('queue.card.count', { n: ride.queue.length }), lines };
+}
+
+/**
+ * The card of the queue a `queueKey` names, or null when it no longer resolves: the tile and layer hold no queue, or
+ * the ride that owns it is not `owner` (the ride it had when the card opened; null = no ride) any more.
+ */
+export function resolveQueueCard(world: World, key: number, owner: number | null): QueueCard | null {
+  const node = queueNodeOfKey(world, key);
+  const card = node < 0 ? null : queueCard(world, node);
+  return card && card.rideId === owner ? card : null;
 }

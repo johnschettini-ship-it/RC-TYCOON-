@@ -55,14 +55,39 @@ export function signFont(px: number): string {
   return `600 ${Math.round(px)}px Fredoka, system-ui, sans-serif`;
 }
 
+/** A sign's fitted text and its width in device px at the sign font. */
+export type SignFit = (name: string, maxPx: number) => { text: string; width: number };
+
+/** Most fitted names kept; a park has far fewer rides, so the cache only empties on a burst of renames. */
+const FIT_CACHE_MAX = 256;
+
 /**
- * Signs of every ride with an entrance, in ride order, on screen (device px); [] at zoom ≤ `GUEST_LOD_ZOOM`.
- * `measure` gives the text width in device px at the sign font (the caller sets `ctx.font = signFont(fontPx)`).
+ * `SignFit` that measures each (font, name, width) once: `measure` (the canvas `measureText` at `font`) runs only on a
+ * name, zoom step or font not seen before, not every frame.
  */
-export function signBoxes(world: World, f: LayerFrame, measure: (s: string) => number, out: SignBox[]): SignBox[] {
+export function createSignFit(): (measure: (s: string) => number, font: string) => SignFit {
+  const cache = new Map<string, { text: string; width: number }>();
+  return (measure, font) => (name, maxPx) => {
+    const key = `${font}|${Math.round(maxPx)}|${name}`;
+    let hit = cache.get(key);
+    if (!hit) {
+      if (cache.size >= FIT_CACHE_MAX) cache.clear();
+      const text = fitSignText(measure, name, maxPx);
+      hit = { text, width: measure(text) };
+      cache.set(key, hit);
+    }
+    return hit;
+  };
+}
+
+/**
+ * Signs of every ride with an entrance, in ride order, on screen (device px); [] at a zoom where the renderer draws
+ * guests as dots (`f.guestLodZoom`, which render quality and the device change; `GUEST_LOD_ZOOM` without one).
+ */
+export function signBoxes(world: World, f: LayerFrame, fit: SignFit, out: SignBox[]): SignBox[] {
   out.length = 0;
   const zoom = f.scale / f.dpr;
-  if (zoom <= GUEST_LOD_ZOOM) return out;
+  if (zoom <= (f.guestLodZoom ?? GUEST_LOD_ZOOM)) return out;
   const map = world.state.map;
   const w = map.width;
   const n = w * map.height;
@@ -82,8 +107,8 @@ export function signBoxes(world: World, f: LayerFrame, measure: (s: string) => n
     const p = mapToViewContinuous(fx, fy, f.rotation, w, map.height);
     const footX = (p.u - p.v) * (TILE_W / 2) * f.scale + f.offX;
     const footY = ((p.u + p.v) * (TILE_H / 2) - z * STEP_PX) * f.scale + f.offY;
-    const text = fitSignText(measure, r.name, SIGN_MAX_TEXT_PX * k);
-    const bw = measure(text) + padX * 2;
+    const { text, width } = fit(r.name, SIGN_MAX_TEXT_PX * k);
+    const bw = width + padX * 2;
     const bottom = footY - SIGN_LIFT * f.scale;
     const box: SignBox = { rideId: r.id, text, x: footX - bw / 2, y: bottom - h, w: bw, h, footX, footY, fontPx };
     if (box.x > f.width || box.x + box.w < 0 || box.y > f.height || footY < 0) continue;

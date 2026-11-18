@@ -10,6 +10,7 @@ import { nodeZOf } from '../sim/paths/nodes';
 import { nodeTile, type QueueLine } from '../sim/pathing/queues';
 import type { World } from '../sim/types';
 import { nodeSurfaceHeight, type GuestPos } from './guestPos';
+import { viewAffine, viewPointSX, viewPointSY } from './view';
 
 export const QUEUE_SLOTS_PER_TILE = 3;
 
@@ -153,4 +154,42 @@ export function createQueueEase(): QueueEase {
       }
     },
   };
+}
+
+/** A queueing guest where the renderer last drew it (map point and height), for tap hit tests. */
+export interface DrawnQueueGuest {
+  id: number;
+  fx: number;
+  fy: number;
+  z: number;
+  /** Renderer frame that drew it; older records are dropped. */
+  frame: number;
+}
+
+/**
+ * Queueing guests as last drawn, by guest id (queue clarity review fix 1). The renderer writes it each frame; the
+ * input layer reads it so a tap on a guest in a line opens that guest even though its sim tile is elsewhere.
+ */
+export const drawnQueueGuests = new Map<number, DrawnQueueGuest>();
+
+/** Guest sprite body around its feet (world px at zoom 1), a little inside `GUEST_BOUNDS` so gaps stay tappable. */
+const HIT = { left: -6, right: 6, top: -20, bottom: 3 };
+
+const hitAffine = viewAffine(0, 1, 1);
+
+/** The queueing guest drawn under world point (wx, wy) (zoom-1 world px, view `rot`), front-most first; or null. */
+export function queueGuestAtWorld(rot: Dir, mapW: number, mapH: number, wx: number, wy: number, guests: ReadonlyMap<number, DrawnQueueGuest> = drawnQueueGuests): number | null {
+  const va = viewAffine(rot, mapW, mapH, hitAffine);
+  let best: number | null = null;
+  let bestY = -Infinity;
+  for (const g of guests.values()) {
+    const sx = viewPointSX(va, g.fx, g.fy);
+    const sy = viewPointSY(va, g.fx, g.fy, g.z);
+    if (wx < sx + HIT.left || wx > sx + HIT.right || wy < sy + HIT.top || wy > sy + HIT.bottom) continue;
+    if (sy > bestY) {
+      bestY = sy;
+      best = g.id;
+    }
+  }
+  return best;
 }
