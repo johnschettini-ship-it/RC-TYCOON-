@@ -190,9 +190,16 @@ export function createHud(ctx: UiContext, openMenu: (extra: readonly MenuItem[])
   const arrange = (compact: boolean): void => {
     if (compact) {
       el.insertBefore(chip, controls);
-      controls.replaceChildren(speedWrap, ...endParts, menu);
+      controls.replaceChildren(speedWrap, menu);
       dayRow.replaceChildren(...chipParts, messages);
+      // Touch controls spec §4: both turn-view buttons stay on screen, as a column at the right edge of the map. They go
+      // first in the UI root, so panels, the hand and the bars (later in it) cover them rather than the other way round.
+      for (const p of endParts) {
+        p.classList.add('view-float');
+        ctx.root.prepend(p);
+      }
     } else {
+      for (const p of endParts) p.classList.remove('view-float');
       controls.replaceChildren(speedWrap, messages, menu);
       dayRow.replaceChildren(chip, ...chipParts, ...endParts);
     }

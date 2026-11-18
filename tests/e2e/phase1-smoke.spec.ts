@@ -33,15 +33,17 @@ test.describe('Phase 1 smoke: desktop', () => {
     await setSpeed(page, 'Pause');
     await centerOn(page, 31, 57);
 
-    // Drag-build a 5-tile footpath along the row north of the entrance stub.
+    // Shift-drag a 5-tile footpath along the row north of the entrance stub (a plain drag moves the map).
     await openTool(page, 'footpath');
     const a = await tilePoint(page, 29, 59);
     const b = await tilePoint(page, 33, 59);
     await page.mouse.move(a.x, a.y);
+    await page.keyboard.down('Shift');
     await page.mouse.down();
     await page.mouse.move(b.x, b.y, { steps: 12 });
-    await expect(page.getByTestId('tool-status-detail')).toHaveText(/^5 tiles · \$50/);
+    await expect(page.getByTestId('path-cost-tag')).toHaveText(/^5 tiles · \$50/);
     await page.mouse.up();
+    await page.keyboard.up('Shift');
     for (let x = 29; x <= 33; x++) expect(await contentAt(page, x, 59), `footpath at (${x}, 59)`).toBe(FOOTPATH);
 
     // Place a Carousel north of the path: its footprint centre is the tile under the pointer.
@@ -52,11 +54,11 @@ test.describe('Phase 1 smoke: desktop', () => {
     await page.mouse.click(anchor.x, anchor.y);
     await expect.poll(async () => (await rides(page)).map((r) => `${r.defId}@${r.x},${r.y}`)).toEqual(['carousel@30,55']);
 
-    // A queue tile from the entrance gate to the path.
-    await openTool(page, 'queue');
-    const q = await tilePoint(page, 31, 58);
-    await page.mouse.click(q.x, q.y);
-    expect(await contentAt(page, 31, 58)).toBe(QUEUE);
+    // The placed ride opens the queue builder at its entrance (touch controls spec §6): Forward builds the queue tile.
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __tc: { tool: { tool: string } } }).__tc.tool.tool)).toBe('queue');
+    await expect(page.getByTestId('path-cost-tag')).toHaveText('$12');
+    await page.getByTestId('path-forward').click();
+    await expect.poll(() => contentAt(page, 31, 58)).toBe(QUEUE);
 
     // Open the ride from its panel, then the park from the Park panel.
     await openTool(page, 'inspect');
@@ -103,10 +105,12 @@ test.describe('Phase 1 smoke: phone', () => {
     await setSpeed(page, 'Pause');
     await centerOn(page, 31, 57);
 
-    // Tap builds one footpath tile.
+    // The step builder: a tap sets the start, Forward builds it.
     await openTool(page, 'footpath');
     const p = await tilePoint(page, 30, 59);
     await page.touchscreen.tap(p.x, p.y);
+    expect(await contentAt(page, 30, 59)).toBe(0);
+    await page.getByTestId('path-forward').tap();
     await expect.poll(() => contentAt(page, 30, 59)).toBe(FOOTPATH);
 
     // Ride picker in the bottom sheet; a tap moves the ghost; Confirm places the ride.
@@ -116,7 +120,8 @@ test.describe('Phase 1 smoke: phone', () => {
     expect(await rides(page)).toEqual([]);
     await page.getByRole('button', { name: 'Confirm', exact: true }).tap();
     await expect.poll(async () => (await rides(page)).map((r) => `${r.defId}@${r.x},${r.y}`)).toEqual(['carousel@33,55']);
-    await page.getByRole('button', { name: 'Cancel', exact: true }).tap();
+    // The queue builder opened at the entrance; Done ends it.
+    await page.getByTestId('path-done').tap();
 
     // Guests come in through the debug hook: open the ride and the park, then step the game while paused.
     const guest = await page.evaluate(() => {
@@ -172,7 +177,7 @@ test.describe('Phase 1 smoke: phone', () => {
     watch.expectNoErrors();
   });
 
-  test('Review Focus 4: a second finger during a path drag cancels the build and pinches instead', async ({ page }) => {
+  test('one finger moves the map in the path tool; a second finger pinches; nothing is built', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Overlap Park');
     await setSpeed(page, 'Pause');
@@ -190,9 +195,13 @@ test.describe('Phase 1 smoke: phone', () => {
     const a = await tilePoint(page, 22, 50);
     const b = await tilePoint(page, 26, 50);
     const cdp = await page.context().newCDPSession(page);
+    const camX = (): Promise<number> => page.evaluate(() => (window as unknown as { __tc: { camera: { centerX: number } } }).__tc.camera.centerX);
+    const cam0 = await camX();
     await touch(cdp, 'touchStart', [{ x: a.x, y: a.y, id: 1 }]);
     for (let k = 1; k <= 6; k++) await touch(cdp, 'touchMove', [{ x: a.x + ((b.x - a.x) * k) / 6, y: a.y + ((b.y - a.y) * k) / 6, id: 1 }]);
-    await expect(page.getByTestId('tool-status-detail')).toHaveText(/tiles/);
+    // Touch controls spec §1: the finger moved the map; no line is drawn.
+    await expect.poll(camX).not.toBe(cam0);
+    await expect(page.getByTestId('path-cost-tag')).toBeHidden();
     // The second finger lands mid-drag; both fingers spread apart.
     await touch(cdp, 'touchStart', [
       { x: b.x, y: b.y, id: 1 },

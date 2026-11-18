@@ -3,7 +3,7 @@
  * and tap, then Skip tutorial. Bubbles never cover the ringed target. Every test fails on any console error.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { centerOn, contentAt, isPhone, tilePoint, toolControl, touch, watchErrors } from './helpers';
+import { centerOn, contentAt, isPhone, tilePoint, toolControl, touch, watchErrors, lineOf, pressPath } from './helpers';
 
 const FOOTPATH = 1;
 
@@ -84,13 +84,9 @@ test.describe('Tutorial: desktop', () => {
     await expectBubbleClearOfRing(page);
     await footpathTool.click();
     await centerOn(page, 24, 42);
-    const a = await tilePoint(page, 24, 43);
-    const b = await tilePoint(page, 24, 41);
-    await page.mouse.move(a.x, a.y);
-    await page.mouse.down();
-    await page.mouse.move(b.x, b.y, { steps: 10 });
-    await page.mouse.up();
-    for (const y of [41, 42, 43]) expect(await contentAt(page, 24, y)).toBe(FOOTPATH);
+    // The step builder (touch controls spec 2026-11-18 §3): a click sets the start, a click on each next tile adds it.
+    await pressPath(page, lineOf(24, 43, 24, 41));
+    for (const y of [41, 42, 43]) await expect.poll(() => contentAt(page, 24, y)).toBe(FOOTPATH);
     await expect(stepTitle(page)).toHaveText('Place a Carousel');
     await expect(page.getByTestId('tutorial-step')).toHaveText('Step 5 of 16');
     watch.expectNoErrors();
@@ -168,11 +164,9 @@ test.describe('Tutorial: phone', () => {
     await expectBubbleClearOfRing(page);
     await footpathTool.tap();
     await centerOn(page, 24, 42);
-    for (const y of [43, 42, 41]) {
-      const p = await tilePoint(page, 24, y);
-      await page.touchscreen.tap(p.x, p.y);
-      await expect.poll(() => contentAt(page, 24, y)).toBe(FOOTPATH);
-    }
+    // The step builder: a tap sets the start, a tap on each next tile adds it.
+    await pressPath(page, lineOf(24, 43, 24, 41), { tap: true });
+    for (const y of [43, 42, 41]) await expect.poll(() => contentAt(page, 24, y)).toBe(FOOTPATH);
     await expect(stepTitle(page)).toHaveText('Place a Carousel');
 
     // Skip tutorial (confirm): the bubble goes and the park plays on.

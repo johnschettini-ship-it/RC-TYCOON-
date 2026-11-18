@@ -88,7 +88,7 @@ describe('view rotation input (Phase 4 §4.8)', () => {
     }
   });
 
-  it('a footpath drag builds along the map axis under the pointer in a turned view', () => {
+  it('a footpath Shift-drag builds along the map axis under the pointer in a turned view', () => {
     const { game, ctl, cmds, at, ev } = setup();
     ctl.keyDown(']');
     ctl.keyDown(']');
@@ -96,9 +96,9 @@ describe('view rotation input (Phase 4 §4.8)', () => {
     ctl.update(0);
     const a = at(30, 30);
     const b = at(26, 30);
-    ev({ type: 'down', ...a });
-    ev({ type: 'move', ...b, t: 50 });
-    ev({ type: 'up', ...b, t: 80 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...a });
+    ev({ type: 'move', pointerType: 'mouse', ...b, t: 50 });
+    ev({ type: 'up', pointerType: 'mouse', ...b, t: 80 });
     expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 26, y1: 30, kind: 'footpath' }]);
   });
 

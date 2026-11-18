@@ -27,6 +27,7 @@ import { minCorner } from '../../sim/terrain/corners';
 import type { Corner } from '../../sim/terrain/types';
 import type { DragMode, GestureAction } from '../gestures';
 import type { TileAt, ToolRouter } from '../toolRouters';
+import { dragPaints } from '../dragPaint';
 
 /** Canvas size in CSS px (written by the browser glue into the side table), or null when unknown. */
 function viewportOf(game: Game): { width: number; height: number } | null {
@@ -198,6 +199,23 @@ function runAction(game: Game, s: LandToolExtra, action: LandAction): void {
   send(game, s, landCommand(tool, anchorOf(game, s), map.width, raise));
 }
 
+/** The last tile a touch paint stroke applied at (−1 before the first). */
+let paintedTile = -1;
+
+/**
+ * Touch with the Paint toggle on (touch controls spec §2): a one-finger drag applies the mode once on each tile it
+ * enters, like the mouse brush stroke. Corner and Level modes do not paint (a corner is marked by a tap; Level draws its
+ * rectangle). The mouse stroke is the press repeat in `update`.
+ */
+function touchPaint(game: Game, s: LandToolExtra, tile: number | null, first: boolean): void {
+  const tool = game.tool;
+  if (first) paintedTile = -1;
+  if (tile === null || s.pointer === 'mouse' || !dragPaints(tool) || tile === paintedTile) return;
+  if (tool.tool === 'land' && (tool.land.mode === 'corner' || tool.land.mode === 'level')) return;
+  paintedTile = tile;
+  send(game, s, landCommand(tool, tile, game.world.state.map.width, clickRaises(tool, s, false)));
+}
+
 function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
   lastTileAt = tileAt;
   const tool = game.tool;
@@ -235,6 +253,7 @@ function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
         return true;
       }
       setAnchor(game, s, tile, a.x, a.y);
+      touchPaint(game, s, tile, true);
       return true;
     }
     case 'dragMove': {
@@ -247,6 +266,7 @@ function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
         return true;
       }
       setAnchor(game, s, tile, a.x, a.y);
+      touchPaint(game, s, tile, false);
       return true;
     }
     case 'dragEnd': {
@@ -263,6 +283,10 @@ function gesture(game: Game, a: GestureAction, tileAt: TileAt): boolean {
       clearRect(s);
       s.pressApplied = false;
       return true;
+    case 'panStart':
+      // The press moved the map: it applies nothing (a drag never builds by accident).
+      s.pressDown = false;
+      return false;
     default:
       return false;
   }
@@ -381,11 +405,15 @@ function update(game: Game, now: number): void {
     s.heldNextMs = nextRepeat(s.heldNextMs, now);
   }
   if (s.pressDown && !isLevel(tool)) {
-    if (!s.pressApplied) {
+    if (s.pressAt < 0) s.pressAt = now;
+    // Paint toggle off: a mouse press may still become a pan, so it applies only once held still for one repeat
+    // period (or on release, as a click: the tap handler).
+    const ready = dragPaints(tool) || now - s.pressAt >= LAND_REPEAT_MS;
+    if (!s.pressApplied && ready) {
       s.pressApplied = true;
       s.nextRepeatMs = now + LAND_REPEAT_MS;
       send(game, s, landCommand(tool, anchorOf(game, s), map.width, clickRaises(tool, s, s.pressShift)));
-    } else if (now >= s.nextRepeatMs) {
+    } else if (s.pressApplied && now >= s.nextRepeatMs) {
       s.nextRepeatMs = nextRepeat(s.nextRepeatMs, now);
       send(game, s, landCommand(tool, anchorOf(game, s), map.width, clickRaises(tool, s, s.pressShift)));
     }
@@ -393,9 +421,9 @@ function update(game: Game, now: number): void {
   refreshGhost(game, s, now);
 }
 
+/** One finger and a left mouse drag move the map; with the Paint toggle on a drag paints (or draws the Level rectangle). */
 function primaryDrag(game: Game): DragMode {
-  if (isLevel(game.tool)) return 'build';
-  return landToolOf(game.tool).pointer === 'mouse' ? 'build' : 'pan';
+  return dragPaints(game.tool) ? 'build' : 'pan';
 }
 
 function enter(game: Game): void {

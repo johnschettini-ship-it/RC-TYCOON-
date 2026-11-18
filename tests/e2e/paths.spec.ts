@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openTool } from './helpers';
+import { dismissWelcome, openTool } from './helpers';
 
 /**
  * Elevated paths (Phase 4 §4.2, §7 Path height row; W3-B): the path height mini-bar with `Page Up` / `Page Down`
@@ -26,6 +26,8 @@ async function newPark(page: Page): Promise<string[]> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  // The realistic build's welcome card (nothing in the website build).
+  await dismissWelcome(page);
   return errors;
 }
 
@@ -72,11 +74,13 @@ async function pixelAt(page: Page, p: { x: number; y: number }): Promise<[number
   }, [p.x, p.y] as const);
 }
 
-test('desktop: Page Up sets the path height, a drag builds an elevated line that draws', async ({ page }, info) => {
+test('desktop: Page Up sets the path height, a Shift-drag builds an elevated line that draws', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'mouse and keyboard');
   const errors = await newPark(page);
   await openTool(page, 'footpath');
-  const bar = page.getByTestId('path-height-bar');
+  // The path builder row (touch controls spec 2026-11-18 §3) carries the height; its menu shows the value.
+  const bar = page.getByTestId('path-panel');
+  await page.getByTestId('path-slope').click();
   await expect(bar).toBeVisible();
   await expect(page.getByTestId('path-height-value')).toHaveText('Ground');
   const start = await showTile(page, 24, 30, 8);
@@ -90,10 +94,12 @@ test('desktop: Page Up sets the path height, a drag builds an elevated line that
   await expect(bar).toHaveAttribute('data-height', '10');
   const cash = await page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.park.cash);
   const end = await pointOf(page, 27, 30, 8);
+  await page.keyboard.down('Shift');
   await page.mouse.down();
   await page.mouse.move((start.x + end.x) / 2, (start.y + end.y) / 2, { steps: 4 });
   await page.mouse.move(end.x, end.y, { steps: 4 });
   await page.mouse.up();
+  await page.keyboard.up('Shift');
   const paths = await page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.elevatedPaths.map((p) => [p.x, p.y, p.z, p.rampDir]));
   expect(paths).toEqual([
     [24, 30, 10, -1],
@@ -111,12 +117,13 @@ test('desktop: Page Up sets the path height, a drag builds an elevated line that
   expect(errors).toEqual([]);
 });
 
-test('phone: + / − and the ramp toggle in the mini-bar; a tap builds at the height', async ({ page }, info) => {
+test('phone: + / − and the ramp toggle in the Height and slope menu; the step builder builds at the height', async ({ page }, info) => {
   test.skip(info.project.name !== 'phone', 'touch');
   const errors = await newPark(page);
   await openTool(page, 'footpath', { tap: true });
-  const bar = page.getByTestId('path-height-bar');
+  const bar = page.getByTestId('path-panel');
   await expect(bar).toBeVisible();
+  await page.getByTestId('path-slope').tap();
   await expect(page.getByTestId('path-ramp-up')).toBeDisabled();
   await page.getByTestId('path-height-up').tap();
   await page.getByTestId('path-height-up').tap();
@@ -125,10 +132,14 @@ test('phone: + / − and the ramp toggle in the mini-bar; a tap builds at the he
   await expect(bar).toHaveAttribute('data-height', '9');
   await page.getByTestId('path-ramp-up').tap();
   await expect(page.getByTestId('path-ramp-up')).toHaveAttribute('aria-pressed', 'true');
+  // Flat again; a tap sets the start, a tap on the next tile builds both at the height.
+  await page.getByTestId('path-ramp-flat').tap();
   const p = await showTile(page, 24, 30, 8);
   await page.touchscreen.tap(p.x, p.y);
-  await expect.poll(() => page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.elevatedPaths.length)).toBe(1);
-  // A tap has no drag direction: the ramp toggle gives a flat path.
+  expect(await page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.elevatedPaths.length)).toBe(0);
+  const q = await pointOf(page, 25, 30, 8);
+  await page.touchscreen.tap(q.x, q.y);
+  await expect.poll(() => page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.elevatedPaths.length)).toBe(2);
   expect(await page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.elevatedPaths[0])).toMatchObject({ x: 24, y: 30, z: 9, rampDir: -1 });
   await page.getByTestId('path-height-down').tap();
   await expect(bar).toHaveAttribute('data-height', 'ground');

@@ -22,14 +22,17 @@ export type RampMode = 'flat' | 'up' | 'down';
  * Phase 1 — building (owner W1-C; Phase 4 extensions owner W3-B).
  * Phase 4 §6: `buildPath` / `buildPathLine` take an optional `z` (absolute height of the walking surface) for
  * elevated paths; absent = a ground path at the tile base height. `demolish` takes an optional `z` to pick an
- * elevated path on the tile; absent = the Build 1 behaviour.
+ * elevated path on the tile; absent = the Build 1 behaviour. `undoable` (the path step builder): the new tiles may be
+ * taken back with `undoPath` for their full price.
  */
 export type BuildCommand =
-  | { type: 'buildPath'; x: number; y: number; kind: PathKind; z?: number; rampDir?: RampDir }
-  | { type: 'buildPathLine'; x0: number; y0: number; x1: number; y1: number; kind: PathKind; z?: number; ramp?: RampMode }
+  | { type: 'buildPath'; x: number; y: number; kind: PathKind; z?: number; rampDir?: RampDir; undoable?: boolean }
+  | { type: 'buildPathLine'; x0: number; y0: number; x1: number; y1: number; kind: PathKind; z?: number; ramp?: RampMode; undoable?: boolean }
   | { type: 'placeRide'; defId: string; x: number; y: number; rotation: Dir }
   | { type: 'placeStall'; defId: string; x: number; y: number; rotation: Dir }
-  | { type: 'demolish'; x: number; y: number; z?: number };
+  | { type: 'demolish'; x: number; y: number; z?: number }
+  /** Step builder Undo (`sim/paths/undo.ts`): demolish one path node; a tile the builder built refunds its full price. */
+  | { type: 'undoPath'; x: number; y: number; z?: number };
 
 /** Phase 1 — prices and park settings (owner W1-E). */
 export type PriceCommand =

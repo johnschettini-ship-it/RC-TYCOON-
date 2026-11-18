@@ -67,6 +67,8 @@ export interface DragState {
    * Absent for other drags.
    */
   reason?: string | null;
+  /** Path step builder: the map heading of a one-tile step (its ramp direction), or absent. */
+  stepDir?: number;
 }
 
 /** Land tool modes (Phase 4 §7). */

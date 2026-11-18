@@ -1,5 +1,5 @@
 /**
- * Tool status bar: ghost state (icon + colour + text), path cost before release,
+ * Tool status bar: ghost state (icon + colour + text),
  * and Rotate / Confirm / Cancel for placement on touch and desktop (Phase 1 §4.1). Owner: W1-B.
  * Phase 7 §4.6: on the phone, while a ride or stall card is held, a Details button opens the card details panel.
  */
@@ -31,7 +31,9 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
     'button',
     {
       type: 'button',
-      class: 'btn',
+      // Touch controls spec §4: a large Rotate button (a tap on the ghost also turns it).
+      class: 'btn rotate-big',
+      'data-testid': 'status-rotate',
       'aria-label': text('ui.status.rotate'),
       onclick: () => {
         game.tool.rotation = ((game.tool.rotation + 1) % 4) as Dir;
@@ -74,8 +76,8 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
     update() {
       const t = game.tool;
       const place = t.tool === 'placeRide' || t.tool === 'placeStall';
-      const path = t.tool === 'footpath' || t.tool === 'queue';
-      const visible = place || path || t.tool === 'demolish';
+      // The footpath and queue tools have their own row: the step builder panel (`./paths`).
+      const visible = place || t.tool === 'demolish';
       if (el.hidden === visible) el.hidden = !visible;
       if (!visible) return;
       rotate.hidden = !place;
@@ -96,15 +98,6 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
           setText(detail, '');
         }
         confirm.toggleAttribute('disabled', !g);
-      } else if (path) {
-        const d = t.drag;
-        setText(msg, text(t.tool === 'footpath' ? 'ui.tool.footpath' : 'ui.tool.queue'));
-        // The cost and the refusal come from the build command's dry run (`pathLinePreview`).
-        if (d?.reason) {
-          valid = false;
-          setText(detail, localizeReason(d.reason));
-        } else if (d) setText(detail, d.tiles.length === 1 ? text('ui.status.pathTile', { cost: formatMoney(d.cost) }) : text('ui.status.pathTiles', { count: d.tiles.length, cost: formatMoney(d.cost) }));
-        else setText(detail, text('ui.status.pathHint'));
       } else {
         setText(msg, text('ui.tool.demolish'));
         setText(detail, text('ui.status.demolishHint'));

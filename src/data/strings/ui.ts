@@ -38,9 +38,6 @@ export const uiStrings: Record<string, string> = {
   'ui.status.confirm': 'Confirm',
   'ui.status.cancel': 'Cancel',
   'ui.status.placeCost': '{name} · {cost}',
-  'ui.status.pathHint': 'Drag to draw a line, tap to build one tile',
-  'ui.status.pathTiles': '{count} tiles · {cost}',
-  'ui.status.pathTile': '1 tile · {cost}',
   'ui.status.demolishHint': 'Tap something to remove it',
 
   // Ride and stall cards and their details
@@ -276,8 +273,14 @@ export const uiStrings: Record<string, string> = {
   'ui.patrol.brushSize': '{n}×{n}',
   'ui.patrol.clear': 'Clear',
   'ui.patrol.done': 'Done',
-  'ui.patrol.hintMouse': 'Drag to paint · Shift + drag for the other mode · Right-drag pans',
-  'ui.patrol.hintTouch': 'Drag one finger to paint · Two fingers pan and zoom',
+  'ui.patrol.hintMouse': 'Click to paint · Shift-click for the other mode',
+  'ui.patrol.tapPaint': 'Tap to paint',
+  // Touch controls spec 2026-11-18 §2: the drag tools' toggle and the hints that follow it.
+  'ui.dragPaints': 'Drag paints',
+  'ui.toggleOn': 'On',
+  'ui.toggleOff': 'Off',
+  'ui.hint.dragOff': 'One finger moves the map · {hint}',
+  'ui.hint.dragOn': 'Drag to paint · Two fingers move the map',
   'ui.patrol.zoomHint': 'Zoom in to paint small areas',
   'ui.patrol.whole': 'No area painted: works in the whole park',
 

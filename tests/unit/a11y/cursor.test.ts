@@ -99,15 +99,19 @@ describe('a11yKeys (Phase 6 §4.7 keyboard play)', () => {
     expect(s.y).toBeLessThan(VH);
   });
 
-  it('Enter acts as a click at the cursor: the footpath tool builds there, Inspect opens the ride', () => {
+  it('Enter acts as a click at the cursor: the footpath step builder starts there and builds to the next tile, Inspect opens the ride', () => {
     const { game, cmds, key } = setup();
     const map = game.world.state.map;
     key('c');
     game.tool.tool = 'footpath';
     const t = mapCursor.tile;
     expect(key('Enter')).toBe(true);
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: t % map.width, y0: Math.floor(t / map.width), x1: t % map.width, y1: Math.floor(t / map.width), kind: 'footpath' }]);
+    expect(cmds).toEqual([]);
+    key('ArrowRight');
+    expect(key('Enter')).toBe(true);
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: t % map.width, y0: Math.floor(t / map.width), x1: (t % map.width) + 1, y1: Math.floor(t / map.width), kind: 'footpath', undoable: true }]);
     expect(map.content[t]).toBe(Content.Footpath);
+    key('ArrowLeft');
     // Inspect: a ride under the cursor gets selected (the UI opens its panel).
     const x = t % map.width;
     const y = Math.floor(t / map.width);
@@ -136,7 +140,8 @@ describe('a11yKeys (Phase 6 §4.7 keyboard play)', () => {
     const x = t % map.width;
     const y = Math.floor(t / map.width);
     expect(cmds).toEqual([{ type: 'buildPathLine', x0: x, y0: y, x1: x + 3, y1: y, kind: 'queue' }]);
-    expect(game.tool.drag).toBeNull();
+    // The step builder goes on from the line's end: its ghost is the next tile.
+    expect(game.tool.drag?.tiles).toEqual([t + 4]);
     expect(map.content[t + 3]).toBe(Content.Queue);
   });
 

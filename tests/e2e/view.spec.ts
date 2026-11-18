@@ -127,7 +127,7 @@ test.describe('desktop', () => {
     watch.expectNoErrors();
   });
 
-  test('buy land: the drag shows the total, release buys, cash drops (turned view)', async ({ page }) => {
+  test('buy land: with Drag paints on, the drag shows the total, release buys, cash drops (turned view)', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Land Park');
     await setSpeed(page, 'Pause');
@@ -136,6 +136,9 @@ test.describe('desktop', () => {
     await openTool(page, 'buyLand');
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
+    // Touch controls spec 2026-11-18 §2: a drag selects only with the toggle on (off, it moves the map).
+    await page.getByTestId('buy-paint-drag').click();
+    await expect(page.getByTestId('buy-paint-drag')).toHaveAttribute('aria-pressed', 'true');
     const a = await tilePointR(page, 10, 20);
     const b = await tilePointR(page, 13, 22);
     await page.mouse.move(a.x, a.y);
@@ -157,7 +160,7 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.beforeEach(() => test.skip(!isPhone(test.info()), 'phone flow'));
 
-  test('tap and hold the turn-view button; buy land by drag and Confirm', async ({ page }) => {
+  test('both turn-view buttons on the upright phone; buy land by drag (Drag paints) and Confirm', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Thumb Park');
     await setSpeed(page, 'Pause');
@@ -166,21 +169,18 @@ test.describe('phone', () => {
     expect(Number(await canvas.getAttribute('data-pixel-ratio'))).toBeLessThanOrEqual(2);
     await landForSale(page, 20, 30, 22, 31);
     const start = await centreTile(page);
-    // Task 24: the upright phone has one turn button: a tap turns right, a hold turns left.
-    const one = page.getByTestId('view-turn');
-    await one.tap();
+    // Touch controls spec 2026-11-18 §4: both turn buttons are on screen; each turns the view about the centre tile.
+    await page.getByTestId('view-rotate-right').tap();
     await expect(canvas).toHaveAttribute('data-rotation', '1');
     expect(await centreTile(page)).toBe(start);
-    const ob = (await one.boundingBox())!;
-    const hold = await page.context().newCDPSession(page);
-    await touch(hold, 'touchStart', [{ x: ob.x + ob.width / 2, y: ob.y + ob.height / 2, id: 1 }]);
+    await page.getByTestId('view-rotate-left').tap();
     await expect(canvas).toHaveAttribute('data-rotation', '0');
-    await touch(hold, 'touchEnd', []);
     expect(await centreTile(page)).toBe(start);
 
     await openTool(page, 'buyLand', { tap: true });
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();
     const before = await cash(page);
+    await page.getByTestId('buy-paint-drag').tap();
     const a = await tilePointR(page, 20, 30);
     const b = await tilePointR(page, 22, 31);
     const cdp = await page.context().newCDPSession(page);

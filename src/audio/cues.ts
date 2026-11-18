@@ -60,6 +60,7 @@ export const COMMAND_SFX: Readonly<Record<Command['type'], SfxId | null>> = Obje
   buyLand: 'build_path',
   // Removing things.
   demolish: 'demolish',
+  undoPath: 'demolish',
   removeScenery: 'demolish',
   removePathItem: 'demolish',
   removeLastTrackPiece: 'demolish',

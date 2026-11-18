@@ -63,6 +63,9 @@ test.describe('Phase 3 management UI', () => {
     if (!box) throw new Error('no canvas');
     const cx = box.x + box.width / 2 - 60;
     const cy = box.y + box.height / 2;
+    // A mouse drag paints with the Paint toggle on (touch controls spec 2026-11-18 §2); off, it moves the map.
+    await page.getByTestId('patrol-paint-drag').click();
+    await expect(page.getByTestId('patrol-paint-drag')).toHaveAttribute('aria-pressed', 'true');
     await page.mouse.move(cx, cy);
     await page.mouse.down();
     await page.mouse.move(cx + 60, cy + 10, { steps: 6 });
@@ -85,7 +88,7 @@ test.describe('Phase 3 management UI', () => {
     await expect(page.getByTestId('toast')).toHaveText('Campaign already running');
   });
 
-  test('phone: one finger paints a patrol, two fingers paint nothing, and the loan repays', async ({ page }, info) => {
+  test('phone: one finger pans, then with Drag paints on paints a patrol; two fingers paint nothing; the loan repays', async ({ page }, info) => {
     test.skip(info.project.name !== 'phone', 'touch flow');
     await openTool(page, 'staff');
     await page.getByTestId('hire-mechanic').click();
@@ -113,6 +116,19 @@ test.describe('Phase 3 management UI', () => {
         for (const b of p) for (let k = 0; k < 8; k++) n += (b >> k) & 1;
         return n;
       });
+    // Toggle off (the default): one finger moves the map and paints nothing (touch controls spec 2026-11-18 §2).
+    const camX = (): Promise<number> => page.evaluate(() => (window as unknown as { __tc: { camera: { centerX: number } } }).__tc.camera.centerX);
+    const cam0 = await camX();
+    await touch('pointerdown', 1, x, y);
+    for (let k = 1; k <= 6; k++) await touch('pointermove', 1, x + k * 15, y + k * 3);
+    await touch('pointerup', 1, x + 90, y + 18);
+    expect(await patrolTiles()).toBe(0);
+    expect(await camX()).not.toBe(cam0);
+    // Toggle on: the same drag paints.
+    await expect(page.getByTestId('patrol-paint-drag')).toHaveText('Drag paintsOff');
+    await page.getByTestId('patrol-paint-drag').tap();
+    await expect(page.getByTestId('patrol-paint-drag')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('patrol-paint-drag')).toHaveText('Drag paintsOn');
     await touch('pointerdown', 1, x, y);
     for (let k = 1; k <= 6; k++) await touch('pointermove', 1, x + k * 15, y + k * 3);
     await touch('pointerup', 1, x + 90, y + 18);

@@ -183,6 +183,8 @@ export function createElevatedPathLayer(): WorldLayer {
       const b = tiles[1] as number;
       dir = b === a - map.width ? 0 : b === a + 1 ? 1 : b === a + map.width ? 2 : 3;
     }
+    // The step builder's one-tile step carries its heading (its ramp direction).
+    else if (tiles && tiles.length === 1 && tool.drag?.stepDir !== undefined) dir = tool.drag.stepDir;
     const mode = dir < 0 ? 'flat' : tool.pathHeight.ramp;
     // The build command's dry run (`pathLinePreview` in the controller) refuses this line: blocked colours.
     const blocked = !!tool.drag?.reason;

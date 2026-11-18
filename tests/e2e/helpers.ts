@@ -304,3 +304,25 @@ export async function freeMapShare(page: Page): Promise<number> {
     return free / (24 * 12);
   });
 }
+
+/**
+ * Build a path along `tiles` (each a 4-neighbour of the one before) with the step builder (touch controls spec
+ * 2026-11-18 §3): a press on the first tile sets the start, a press on each next tile adds it. The footpath or queue
+ * tool must be active. `tap`: touch taps, else mouse clicks.
+ */
+export async function pressPath(page: Page, tiles: ReadonlyArray<readonly [number, number]>, opts: PressOptions = {}): Promise<void> {
+  for (const [x, y] of tiles) {
+    const p = await tilePoint(page, x, y);
+    if (opts.tap) await page.touchscreen.tap(p.x, p.y);
+    else await page.mouse.click(p.x, p.y);
+    await nextFrames(page);
+  }
+}
+
+/** The tiles of a straight line from (x0, y0) to (x1, y1) (same row or column), for `pressPath`. */
+export function lineOf(x0: number, y0: number, x1: number, y1: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+  for (let k = 0; k <= n; k++) out.push([x0 + Math.sign(x1 - x0) * k, y0 + Math.sign(y1 - y0) * k]);
+  return out;
+}

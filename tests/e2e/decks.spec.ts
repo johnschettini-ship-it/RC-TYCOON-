@@ -58,7 +58,8 @@ test('Put back, Esc, and Cancel select Inspect', async ({ page }) => {
   await page.keyboard.press('Escape');
   expect(await toolNow(page)).toBe('inspect');
   await openTool(page, 'footpath');
-  await page.getByRole('region', { name: 'Tool options' }).getByRole('button', { name: 'Cancel' }).click();
+  // The footpath tool's row is the path builder (touch controls spec 2026-11-18 §3): its Done ends the tool.
+  await page.getByRole('region', { name: 'Path builder' }).getByRole('button', { name: 'Done' }).click();
   expect(await toolNow(page)).toBe('inspect');
   await expect(page.getByTestId('card-put-back')).toHaveCount(0);
 });
@@ -375,13 +376,13 @@ test('no toolbar named Tools is on the screen', async ({ page }) => {
 test.describe('the hand tucks away on the phone while a card is pressed', () => {
   test.beforeEach(() => test.skip(!isPhone(test.info()), 'phone layout'));
 
-  test('a held Footpath card tucks the hand; Cancel brings it back with the Paths deck', async ({ page }) => {
+  test('a held Footpath card tucks the hand; Done brings it back with the Paths deck', async ({ page }) => {
     const hand = page.getByTestId('hand');
     await openTool(page, 'footpath');
     expect(await toolNow(page)).toBe('footpath');
     await expect(hand).toBeHidden();
     await expect(page.getByTestId('deck-paths')).toHaveAttribute('aria-pressed', 'false');
-    await page.getByRole('region', { name: 'Tool options' }).getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('region', { name: 'Path builder' }).getByRole('button', { name: 'Done' }).click();
     await expect(hand).toBeVisible();
     await expect(hand).toHaveAttribute('data-deck', 'paths');
     await expect(page.getByTestId('deck-paths')).toHaveAttribute('aria-pressed', 'true');
@@ -604,7 +605,8 @@ test.describe('card drag (mouse)', () => {
     await expect(page.locator(CARD)).toHaveClass(/dragging/);
     await pen('mouseReleased', to, 0);
     expect(await tc<number[]>(page, 'g.world.state.rides.map((r) => r.y * 64 + r.x)')).toEqual([tileOf(30, 55)]);
-    await expect(page.locator(CARD)).toHaveAttribute('aria-pressed', 'true');
+    // The placed ride opens the queue builder at its entrance (touch controls spec 2026-11-18 §6).
+    await expect.poll(() => toolNow(page)).toBe('queue');
   });
 
   test('a drag on a track ride card is a press: it starts the station builder and builds nothing', async ({ page }) => {

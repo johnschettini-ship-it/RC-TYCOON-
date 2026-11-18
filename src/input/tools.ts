@@ -100,6 +100,15 @@ export function computeGhost(world: World, kind: 'ride' | 'stall', defId: string
   return { kind, defId, tile: oy * map.width + ox, rotation, valid: reason === null, reason, cost };
 }
 
+/** The map tiles a ride or stall ghost covers (its footprint at its map rotation). */
+export function ghostTiles(world: World, ghost: GhostState): number[] {
+  const map = world.state.map;
+  if (ghost.kind === 'stall') return [ghost.tile];
+  const def = getFlatRideDef(ghost.defId);
+  if (!def) return [ghost.tile];
+  return footprintTiles(map, ghost.tile % map.width, Math.floor(ghost.tile / map.width), def.w, def.d, ghost.rotation) ?? [ghost.tile];
+}
+
 /**
  * Ghost of the held ride or stall (the `placeRide` or `placeStall` tool with a `defId`) centred on `tile`, or null for
  * any other tool state. The tool rotation is what the player sees; the ghost and the place command take the map

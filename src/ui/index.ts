@@ -414,14 +414,14 @@ export function mountUI(root: HTMLElement, game: Game): void {
     followSet = { x: p.sx, y: p.sy };
   };
 
-  // A toast that would cover the tool status bar (large text on desktop) sits 8 px above the bar and the path height
-  // bar, in their column; the bars stay where they are. Measured only while a toast and the bar show; written on a change.
+  // A toast that would cover the tool status bar or the path builder row (large text on desktop) sits 8 px above them,
+  // in their column; the bars stay where they are. Measured only while a toast and a bar show; written on a change.
   const toastButton = toastView.el.querySelector<HTMLElement>('.toast');
   let toastPlace = '';
   const placeToast = (): void => {
     let place = '';
-    if (toastButton && !toastView.el.hidden && !toastButton.hidden && !status.el.hidden) {
-      const bars = [status.el, ...root.querySelectorAll<HTMLElement>('.path-height-bar')].filter((b) => !b.hidden).map((b) => b.getBoundingClientRect());
+    const bars = toastButton && !toastView.el.hidden && !toastButton.hidden ? [status.el, ...root.querySelectorAll<HTMLElement>('.path-panel')].filter((b) => !b.hidden).map((b) => b.getBoundingClientRect()) : [];
+    if (toastButton && bars.length > 0) {
       const top = Math.min(...bars.map((r) => r.top));
       const height = toastButton.getBoundingClientRect().height;
       // The toast's own place: 10 px below the top region (`.toast-host`).

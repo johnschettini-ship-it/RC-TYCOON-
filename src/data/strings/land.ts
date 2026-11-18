@@ -12,10 +12,10 @@ export const landStrings: Record<string, string> = {
   'land.view.rotateRight': 'Rotate view clockwise',
   'land.view.group': 'View rotation',
   /** Task 24: the upright phone's one turn button (a tap turns right, a hold turns left). */
-  'land.view.turn': 'Turn view; hold to turn the other way',
   'land.tool.buyLand': 'Buy Land',
-  'land.buy.hint': 'Drag over land for sale',
-  'land.buy.hintTouch': 'Drag over land for sale, then Confirm',
+  'land.buy.hint': 'Click land for sale to buy it',
+  'land.buy.hintTouch': 'Tap land for sale, then Confirm',
+  'land.buy.hintDrag': 'Drag over land for sale, then Confirm · Two fingers move the map',
   /** Drag total: tiles of land and of construction rights, and the price. */
   'land.buy.total': '{land} land, {rights} rights: {cost}',
   'land.buy.nothing': 'Nothing to buy here',

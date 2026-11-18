@@ -1,18 +1,19 @@
 /**
  * One top row on the upright phone (Task 24, owner decision 2026-11-12: "have single row top card", "Merge turn
  * buttons"): the money and guests pill, the mood circle, the time chip (weather icon and the hour), the Speed control,
- * ONE turn-view button (a tap turns right, a hold turns left) and Menu, in one line. Messages and the objectives flag
+ * and Menu, in one line. The two turn-view buttons (touch controls spec 2026-11-18 §4: both always on screen; Task 24
+ * merged them into one) stand as a column at the right edge of the map, under the row. Messages and the objectives flag
  * move into the Menu; a dot on Menu shows unread messages. Base (before this task, new park at 100%, 390 × 844):
  * `--hud-bottom` 104 px (two lines).
  */
 import { expect, test, type Page } from '@playwright/test';
 import { TICKS_PER_HOUR } from '../../src/data/tuning/core';
-import { isPhone, newPark, scan, setSpeed, touch, watchErrors } from './helpers';
+import { isPhone, newPark, scan, setSpeed, watchErrors } from './helpers';
 
 type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
 
-/** The six parts of the row, left to right. */
-const ROW = ['status-pill', 'hud-balance', 'day-pill', 'speed-toggle', 'view-turn', 'tool-menu'] as const;
+/** The five parts of the row, left to right. */
+const ROW = ['status-pill', 'hud-balance', 'day-pill', 'speed-toggle', 'tool-menu'] as const;
 
 async function boxOf(page: Page, testId: string): Promise<Box> {
   return page.evaluate((id) => {
@@ -69,7 +70,7 @@ test.describe('one top row on the upright phone (Task 24)', () => {
     test.skip(!isPhone(info), 'the upright phone layout');
   });
 
-  test('390 × 844: pill, mood circle, time chip, Speed, one turn button and Menu are one line; controls 44 × 44, 8 px apart; plate at most 52 px', async ({ page }) => {
+  test('390 × 844: pill, mood circle, time chip, Speed and Menu are one line; controls 44 × 44, 8 px apart; plate at most 52 px', async ({ page }) => {
     const watch = watchErrors(page);
     await park(page);
     const boxes = await Promise.all(ROW.map((id) => boxOf(page, id)));
@@ -79,8 +80,8 @@ test.describe('one top row on the upright phone (Task 24)', () => {
       if (i > 0) expect(boxes[i]!.left - boxes[i - 1]!.right, `gap before ${ROW[i]}`).toBeGreaterThanOrEqual(7.9);
     }
     expect(boxes[0]!.left).toBeGreaterThanOrEqual(8 - 0.5);
-    expect(boxes[5]!.right).toBeLessThanOrEqual(390 - 8 + 0.5);
-    for (const id of ['hud-balance', 'speed-toggle', 'view-turn', 'tool-menu']) {
+    expect(boxes[4]!.right).toBeLessThanOrEqual(390 - 8 + 0.5);
+    for (const id of ['hud-balance', 'speed-toggle', 'view-rotate-left', 'view-rotate-right', 'tool-menu']) {
       const b = await boxOf(page, id);
       expect(Math.abs(b.height - 44), `${id} height`).toBeLessThanOrEqual(0.5);
       expect(Math.abs(b.width - 44), `${id} width`).toBeLessThanOrEqual(0.5);
@@ -93,11 +94,16 @@ test.describe('one top row on the upright phone (Task 24)', () => {
     // The owner's numbers fit in full.
     await expect(page.getByTestId('hud-cash')).toHaveText('$19,983');
     await expect(page.getByTestId('hud-guests')).toBeVisible();
-    // No second line: Messages, the two turn buttons and the chip row are not shown.
-    for (const id of ['tool-messages', 'view-rotate-left', 'view-rotate-right']) await expect(page.getByTestId(id), id).toBeHidden();
+    // No second line: Messages and the chip row are not shown; the two turn buttons are below the row, at the right.
+    await expect(page.getByTestId('tool-messages')).toBeHidden();
+    const row = Math.max(...boxes.map((b) => b.bottom));
+    for (const id of ['view-rotate-left', 'view-rotate-right']) {
+      const b = await boxOf(page, id);
+      expect(b.top, `${id} under the row`).toBeGreaterThan(row);
+      expect(b.right, `${id} at the right edge`).toBeGreaterThanOrEqual(390 - 8 - 44 - 0.5);
+    }
     await expect(page.locator('.hud .hud-day')).toBeHidden();
     // `--hud-bottom` is the bottom of the row (base 104 px).
-    const row = Math.max(...boxes.map((b) => b.bottom));
     await expect.poll(() => hudBottom(page)).toBeLessThanOrEqual(Math.ceil(row) + 1);
     expect(await hudBottom(page)).toBeLessThanOrEqual(64);
     watch.expectNoErrors();
@@ -119,33 +125,20 @@ test.describe('one top row on the upright phone (Task 24)', () => {
     await expect(page.getByTestId('hud-weather')).toHaveAccessibleName(/^Weather: \S/);
   });
 
-  test('the turn-view button: a tap turns the view right, a hold turns it left; the keys still turn it', async ({ page }) => {
+  test('the two turn-view buttons: left turns counter-clockwise, right clockwise; the keys still turn it', async ({ page }) => {
     const watch = watchErrors(page);
     await park(page);
-    const turn = page.getByTestId('view-turn');
-    await expect(turn).toHaveAccessibleName('Turn view; hold to turn the other way');
-    await turn.tap();
+    await expect(page.getByTestId('view-rotate-left')).toHaveAccessibleName('Rotate view counter-clockwise');
+    await page.getByTestId('view-rotate-right').tap();
     await expect.poll(() => rotation(page)).toBe('1');
-    await turn.tap();
+    await page.getByTestId('view-rotate-right').tap();
     await expect.poll(() => rotation(page)).toBe('2');
-    // Hold about 700 ms: one turn to the left, and no turn to the right when the finger lifts.
-    const b = await boxOf(page, 'view-turn');
-    const cdp = await page.context().newCDPSession(page);
-    const p = { x: b.left + b.width / 2, y: b.top + b.height / 2, id: 1 };
-    await touch(cdp, 'touchStart', [p]);
-    await page.waitForTimeout(700);
-    await expect.poll(() => rotation(page)).toBe('1');
-    await touch(cdp, 'touchEnd', []);
-    await frames(page);
-    await page.waitForTimeout(100);
-    expect(await rotation(page)).toBe('1');
-    // A tap after a hold turns right again.
-    await turn.tap();
-    await expect.poll(() => rotation(page)).toBe('2');
-    await page.keyboard.press('[');
+    await page.getByTestId('view-rotate-left').tap();
     await expect.poll(() => rotation(page)).toBe('1');
     await page.keyboard.press(']');
     await expect.poll(() => rotation(page)).toBe('2');
+    await page.keyboard.press('[');
+    await expect.poll(() => rotation(page)).toBe('1');
     watch.expectNoErrors();
   });
 
@@ -237,7 +230,7 @@ test.describe('one top row on the upright phone (Task 24)', () => {
       return out;
     });
     expect(problems).toEqual([]);
-    for (const id of ['status-pill', 'hud-balance', 'hud-weather', 'speed-toggle', 'view-turn', 'tool-menu', 'menu-dot']) {
+    for (const id of ['status-pill', 'hud-balance', 'hud-weather', 'speed-toggle', 'view-rotate-left', 'view-rotate-right', 'tool-menu', 'menu-dot']) {
       await expect(page.getByTestId(id), id).toBeInViewport();
     }
     // The Menu item and its count are not clipped either.

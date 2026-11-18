@@ -164,10 +164,11 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
     await expect(page.getByTestId('toast')).toHaveText((await weather.getAttribute('title')) ?? 'missing');
   });
 
-  test('Pause, the turn-view button and Menu are at the right end of the row (Task 24), 44 × 44 and 8 px apart; a press between them reaches the map', async ({ page }) => {
+  test('Pause and Menu are at the right end of the row (Task 24), 44 × 44 and 8 px apart; a press between them reaches the map', async ({ page }) => {
     await park(page);
     const row = await boxOf(page, '[data-testid="status-pill"]');
-    const ids = ['speed-toggle', 'view-turn', 'tool-menu'];
+    // The two turn-view buttons are a column at the right edge of the map (touch controls spec 2026-11-18 §4).
+    const ids = ['speed-toggle', 'tool-menu'];
     const boxes = await Promise.all(ids.map((id) => boxOf(page, `[data-testid="${id}"]`)));
     boxes.forEach((b, i) => {
       expect(Math.abs(b.height - 44), ids[i]).toBeLessThanOrEqual(0.5);
@@ -181,7 +182,7 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
       }
     });
     // At the right edge (8 px side gutter).
-    expect(Math.abs(boxes[2]!.right - (390 - 8))).toBeLessThanOrEqual(1);
+    expect(Math.abs(boxes[1]!.right - (390 - 8))).toBeLessThanOrEqual(1);
     // No plate: a press in each gap between them, and left of them (after the chip), reaches the canvas.
     const chip = await boxOf(page, '[data-testid="day-pill"]');
     const points = boxes.slice(1).map((b, i) => ({ x: (boxes[i]!.right + b.left) / 2, y: (b.top + b.bottom) / 2 }));
@@ -228,7 +229,7 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
       return out;
     });
     expect(problems).toEqual([]);
-    for (const id of ['status-pill', 'hud-balance', 'hud-weather', 'tool-menu', 'speed-toggle', 'view-turn']) {
+    for (const id of ['status-pill', 'hud-balance', 'hud-weather', 'tool-menu', 'speed-toggle', 'view-rotate-left', 'view-rotate-right']) {
       await expect(page.getByTestId(id), id).toBeInViewport();
     }
   });

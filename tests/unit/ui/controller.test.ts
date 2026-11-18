@@ -37,43 +37,50 @@ function setup(): {
 }
 
 describe('footpath and queue tools', () => {
-  it('a drag shows ghost tiles and cost, then builds the line on release via buildPathLine', () => {
+  it('a Shift + left mouse drag shows ghost tiles and cost, then builds the line on release via buildPathLine', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'footpath';
     ctl.update(0);
     const a = at(30, 30);
     const b = at(34, 31);
-    ev({ type: 'down', ...a });
-    ev({ type: 'move', ...b, t: 50 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...a });
+    ev({ type: 'move', pointerType: 'mouse', ...b, t: 50 });
     expect(game.tool.drag?.tiles.length).toBe(5);
     expect(game.tool.drag?.cost).toBe(5000);
     expect(game.tool.drag?.startTile).toBe(tileIndex(game.world.state.map, 30, 30));
     expect(game.tool.drag?.endTile).toBe(tileIndex(game.world.state.map, 34, 30));
     expect(cmds).toEqual([]);
-    ev({ type: 'up', ...b, t: 80 });
+    ev({ type: 'up', pointerType: 'mouse', ...b, t: 80 });
     expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 34, y1: 30, kind: 'footpath' }]);
-    expect(game.tool.drag).toBeNull();
+    // The step builder goes on from the line's end, along it: the ghost is the next tile.
+    expect(game.tool.drag?.tiles).toEqual([tileIndex(game.world.state.map, 35, 30)]);
   });
 
-  it('a tap builds one tile', () => {
+  it('a tap sets the step builder start (nothing built); a tap on the next tile builds both', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'queue';
     ctl.update(0);
     const a = at(12, 40);
     ev({ type: 'down', ...a });
     ev({ type: 'up', ...a, t: 50 });
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 40, kind: 'queue' }]);
+    expect(cmds).toEqual([]);
+    const b = at(12, 41);
+    ev({ type: 'down', ...b, t: 100 });
+    ev({ type: 'up', ...b, t: 150 });
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 41, kind: 'queue', undoable: true }]);
   });
 
-  it('second finger cancels build drag: nothing gets built and a pinch zooms (Review Focus 4)', () => {
+  it('one finger pans in the path tool: nothing gets built; a second finger pinches (touch controls spec §1)', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'footpath';
     ctl.update(0);
     const a = at(30, 30);
     const b = at(36, 30);
+    const x0 = game.camera.centerX;
     ev({ type: 'down', id: 1, ...a });
     ev({ type: 'move', id: 1, ...b, t: 30 });
-    expect(game.tool.drag).not.toBeNull();
+    expect(game.tool.drag).toBeNull();
+    expect(game.camera.centerX).not.toBe(x0);
     const zoom0 = game.camera.zoom;
     ev({ type: 'down', id: 2, x: b.x + 100, y: b.y, t: 40 });
     expect(game.tool.drag).toBeNull();
@@ -89,12 +96,13 @@ describe('footpath and queue tools', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'footpath';
     ctl.update(0);
-    ev({ type: 'down', ...at(20, 20) });
-    ev({ type: 'move', ...at(25, 20), t: 30 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...at(20, 20) });
+    ev({ type: 'move', pointerType: 'mouse', ...at(25, 20), t: 30 });
+    expect(game.tool.drag).not.toBeNull();
     ctl.keyDown('Escape');
     expect(game.tool.tool).toBe('inspect');
     expect(game.tool.drag).toBeNull();
-    ev({ type: 'up', ...at(25, 20), t: 60 });
+    ev({ type: 'up', pointerType: 'mouse', ...at(25, 20), t: 60 });
     expect(cmds).toEqual([]);
   });
 });
@@ -168,6 +176,29 @@ describe('place ride and stall tools', () => {
     ev({ type: 'up', ...at(15, 16), t: 30 });
     expect(game.tool.ghost?.tile).toBe(tileIndex(game.world.state.map, 15, 16));
     expect(game.tool.ghost?.rotation).toBe(2);
+    expect(cmds).toEqual([]);
+  });
+
+  it('a touch tap on the ghost turns it and moves nothing; a tap off it moves it (touch controls spec §4)', () => {
+    const { game, ctl, cmds, at, ev } = setup();
+    game.tool.tool = 'placeRide';
+    game.tool.defId = 'carousel';
+    game.tool.rotation = 0;
+    ctl.update(0);
+    ev({ type: 'down', ...at(20, 20) });
+    ev({ type: 'up', ...at(20, 20), t: 30 });
+    const g0 = game.tool.ghost;
+    expect(g0).not.toBeNull();
+    const origin = g0?.tile;
+    // A tile inside the footprint (the carousel is 3 × 3 around the tapped tile).
+    ev({ type: 'down', ...at(21, 21), t: 100 });
+    ev({ type: 'up', ...at(21, 21), t: 130 });
+    expect(game.tool.rotation).toBe(1);
+    expect(game.tool.ghost?.tile).toBe(origin);
+    ev({ type: 'down', ...at(30, 30), t: 200 });
+    ev({ type: 'up', ...at(30, 30), t: 230 });
+    expect(game.tool.rotation).toBe(1);
+    expect(game.tool.ghost?.tile).not.toBe(origin);
     expect(cmds).toEqual([]);
   });
 
@@ -255,11 +286,11 @@ describe('elevated paths (Phase 4 §4.2, §6–7: W3-B picking and the path prev
     ctl.update(0);
     const ground = game.world.state.map.heights[tileIndex(game.world.state.map, 30, 30)] as number;
     game.tool.pathHeight = { z: ground + 2, ramp: 'flat' };
-    ev({ type: 'down', ...at(30, 30) });
-    ev({ type: 'move', ...at(33, 30), t: 50 });
+    ev({ type: 'down', pointerType: 'mouse', shift: true, ...at(30, 30) });
+    ev({ type: 'move', pointerType: 'mouse', ...at(33, 30), t: 50 });
     expect(game.tool.drag).toMatchObject({ cost: 4 * (1000 + 2 * 200), reason: null });
     game.tool.pathHeight = { z: ground, ramp: 'flat' };
-    ev({ type: 'move', ...at(34, 30), t: 60 });
+    ev({ type: 'move', pointerType: 'mouse', ...at(34, 30), t: 60 });
     expect(game.tool.drag).toMatchObject({ cost: 0, reason: 'The path is below the land' });
   });
 
