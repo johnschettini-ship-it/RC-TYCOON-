@@ -78,7 +78,18 @@ const mb = (n) => (n / 1e6).toFixed(2);
  * car 0.562, support 0.712, guest 0.209) less 5%: a mask path change that cut the coaster rails to 30% (fix round 1)
  * fails the bake instead of reaching the game.
  */
-const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 };
+const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, carRolled: 0.49, support: 0.67, guest: 0.19 };
+/**
+ * Track car class sets (batch 5) whose poses roll or turn the car over (banks, loops, corkscrews, helixes) show more of
+ * its untinted chassis and wheels than the stage 1 poses the `car` floor was measured on, so they are measured apart
+ * (`carRolled`), each kind against its own floor. Measured on the Task 3 steel coaster bake at d4 (fix wave, after the
+ * loop's top half was turned the right way over): base 0.564 and turn 0.561 (stage 1 was 0.562: the `car` floor still
+ * fits them); bank 0.525, loop 0.498, cork 0.525, helix 0.527, together 0.523; the floor is that less 5% (0.497),
+ * rounded down, as the other floors are. Before the split, the steel coaster's all-classes mean (53.6 %) sat 0.6
+ * points over the 53 % floor because of its pose mix, not its masks.
+ */
+const ROLLED_CAR_CLASS = /~(bank|loop|cork|helix)$/;
+const coverageKind = (s) => (s.kind === 'car' && ROLLED_CAR_CLASS.test(s.item) ? 'carRolled' : s.kind);
 
 (async () => {
   const t0 = Date.now();
@@ -254,8 +265,8 @@ const MASK_COVERAGE_FLOOR = { rail: 0.84, car: 0.53, support: 0.67, guest: 0.19 
   const emptyRides = [...maskedRides].filter(([, any]) => !any).map(([id]) => id);
   const byKind = {};
   for (const r of report) for (const s of r.sets) {
-    if (s.maskCoverage === undefined || s.density !== Math.max(...o.densities) || !(s.kind in MASK_COVERAGE_FLOOR)) continue;
-    const k = (byKind[s.kind] ??= { sum: 0, n: 0 });
+    if (s.maskCoverage === undefined || s.density !== Math.max(...o.densities) || !(coverageKind(s) in MASK_COVERAGE_FLOOR)) continue;
+    const k = (byKind[coverageKind(s)] ??= { sum: 0, n: 0 });
     k.sum += s.maskCoverage * (s.maskDrawn ?? 0); k.n += s.maskDrawn ?? 0;
   }
   const lowKinds = [];
