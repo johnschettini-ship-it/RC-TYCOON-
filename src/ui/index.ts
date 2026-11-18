@@ -20,6 +20,7 @@ import { createParkPanel } from './panels/park';
 import { createRidePanel } from './panels/ride';
 import { createStallPanel } from './panels/stall';
 import { createQueuePanel } from './panels/queue';
+import { createConflictWatch } from './queues/conflictWatch';
 import { SaveActions } from './saves';
 import { createTitleScreen } from './title';
 import { createTipBubble } from './tips/bubble';
@@ -446,8 +447,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
 
   let lastTool = game.tool.tool;
   let lastHeld: string | null = null;
+  // Queue clarity (spec 2026-11-18 §3): a one-time message when a queue touches another ride's queue.
+  const queueConflictWatch = createConflictWatch();
   game.onFrame(() => {
     const now = performance.now();
+    queueConflictWatch.check(game.world, toast);
     // Inspect selection from the input layer opens the matching panel.
     const sel = game.tool.selectedEntity;
     if (!sameEntity(sel, lastSelection)) {
