@@ -447,6 +447,31 @@ describe('track class sets (batch 5 Task 2)', () => {
     expect(look.fallbacksUsed()).toEqual([]);
   });
 
+  it('old art without shadow or trough frames: those misses are missing optional frames, never fallbacks (review P2)', () => {
+    // `classIndex` is art from before Task 4: rails, supports and cars, no `:sh` or `:chain` frames.
+    const index = classIndex();
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'turn_medium_left', dir: 0 }]), 0, VIEW, 1, 1);
+    sets.setReady('rail:steel_coaster~turn:d2:r1');
+    sets.setReady('support:steel_coaster:d2:r1');
+    expect(look.railPart!('steel_coaster', 'turn_medium_left', 0, 1, 'sh')).toBeUndefined();
+    expect(look.railPart!('steel_coaster', 'turn_medium_left', 0, 1, 'chain')).toBeUndefined();
+    for (const part of ['foot', 'seg', 'top'] as const) expect(look.supportShadow!('steel_coaster', part, 1)).toBeUndefined();
+    // nothing was drawn with today's art for them: the list keeps only real fallbacks
+    expect(look.fallbacksUsed()).toEqual([]);
+    expect(look.missingOptional!()).toEqual([
+      'rail:steel_coaster~turn:d2:r1/turn_medium_left:t0:chain',
+      'rail:steel_coaster~turn:d2:r1/turn_medium_left:t0:sh',
+      'support:steel_coaster:d2:r1/foot:sh',
+      'support:steel_coaster:d2:r1/seg:sh',
+      'support:steel_coaster:d2:r1/top:sh',
+    ]);
+    // a missing ordinary frame is still a fallback
+    expect(look.rail('steel_coaster', 'turn_medium_left', 5, 1, 3)).toBeUndefined();
+    expect(look.fallbacksUsed()).toEqual(['rail:steel_coaster~turn:d2:r1/turn_medium_left:t5']);
+  });
+
   it('spinning types: a spun yaw no piece reaches resolves to base (Task 3 files spin frames in ~base)', () => {
     // spinning_mouse reaches pitch 2 (gentle slopes) only along the 4 headings; a spun car on a slope is at any yaw
     const m = poseClasses('spinning_mouse');

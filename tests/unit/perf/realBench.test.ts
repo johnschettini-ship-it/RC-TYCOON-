@@ -48,7 +48,7 @@ interface Fake extends BenchGame {
   extra: ((g: Fake) => number) | null;
   throwOnDispatch: boolean;
   pump(until: () => boolean): Promise<void>;
-  look: { incomplete(): number; fallbacksUsed(): string[] };
+  look: { incomplete(): number; fallbacksUsed(): string[]; missingOptional?(): string[] };
   sets: { capEvents(): unknown[]; peakBytes(): number; residentBytes(): number };
 }
 
@@ -101,6 +101,7 @@ function fakeGame(): Fake {
     look: {
       incomplete: () => skip,
       fallbacksUsed: () => (g.sceneIndex >= 1 ? ['carousel', 'ground:sand'] : ['carousel']),
+      missingOptional: () => ['rail:steel_coaster~base:d2:r0/straight:t0:sh'],
     },
     sets: { capEvents: () => caps.slice(), peakBytes: () => peak, residentBytes: () => resident },
     async pump(until) {
@@ -206,6 +207,8 @@ describe('runRealBench (stage 1 bench)', () => {
     // Per scene: the ids new since the scenes before it.
     expect(result.scenes.map((s) => s.fallbacksUsed)).toEqual([['carousel'], ['ground:sand'], [], []]);
     expect(result.fallbacksUsed).toEqual(['carousel', 'ground:sand']);
+    // optional frames the art lacks (track shadows, troughs) are reported apart, never as fallbacks (review P2)
+    expect(result.missingOptional).toEqual(['rail:steel_coaster~base:d2:r0/straight:t0:sh']);
     expect(result.device).toEqual({ devicePixelRatio: 2.75, canvasPx: [1080, 2400], viewportCss: [393, 873], userAgent: 'fake' });
     expect(b1?.placements).toBe(20);
     expect(b1?.placementLongestFrameMs).toBe(16);

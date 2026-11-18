@@ -106,6 +106,7 @@ export function resultsCard(r: RealBenchResult, onClose: () => void): HTMLElemen
     row(text('ui.realBench.download'), r.artDownload ? text('ui.realBench.downloadValue', { mb: r.artDownload.MB, files: r.artDownload.files, ms: r.artDownload.ms }) : text('ui.realBench.band.na')),
     row(text('ui.realBench.boot'), r.bootCompleteMs === null ? text('ui.realBench.band.na') : text('ui.realBench.ms', { n: r.bootCompleteMs })),
     row(text('ui.realBench.fallbacks'), r.fallbacksUsed.join(', ') || text('ui.realBench.none')),
+    row(text('ui.realBench.missingOptional'), `${r.missingOptional.length}`),
   );
   box.append(top);
 

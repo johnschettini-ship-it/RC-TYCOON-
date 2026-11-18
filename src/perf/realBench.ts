@@ -113,7 +113,7 @@ export interface PhaseFrames { frames: number; p95: number; over33Pct: number }
 
 export interface BenchOptions {
   /** The realistic look (absent with today's look: every frame counts as complete). */
-  look?: { incomplete(): number; fallbacksUsed(): string[]; currentDensity?(): number; soft?(): number; degraded?(): number } | null;
+  look?: { incomplete(): number; fallbacksUsed(): string[]; missingOptional?(): string[]; currentDensity?(): number; soft?(): number; degraded?(): number } | null;
   /** The realistic ground: a frame with it not laid is incomplete. */
   ground?: { complete: boolean } | null;
   sets?: { capEvents(): readonly unknown[]; peakBytes(): number; residentBytes(): number; split?(): MemorySplit; snapshot?(): unknown; densityCap?(): number; resetPressure?(): void } | null;
@@ -282,6 +282,8 @@ export interface RealBenchResult {
   device: BenchDevice;
   scenes: BenchRow[];
   fallbacksUsed: string[];
+  /** Optional frames the art lacks (track shadows, chain troughs: nothing drawn, not today's art), `<set key>/<frame>`. */
+  missingOptional: string[];
   capEvents: number;
 }
 
@@ -779,6 +781,7 @@ export async function runRealBench(game: BenchGame, scenes: readonly BenchScene[
     device: (opts.device ?? defaultDevice)(),
     scenes: rows,
     fallbacksUsed: look?.fallbacksUsed() ?? [],
+    missingOptional: look?.missingOptional?.() ?? [],
     capEvents: rows.reduce((n, x) => n + x.capEvents, 0),
   };
 }
@@ -828,6 +831,6 @@ export function resultsText(r: RealBenchResult): string {
         `S1 ${b.S1.band} S2 ${b.S2.band} S3 ${b.S3.band} S4 ${b.S4.band} S5 ${b.S5.band} S6g ${b.S6g.band}`,
     );
   }
-  lines.push(`fallbacks: ${r.fallbacksUsed.join(', ') || 'none'}`, '');
+  lines.push(`fallbacks: ${r.fallbacksUsed.join(', ') || 'none'}`, `missing optional frames (shadows, troughs): ${r.missingOptional.length}`, '');
   return lines.join('\n') + JSON.stringify(r, null, 2);
 }

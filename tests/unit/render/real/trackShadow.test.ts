@@ -173,11 +173,117 @@ describe('the shadow pass draws track shadows (renderer)', () => {
   });
 });
 
+describe('shadows fade at night (review P2)', () => {
+  it('full strength by day, faded with the darkness at dusk, none at full night; the rails never fade', async () => {
+    const { FakeCanvas, make } = await import('../fakeCanvas');
+    const { createCanvasRenderer } = await import('../../../../src/render/renderer');
+    const { defaultToolState } = await import('../../../../src/render/types');
+    const { mapToViewContinuous } = await import('../../../../src/render/view');
+    const { TICKS_PER_HOUR } = await import('../../../../src/data/tuning/core');
+    const { MAX_DARKNESS } = await import('../../../../src/data/tuning/night');
+    const { darknessAt } = await import('../../../../src/render/lighting/darkness');
+    const world = buildPerfScene('coaster');
+    world.state.park.afterDark = true;
+    const sheet = () => ({ image: new FakeCanvas(64, 64), w: 20, h: 10, ox: 10, oy: 5, scale: 2, sx: 0, sy: 0 });
+    const rail = sheet(), railSh = sheet(), sup = sheet(), supSh = sheet(), car = sheet();
+    const look = {
+      density: () => 2, prepare() {}, dispose() {}, reclaim: () => 0, currentDensity: () => 2, incomplete: () => 0, soft: () => 0, fallbacksUsed: () => [],
+      ride: () => undefined, stall: () => undefined, scenery: () => undefined, guest: () => undefined, staff: () => undefined, shadow: () => undefined, groundPiece: () => undefined,
+      rail: () => rail, car: () => car, support: () => sup,
+      railPart: (_t: string, _p: string, _i: number, _h: number, part: string) => (part === 'sh' ? railSh : undefined),
+      supportShadow: () => supSh,
+    };
+    const canvas = make(1600, 1000);
+    const r = createCanvasRenderer(canvas as unknown as HTMLCanvasElement, { look: look as never });
+    r.resize(1600, 1000, 1);
+    const data = world.state.track.rides[Object.keys(world.state.track.rides)[0]!]!;
+    const mid = data.pieces[Math.floor(data.pieces.length / 2)]!;
+    const p = mapToViewContinuous(mid.x, mid.y, 0, world.state.map.width, world.state.map.height);
+    const cam = { centerX: (p.u - p.v) * 32, centerY: (p.u + p.v) * 16 - 64, zoom: 1, rotation: 0 as const };
+    const day = world.state.tick - (world.state.tick % (24 * TICKS_PER_HOUR));
+    const at = (hour: number) => {
+      world.state.tick = day + hour * TICKS_PER_HOUR;
+      r.draw(world, cam, defaultToolState(), 0);
+      canvas.reset();
+      r.draw(world, cam, defaultToolState(), 0);
+      const of = (sp: { image: unknown }) => canvas.draws.filter((d) => d.image === sp.image).map((d) => d.alpha);
+      return { shadows: [...of(railSh), ...of(supSh)], solid: [...of(rail), ...of(sup), ...of(car)], ellipses: canvas.count('transform') };
+    };
+    const noon = at(12);
+    expect(noon.shadows.length).toBeGreaterThan(10);
+    expect(new Set(noon.shadows)).toEqual(new Set([1]));
+    expect(noon.ellipses).toBeGreaterThan(0);
+    const dusk = at(20);
+    const k = 1 - darknessAt(world.state.tick, true) / MAX_DARKNESS;
+    expect(k).toBeGreaterThan(0.3);
+    expect(k).toBeLessThan(0.7);
+    expect(dusk.shadows.length).toBe(noon.shadows.length);
+    for (const a of dusk.shadows) expect(a).toBeCloseTo(k, 6);
+    expect(new Set(dusk.solid)).toEqual(new Set([1]));
+    const night = at(23);
+    expect(night.shadows).toEqual([]);
+    expect(night.ellipses).toBe(0);
+    expect(night.solid.length).toBeGreaterThan(10);
+    expect(new Set(night.solid)).toEqual(new Set([1]));
+    // after-dark off: the clock never darkens, shadows stay full
+    world.state.park.afterDark = false;
+    expect(new Set(at(23).shadows)).toEqual(new Set([1]));
+  });
+});
+
 describe('the shadow module follows the layer', () => {
   it('names the layer\'s drawable kinds', async () => {
     const src = readFileSync(new URL('../../../../src/render/track/layer.ts', import.meta.url), 'utf8');
     const { SHADOW_SUB_SLICE, SHADOW_SUB_CAR } = await import('../../../../src/render/track/realShadow');
     expect(src).toContain(`const SUB_SLICE = ${SHADOW_SUB_SLICE};`);
     expect(src).toContain(`const SUB_CAR = ${SHADOW_SUB_CAR};`);
+  });
+});
+
+describe('culling counts the shadow (review P2: a tall lift\'s shadow popped at the screen edge)', () => {
+  const world = buildPerfScene('coaster');
+  type Cars = { n: number; x: Float64Array; y: Float64Array; z: Float64Array; mapYaw: Float64Array; pitch: Float64Array };
+  const collect = async (layer: unknown, view: { x0: number; y0: number; x1: number; y1: number }) => {
+    const items: { ref: number; sub: number }[] = [];
+    (layer as { collect: (...a: unknown[]) => void }).collect(world, { push: (_k: number, ref: number, sub: number) => items.push({ ref, sub }) }, view, 1, 1, 0, 0, 0, 0);
+    return items;
+  };
+
+  it('a slice whose rail is off screen but whose shadow is on screen is collected', async () => {
+    const { TrackLayer } = await import('../../../../src/render/track/layer');
+    const layer = new TrackLayer();
+    await collect(layer, { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 });
+    const L = layer as unknown as { slices: ReturnType<typeof buildRideSlices>; frameRef: ReturnType<typeof viewFrame> };
+    const i = L.slices.reduce((b, sl, k) => (sl.railMin - sl.ground > L.slices[b]!.railMin - L.slices[b]!.ground ? k : b), 0);
+    const sl = L.slices[i]!;
+    expect(sl.railMin - sl.ground).toBeGreaterThan(8);
+    const sh = realRailShadowPlacement(sl, L.frameRef);
+    const view = { x0: sh.ax - 1, y0: sh.ay - 1, x1: sh.ax + 1, y1: sh.ay + 1 };
+    const b = sl.bounds;
+    // the rail's own bounds miss the view
+    expect(sl.ax + b.right < view.x0 || sl.ax + b.left > view.x1 || sl.ay + b.bottom < view.y0 || sl.ay + b.top > view.y1).toBe(true);
+    const items = await collect(layer, view);
+    expect(items).toContainEqual({ ref: i, sub: 0 });
+  });
+
+  it('a car whose body is off screen but whose shadow is on screen is collected', async () => {
+    const { TrackLayer } = await import('../../../../src/render/track/layer');
+    const { CAR_BOUNDS } = await import('../../../../src/render/track/paint');
+    const layer = new TrackLayer();
+    await collect(layer, { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 });
+    const L = layer as unknown as { cars: Cars; frameRef: ReturnType<typeof viewFrame> };
+    const map = world.state.map;
+    const ground = (k: number) => map.heights[Math.floor(L.cars.y[k]! / 4) * map.width + Math.floor(L.cars.x[k]! / 4)] as number;
+    let best = 0;
+    for (let k = 0; k < L.cars.n; k++) if (L.cars.z[k]! - ground(k) > L.cars.z[best]! - ground(best)) best = k;
+    const [x, y, z] = [L.cars.x[best]!, L.cars.y[best]!, L.cars.z[best]!];
+    expect(z - ground(best)).toBeGreaterThan(5);
+    const e = carShadowAt(x, y, z, ground(best), L.cars.mapYaw[best]!, L.cars.pitch[best]!, 2, L.frameRef);
+    const view = { x0: e.cx - 1, y0: e.cy - 1, x1: e.cx + 1, y1: e.cy + 1 };
+    const ax = projectX(x, y, L.frameRef), ay = projectY(x, y, z, L.frameRef);
+    expect(ax + CAR_BOUNDS.right < view.x0 || ax + CAR_BOUNDS.left > view.x1 || ay + CAR_BOUNDS.bottom < view.y0 || ay + CAR_BOUNDS.top > view.y1).toBe(true);
+    const items = await collect(layer, view);
+    const cars = items.filter((it) => it.sub === 2).map((it) => [L.cars.x[it.ref], L.cars.y[it.ref]]);
+    expect(cars).toContainEqual([x, y]);
   });
 });

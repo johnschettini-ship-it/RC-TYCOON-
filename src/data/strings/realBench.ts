@@ -52,6 +52,7 @@ export const realBenchStrings: Record<string, string> = {
   'ui.realBench.look.classic': "today's",
   'ui.realBench.device': 'Device',
   'ui.realBench.fallbacks': "Drawn with today's art",
+  'ui.realBench.missingOptional': 'Missing optional frames (shadows, troughs; nothing drawn)',
   'ui.realBench.none': 'none',
   'ui.realBench.downloading': 'Downloading the art: {n} of {total} files',
   'ui.realBench.download': 'Art download (before the run)',

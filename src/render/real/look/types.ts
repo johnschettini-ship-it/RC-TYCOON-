@@ -88,6 +88,11 @@ export interface RealLook {
   /** Ids drawn with today's art: classic-mapped game ids, failed set keys, and missing `<set key>/<frame>`. */
   fallbacksUsed(): string[];
   /**
+   * Optional frames the art lacks (batch 5: track shadows `…:sh` and chain troughs `…:chain`), `<set key>/<frame>`:
+   * nothing is drawn for them, today's art neither, so they are not in `fallbacksUsed`.
+   */
+  missingOptional?(): string[];
+  /**
    * View scope of the last `prepare` (spec §5.4.2(d)): built objects in the park, those inside the view plus one
    * screen of margin, and how many times the objects were walked to find them (a walk only when the park's objects
    * changed or the view left the scoped rectangle).

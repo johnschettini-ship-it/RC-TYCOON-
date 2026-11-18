@@ -118,6 +118,8 @@ export interface LookCore {
   soft(): number;
   degraded(): number;
   fallbacksUsed(): string[];
+  /** Optional frames (`:sh`, `:chain`: track shadows and troughs) the art lacks: nothing drawn, not today's art. */
+  missingOptional(): string[];
 }
 
 export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookOptions = {}): LookCore {
@@ -268,6 +270,11 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     return frameNo - since >= DEGRADE_FRAMES;
   };
   const fallbacks = new Set<string>();
+  /**
+   * Frames an older bake may lack and nothing replaces (batch 5: a track shadow or chain trough, `<set key>/<frame>`):
+   * not drawn with today's art, so kept out of `fallbacks`, where hundreds of them hid the real ones (review P2).
+   */
+  const missingOpt = new Set<string>();
   const tinter = createTinter(sets, metaOf, { make, now: opts.now, onError: opts.onError });
 
   /**
@@ -373,7 +380,11 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       r = row[code];
       if (r === undefined) row[code] = r = lookup(rs, key, frameKey(part === null ? [piece, `t${code}`] : [piece, `t${code}`, part]));
     }
-    if (typeof r === 'string') { fallbacks.add(r); return undefined; }
+    if (typeof r === 'string') {
+      // a rail part, or a support part's shadow (codes past the parts): optional
+      (part !== null || (kind === 'support' && code >= SUPPORT_PARTS.length) ? missingOpt : fallbacks).add(r);
+      return undefined;
+    }
     if (tint === null) return r.sprite;
     const t = tinter.tint(drawKey, rs, r, tint);
     if (t === TINT_NO_ROOM) {
@@ -476,6 +487,10 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
 
     fallbacksUsed() {
       return [...fallbacks].sort();
+    },
+
+    missingOptional() {
+      return [...missingOpt].sort();
     },
   };
 }

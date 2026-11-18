@@ -15,6 +15,7 @@
  * Heights are true (STEP_PX, set to REAL_STEP_PX in the realistic build). The ground under a shadow is taken flat at
  * the tile's (or the car's tile's) height: a shadow reaching onto a slope is not bent over it.
  */
+import type { ArtBounds } from '../sprites/rides';
 import { isoX, isoY, PX_X } from '../track/project';
 import { STEP_PX } from '../heightStep';
 import { SHADOW_PLANE_BELOW_M, SUN_AZ_DEG, SUN_EL_DEG } from './trackShadowPlane';
@@ -43,6 +44,25 @@ export function sunShift(): { readonly x: number; readonly y: number } {
   shift.x = isoX(vx, vy) - isoX(0, 0);
   shift.y = isoY(vx, vy, -1) - isoY(0, 0, 0);
   return shift;
+}
+
+/** Px beyond a shadow's moved bounds: the soft edge of baked shadows and of the car ellipse. */
+const SHADOW_EDGE_PX = 4;
+
+/**
+ * Bounds `b` (world px around an anchor, zoom 1) grown to hold the drawable's shadow (review P2: culling by the rail
+ * or car alone made a tall lift's shadow pop at the screen's edge). Every point of the drawable stands between `hLo` and
+ * `hHi` m over the ground its shadow falls on, and its shadow is the point moved by that height × `sunShift()`, so the
+ * shadow lies inside `b` swept along the shift from `hLo` to `hHi`. Written into `out`.
+ */
+export function withShadowReach(b: ArtBounds, hLo: number, hHi: number, out: ArtBounds): ArtBounds {
+  const s = sunShift();
+  const x0 = hLo * s.x, x1 = hHi * s.x, y0 = hLo * s.y, y1 = hHi * s.y;
+  out.left = b.left + Math.min(0, x0, x1) - SHADOW_EDGE_PX;
+  out.right = b.right + Math.max(0, x0, x1) + SHADOW_EDGE_PX;
+  out.top = b.top + Math.min(0, y0, y1) - SHADOW_EDGE_PX;
+  out.bottom = b.bottom + Math.max(0, y0, y1) + SHADOW_EDGE_PX;
+  return out;
 }
 
 /** The height of a rail tile's shadow plane (absolute m) from the tile's lowest rail. */
