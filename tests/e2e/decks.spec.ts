@@ -605,7 +605,8 @@ test.describe('card drag (mouse)', () => {
     await expect(page.locator(CARD)).toHaveClass(/dragging/);
     await pen('mouseReleased', to, 0);
     expect(await tc<number[]>(page, 'g.world.state.rides.map((r) => r.y * 64 + r.x)')).toEqual([tileOf(30, 55)]);
-    await expect(page.locator(CARD)).toHaveAttribute('aria-pressed', 'true');
+    // The placed ride opens the queue builder at its entrance (touch controls spec 2026-11-18 §6).
+    await expect.poll(() => toolNow(page)).toBe('queue');
   });
 
   test('a drag on a track ride card is a press: it starts the station builder and builds nothing', async ({ page }) => {

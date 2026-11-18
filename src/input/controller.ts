@@ -23,7 +23,7 @@ import { routerOf } from './toolRouters';
 import { changePathHeight, pathCommandHeight } from './pathHeight';
 import { cycleOverlay } from './overlays';
 import { setDragPaints, dragPaints } from './dragPaint';
-import { refreshPathGhost, resetPathBuilder, startAt, tapAt } from './pathBuilder';
+import { refreshPathGhost, resetPathBuilder, startAt, startAtEntrance, tapAt } from './pathBuilder';
 import { dirTo } from '../sim/paths/nodes';
 import { viewSize, viewToMap } from '../render/view';
 import { pickElevatedPath } from '../render/elevated/pick';
@@ -78,6 +78,14 @@ export class InputController {
     // Phase 6 §4.7, §8: long-press time from Settings → Controls; the drag threshold is 8 px (gestures.ts).
     this.gestures = new GestureRecognizer({ primaryDrag: () => this.primaryDrag(), longPressMs: () => game.settings.get('longPressMs') });
     this.lastTool = game.tool.tool;
+    // Fewer taps (touch controls spec §6): a ride placed with the place tool opens the queue builder at its entrance.
+    game.onCommand((cmd, result) => {
+      if (cmd.type !== 'placeRide' || !result.ok || result.id === undefined || game.tool.tool !== 'placeRide') return;
+      const ride = game.world.state.rides.find((r) => r.id === result.id);
+      if (!ride?.entrance) return;
+      this.setTool('queue');
+      startAtEntrance(game, ride.id);
+    });
   }
 
   /**

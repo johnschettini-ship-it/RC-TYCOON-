@@ -181,7 +181,8 @@ test('desktop, 175% text: the build toast does not cover the tool status bar', a
   await expect.poll(() => tc<number>(page, 'g.world.state.rides.length')).toBe(1);
   const toast = page.locator('button.toast');
   await expect(toast).toBeVisible();
-  const status = page.locator('div.tool-status:has([data-testid="tool-status"])');
+  // The placed ride opens the queue builder at its entrance (touch controls spec 2026-11-18 §6): its row is the bar now.
+  const status = page.getByTestId('path-panel');
   await expect(status).toBeVisible();
   expect(intersects(await boxOf(toast), await boxOf(status))).toBe(false);
 });

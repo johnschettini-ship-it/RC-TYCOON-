@@ -161,6 +161,21 @@ export function startAt(game: PathBuilderHost, tile: number, dir?: Dir): void {
   refreshPathGhost(game);
 }
 
+/**
+ * Fewer taps (spec §6): start a ground queue at the tile outside ride `rideId`'s entrance, heading away from the gate,
+ * so the first Forward builds the queue tile at the gate (it links to the entrance by the usual rule). False when the
+ * ride has no entrance.
+ */
+export function startAtEntrance(game: PathBuilderHost, rideId: number): boolean {
+  const ride = game.world.state.rides.find((r) => r.id === rideId);
+  const gate = ride?.entrance;
+  if (!gate) return false;
+  const d = dirTo(game.world.state.map, gate.gate, gate.outside);
+  game.tool.pathHeight.z = null;
+  startAt(game, gate.outside, d >= 0 ? (d as Dir) : undefined);
+  return true;
+}
+
 function turned(dir: Dir, move: StepMove): Dir {
   if (move === 'left') return ((dir + 3) & 3) as Dir;
   if (move === 'right') return ((dir + 1) & 3) as Dir;

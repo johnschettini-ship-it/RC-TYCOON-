@@ -228,3 +228,31 @@ describe('path step builder: heights and slopes', () => {
     expect(game.tool.pathHeight.z).toBe(z + 1);
   });
 });
+
+describe('queue at the entrance (spec §6)', () => {
+  it('a ride placed with the place tool opens the queue builder at its entrance; Forward builds the queue there', () => {
+    const { game, ctl, map } = setup();
+    game.tool.tool = 'placeRide';
+    game.tool.defId = 'carousel';
+    ctl.update(16);
+    const r = game.dispatch({ type: 'placeRide', defId: 'carousel', x: 20, y: 20, rotation: 0 });
+    expect(r.ok).toBe(true);
+    const ride = game.world.state.rides.find((x) => r.ok && x.id === r.id);
+    const gate = ride?.entrance;
+    expect(gate).toBeTruthy();
+    expect(game.tool.tool).toBe('queue');
+    ctl.update(32);
+    expect(pathBuilderOf(game.tool).end).toBe(gate?.outside);
+    expect(game.tool.drag?.tiles[0]).toBe(gate?.outside);
+    expect(stepPath(game)?.ok).toBe(true);
+    expect(map.content[gate?.outside as number]).toBe(Content.Queue);
+    // Away from the gate: the second tile is not part of the ride.
+    expect(map.content[game.tool.drag?.tiles[0] as number]).toBe(Content.Empty);
+  });
+
+  it('a placeRide sent by anything but the place tool leaves the tool alone', () => {
+    const { game } = setup();
+    game.dispatch({ type: 'placeRide', defId: 'carousel', x: 20, y: 20, rotation: 0 });
+    expect(game.tool.tool).toBe('footpath');
+  });
+});
