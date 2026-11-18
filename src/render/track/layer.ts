@@ -86,6 +86,8 @@ import {
   type ViewFrame,
 } from './project';
 import { trackToolOf, type TrackPieceGhost } from './toolState';
+// Last: its imports must not move the website bundle's module order (it is realistic-only and folds away there).
+import { CAR_SHADOW_HALF_W, railShadowPlane, sunShift } from '../real/trackShadow';
 
 /** Draw-list kind for track drawables (outside the renderer's own kind numbers). */
 export const KIND_TRACK = 40;
@@ -367,6 +369,51 @@ export function realSupportPlacement(sl: SliceRec, f: ViewFrame): { heading: Vie
   return { heading: (((q % 4) + 4) % 4) as ViewRotation, ax: projectX(su.wx, su.wy, f), pieces };
 }
 
+/**
+ * Realistic rail shadow of a slice (batch 5 Task 4, `../real/trackShadow.ts`): the baked shadow frame lies on a plane
+ * under the tile's lowest rail and is anchored like the rail; drawn at the rail's anchor shifted by the plane's height
+ * above the tile's ground along `sunShift()`, it lies on the ground.
+ */
+export function realRailShadowPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRotation; ax: number; ay: number } {
+  const r = realRailPlacement(sl, f);
+  const s = sunShift();
+  const h = railShadowPlane(sl.railMin) - sl.ground;
+  return { heading: r.heading, ax: r.ax + h * s.x, ay: r.ay + h * s.y };
+}
+
+/**
+ * Realistic support shadows of a slice (Task 4): one baked `<part>:sh` frame per stacked piece, each the piece's shadow
+ * onto a plane at its own anchor, shifted by the piece's height above the ground. Null without a support.
+ */
+export function realSupportShadowPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRotation; pieces: { part: SupportPiece['part']; ax: number; ay: number }[] } | null {
+  const su = realSupportPlacement(sl, f);
+  if (!su) return null;
+  const s = sunShift();
+  return { heading: su.heading, pieces: su.pieces.map((p) => ({ part: p.part, ax: su.ax + (p.z - sl.ground) * s.x, ay: p.ay + (p.z - sl.ground) * s.y })) };
+}
+
+/** A car's live shadow (Task 4, owner decision D1 a): centre and half-axes in world px (zoom 1). */
+export interface CarShadow { cx: number; cy: number; ax: number; ay: number; bx: number; by: number }
+
+/**
+ * The soft ellipse under a car at (x, y, z) over ground `g`: centred on the point's shadow (its projection shifted by
+ * `(z − g) × sunShift()`), half the car long along its heading (shorter as it pitches) and CAR_SHADOW_HALF_W across.
+ */
+export function carShadowAt(x: number, y: number, z: number, g: number, yaw: number, pitch: number, carLenM: number, f: ViewFrame, out: CarShadow = { cx: 0, cy: 0, ax: 0, ay: 0, bx: 0, by: 0 }): CarShadow {
+  const s = sunShift();
+  const h = z - g;
+  out.cx = projectX(x, y, f) + h * s.x;
+  out.cy = projectY(x, y, z, f) + h * s.y;
+  const half = (carLenM / 2) * Math.max(Math.abs(Math.cos(pitch)), 0.35);
+  const c = Math.cos(yaw), sn = Math.sin(yaw);
+  const x0 = projectX(x, y, f), y0 = projectY(x, y, 0, f);
+  out.ax = projectX(x + c * half, y + sn * half, f) - x0;
+  out.ay = projectY(x + c * half, y + sn * half, 0, f) - y0;
+  out.bx = projectX(x - sn * CAR_SHADOW_HALF_W, y + c * CAR_SHADOW_HALF_W, f) - x0;
+  out.by = projectY(x - sn * CAR_SHADOW_HALF_W, y + c * CAR_SHADOW_HALF_W, 0, f) - y0;
+  return out;
+}
+
 /** Paint one slice around its anchor (world px). */
 export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame): void {
   const P = new Projector(f, sl.ax, sl.ay);
@@ -469,6 +516,7 @@ export class TrackLayer {
   private readonly sp = newSamplePoint();
   private readonly pose = newCarPose();
   private readonly fr = new Float64Array(9);
+
   private scale = 1;
   private offX = 0;
   private offY = 0;
@@ -543,6 +591,7 @@ export class TrackLayer {
   /** Collect the track drawables of this frame into the renderer's draw list. */
   collect(world: World, sink: DrawSink, view: ViewBox, bucket: ZoomBucket, scale: number, offX: number, offY: number, alpha: number, rotation = 0): void {
     const map = world.state.map;
+
     this.scale = scale;
     this.offX = offX;
     this.offY = offY;

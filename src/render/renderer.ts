@@ -61,6 +61,8 @@ import {
   type ViewAffine,
   type ViewRotation,
 } from './view';
+// Last (realistic-only, folds away in the website build; its imports must not move the bundle's module order).
+import { drawTrackShadow } from './track/realShadow';
 
 const HW = TILE_W / 2;
 const HH = TILE_H / 2;
@@ -622,6 +624,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   /**
    * Realistic look (spec §5.5 item 2): each ride, stall, path item and scenery item in the draw list gets its soft
    * shadow, drawn after the ground and before every depth-sorted object. A ride cut into columns casts one shadow.
+   * Track slices and cars too (batch 5 Task 4: `track/realShadow.ts`).
    */
   let shadowStamp = new Uint32Array(64);
   function drawShadows(world: World): void {
@@ -640,7 +643,11 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
       } else if (kind === KIND_STALL) sp = look.shadow('stall', s.stalls[ref]!.defId, (list.sub[i] as number) as Dir);
       // A path item's shadow is baked per side (`shadow:<item>:r<side>`): the side in the view, frame bits 2-3.
       else if (kind === KIND_PATH_ITEM) sp = look.shadow('scenery', PATH_ITEM_IDS[(list.sub[i] as number) & 3] as string, (((list.sub[i] as number) >> 2) & 3) as Dir);
-      else {
+      // Track (batch 5 Task 4): rail and support shadows per slice, a soft ellipse per car.
+      else if (import.meta.env.VITE_ART === 'real' && kind === KIND_TRACK) {
+        drawTrackShadow(track, ctx as CanvasRenderingContext2D, world, ref, list.sub[i] as number, look);
+        continue;
+      } else {
         layerByKind.get(kind)?.drawShadow?.(ctx as CanvasRenderingContext2D, world, kind, ref, list.sub[i] as number, list.ax[i] as number, list.ay[i] as number, frame);
         continue;
       }

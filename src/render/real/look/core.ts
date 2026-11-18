@@ -61,7 +61,8 @@ export function frameName(kind: RealKind, item: string, code: number): string {
       return frameKey([`y${y}`, `p${p}`, `r${r}`, full ? 'full' : 'empty']);
     }
     case 'support':
-      return SUPPORT_PARTS[code] as string;
+      // codes 0-2 the parts, 3-5 their shadows (`foot:sh`, …, batch 5 Task 4)
+      return code < SUPPORT_PARTS.length ? (SUPPORT_PARTS[code] as string) : frameKey([SUPPORT_PARTS[code - SUPPORT_PARTS.length] as string, 'sh']);
     case 'ground':
       return code < 0 ? `j${-1 - code}` : frameKey([`s${code >> 2}`, `v${code & 3}`]);
     default:
@@ -106,7 +107,7 @@ export interface LookCore {
   twinOf(rec: ItemRec, rot: ViewRotation, key: SetKey): SetKey | undefined;
   metaOf(rs: ReadySet): SetMeta;
   lookup(rs: ReadySet, key: SetKey, fk: string): Resolved | string;
-  sprite(kind: RealKind, rec: ItemRec | null, classicId: string, rot: ViewRotation, code: number, piece: string | null, tint: string | null): Sprite | null | undefined;
+  sprite(kind: RealKind, rec: ItemRec | null, classicId: string, rot: ViewRotation, code: number, piece: string | null, tint: string | null, part?: string | null): Sprite | null | undefined;
   /** Start of a `prepare`: the frame counter, the counters and the tint budget reset, the density and turn set, stale tinted frames swept. */
   beginFrame(rot: ViewRotation, density: 2 | 4): void;
   setItemMap(map: Readonly<Record<string, string>> | null): void;
@@ -237,7 +238,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       const sheetOf = new Map<string, number>();
       rs.sheets.forEach((s, i) => sheetOf.set(s.file, i));
       const maskOf = rs.sheets.map((s) => (s.mask === undefined ? -1 : sheetOf.get(s.mask) ?? -1));
-      m = { maskOf, alpha: rs.sheets.map((s) => s.tint === 'alpha'), tids: 0, codes: new Map(), rails: new Map() };
+      m = { maskOf, alpha: rs.sheets.map((s) => s.tint === 'alpha'), tids: 0, codes: new Map(), rails: new Map(), railParts: new Map() };
       metas.set(rs, m);
     }
     return m;
@@ -247,7 +248,7 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     const f = rs.frames[fk];
     const si = f ? rs.sheets.findIndex((s) => s.file === f.sheet) : -1;
     if (!f || !rs.images[si]) return `${key}/${fk}`;
-    return { f, si, sprite: { image: rs.images[si] as CanvasImageSource, sx: f.sx, sy: f.sy, w: f.w, h: f.h, ox: -f.ox, oy: -f.oy, scale: rs.density } };
+    return { f, si, sprite: { image: rs.images[si] as CanvasImageSource, sx: f.sx, sy: f.sy, w: f.w, h: f.h, ox: -f.ox, oy: -f.oy, scale: f.density ?? rs.density } };
   }
 
   let density: 2 | 4 = 2;
@@ -292,9 +293,9 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
   /**
    * The sprite for frame `code` (or rail `piece`, tile `code`) of the set for `rec` at view rotation `rot`. `rec` null
    * is today's art (`classicId` is what `fallbacksUsed` lists). `tint` is a `#rrggbb` colour for sheets with a mask
-   * (ignored without one).
+   * (ignored without one). `part` (rails only): an extra picture of the tile, frame [piece, `t<code>`, part].
    */
-  function sprite(kind: RealKind, rec: ItemRec | null, classicId: string, rot: ViewRotation, code: number, piece: string | null, tint: string | null): Sprite | null | undefined {
+  function sprite(kind: RealKind, rec: ItemRec | null, classicId: string, rot: ViewRotation, code: number, piece: string | null, tint: string | null, part: string | null = null): Sprite | null | undefined {
     if (rec === null) { fallbacks.add(classicId); return undefined; }
     const key = resolveAt(rec, rot, density);
     if (key === undefined) { fallbacks.add(rec.missId); return undefined; }
@@ -361,10 +362,16 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
       r = meta.codes.get(code);
       if (r === undefined) meta.codes.set(code, (r = lookup(rs, key, frameName(kind, rec.item, code))));
     } else {
-      let row = meta.rails.get(piece);
-      if (!row) meta.rails.set(piece, (row = []));
+      let rows = meta.rails;
+      if (part !== null) {
+        let pr = meta.railParts.get(part);
+        if (!pr) meta.railParts.set(part, (pr = new Map()));
+        rows = pr;
+      }
+      let row = rows.get(piece);
+      if (!row) rows.set(piece, (row = []));
       r = row[code];
-      if (r === undefined) row[code] = r = lookup(rs, key, frameKey([piece, `t${code}`]));
+      if (r === undefined) row[code] = r = lookup(rs, key, frameKey(part === null ? [piece, `t${code}`] : [piece, `t${code}`, part]));
     }
     if (typeof r === 'string') { fallbacks.add(r); return undefined; }
     if (tint === null) return r.sprite;

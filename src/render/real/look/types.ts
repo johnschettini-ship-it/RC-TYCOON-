@@ -30,6 +30,13 @@ export interface RealLook {
   car(trackType: string, yawStep: number, pitchStep: number, rollStep: number, full: boolean, colour: number): Sprite | null | undefined;
   /** One piece of a stacked support (`foot`, `seg`, `top`), for the saddle's heading in the view (0-3). */
   support(trackType: string, part: SupportPart, heading: ViewRotation, colour: number): Sprite | null | undefined;
+  /**
+   * A rail tile's untinted extra picture (batch 5): `sh` its shadow (Task 4: frame [pieceId, `t<tile>`, `sh`], drawn on
+   * the ground, `../trackShadow.ts`), `chain` its chain lift trough (Task 5). Same set and heading as `rail`.
+   */
+  railPart?(trackType: string, pieceId: string, tile: number, heading: ViewRotation, part: 'sh' | 'chain'): Sprite | null | undefined;
+  /** A support piece's shadow (batch 5 Task 4: frames `foot:sh`, `seg:sh`, `top:sh`), untinted. */
+  supportShadow?(trackType: string, part: SupportPart, heading: ViewRotation): Sprite | null | undefined;
   /** An object's soft shadow; for a path item (bench, bin) `rot` is the side it stands on, in view terms. */
   shadow(kind: 'ride' | 'stall' | 'scenery', defId: string, rot: ViewRotation): Sprite | null | undefined;
   /** A ground piece; `join` (path and queue: the join mask in view terms, as `render/paths.ts`) picks the kerb piece. */
@@ -176,4 +183,6 @@ export interface SetMeta {
   tids: number;
   codes: Map<number, Resolved | string>;
   rails: Map<string, (Resolved | string | undefined)[]>;
+  /** Rail extra pictures (shadow `sh`, chain trough `chain`) by part, then piece and tile, as `rails`. */
+  railParts: Map<string, Map<string, (Resolved | string | undefined)[]>>;
 }

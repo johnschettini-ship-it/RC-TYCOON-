@@ -191,6 +191,7 @@ The instrument comes before the art, so later tasks are graded against a number 
 - Support shadow: one `seg` shadow per heading, repeated along the same shift for the column height, plus the footing's contact shadow.
 - Cars: decision D1 (proposal: a soft ellipse drawn live under each car at its ground point, shifted by height, no art).
 - [ ] Steps: failing placement tests (shift per metre, drawn after the ground and before depth-sorted objects, one draw per slice); implement; bake; look at a 20 m lift on grass and on a slope; commit `feat(real): track shadows`.
+- **Done (b5-t4).** As built: the rail shadow lies on a plane `SHADOW_PLANE_BELOW_M` = 1.5 m under the tile's lowest rail (`src/render/real/trackShadowPlane.ts`), not at the rail line, so a descending piece's spine is not under its own catcher; the game shifts it by `(plane − ground) × sunShift()`. Support shadows are `foot:sh`, `seg:sh` (from a 1 m column) and `top:sh`. Shadows sit on plain sheets (no mask, no tint) and every set keeps them at density 2 (frame `density: 2`): at d4 they cost 1.37 MB and 39 MiB decoded and put steel over its 6 MB rule. Cars: D1 (a), a live ellipse (`src/render/track/realShadow.ts`). Known limit: the ground is taken flat at the slice's (or car's) tile, so a shadow over a slope or past the map edge is not bent or cut.
 
 ### Task 5: Chain lifts
 

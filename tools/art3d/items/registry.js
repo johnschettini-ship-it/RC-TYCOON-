@@ -22,9 +22,9 @@ const PATH_ITEM_DEPS = SCENERY_DEPS; // bench and bin bake through items/scenery
 
 /**
  * Code every track type's pictures are built from: the track kit, its frame plan, the specs of the baked types and the
- * reader's car pose steps (batch 5 Task 3 and its review fix).
+ * reader's car pose steps (batch 5 Task 3 and its review fix), and the shadow numbers shared with the game (Task 4).
  */
-const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js', 'items/trackSpecs.js', '../../src/render/real/pose.ts'];
+const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js', 'items/trackSpecs.js', '../../src/render/real/pose.ts', '../../src/render/real/trackShadowPlane.ts'];
 
 /**
  * Baked track types (batch 5): the type id (TRACK_RIDES) and its module, a style spec on the track kit. The bake input

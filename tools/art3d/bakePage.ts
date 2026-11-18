@@ -407,26 +407,52 @@ export interface ShootOpts {
   noGround?: boolean;
 }
 
+/** A shadow shot's options (track shadows, batch 5 Task 4). */
+export interface ShadowOpts {
+  /**
+   * Cut the caster with these vertical planes [nx, nz, k] (as `clip`), on its own materials, so only that part of it
+   * casts (a rail tile's share of its piece) while the catcher stays whole (a global clip would cut the catcher too).
+   */
+  clip?: [number, number, number][];
+  /** Height of the shadow catcher (m, the anchor at 0): the plane the shadow lies on. */
+  plane?: number;
+  /** The caster's ground rectangle [x0, x1, z0, z1] (three.js x and z, m) bounding the picture's reach (with `clip`). */
+  region?: [number, number, number, number];
+}
+
 /** Render the visible models of `bs` (anchor at the origin) and cut one picture per density. */
-function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
+function shoot(bs: BakeScene, o: ShootOpts, shadow = false, so: ShadowOpts = {}): Shot {
   const cam = bakeCamera(0, renderD as BakeDensity);
   bs.world.scale.set(1, cam.heightScale, 1);
   const box = boxOf(o.target);
   if (box.isEmpty()) return {};
+  if (so.region) {
+    box.min.x = Math.max(box.min.x, so.region[0]); box.max.x = Math.min(box.max.x, so.region[1]);
+    box.min.z = Math.max(box.min.z, so.region[2]); box.max.z = Math.min(box.max.z, so.region[3]);
+  }
+  const plane = (so.plane ?? 0) * cam.heightScale;
   placeSun(bs, box);
   // a shadow lies on the ground round the object, up to ~1.4 × its height away
   let sb = box;
   if (o.ownShadow) sb = box.clone().expandByVector(new THREE.Vector3(box.max.y * 1.4, 0, box.max.y * 1.4));
-  if (shadow) {
-    const reach = box.max.y * 1.4 + 0.5;
-    sb = new THREE.Box3(new THREE.Vector3(box.min.x - reach, 0, box.min.z - reach), new THREE.Vector3(box.max.x + reach, 0.01, box.max.z + reach));
+  if (shadow && so.plane !== undefined) {
+    // A track shadow (Task 4): only the side the shadow falls on, the footprint and the footprint moved along the sun's
+    // ray by the caster's height over the plane (a tall lift tile's square reach was a render over the GPU's limit),
+    // with half a metre for the blur.
+    const s = sunDir();
+    const run = Math.max(0, box.max.y - plane) / s.y;
+    const foot = new THREE.Box3(new THREE.Vector3(box.min.x - 0.5, plane, box.min.z - 0.5), new THREE.Vector3(box.max.x + 0.5, plane + 0.01, box.max.z + 0.5));
+    sb = foot.clone().union(foot.clone().translate(new THREE.Vector3(-s.x * run, 0, -s.z * run)));
+  } else if (shadow) {
+    const reach = Math.max(0, box.max.y - plane) * 1.4 + 0.5;
+    sb = new THREE.Box3(new THREE.Vector3(box.min.x - reach, plane, box.min.z - reach), new THREE.Vector3(box.max.x + reach, plane + 0.01, box.max.z + reach));
     // Round a tall object that reach passes the GPU's render size (the 26 m drop tower's was 10456 px wide against
     // 8192: the read-back was blank and the tower had no shadow set). Then only the side the shadow falls on: the
     // footprint, and the footprint moved `reach` away from the sun.
-    if (tooBig(rectOfBox(sb, cam, o.margin ?? 2))) {
+    if (so.plane === undefined && tooBig(rectOfBox(sb, cam, o.margin ?? 2))) {
       const s = sunDir();
       const away = new THREE.Vector3(-s.x, 0, -s.z).normalize().multiplyScalar(reach);
-      const foot = new THREE.Box3(new THREE.Vector3(box.min.x - 0.5, 0, box.min.z - 0.5), new THREE.Vector3(box.max.x + 0.5, 0.01, box.max.z + 0.5));
+      const foot = new THREE.Box3(new THREE.Vector3(box.min.x - 0.5, plane, box.min.z - 0.5), new THREE.Vector3(box.max.x + 0.5, plane + 0.01, box.max.z + 0.5));
       sb = foot.clone().union(foot.clone().translate(away));
     }
   }
@@ -434,10 +460,23 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
   for (let tries = 0; tries < 3; tries++) {
     let restore: (() => void) | null = null;
     if (shadow) restore = swap(o.target, ghost);
+    const cut = shadow && so.clip ? so.clip.map(([nx, nz, k]) => new THREE.Plane(new THREE.Vector3(nx, 0, nz), k)) : null;
+    const ghosts = new Set<any>();
+    if (cut) {
+      o.target.traverse((m: any) => { if (m.isMesh) for (const g of [].concat(m.material) as any[]) ghosts.add(g); });
+      for (const g of ghosts) { g.clippingPlanes = cut; g.clipShadows = true; g.needsUpdate = true; }
+      renderer.localClippingEnabled = true;
+    }
     const catcher = shadow || !!o.ownShadow;
     bs.ground.visible = !catcher && !o.noGround;
     bs.catcher.visible = catcher;
+    bs.catcher.position.y = shadow ? (so.plane ?? 0) : 0;
     const src = render(bs, rect, 'color');
+    bs.catcher.position.y = 0;
+    if (cut) {
+      for (const g of ghosts) { g.clippingPlanes = null; g.clipShadows = false; g.needsUpdate = true; }
+      renderer.localClippingEnabled = false;
+    }
     if (restore) restore();
     let maskSrc: Raw | null = null;
     if (o.masked && !shadow) {
@@ -469,8 +508,13 @@ function shoot(bs: BakeScene, o: ShootOpts, shadow = false): Shot {
 }
 
 // ------------------------------------------------------------------ sets, packing and files
-/** `alpha`: the picture takes the colour everywhere (track rails): it goes on an alpha-tint sheet, no mask (batch 5). */
-interface SetPic { keys: string[]; shot: Shot; alpha?: boolean }
+/**
+ * `alpha`: the picture takes the colour everywhere (track rails): it goes on an alpha-tint sheet, no mask (batch 5).
+ * `plain`: the picture is never tinted (track shadows and chain troughs, batch 5 Tasks 4-5): it goes on a plain sheet
+ * (no mask, no tint), and counts in no mask coverage. `low`: a soft picture (a track shadow) kept at the bake's lowest
+ * density in every set (the frame's `density`; the game scales it up).
+ */
+interface SetPic { keys: string[]; shot: Shot; alpha?: boolean; plain?: boolean; low?: boolean }
 interface SetB { kind: RealKind; item: string; rot: 0 | 1 | 2 | 3 | 'all'; pics: SetPic[]; masked: boolean; baseColour?: string; maskLevels?: number }
 let sets: SetB[] = [];
 const files = new Map<string, string>(); // name -> data URL
@@ -585,11 +629,14 @@ function packPages(pics: { keys: string[]; pic: Pic }[], prefix: string): PackPa
 }
 
 function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
-  const all = s.pics.map((p) => ({ keys: p.keys, pic: p.shot[d], alpha: !!p.alpha })).filter((p): p is { keys: string[]; pic: Pic; alpha: boolean } => !!p.pic);
+  const lowD = densities[0] as BakeDensity;
+  const every = s.pics.map((p) => ({ keys: p.keys, pic: p.shot[p.low ? lowD : d], alpha: !!p.alpha, plain: !!p.plain, low: !!p.low && lowD !== d })).filter((p): p is { keys: string[]; pic: Pic; alpha: boolean; plain: boolean; low: boolean } => !!p.pic);
+  const all = every.filter((p) => !p.plain);
   const pics = all.filter((p) => !p.alpha);
   const alphaPics = all.filter((p) => p.alpha);
+  const plainPics = every.filter((p) => p.plain);
   const pages = packPages(pics, prefix);
-  const out: OutSet = { kind: s.kind, item: s.item, density: d, rot: s.rot, sheets: [], frames: {}, pictures: all.length };
+  const out: OutSet = { kind: s.kind, item: s.item, density: d, rot: s.rot, sheets: [], frames: {}, pictures: every.length };
   if (s.baseColour !== undefined) out.baseColour = s.baseColour;
   if (s.masked) {
     let sum = 0, n = 0, empty = 0;
@@ -640,6 +687,21 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
     out.sheets.push({ file, w: W, h: H, tint: 'alpha' });
     for (const it of p.items) {
       for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy };
+    }
+  });
+  // Plain pictures (never tinted): their own sheets, no mask, no tint.
+  packPages(plainPics, prefix).forEach((p, i) => {
+    if (p.items.length === 0) return;
+    const W = Math.min(PAGE, p.usedW), H = Math.min(PAGE, p.usedH);
+    const file = `${prefix}-s${i}.webp`;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d') as CanvasRenderingContext2D;
+    for (const it of p.items) g.drawImage(it.p.canvas, it.x, it.y);
+    encode(c, file);
+    out.sheets.push({ file, w: W, h: H });
+    for (const it of p.items) {
+      const low = plainPics.find((x) => x.pic === it.p)?.low;
+      for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy, ...(low ? { density: lowD as 2 } : {}) };
     }
   });
   return out;
@@ -711,12 +773,12 @@ export interface BakeApi {
   setEnv(obj: any): void;
   boxOf(obj: any): any;
   shoot(bs: BakeScene, o: ShootOpts): Shot;
-  shootShadow(bs: BakeScene, target: any): Shot;
+  shootShadow(bs: BakeScene, target: any, opts?: ShadowOpts): Shot;
   /**
    * Start a set; `add` registers one picture under every frame key that shows it. `{ alpha: true }`: the picture takes
    * the colour everywhere (a track rail, shot without a mask): it goes on the set's alpha-tint sheets (batch 5).
    */
-  set(kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all', masked?: boolean, baseColour?: string, maskLevels?: number): { add(keys: string[], shot: Shot, opts?: { alpha?: boolean }): void };
+  set(kind: RealKind, item: string, rot: 0 | 1 | 2 | 3 | 'all', masked?: boolean, baseColour?: string, maskLevels?: number): { add(keys: string[], shot: Shot, opts?: { alpha?: boolean; plain?: boolean; low?: boolean }): void };
   /** Clip every render to vertical planes [nx, nz, k] (three.js x/z; kept where nx·x + nz·z + k >= 0); null clears. */
   clip(planes: [number, number, number][] | null): void;
   log(...a: unknown[]): void;
@@ -762,7 +824,7 @@ window.bakeItem = async (id, opts) => {
   const api: BakeApi = {
     THREE, densities, input: opts.input, newScene, setEnv, boxOf, log,
     shoot: (bs, o) => shoot(bs, o, false),
-    shootShadow: (bs, target) => shoot(bs, { target }, true),
+    shootShadow: (bs, target, opts) => shoot(bs, { target }, true, opts),
     clip(planes) {
       renderer.clippingPlanes = planes ? planes.map(([nx, nz, k]) => new THREE.Plane(new THREE.Vector3(nx, 0, nz), k)) : [];
     },
@@ -774,7 +836,9 @@ window.bakeItem = async (id, opts) => {
       return {
         add: (keys, shot, opts) => {
           if (opts?.alpha && kind !== 'rail') throw new Error(`${kind}:${item}: only rail pictures may be alpha-tinted`);
-          s.pics.push(opts?.alpha ? { keys, shot, alpha: true } : { keys, shot });
+          if (opts?.plain && kind !== 'rail' && kind !== 'support') throw new Error(`${kind}:${item}: only track rail and support sets hold plain (untinted) pictures`);
+          if (opts?.low && !opts.plain) throw new Error(`${kind}:${item}: only plain (untinted) pictures may be kept at a lower density`);
+          s.pics.push(opts?.alpha ? { keys, shot, alpha: true } : opts?.plain ? { keys, shot, plain: true, ...(opts.low ? { low: true } : {}) } : { keys, shot });
         },
       };
     },

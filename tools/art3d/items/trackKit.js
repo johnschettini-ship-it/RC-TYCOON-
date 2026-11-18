@@ -33,7 +33,16 @@
 //                                 of the class whose yaw is in quadrant q (trackClasses.ts carQuadrant: the game picks
 //                                 the set by the car's view yaw). Anchor: the car's centre on the rail line (the sampled
 //                                 track point). Car-body mask.
-// No shadows, chain troughs or water channels yet (Tasks 4, 5 and 14). Chain dashes stay live (track/layer.ts).
+// Shadows (Task 4, src/render/real/trackShadow.ts), untinted on plain sheets (no mask, no tint), and soft: every set
+// holds them at the bake's lowest density (frame `density`: 2; at d4 they cost 1.37 MB and 39 MiB decoded, which put
+// the steel coaster over its 6 MB size rule):
+//   rail    [pieceId, `t<i>`, `sh`] in the tile's rail set: the tile's share of the rail (cut by the tile's clip on
+//           the caster only, or the tile's runs) shadowed by the bake's sun onto a plane SHADOW_PLANE_BELOW_M under the
+//           tile's lowest rail, anchored like the rail. The game shifts it onto the ground along the sun.
+//   support [`foot`, `sh`], [`seg`, `sh`], [`top`, `sh`]: each part's shadow onto a plane at its own anchor (the
+//           segment's from a 1 m column, so stacked segment shadows meet without the 0.1 m overlap darkening).
+//   Car shadows are live ellipses (owner decision D1 a): no art.
+// No chain troughs or water channels yet (Tasks 5 and 14). Chain dashes stay live (track/layer.ts).
 //
 // Styles: one entry per `render.rail`, `render.supports` and `render.car` of the track types
 // (src/data/track/trackTypes.ts). Batch 5 adds a type's styles with its module (Tasks 6-7, 10-12, 14-15); Task 3 has
@@ -42,7 +51,8 @@ import { THREE, kit } from './common.js';
 import { M, V } from '../kit.js';
 import { sweep, boxProfile, Beams, sitCar } from '../rides.js';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from '../../../src/render/real/pose';
-import { SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey } from './trackKeys.js';
+import { SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey, supportShadowKey } from './trackKeys.js';
+import { SHADOW_PLANE_BELOW_M } from '../../../src/render/real/trackShadowPlane';
 
 const hex = (m) => (!Array.isArray(m) && m.color ? `#${m.color.getHexString()}` : '');
 
@@ -295,11 +305,15 @@ export function bakeTrackType(B, spec) {
     const shot = f.alpha ? B.shoot(bs, { target: cur.holder }) : B.shoot(bs, { target: cur.holder, masked: (m) => m.material === railMat });
     setOf(f.cls, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
     B.clip(null);
+    // its shadow: the caster cut to the tile on its own materials (a global clip would cut the catcher too)
+    const [x0, x1, y0, y1] = f.tile.clip ?? [-2, 2, -2, 2];
+    const sh = B.shootShadow(bs, cur.holder, { clip: runs ? undefined : clipOf(f.tile), plane: f.tile.railMin - SHADOW_PLANE_BELOW_M, region: runs ? undefined : [x0, x1, y0, y1] });
+    setOf(f.cls, f.heading).add([f.shadow], sh, { plain: true, low: true });
     n++;
   }
   if (cur) bs.world.remove(cur.holder);
   bs.ground.material = holdOut;
-  B.log(`${spec.item}: ${n} rail pictures`);
+  B.log(`${spec.item}: ${n} rail pictures and their shadows`);
 
   // ---- supports per heading: foot, 1 m segment, top (the game stacks them)
   for (let t = 0; t < 4; t++) {
@@ -309,6 +323,8 @@ export function bakeTrackType(B, spec) {
       bs.world.add(m);
       B.setEnv(m);
       set.add([supportKey(part)], B.shoot(bs, { target: m, masked: (x) => x.material === supMat, noGround: part !== 'foot' }));
+      if (part === 'seg') m.scale.y = 1 / SEG_H; // the shadow of a 1 m column: stacked shadows meet, never overlap
+      set.add([supportShadowKey(part)], B.shootShadow(bs, m, { plane: 0 }), { plain: true, low: true });
       bs.world.remove(m);
     }
   }

@@ -14,7 +14,7 @@ import { TRACK_SET_MAX_D4 } from '../../../tools/art3d/trackBudget';
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-interface RailFrame { cls: string; heading: number; piece: string; ti: number; key: string; alpha: boolean }
+interface RailFrame { cls: string; heading: number; piece: string; ti: number; key: string; shadow: string; alpha: boolean }
 interface CarFrame { cls: string; q: number; pose: { yaw: number; pitch: number; roll: number }; full: boolean; front: boolean; key: string }
 
 describe('track kit frame plan', () => {
@@ -41,6 +41,7 @@ describe('track kit frame plan', () => {
       const rails: RailFrame[] = railFrames(t);
       expect(rails.length, r.id).toBe(tiles);
       expect(new Set(rails.map((f) => `${f.cls}|${f.heading}|${f.key}`)).size, `${r.id}: one picture per key and set`).toBe(rails.length);
+      for (const f of rails) expect(f.shadow, r.id).toBe(`${f.key}:sh`); // and its shadow (Task 4)
       const cars: CarFrame[] = carFrames(t);
       expect(cars.length, r.id).toBe(carFramesOf(r.id, pieces).frames);
       const type = getTrackTypeDef(r.id)!;
@@ -64,7 +65,7 @@ describe('track kit frame plan', () => {
         sets.get(k)!.frames[key] = fr;
       };
       for (const d of [2, 4] as const) {
-        for (const f of railFrames(t) as RailFrame[]) add('rail', classItem(r.id, f.cls), d, f.heading as 0, f.key);
+        for (const f of railFrames(t) as RailFrame[]) { add('rail', classItem(r.id, f.cls), d, f.heading as 0, f.key); add('rail', classItem(r.id, f.cls), d, f.heading as 0, f.shadow); }
         for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.cls), d, f.q as 0, f.key);
       }
       const index: RealIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };

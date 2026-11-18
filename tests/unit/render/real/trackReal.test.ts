@@ -408,6 +408,45 @@ describe('track class sets (batch 5 Task 2)', () => {
     }
   });
 
+  it('shadows (Task 4) resolve untinted from the rail\'s class set and the support set, on their plain sheets', () => {
+    const plainSet = (kind: RealKind, item: string, d: 2 | 4, rot: RealSetEntry['rot'], tinted: string[], plain: string[]): RealSetEntry => ({
+      key: setKey(kind, item, d, rot), kind, item, density: d, rot,
+      sheets: kind === 'rail' ? [{ file: 'a', w: 8, h: 8, tint: 'alpha' }, { file: 'p', w: 8, h: 8 }] : [{ file: 's', w: 8, h: 8, mask: 'm' }, { file: 'm', w: 8, h: 8 }, { file: 'p', w: 8, h: 8 }],
+      frames: { ...Object.fromEntries(tinted.map((f) => [f, { ...FR, sheet: kind === 'rail' ? 'a' : 's' }])), ...Object.fromEntries(plain.map((f) => [f, { ...FR, sheet: 'p' }])) },
+    });
+    const sets0: RealSetEntry[] = [];
+    for (const d of [2, 4] as const) for (const r of [0, 1, 2, 3] as const) {
+      sets0.push(plainSet('rail', 'steel_coaster~turn', d, r, ['turn_medium_left:t0'], ['turn_medium_left:t0:sh']));
+      sets0.push(plainSet('support', 'steel_coaster', d, r, ['foot', 'seg', 'top'], ['foot:sh', 'seg:sh', 'top:sh']));
+    }
+    const index = idx(sets0);
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'turn_medium_left', dir: 0 }]), 0, VIEW, 1, 1);
+    sets.setReady('rail:steel_coaster~turn:d2:r1');
+    sets.setReady('support:steel_coaster:d2:r1');
+    const sh = look.railPart!('steel_coaster', 'turn_medium_left', 0, 1, 'sh');
+    expect(sets.used.at(-1)).toBe('rail:steel_coaster~turn:d2:r1');
+    const railSheet = sets.use('rail:steel_coaster~turn:d2:r1')!;
+    expect(sh!.image).toBe(railSheet.images[1]); // the plain sheet itself: never tinted
+    for (const part of ['foot', 'seg', 'top'] as const) {
+      const s = look.supportShadow!('steel_coaster', part, 1);
+      expect(s!.image, part).toBe(sets.use('support:steel_coaster:d2:r1')!.images[2]);
+    }
+    // a shadow kept at density 2 in a density-4 set (Task 4) is drawn at its own density, scaled up
+    const d4 = index.sets.find((e) => e.key === 'rail:steel_coaster~turn:d4:r1')!;
+    d4.frames['turn_medium_left:t0:sh'] = { ...d4.frames['turn_medium_left:t0:sh']!, density: 2 };
+    sets.setReady('rail:steel_coaster~turn:d4:r1');
+    look.prepare(worldWith([{ defId: 'turn_medium_left', dir: 0 }]), 0, VIEW, 2, 2);
+    const big = look.railPart!('steel_coaster', 'turn_medium_left', 0, 1, 'sh');
+    expect(sets.used.at(-1)).toBe('rail:steel_coaster~turn:d4:r1');
+    expect(big!.scale).toBe(2);
+    expect(look.railPart!('steel_coaster', 'turn_medium_left', 0, 1, 'sh')).toBe(big);
+    // the rail itself still tints, and nothing fell back
+    expect((look.rail('steel_coaster', 'turn_medium_left', 0, 1, 3)!.image as unknown as Pix).width).not.toBe(8);
+    expect(look.fallbacksUsed()).toEqual([]);
+  });
+
   it('spinning types: a spun yaw no piece reaches resolves to base (Task 3 files spin frames in ~base)', () => {
     // spinning_mouse reaches pitch 2 (gentle slopes) only along the 4 headings; a spun car on a slope is at any yaw
     const m = poseClasses('spinning_mouse');
