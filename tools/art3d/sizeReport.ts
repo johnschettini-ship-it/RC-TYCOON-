@@ -20,7 +20,7 @@
  * A kind with no baked item uses ASSUMED_MEAN_BYTES (basis 'assumed', listed in assumedKinds); it never fails the gate.
  *
  * Decoded track memory (`residentAllClasses`): what a built track ride of the type holds when it wants every set the
- * bake has for it: every heading of its rail and support sets plus its `rall` car sets, and their masks (track masks
+ * bake has for it: every heading of its rail and support sets plus its car sets (every class and yaw quadrant), and their masks (track masks
  * stay decoded: frames tint on demand in the tint atlas). `decodedPerTurn` and `residentPerTurn` of a track row are
  * the same total, not one rotation's peak: a track ride wants every heading its pieces face.
  */
@@ -78,7 +78,7 @@ export interface SizeItemRow {
   /** Track rows: the whole ride (`residentAllClasses`), not one rotation (see the header). */
   decodedPerTurn: { d2: number; d4: number };
   residentPerTurn: { d2: number; d4: number };
-  /** Track rows only: every set of the type (all headings, `rall`, every class), masks included. */
+  /** Track rows only: every set of the type (all headings and car quadrants, every class), masks included. */
   residentAllClasses?: { d2: number; d4: number };
   /** Track rows only: each density-4 set with its masks, largest first. */
   perSet?: { key: string; d4Bytes: number }[];
@@ -444,7 +444,7 @@ export interface TrackSizeRow {
   id: string;
   compressed: number;
   compressedMax: number;
-  /** Every set of the type with its masks (all headings, `rall`, every class), per density. */
+  /** Every set of the type with its masks (all headings and car quadrants, every class), per density. */
   residentAllClasses: { d2: number; d4: number };
   /** Density-4 sets over `setMaxD4`, with their bytes. */
   overSets: { key: string; d4Bytes: number }[];

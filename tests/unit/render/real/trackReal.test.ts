@@ -17,7 +17,7 @@ import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey }
 import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
 import type { CanvasLike } from '../../../../src/render/real/tint';
 import { TINT_PAGE_PX } from '../../../../src/render/real/tintAtlas';
-import { pieceClass, poseClasses, poseClassesReady, poseClassOf, poseCode } from '../../../../src/render/real/trackClasses';
+import { carQuadrant, carSetsOf, pieceClass, poseClasses, poseClassesReady, poseClassOf, poseCode } from '../../../../src/render/real/trackClasses';
 import { createWorld } from '../../../../src/sim/world';
 import type { Ride } from '../../../../src/sim/rides/types';
 import type { World } from '../../../../src/sim/types';
@@ -365,6 +365,49 @@ describe('track class sets (batch 5 Task 2)', () => {
     expect(sets.wanted('now')).toContain('rail:steel_coaster~turn:d4:r0');
   });
 
+  /** Class layout with car sets per yaw quadrant (fix wave): `car:steel_coaster~<class>:d*:r<q>`. */
+  const quadrantIndex = (): RealIndex => {
+    const sets = classIndex().sets.filter((e) => e.kind !== 'car');
+    for (const d of [2, 4] as const) for (const q of [0, 1, 2, 3] as const) {
+      sets.push(entry('car', 'steel_coaster~base', d, q, [`y${q * 8}:p0:r0:full`], 'mask'));
+      sets.push(entry('car', 'steel_coaster~turn', d, q, [`y${(q * 8 + 1) % 32}:p0:r0:full`, `y${(q * 8 + 3) % 32}:p0:r0:full`, `y${(q * 8 + 29) % 32}:p0:r0:full`], 'mask'));
+      sets.push(entry('car', 'steel_coaster~loop', d, q, [], 'mask'));
+    }
+    return idx(sets);
+  };
+
+  it('car class sets by yaw quadrant: a car draws from the set of its view yaw\'s quadrant (fix wave)', () => {
+    const index = quadrantIndex();
+    const sets = new Sets(index);
+    const look = createRealLook(index, sets, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'station', dir: 0 }]), 0, VIEW, 1, 1);
+    for (const q of [0, 1, 2, 3]) { sets.setReady(`car:steel_coaster~base:d2:r${q}`); sets.setReady(`car:steel_coaster~turn:d2:r${q}`); }
+    expect(look.car('steel_coaster', 0, 0, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~base:d2:r0');
+    expect(look.car('steel_coaster', 8, 0, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~base:d2:r1');
+    expect(look.car('steel_coaster', 3, 0, 0, true, 1)).toBeTruthy(); // 3 steps past +x: still quadrant 0
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~turn:d2:r0');
+    expect(look.car('steel_coaster', 29, 0, 0, true, 1)).toBeTruthy(); // 3 steps before +x: quadrant 0
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~turn:d2:r0');
+    expect(look.car('steel_coaster', 25, 0, 0, true, 1)).toBeTruthy();
+    expect(sets.used.at(-1)).toBe('car:steel_coaster~turn:d2:r3');
+    expect(look.fallbacksUsed()).toEqual([]);
+  });
+
+  it('the scope wants only the car quadrants a circuit\'s cars face, turned with the view (fix wave)', () => {
+    const index = quadrantIndex();
+    const world = worldWith([{ defId: 'station', dir: 0 }, { defId: 'straight', dir: 0 }, { defId: 'turn_medium_right', dir: 0 }]);
+    for (const rot of [0, 1, 3] as const) {
+      const sets = new Sets(index);
+      createRealLook(index, sets, { makeCanvas: make }).prepare(world, rot, VIEW, 2, 2);
+      const cars = sets.wanted('now').filter((k) => k.startsWith('car:') && k.includes(':d4:'));
+      // straights along +x face quadrant 0; the right turn sweeps from +x to +y: base and turn at quadrants 0 and 1.
+      // Never quadrants 2 or 3, and turned with the view.
+      expect(cars).toEqual([0, 1].flatMap((q) => ['base', 'turn'].map((c) => `car:steel_coaster~${c}:d4:r${(q + rot) % 4}`)).sort());
+    }
+  });
+
   it('spinning types: a spun yaw no piece reaches resolves to base (Task 3 files spin frames in ~base)', () => {
     // spinning_mouse reaches pitch 2 (gentle slopes) only along the 4 headings; a spun car on a slope is at any yaw
     const m = poseClasses('spinning_mouse');
@@ -424,9 +467,10 @@ describe('track class sets (batch 5 Task 2)', () => {
       }
       const poses = poseClasses('steel_coaster');
       today.push({ key: setKey('car', 'steel_coaster', d, 'all'), kind: 'car', item: 'steel_coaster', density: d, rot: 'all', sheets: sheetOf(poses.size * 2 * m.car, true, `c${d}`), frames: {} });
-      for (const cls of new Set(poses.values())) {
-        const n = [...poses.values()].filter((c) => c === cls).length;
-        batch5.push({ key: setKey('car', `steel_coaster~${cls}`, d, 'all'), kind: 'car', item: `steel_coaster~${cls}`, density: d, rot: 'all', sheets: sheetOf(n * 2 * m.car, true, `c${cls}${d}`), frames: {} });
+      // cars by class and yaw quadrant (fix wave)
+      for (const cls of new Set(poses.values())) for (const q of [0, 1, 2, 3] as const) {
+        const n = [...poses].filter(([code, c]) => c === cls && carQuadrant(Math.floor(code / 576)) === q).length;
+        batch5.push({ key: setKey('car', `steel_coaster~${cls}`, d, q), kind: 'car', item: `steel_coaster~${cls}`, density: d, rot: q, sheets: sheetOf(n * 2 * m.car, true, `c${cls}${d}${q}`), frames: {} });
       }
     }
     const world = buildPerfScene('coaster');
@@ -452,6 +496,9 @@ describe('track class sets (batch 5 Task 2)', () => {
     expect(before / MiB).toBeGreaterThan(120);
     expect(after).toBeLessThanOrEqual(0.6 * before);
     expect(after).toBeLessThanOrEqual(trackBudget('steel_coaster').benchMaxD4);
+    // no set of the complete steel coaster is over the 8 MiB per-set rule at d4 (cork's 164 poses were 20.9 MiB in one set)
+    const over = batch5.filter((e) => e.density === 4 && setDecodedBytes(e).all > trackBudget('steel_coaster').setMaxD4).map((e) => e.key);
+    expect(over).toEqual([]);
     console.log(`coaster bench circuit, d4 track bytes wanted: today's layout ${(before / MiB).toFixed(1)} MiB, class sets ${(after / MiB).toFixed(1)} MiB (${((100 * after) / before).toFixed(0)} %)`);
   }, 120000);
 });

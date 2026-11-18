@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ALL_TRACK_PIECES, ALL_TRACK_TYPES, getTrackTypeDef, typeBuildsPiece } from '../../../../src/data/track';
-import { GROUP_CLASS, TRACK_CLASSES, carClassesOf, pieceClass, poseClasses, poseClassOf, poseCode, reachedPoses } from '../../../../src/render/real/trackClasses';
+import { GROUP_CLASS, TRACK_CLASSES, carClassesOf, carQuadrant, carSetsOf, pieceClass, poseClasses, poseClassOf, poseCode, reachedPoses } from '../../../../src/render/real/trackClasses';
 import { reachedPoses as bakeReachedPoses } from '../../../../tools/art3d/poses';
 
 describe('track classes (batch 5 Task 2)', () => {
@@ -46,4 +46,25 @@ describe('track classes (batch 5 Task 2)', () => {
     expect(getTrackTypeDef('water_coaster')!.alsoPieces.length).toBeGreaterThan(0);
     for (const t of ALL_TRACK_TYPES) expect(poseClasses(t.id).size, t.id).toBeGreaterThan(0);
   });
+
+  it('car sets by yaw quadrant (fix wave): quadrants centred on the 4 headings, turning with the view', () => {
+    // yaw steps 28..3 face +x (quadrant 0), 4..11 face +y (1), 12..19 (2), 20..27 (3)
+    expect([28, 31, 0, 3, 4, 11, 12, 19, 20, 27].map(carQuadrant)).toEqual([0, 0, 0, 0, 1, 1, 2, 2, 3, 3]);
+    // a view turn adds 8 yaw steps and so one quadrant
+    for (let y = 0; y < 32; y++) expect(carQuadrant(y + 8)).toBe((carQuadrant(y) + 1) % 4);
+  });
+
+  it('carSetsOf: the (class, world quadrant) pairs a circuit\'s cars can show, per built piece and heading', () => {
+    const q = (m: Map<string, Set<number>>) => Object.fromEntries([...m].map(([k, v]) => [k, [...v].sort()]));
+    expect(q(carSetsOf('steel_coaster', [{ defId: 'straight', dir: 0 }]))).toEqual({ base: [0] });
+    expect(q(carSetsOf('steel_coaster', [{ defId: 'straight', dir: 1 }, { defId: 'station', dir: 3 }]))).toEqual({ base: [1, 3] });
+    // a medium turn sweeps a quarter: two quadrants (its end poses, straight along a heading, are base poses)
+    expect(q(carSetsOf('steel_coaster', [{ defId: 'turn_medium_right', dir: 0 }]))).toEqual({ base: [0, 1], turn: [0, 1] });
+    // the coaster bench circuit (a closed loop) reaches every quadrant of base and turn
+    const circuit = [0, 1, 2, 3].flatMap((dir) => [{ defId: 'straight', dir }, { defId: 'turn_medium_right', dir }]);
+    expect(q(carSetsOf('steel_coaster', circuit))).toEqual({ base: [0, 1, 2, 3], turn: [0, 1, 2, 3] });
+    // a spinning car can face any way: all 4 quadrants, and a flat pose at a yaw only a turn reaches is filed in turn
+    expect(q(carSetsOf('spinning_mouse', [{ defId: 'straight', dir: 0 }]))).toEqual({ base: [0, 1, 2, 3], turn: [0, 1, 2, 3] });
+  });
 });
+

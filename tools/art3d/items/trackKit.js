@@ -8,7 +8,9 @@
 //                                 ((piece.dir + view turn) mod 4, track convention: 0 = +x, 1 = +y), numbered among the
 //                                 piece's rail tiles in pieceWorldTiles order (as the renderer's trackTileSlices count),
 //                                 clipped to its tile with the EXT run-on (a tile that takes in a rail-less
-//                                 neighbour of the piece, as a loop's clearance tile, is clipped to both: clipRects). Anchor: the tile's centre at the piece's entry
+//                                 neighbour of the piece, as a loop's clearance tile, is clipped to both: clipRects).
+//                                 A piece whose track runs along a tile edge (the vertical loops) is cut by runs of
+//                                 samples instead, across the track (`runs`, bakeNode.ts trackRuns). Anchor: the tile's centre at the piece's entry
 //                                 rail height (piece.z), so the game adds piece.z × the height step to today's slice
 //                                 anchor (track/layer.ts projects z = 0). A frame that takes the track colour everywhere
 //                                 sits on an alpha-tint sheet (no mask: its alpha is the mask); a piece with untinted
@@ -26,9 +28,10 @@
 //                                       (src/render/real/supportStack.ts), so the post ends 0.53 m under it, just inside
 //                                       the bottom face of the steel spine (0.27-0.57 m under the rail line).
 //                                 Support mask (not the footing): the game tints it with the ride's support colour.
-//   car:<type>~<class>:d*:rall    frames [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (+ `front`) for every pose
-//                                 of the class. Anchor: the car's centre on the rail line (the sampled track point).
-//                                 Car-body mask.
+//   car:<type>~<class>:d*:r<q>    frames [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (+ `front`) for every pose
+//                                 of the class whose yaw is in quadrant q (trackClasses.ts carQuadrant: the game picks
+//                                 the set by the car's view yaw). Anchor: the car's centre on the rail line (the sampled
+//                                 track point). Car-body mask.
 // No shadows, chain troughs or water channels yet (Tasks 4, 5 and 14). Chain dashes stay live (track/layer.ts).
 //
 // Styles: one entry per `render.rail`, `render.supports` and `render.car` of the track types
@@ -42,6 +45,17 @@ import { SUB_M, SUPPORT_PARTS, carFrames, classItem, railFrames, supportKey } fr
 
 const hex = (m) => (!Array.isArray(m) && m.color ? `#${m.color.getHexString()}` : '');
 
+/**
+ * The track's lateral (three.js axes) at tangent `t`, heading `yaw`: world up × tangent, which is the yaw's horizontal
+ * lateral while the track points forward. Past the vertical (pitch beyond ±90°, the top half of a vertical loop:
+ * `cosPitch` < 0) world up × tangent turns round and the frame would roll 180° there, drawing the top half of a loop
+ * the right way up, the spine inside, with an X where it flips (fix wave, seen in the game); the yaw's lateral is kept.
+ */
+export function lateralOf(t, yaw, cosPitch) {
+  // (the same vector while the track points forward; near the vertical the cross product is tiny, so the yaw's is used)
+  return cosPitch > 0.25 ? V(0, 1, 0).cross(t).normalize() : V(Math.sin(yaw), 0, -Math.cos(yaw));
+}
+
 /** Track frames (three.js axes) from game samples: P, tangent, lateral and up, banked. */
 export function framesOf(s) {
   const P = [], Tn = [], Lt = [], Up = [];
@@ -49,7 +63,7 @@ export function framesOf(s) {
     P.push(V(s.x[k], s.z[k], s.y[k]));
     const cp = Math.cos(s.pitch[k]);
     const t = V(cp * Math.cos(s.yaw[k]), Math.sin(s.pitch[k]), cp * Math.sin(s.yaw[k])).normalize();
-    const lat = V(0, 1, 0).cross(t).normalize();
+    const lat = lateralOf(t, s.yaw[k], cp);
     const up = t.clone().cross(lat).normalize();
     const q = new THREE.Quaternion().setFromAxisAngle(t, -Math.atan2(s.bankSin[k], s.bankCos[k]));
     Tn.push(t); Lt.push(lat.applyQuaternion(q)); Up.push(up.applyQuaternion(q));
@@ -98,7 +112,8 @@ export const RAIL_STYLES = {
       g.add(sweep(FX, [...tube(-gauge, 0, 0.055), ...tube(gauge, 0, 0.055)], mats.rail, { uvLen: 2 }));
       g.add(sweep(FX, boxProfile(0, -0.42, 0.26, 0.3), mats.rail, { uvLen: 2 }));
       const ties = new Beams();
-      for (let i = 0; i <= F.NS; i += 4) {
+      // ties every 4 samples of the whole piece (a run of it, `F.i0` on, keeps the piece's spacing)
+      for (let i = (4 - ((F.i0 ?? 0) % 4)) % 4; i <= F.NS; i += 4) {
         const p = F.P[i], l = F.Lt[i], u = F.Up[i];
         const at = (a, b) => p.clone().addScaledVector(l, a).addScaledVector(u, b);
         ties.add(at(-gauge, -0.02), at(0, -0.36), 0.07, 0.05, u);
@@ -120,6 +135,26 @@ export const RAIL_STYLES = {
 export function railModel(K, s, special, mats, style = RAIL_STYLES.steel, gauge = style.gauge) {
   const F = framesOf(s);
   return style.build(K, F, extended(F), special, mats, gauge);
+}
+
+/** Frames a..b (sample indices, inclusive) of `F`, as a piece of their own (`i0`: where they start in the piece). */
+function framesSlice(F, a, b) {
+  return { ...F, P: F.P.slice(a, b + 1), Tn: F.Tn.slice(a, b + 1), Lt: F.Lt.slice(a, b + 1), Up: F.Up.slice(a, b + 1), NS: b - a, i0: a };
+}
+
+/**
+ * The rail of a piece's runs of samples only (`runs`: [a, b] ranges, bakeNode.ts trackRuns): a tile picture of a piece
+ * cut across its track, not by clip planes. No run-on: the runs meet one another face to face, and a piece cut this way
+ * (a vertical loop) starts and ends flat, where no spine leans past the piece end.
+ */
+export function railRuns(K, s, runs, special, mats, style = RAIL_STYLES.steel, gauge = style.gauge) {
+  const F = framesOf(s);
+  const g = new THREE.Group();
+  for (const [a, b] of runs) {
+    const R = framesSlice(F, a, b);
+    g.add(style.build(K, R, R, special, mats, gauge));
+  }
+  return g;
 }
 
 // ------------------------------------------------------------------ support styles
@@ -177,7 +212,7 @@ export const CAR_STYLES = {
 export function poseCar(car, p) {
   const yaw = (p.yaw / 32) * Math.PI * 2, pitch = (p.pitch / 24) * Math.PI * 2, roll = (p.roll / 24) * Math.PI * 2;
   const tn = V(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw)).normalize();
-  const lat = V(0, 1, 0).cross(tn).normalize();
+  const lat = lateralOf(tn, yaw, Math.cos(pitch));
   const up = tn.clone().cross(lat).normalize();
   const q = new THREE.Quaternion().setFromAxisAngle(tn, -roll);
   lat.applyQuaternion(q); up.applyQuaternion(q);
@@ -234,22 +269,27 @@ export function bakeTrackType(B, spec) {
     if (!sets.has(k)) sets.set(k, B.set('rail', classItem(spec.item, cls), t, true));
     return sets.get(k);
   };
-  let cur = null; // the model of the (piece, heading) being shot
+  let cur = null; // the model of the (piece, heading) being shot, or of one tile's runs (`runs`)
   let n = 0;
   for (const f of railFrames(track)) {
-    if (!cur || cur.piece !== f.piece || cur.heading !== f.heading) {
+    const runs = f.tile.runs ?? null;
+    const at = runs ? `${f.piece}|${f.heading}|${f.ti}` : `${f.piece}|${f.heading}`;
+    if (!cur || cur.at !== at) {
       if (cur) bs.world.remove(cur.holder);
       const pc = track.pieces[f.piece];
-      const model = railModel(K, pc.dirs[f.heading], pc.special, { rail: railMat }, st.rail, gauge);
+      const model = runs
+        ? railRuns(K, pc.dirs[f.heading], runs, pc.special, { rail: railMat }, st.rail, gauge)
+        : railModel(K, pc.dirs[f.heading], pc.special, { rail: railMat }, st.rail, gauge);
       const holder = new THREE.Group();
       holder.add(model);
       bs.world.add(holder);
       B.setEnv(holder);
-      cur = { piece: f.piece, heading: f.heading, model, holder };
+      cur = { at, model, holder };
     }
     cur.model.position.set(-(f.tile.x + 0.5) * 4, 0, -(f.tile.y + 0.5) * 4);
     const tileClip = clipOf(f.tile);
-    if (f.sub === null) B.clip(tileClip);
+    if (runs && f.sub === null) B.clip(null); // cut by its runs, across the track (bakeNode.ts trackRuns)
+    else if (f.sub === null) B.clip(tileClip);
     else {
       // a tall tile's sub-frame k: its band of SUB_M of rail range (the first takes all below, the last all above)
       const planes = tileClip.map(([nx, nz, k]) => new THREE.Plane(new THREE.Vector3(nx, 0, nz), k));
@@ -279,7 +319,7 @@ export function bakeTrackType(B, spec) {
     }
   }
 
-  // ---- cars per class and pose, full and empty (and the front car)
+  // ---- cars per class, yaw quadrant and pose, full and empty (and the front car)
   const { car, riders } = st.car.build(K, spec.colours.cars);
   if (track.front && !st.car.front) throw new Error(`${spec.item}: the type has a front car but car style has no front variant`);
   const holder = new THREE.Group();
@@ -289,11 +329,12 @@ export function bakeTrackType(B, spec) {
   const carSets = new Map();
   let last = null;
   for (const f of carFrames(track)) {
-    if (!carSets.has(f.cls)) carSets.set(f.cls, B.set('car', classItem(spec.item, f.cls), 'all', true));
+    const sk = `${f.cls}|${f.q}`;
+    if (!carSets.has(sk)) carSets.set(sk, B.set('car', classItem(spec.item, f.cls), f.q, true));
     if (f.pose !== last) { poseCar(car, f.pose); last = f.pose; }
     if (track.front) st.car.front(car, f.front);
     for (const rd of riders) rd.visible = f.full;
-    carSets.get(f.cls).add([f.key], B.shoot(bs, { target: holder, masked: (m) => st.car.masked(m, spec.colours.cars) }));
+    carSets.get(sk).add([f.key], B.shoot(bs, { target: holder, masked: (m) => st.car.masked(m, spec.colours.cars) }));
   }
   B.log(`${spec.item}: ${track.classes.map((c) => `${c.cls} ${c.pieces.length} pieces, ${c.poses.length} poses`).join('; ')}`);
 }

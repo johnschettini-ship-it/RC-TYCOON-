@@ -3,17 +3,18 @@
 import { describe, expect, it } from 'vitest';
 import { TRACK_RIDES } from '../../../src/data/catalog';
 import { getTrackPieceDef, getTrackTypeDef } from '../../../src/data/track';
-import { TRACK_CLASSES, pieceClass, poseClassOf, poseCode } from '../../../src/render/real/trackClasses';
+import { TRACK_CLASSES, carQuadrant, pieceClass, poseClassOf, poseCode } from '../../../src/render/real/trackClasses';
 import type { RealFrame, RealIndex, RealSetEntry } from '../../../src/render/real/indexFormat';
 import { cardInput, clipRects, trackGeometry } from '../../../tools/art3d/bakeNode';
 import { UNTINTED_GROUPS, trackComplete } from '../../../tools/art3d/checkIndex';
 import { carFramesOf, railTileRanges, typePieces } from '../../../tools/art3d/sizeReport';
+import { TRACK_SET_MAX_D4 } from '../../../tools/art3d/trackBudget';
 
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
 interface RailFrame { cls: string; heading: number; piece: string; ti: number; sub: number | null; subs: number; key: string; alpha: boolean }
-interface CarFrame { cls: string; pose: { yaw: number; pitch: number; roll: number }; full: boolean; front: boolean; key: string }
+interface CarFrame { cls: string; q: number; pose: { yaw: number; pitch: number; roll: number }; full: boolean; front: boolean; key: string }
 
 describe('track kit frame plan', () => {
   it('every piece the steel coaster builds is in its bake input, at every heading, all 34', () => {
@@ -63,7 +64,7 @@ describe('track kit frame plan', () => {
       };
       for (const d of [2, 4] as const) {
         for (const f of railFrames(t) as RailFrame[]) add('rail', classItem(r.id, f.cls), d, f.heading as 0, f.key);
-        for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.cls), d, 'all', f.key);
+        for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.cls), d, f.q as 0, f.key);
       }
       const index: RealIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
       expect(trackComplete(index), r.id).toEqual([]);
@@ -85,7 +86,10 @@ describe('track kit frame plan', () => {
     const { railFrames, carFrames } = await load('items/trackKeys.js');
     for (const id of ['steel_coaster', 'spinning_mouse', 'rapids_raft']) {
       const t = trackGeometry(id);
-      for (const f of carFrames(t) as CarFrame[]) expect(f.cls).toBe(poseClassOf(id, poseCode(f.pose.yaw, f.pose.pitch, f.pose.roll)));
+      for (const f of carFrames(t) as CarFrame[]) {
+        expect(f.cls).toBe(poseClassOf(id, poseCode(f.pose.yaw, f.pose.pitch, f.pose.roll)));
+        expect(f.q).toBe(carQuadrant(f.pose.yaw));
+      }
       for (const f of railFrames(t) as RailFrame[]) expect(f.cls).toBe(pieceClass(f.piece));
       const order = t.classes.map((c) => TRACK_CLASSES.indexOf(c.cls));
       expect(order).toEqual([...order].sort((a, b) => a - b));
@@ -104,6 +108,22 @@ describe('track kit frame plan', () => {
     expect(f.map((x) => x.key)).toEqual(['straight:t0:u0', 'straight:t0:u1', 'straight:t0:u2']);
     // no steel tile is that tall (the loop is 16 m): the steel coaster has no sub-frames
     expect((railFrames(t) as RailFrame[]).some((x) => x.sub !== null)).toBe(false);
+  });
+});
+
+describe('car sets by yaw quadrant (fix wave)', () => {
+  it('no car set of the steel coaster is over 8 MiB at d4 (car frames as measured, masks decoded, packing 1.2)', async () => {
+    const { carFrames, classItem } = await load('items/trackKeys.js');
+    // the Task 3 bake's mean car frame at d4 was 8,088 px; the stage 1 one 8,781 (taken here, the larger)
+    const CAR_PX_D4 = 8781, PACK = 1.2;
+    const perSet = new Map<string, number>();
+    for (const f of carFrames(trackGeometry('steel_coaster')) as CarFrame[]) {
+      const k = `car:${classItem('steel_coaster', f.cls)}:d4:r${f.q}`;
+      perSet.set(k, (perSet.get(k) ?? 0) + CAR_PX_D4 * PACK * 4 * 2); // sheet and mask, RGBA
+    }
+    expect(perSet.size).toBe(6 * 4);
+    const over = [...perSet].filter(([, b]) => b > TRACK_SET_MAX_D4).map(([k, b]) => `${k} ${(b / 1048576).toFixed(1)} MiB`);
+    expect(over).toEqual([]);
   });
 });
 
@@ -127,6 +147,33 @@ describe('tile clips', () => {
     const tile = (x: number, y: number, rail: boolean, railMax = 1) => ({ x, y, railMin: 0, railMax, rail });
     expect(clipRects([tile(0, 0, true, 9), tile(1, 0, false, 0)])[0]!.clip).toBeUndefined(); // flat clearance: no rail
     expect(() => clipRects([tile(0, 0, true, 9), tile(1, 0, false), tile(0, 1, false)])).toThrow(/not a rectangle/);
+  });
+});
+
+describe('track runs (fix wave: loop seams)', () => {
+  it('only the vertical loops are cut by runs of samples; their runs cover every segment once, each rail tile some', () => {
+    for (const r of TRACK_RIDES) {
+      const t = trackGeometry(r.id);
+      for (const [id, pc] of Object.entries(t.pieces)) {
+        pc.dirs.forEach((d, h) => {
+          const cut = d.tiles.some((q) => q.runs);
+          expect(cut, `${r.id} ${id} r${h}`).toBe(id.startsWith('vertical_loop'));
+          if (!cut) return;
+          const segs = new Array(d.n - 1).fill(0);
+          for (const q of d.tiles) for (const [a, b] of q.runs ?? []) for (let k = a; k < b; k++) segs[k]++;
+          expect(segs.every((x) => x === 1), `${r.id} ${id} r${h}: each segment drawn once`).toBe(true);
+          for (const q of d.tiles.filter((x) => x.rail)) expect(q.runs?.length ?? 0, `${id} r${h} tile ${q.x},${q.y}`).toBeGreaterThan(0);
+        });
+      }
+    }
+  });
+  it('the loop\'s top, running along y = 0, belongs to one tile per side of its corner crossing, not split lengthwise', () => {
+    const d = trackGeometry('steel_coaster').pieces.vertical_loop_left!.dirs[0]!;
+    const own = (k: number) => d.tiles.findIndex((q) => (q.runs ?? []).some(([a, b]) => a <= k && k < b));
+    // samples 36..100 (the climb and the top to x = 8) in tile (2, 0); 101..166 in (1, -1)
+    expect(d.tiles[own(60)]).toMatchObject({ x: 2, y: 0 });
+    expect(d.tiles[own(99)]).toMatchObject({ x: 2, y: 0 });
+    expect(d.tiles[own(102)]).toMatchObject({ x: 1, y: -1 });
   });
 });
 

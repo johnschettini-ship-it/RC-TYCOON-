@@ -9,8 +9,9 @@
 //                                 (k = 0 at the bottom), all anchored at the tile centre at piece.z, so the game draws
 //                                 them bottom-up at the one anchor.
 //   support:<type>:d*:r<t>        frames [`foot`], [`seg`], [`top`]
-//   car:<type>~<class>:d*:rall    frames [`y<yaw>`, `p<pitch>`, `r<roll>`, `full` | `empty`] and, for a type with a
-//                                 front car (input `front`), the same keys plus `front`.
+//   car:<type>~<class>:d*:r<q>    frames [`y<yaw>`, `p<pitch>`, `r<roll>`, `full` | `empty`] and, for a type with a
+//                                 front car (input `front`), the same keys plus `front`. q: the pose's yaw quadrant
+//                                 (input pose `q`, trackClasses.ts carQuadrant; the game picks the set by the view yaw).
 import { frameKey } from '../../../src/render/real/indexFormat';
 
 /** A rail tile with more rail range than this (metres) is cut into sub-frames (d4 picture past the atlas's 1024 px). */
@@ -64,13 +65,13 @@ export function railFrames(track) {
   return out;
 }
 
-/** Every car picture of the bake, in bake order: classes, then poses, then full and empty (then the front car). */
+/** Every car picture of the bake, in bake order: classes, then poses, then full and empty (then the front car); `q` its set's quadrant. */
 export function carFrames(track) {
   const out = [];
   for (const c of track.classes) {
     for (const pose of c.poses) {
       for (const front of track.front ? [false, true] : [false]) {
-        for (const full of [true, false]) out.push({ cls: c.cls, pose, full, front, key: carKey(pose, full, front) });
+        for (const full of [true, false]) out.push({ cls: c.cls, q: pose.q, pose, full, front, key: carKey(pose, full, front) });
       }
     }
   }
