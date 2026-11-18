@@ -189,8 +189,19 @@ test.describe('the path row fits (spec §3, §5)', () => {
           });
           expect(reach, a.name).toBe(true);
         }
+        // Each control shows its short label under the icon, inside the control.
+        const labels = ['Left', 'Forward', 'Right', 'Slope', 'Undo', 'Done'];
+        for (const [k, b] of boxes.entries()) {
+          const label = page.getByTestId(b.name).locator('.path-label');
+          await expect(label).toHaveText(labels[k] as string);
+          await expect(label).toBeVisible();
+          const lb = (await label.boundingBox()) as Box;
+          expect(lb.x, `${b.name} label`).toBeGreaterThanOrEqual(b.box.x - 0.5);
+          expect(lb.x + lb.width, `${b.name} label`).toBeLessThanOrEqual(b.box.x + b.box.width + 0.5);
+          expect(lb.y + lb.height, `${b.name} label`).toBeLessThanOrEqual(b.box.y + b.box.height + 0.5);
+        }
         const plate = (await panel.boundingBox()) as Box;
-        expect(plate.height, 'a single row').toBeLessThanOrEqual(70);
+        expect(plate.height, 'one row of controls').toBeLessThanOrEqual(scale === 100 ? 90 : 110);
         expect(await clippedText(panel)).toEqual([]);
         // The menu fits too.
         await page.getByTestId('path-slope').tap();

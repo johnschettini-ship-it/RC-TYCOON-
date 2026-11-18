@@ -568,7 +568,20 @@ button { font: inherit; color: inherit; }
  */
 .tool-status.path-panel { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; overflow: visible; }
 #ui[data-layout='bottom'] .tool-status.path-panel { overflow: visible; max-height: none; }
-.path-row { display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: 8px; min-width: 0; }
+.path-row { display: flex; flex-wrap: nowrap; align-items: stretch; justify-content: center; gap: 4px; min-width: 0; }
+.path-row .path-hint { align-self: center; }
+/* The row's controls: an icon over a short label, sharing the row; a label too long for its button wraps, never cut. */
+.path-step {
+  /* As wide as its label's longest word (never under 44 px: label 34 + padding 6 + border 4), sharing the row. */
+  flex: 1 1 auto; min-width: auto; max-width: 96px; min-height: 52px; padding: 4px 3px; flex-direction: column; gap: 2px;
+  border-radius: 14px;
+}
+.btn.primary.path-step { min-height: 52px; }
+.path-step .icon { flex: none; width: 22px; height: 22px; }
+.path-label {
+  display: block; max-width: 100%; font-size: clamp(10px, calc(11px * var(--ts, 1)), 12px); line-height: 1.1; font-weight: 700;
+  text-align: center; min-width: 34px; padding: 0 2px; overflow-wrap: break-word;
+}
 .path-row .path-hint { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
 .path-btn { flex: none; width: var(--touch); min-width: var(--touch); height: var(--touch); min-height: var(--touch); padding: 0; border-radius: 999px; }
 .btn.primary.path-btn { min-height: var(--touch); }

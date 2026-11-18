@@ -234,7 +234,7 @@ test('phone, 175% text: the path builder is one row and no other tool bar shows 
   const bar = page.getByTestId('path-panel');
   await expect(bar).toBeVisible();
   await expect(page.locator('div.tool-status:not(.path-panel):not([hidden])')).toHaveCount(0);
-  expect((await boxOf(bar)).height).toBeLessThanOrEqual(70);
+  expect((await boxOf(bar)).height).toBeLessThanOrEqual(100);
 });
 
 test('desktop, keyboard only: Close of the tip keeps the focus on the page', async ({ page }) => {

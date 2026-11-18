@@ -3,8 +3,9 @@
  * `../extensions.ts`. It replaces the Height mini-bar and the path half of the tool status bar with ONE row:
  * - before a start: the hint "Tap a tile to start", the Height and slope button, Done;
  * - after a start: Turn left, Forward, Turn right, Height and slope, Undo, Done.
- * Every control is a 44 × 44 icon button (the names are their accessible names), 8 px apart, so the row fits a 360 px
- * phone at any text size. Holding Turn left, Forward or Turn right repeats it (`STEP_HOLD_MS`, then every
+ * Every control is an icon with a short label under it (Left, Forward, Right, Slope, Undo, Done; the full names are their
+ * accessible names), at least 44 × 44, sharing the row equally, so the row fits a 360 px phone at any text size (a label
+ * too long for its button wraps under the icon rather than being cut). Holding Turn left, Forward or Turn right repeats it (`STEP_HOLD_MS`, then every
  * `STEP_REPEAT_MS`). The Height and slope button opens a small menu above the row: Flat / Up / Down (elevated paths
  * only; ground paths follow the land) and − height +. `Page Up` / `Page Down` still change the height.
  * The ghost's cost shows in a tag over the ghost on the map (with the height of an elevated path), or the reason the
@@ -61,7 +62,7 @@ function heightLabel(z: number | null, ground: number): string {
 }
 
 /** A round 44 × 44 icon button; a hold repeats `act` (Turn left, Forward, Turn right). */
-function stepButton(testId: string, iconEl: Element, act: () => void, repeat: boolean, primary = false): HTMLButtonElement {
+function stepButton(testId: string, iconEl: Element, label: string, act: () => void, repeat: boolean, primary = false): HTMLButtonElement {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let repeated = false;
   const stop = (): void => {
@@ -72,7 +73,7 @@ function stepButton(testId: string, iconEl: Element, act: () => void, repeat: bo
     'button',
     {
       type: 'button',
-      class: primary ? 'btn primary path-btn' : 'btn path-btn',
+      class: primary ? 'btn primary path-step' : 'btn path-step',
       'data-testid': testId,
       onclick: () => {
         // The click that ends a hold that already repeated does not step again.
@@ -81,6 +82,7 @@ function stepButton(testId: string, iconEl: Element, act: () => void, repeat: bo
       },
     },
     iconEl,
+    h('span', { class: 'path-label', text: label }),
   );
   if (repeat) {
     b.addEventListener('pointerdown', (e) => {
@@ -106,9 +108,9 @@ export function createPathPanel(ctx: UiContext): UiPart {
     stepPath(game, move);
   };
   const hint = h('span', { class: 'status-text path-hint', 'data-testid': 'path-hint', text: text('paths.hint') });
-  const left = stepButton('path-left', lineIcon('left'), () => step('left'), true);
-  const forward = stepButton('path-forward', lineIcon('forward'), () => step('forward'), true, true);
-  const right = stepButton('path-right', lineIcon('right'), () => step('right'), true);
+  const left = stepButton('path-left', lineIcon('left'), text('paths.labelLeft'), () => step('left'), true);
+  const forward = stepButton('path-forward', lineIcon('forward'), text('paths.labelForward'), () => step('forward'), true, true);
+  const right = stepButton('path-right', lineIcon('right'), text('paths.labelRight'), () => step('right'), true);
   setAttr(left, 'aria-label', text('paths.left'));
   setAttr(right, 'aria-label', text('paths.right'));
 
@@ -116,10 +118,11 @@ export function createPathPanel(ctx: UiContext): UiPart {
   const slopeIcons = { flat: lineIcon('flat'), up: lineIcon('up'), down: lineIcon('down') } as const;
   const slope = h(
     'button',
-    { type: 'button', class: 'btn path-btn', 'data-testid': 'path-slope', 'aria-expanded': 'false', 'aria-controls': 'path-slope-menu', onclick: () => setMenu(menu.hidden !== false) },
+    { type: 'button', class: 'btn path-step', 'data-testid': 'path-slope', 'aria-expanded': 'false', 'aria-controls': 'path-slope-menu', onclick: () => setMenu(menu.hidden !== false) },
     slopeIcons.flat,
     slopeIcons.up,
     slopeIcons.down,
+    h('span', { class: 'path-label', text: text('paths.labelSlope') }),
   );
   const value = h('span', { class: 'status-text path-height-value', 'data-testid': 'path-height-value', 'aria-live': 'polite' });
   const lower = h(
@@ -155,11 +158,12 @@ export function createPathPanel(ctx: UiContext): UiPart {
     setAttr(slope, 'aria-expanded', open ? 'true' : 'false');
   };
 
-  const undo = stepButton('path-undo', icon('undo'), () => undoStep(game), false);
+  const undo = stepButton('path-undo', icon('undo'), text('paths.undo'), () => undoStep(game), false);
   setAttr(undo, 'aria-label', text('paths.undo'));
   const done = stepButton(
     'path-done',
     icon('check'),
+    text('paths.done'),
     () => {
       const t = game.tool;
       t.tool = 'inspect';
