@@ -158,6 +158,9 @@ export function mountUI(root: HTMLElement, game: Game): void {
           if (!heldCard(game)) return;
           view = createCardDetailsPanel(ctx);
           break;
+        case 'queue':
+          // The queue card arrives with the next task of queue clarity; until then a queue tap opens nothing.
+          return;
         default: {
           // Phase 6 (Wave 4.0): panels from UI extensions (the show site panel, W4-C); none yet = nothing opens.
           const make = extensionPanel(kind);

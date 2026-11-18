@@ -121,8 +121,11 @@ export interface ToolState {
   drag: DragState | null;
   /** Active overlay (Phase 1: temperament; Phase 4: calm, buzz, light). */
   overlay: OverlayId;
-  /** Entity the panel shows (inspect / follow). `showSite`: Phase 6 show site panel (W4-C, `ui/shows`). */
-  selectedEntity: { kind: 'ride' | 'stall' | 'guest' | 'staff' | 'showSite'; id: number } | null;
+  /**
+   * Entity the panel shows (inspect / follow). `showSite`: Phase 6 show site panel (W4-C, `ui/shows`). `queue`: the
+   * queue card (queue clarity spec 2026-11-18 §2), id = the tapped queue path node.
+   */
+  selectedEntity: { kind: 'ride' | 'stall' | 'guest' | 'staff' | 'showSite' | 'queue'; id: number } | null;
   // ---- Build 2 tool options (Wave 3.0) ----
   land: LandToolOptions;
   pathHeight: PathHeightOptions;

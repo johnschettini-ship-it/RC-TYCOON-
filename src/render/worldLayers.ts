@@ -12,6 +12,7 @@ import { createSceneryLayer } from './scenery/layer';
 import { createTerrainToolLayer } from './terrainTools/layer';
 import { createShowLayer } from './shows/layer';
 import { createA11yLayer } from './a11y/layer';
+import { createQueueLayer } from './queues/layer';
 
 export function createWorldLayers(): WorldLayer[] {
   return [
@@ -20,6 +21,8 @@ export function createWorldLayers(): WorldLayer[] {
     createElevatedPathLayer(),
     createSceneryLayer(),
     createTerrainToolLayer(),
+    // Queue clarity (spec 2026-11-18): entrance signs, the tapped queue, unlinked queue markers.
+    createQueueLayer(),
     createShowLayer(),
     createA11yLayer(),
   ];

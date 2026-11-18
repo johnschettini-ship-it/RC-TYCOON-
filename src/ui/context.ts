@@ -17,6 +17,8 @@ export type PanelKind =
   | 'messages'
   // Phase 7 §4.7: the data of the held ride or stall card.
   | 'cardDetails'
+  // Queue clarity (spec 2026-11-18 §2): the card of a tapped queue tile.
+  | 'queue'
   // Phase 6 (Wave 4.0): panels from UI extensions (`./extensions.ts` `panels`).
   | ExtensionPanelKind;
 
