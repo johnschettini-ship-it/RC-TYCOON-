@@ -9,7 +9,8 @@
  * `STEP_REPEAT_MS`). The Height and slope button opens a small menu above the row: Flat / Up / Down (elevated paths
  * only; ground paths follow the land) and − height +. `Page Up` / `Page Down` still change the height.
  * The ghost's cost shows in a tag over the ghost on the map (with the height of an elevated path), or the reason the
- * step cannot be built, in the danger colour. Mouse players see one tip, once, about Shift-drag lines (`./shiftTip`).
+ * step cannot be built, in the danger colour. Mouse players see one tip, once, about Shift-drag lines (`./shiftTip`);
+ * everyone sees one tip, once, on how guests reach a ride after placing their first ride (`./chainTip`, path clarity).
  */
 import { text } from '../../data/strings/en';
 import { STEP_HOLD_MS, STEP_REPEAT_MS } from '../../data/tuning/interface';
@@ -25,6 +26,7 @@ import type { UiExtension, UiPart } from '../extensions';
 import { formatMoney } from '../format';
 import { icon } from '../icons';
 import { segmented } from '../management/widgets';
+import { createChainTip } from './chainTip';
 import { createShiftTip } from './shiftTip';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -180,9 +182,11 @@ export function createPathPanel(ctx: UiContext): UiPart {
   setAttr(right, 'title', text('paths.right'));
 
   const tip = createShiftTip();
+  const chainTip = createChainTip(game);
   const el = h(
     'div',
     { class: 'tool-status path-panel', role: 'region', 'aria-label': text('paths.builder'), 'data-testid': 'path-panel', hidden: true },
+    chainTip.el,
     tip.el,
     h('div', { class: 'path-row' }, hint, left, forward, right, h('div', { class: 'path-slope-wrap' }, slope, menu), undo, done),
   );
@@ -243,7 +247,9 @@ export function createPathPanel(ctx: UiContext): UiPart {
       const t = game.tool;
       const on = t.tool === 'footpath' || t.tool === 'queue';
       if (el.hidden === on) el.hidden = !on;
-      tip.update(on);
+      chainTip.update(on);
+      // One tip at a time: the Shift tip waits while the path clarity tip shows.
+      tip.update(on && !chainTip.showing());
       if (!on) {
         tag.hidden = true;
         if (!menu.hidden) setMenu(false);
