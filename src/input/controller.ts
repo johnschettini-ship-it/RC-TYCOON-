@@ -23,6 +23,8 @@ import { routerOf } from './toolRouters';
 import { changePathHeight, pathCommandHeight } from './pathHeight';
 import { cycleOverlay } from './overlays';
 import { setDragPaints, dragPaints } from './dragPaint';
+import { refreshPathGhost, resetPathBuilder, startAt, tapAt } from './pathBuilder';
+import { dirTo } from '../sim/paths/nodes';
 import { viewSize, viewToMap } from '../render/view';
 import { pickElevatedPath } from '../render/elevated/pick';
 import type { ElevatedPath } from '../sim/paths/types';
@@ -61,6 +63,8 @@ export class InputController {
   /** Patrol paint stroke in progress (Phase 3 §7.2), or null. */
   private stroke: PatrolStroke | null = null;
   private strokeLast = -1;
+  /** A path line drag (Shift + mouse, or the map cursor) owns `tool.drag` until it ends. */
+  private lineDrag = false;
   /** Elevated path under the mouse for the deck-aware tools (demolish, path items), by id; −1 for none. */
   private hoverDeckId = -1;
 
@@ -230,6 +234,8 @@ export class InputController {
   worldChanged(): void {
     resetMapCursor();
     this.apply(this.gestures.reset());
+    resetPathBuilder(this.game.tool);
+    this.lineDrag = false;
     Object.assign(this.game.tool, defaultToolState());
     this.lastTool = this.game.tool.tool;
     centerOnMap(this.game.camera, this.game.world.state.map);
@@ -242,6 +248,9 @@ export class InputController {
     t.brush = null;
     // The Paint toggle belongs to the tool that was open (spec §2: it resets when the tool closes).
     setDragPaints(t, false);
+    // The step builder keeps its start across footpath ↔ queue; closing the path tools drops it.
+    if (!pathKindOf(t.tool)) resetPathBuilder(t);
+    this.lineDrag = false;
     routerOf(t.tool)?.enter?.(this.game);
     this.apply(this.gestures.reset());
     this.stroke = null;
@@ -320,6 +329,7 @@ export class InputController {
         this.stroke = null;
         toolOptions(tool).strokeMode = null;
         tool.drag = null;
+        this.lineDrag = false;
         break;
       default:
         break;
@@ -334,10 +344,10 @@ export class InputController {
     switch (tool.tool) {
       case 'footpath':
       case 'queue': {
+        // The step builder (spec §3): a tap next to the end adds that tile, any other tap moves the start.
         if (tile === null) return;
-        const tx = tile % w;
-        const ty = Math.floor(tile / w);
-        game.dispatch({ type: 'buildPathLine', x0: tx, y0: ty, x1: tx, y1: ty, kind: tool.tool, ...pathCommandHeight(tool) });
+        tool.hoverTile = tile;
+        tapAt(game, tile);
         return;
       }
       case 'placeRide':
@@ -398,6 +408,7 @@ export class InputController {
     const kind = pathKindOf(tool.tool);
     if (!kind) return;
     const preview = pathLinePreview(this.game.world, kind, start, start, pathCommandHeight(tool));
+    this.lineDrag = true;
     tool.drag = { startTile: start, endTile: start, tiles: [start], cost: preview.cost, reason: preview.reason };
     tool.hoverTile = start;
   }
@@ -417,11 +428,12 @@ export class InputController {
   private pathDragEnd(): void {
     const tool = this.game.tool;
     const kind = pathKindOf(tool.tool);
-    const drag = tool.drag;
+    const drag = this.lineDrag ? tool.drag : null;
+    this.lineDrag = false;
     tool.drag = null;
     if (!kind || !drag) return;
     const w = this.game.world.state.map.width;
-    this.game.dispatch({
+    const result = this.game.dispatch({
       type: 'buildPathLine',
       x0: drag.startTile % w,
       y0: Math.floor(drag.startTile / w),
@@ -430,6 +442,13 @@ export class InputController {
       kind,
       ...pathCommandHeight(tool),
     });
+    // The step builder goes on from the end of the line, along it.
+    if (result.ok) {
+      const map = this.game.world.state.map;
+      const prev = drag.tiles.length > 1 ? (drag.tiles[drag.tiles.length - 2] as number) : -1;
+      const d = prev >= 0 ? dirTo(map, prev, drag.endTile) : -1;
+      startAt(this.game, drag.endTile, d >= 0 ? (d as Dir) : undefined);
+    }
   }
 
   /** Screen point (CSS px) of the centre of `tile` on its ground. */
@@ -468,6 +487,7 @@ export class InputController {
       },
       dragEnd: () => this.pathDragEnd(),
       dragCancel: () => {
+        this.lineDrag = false;
         this.game.tool.drag = null;
       },
       reveal: (tile) => {
@@ -533,6 +553,10 @@ export class InputController {
     const t = this.game.tool;
     refreshTrackTool(this.game, this.opts.viewport(), this.tileAtClampedFn);
     if (t.tool === 'track') return;
+    if (pathKindOf(t.tool)) {
+      if (!this.lineDrag) refreshPathGhost(this.game);
+      return;
+    }
     if (t.tool === 'pathItem') {
       t.ghost = t.hoverTile === null ? null : pathItemGhost(this.game.world, pathItemAction(t), t.hoverTile, this.hoverDeck(t.hoverTile));
       return;

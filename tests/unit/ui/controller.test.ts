@@ -52,17 +52,22 @@ describe('footpath and queue tools', () => {
     expect(cmds).toEqual([]);
     ev({ type: 'up', pointerType: 'mouse', ...b, t: 80 });
     expect(cmds).toEqual([{ type: 'buildPathLine', x0: 30, y0: 30, x1: 34, y1: 30, kind: 'footpath' }]);
-    expect(game.tool.drag).toBeNull();
+    // The step builder goes on from the line's end, along it: the ghost is the next tile.
+    expect(game.tool.drag?.tiles).toEqual([tileIndex(game.world.state.map, 35, 30)]);
   });
 
-  it('a tap builds one tile', () => {
+  it('a tap sets the step builder start (nothing built); a tap on the next tile builds both', () => {
     const { game, ctl, cmds, at, ev } = setup();
     game.tool.tool = 'queue';
     ctl.update(0);
     const a = at(12, 40);
     ev({ type: 'down', ...a });
     ev({ type: 'up', ...a, t: 50 });
-    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 40, kind: 'queue' }]);
+    expect(cmds).toEqual([]);
+    const b = at(12, 41);
+    ev({ type: 'down', ...b, t: 100 });
+    ev({ type: 'up', ...b, t: 150 });
+    expect(cmds).toEqual([{ type: 'buildPathLine', x0: 12, y0: 40, x1: 12, y1: 41, kind: 'queue' }]);
   });
 
   it('one finger pans in the path tool: nothing gets built; a second finger pinches (touch controls spec §1)', () => {
