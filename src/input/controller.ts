@@ -9,7 +9,7 @@
 import type { Game } from '../game';
 import { screenToWorld, zoomAt } from '../render/camera';
 import { pickTile, screenToTileFlat } from '../render/iso';
-import { defaultToolState, type ToolId } from '../render/types';
+import { defaultToolState, type ToolId, type ToolState } from '../render/types';
 import type { Dir } from '../sim/map';
 import { KEY_ZOOM_FACTOR, centerOnMap, clampToMap, panCamera, rotateView, wheelZoomFactor } from './camera';
 import { GestureRecognizer, type DragMode, type GestureAction, type GesturePointerEvent, type PointerKind } from './gestures';
@@ -27,6 +27,7 @@ import { refreshPathGhost, resetPathBuilder, startAt, startAtEntrance, tapAt } f
 import { dirTo } from '../sim/paths/nodes';
 import { viewSize, viewToMap } from '../render/view';
 import { pickElevatedPath } from '../render/elevated/pick';
+import { queueGuestAtWorld } from '../render/queue';
 import type { ElevatedPath } from '../sim/paths/types';
 import type { Command } from '../sim/commands/types';
 import { worldToScreen } from '../render/camera';
@@ -295,7 +296,7 @@ export class InputController {
         if (pathKindOf(tool.tool)) break;
         const tile = this.tileAt(a.x, a.y);
         tool.selectedTile = tile;
-        tool.selectedEntity = pickEntity(game.world, tile);
+        tool.selectedEntity = this.inspectAt(a.x, a.y, tile);
         break;
       }
       case 'pan':
@@ -405,7 +406,7 @@ export class InputController {
         // Touch has no hover: the highlight follows the tapped tile (Phase 0 §10).
         tool.hoverTile = tile;
         tool.selectedTile = tile;
-        tool.selectedEntity = pickEntity(game.world, tile);
+        tool.selectedEntity = this.inspectAt(x, y, tile);
     }
   }
 
@@ -591,6 +592,20 @@ export class InputController {
   private decksPicked(): boolean {
     const t = this.game.tool.tool;
     return t === 'demolish' || t === 'pathItem';
+  }
+
+  /**
+   * What Inspect opens at screen point (x, y) on `tile` (queue clarity review fixes 1–2): a queueing guest drawn under
+   * the point first (guests in a line are drawn along it, away from their sim tile), else `pickEntity` with the deck
+   * drawn under the point, so a queue deck is picked only where it is drawn and a ground queue only on the ground.
+   */
+  private inspectAt(x: number, y: number, tile: number | null): ToolState['selectedEntity'] {
+    const v = this.opts.viewport();
+    const p = screenToWorld(this.game.camera, x, y, v.width, v.height);
+    const map = this.game.world.state.map;
+    const guest = queueGuestAtWorld(this.game.camera.rotation, map.width, map.height, p.x, p.y);
+    if (guest !== null) return { kind: 'guest', id: guest };
+    return pickEntity(this.game.world, tile, this.deckAt(x, y));
   }
 
   /** The elevated path drawn under screen point (x, y), or null (W3-B picking, through the view rotation). */

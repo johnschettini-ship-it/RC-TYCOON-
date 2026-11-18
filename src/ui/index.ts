@@ -19,6 +19,8 @@ import { createGuestPanel } from './panels/guest';
 import { createParkPanel } from './panels/park';
 import { createRidePanel } from './panels/ride';
 import { createStallPanel } from './panels/stall';
+import { createQueuePanel } from './panels/queue';
+import { createConflictWatch } from './queues/conflictWatch';
 import { SaveActions } from './saves';
 import { createTitleScreen } from './title';
 import { createTipBubble } from './tips/bubble';
@@ -158,6 +160,10 @@ export function mountUI(root: HTMLElement, game: Game): void {
           if (!heldCard(game)) return;
           view = createCardDetailsPanel(ctx);
           break;
+        case 'queue':
+          // Queue clarity (spec 2026-11-18 §2): id = the tapped queue node.
+          view = createQueuePanel(ctx, id ?? -1);
+          break;
         default: {
           // Phase 6 (Wave 4.0): panels from UI extensions (the show site panel, W4-C); none yet = nothing opens.
           const make = extensionPanel(kind);
@@ -166,13 +172,13 @@ export function mountUI(root: HTMLElement, game: Game): void {
         }
       }
       const sel = game.tool.selectedEntity;
-      if ((kind === 'ride' || kind === 'stall' || kind === 'guest' || kind === 'staff' || kind === 'showSite') && id !== undefined && id >= 0) {
+      if ((kind === 'ride' || kind === 'stall' || kind === 'guest' || kind === 'staff' || kind === 'showSite' || kind === 'queue') && id !== undefined && id >= 0) {
         // An entity panel selects its entity (message locate, long-press), so the frame loop does not reopen it.
         game.tool.selectedEntity = { kind, id };
         lastSelection = { kind, id };
       } else if (kind === 'staff' && sel?.kind === 'staff') {
         // The staff panel keeps the selected staff member.
-      } else if (kind !== 'ride' && kind !== 'stall' && kind !== 'guest' && kind !== 'showSite') {
+      } else if (kind !== 'ride' && kind !== 'stall' && kind !== 'guest' && kind !== 'showSite' && kind !== 'queue') {
         // A non-entity panel replaces the inspected entity.
         game.tool.selectedEntity = null;
         lastSelection = null;
@@ -441,8 +447,11 @@ export function mountUI(root: HTMLElement, game: Game): void {
 
   let lastTool = game.tool.tool;
   let lastHeld: string | null = null;
+  // Queue clarity (spec 2026-11-18 §3): a one-time message when a queue touches another ride's queue.
+  const queueConflictWatch = createConflictWatch();
   game.onFrame(() => {
     const now = performance.now();
+    queueConflictWatch.check(game.world, toast);
     // Inspect selection from the input layer opens the matching panel.
     const sel = game.tool.selectedEntity;
     if (!sameEntity(sel, lastSelection)) {
@@ -453,7 +462,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
         if (panels.current()?.kind !== 'staff' && game.tool.tool !== 'patrol') ctx.openPanel('staff', sel.id);
       } else if (!sel) {
         const cur = panels.current();
-        if (cur && (cur.kind === 'ride' || cur.kind === 'stall' || cur.kind === 'guest' || cur.kind === 'showSite')) panels.close();
+        if (cur && (cur.kind === 'ride' || cur.kind === 'stall' || cur.kind === 'guest' || cur.kind === 'showSite' || cur.kind === 'queue')) panels.close();
       }
     }
     // Leaving the patrol tool (Done, Esc, another tool) brings the staff panel back.

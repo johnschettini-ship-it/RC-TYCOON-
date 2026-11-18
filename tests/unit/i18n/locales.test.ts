@@ -64,7 +64,9 @@ describe('shipped locales (Phase 6 §4.8)', () => {
     const broken: LocaleDef = { ...base, code: 'xx', strings, plurals: {} };
     expect(problems(broken)).toEqual(['xx: missing ui.hud.cash', 'xx: placeholders differ at ui.slot.label', 'xx: unknown key zz.extra', 'xx: missing plural hud.guests', 'xx: missing plural ui.tool.menuUnread',
       // R1 (ride work 1 Task 8): the Auto-finish line "Adds {n} pieces · {cost}" is a plural.
-      'xx: missing plural ui.track.autoFinishFound']);
+      'xx: missing plural ui.track.autoFinishFound',
+      // Queue clarity (spec 2026-11-18 §2): "Queue: {n} guests" is a plural.
+      'xx: missing plural queue.card.count']);
   });
 
   it('plural keys never repeat a string id', () => {

@@ -3,6 +3,7 @@ import type { Game } from '../game';
 import type { DeckId } from './decks/model';
 import type { SaveActions } from './saves';
 import type { ToastKind } from './toasts';
+import type { SheetHeight } from './layout';
 
 export type PanelKind =
   | 'ride'
@@ -17,6 +18,8 @@ export type PanelKind =
   | 'messages'
   // Phase 7 §4.7: the data of the held ride or stall card.
   | 'cardDetails'
+  // Queue clarity (spec 2026-11-18 §2): the card of a tapped queue tile.
+  | 'queue'
   // Phase 6 (Wave 4.0): panels from UI extensions (`./extensions.ts` `panels`).
   | ExtensionPanelKind;
 
@@ -68,4 +71,11 @@ export interface PanelView {
   update(): boolean;
   /** Title can change (park rename). */
   titleNow?(): string;
+  /**
+   * Phone sheet height this panel opens at (queue clarity: the small queue card opens at `peek` so the highlighted
+   * line shows above it). The next panel without one goes back to the height the player had.
+   */
+  sheet?: SheetHeight;
+  /** Phone: at its own `sheet` height, the sheet shrinks to its content (never grows past that height). */
+  fitContent?: boolean;
 }
