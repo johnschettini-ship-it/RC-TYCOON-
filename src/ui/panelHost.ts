@@ -34,6 +34,8 @@ export class PanelHost {
   private view: PanelView | null = null;
   private lastUpdate = 0;
   private sheet: SheetHeight = 'half';
+  /** The player's sheet height while a panel with its own `sheet` is open; null otherwise. */
+  private playerSheet: SheetHeight | null = null;
   private layout: ToolbarPlacement = 'side';
 
   constructor(private readonly onClosed: (view: PanelView) => void) {
@@ -76,6 +78,13 @@ export class PanelHost {
     this.el.dataset.kind = view.kind;
     this.el.hidden = false;
     this.lowered = false;
+    if (view.sheet) {
+      this.playerSheet ??= this.sheet;
+      this.sheet = view.sheet;
+    } else if (this.playerSheet) {
+      this.sheet = this.playerSheet;
+      this.playerSheet = null;
+    }
     this.bodyEl.scrollTop = 0;
     if (prev) this.onClosed(prev);
     view.update();

@@ -3,6 +3,7 @@ import type { Game } from '../game';
 import type { DeckId } from './decks/model';
 import type { SaveActions } from './saves';
 import type { ToastKind } from './toasts';
+import type { SheetHeight } from './layout';
 
 export type PanelKind =
   | 'ride'
@@ -70,4 +71,9 @@ export interface PanelView {
   update(): boolean;
   /** Title can change (park rename). */
   titleNow?(): string;
+  /**
+   * Phone sheet height this panel opens at (queue clarity: the small queue card opens at `peek` so the highlighted
+   * line shows above it). The next panel without one goes back to the height the player had.
+   */
+  sheet?: SheetHeight;
 }

@@ -73,7 +73,7 @@ export function queueComponent(world: World, node: number): { owner: number | nu
   return c.components.get(node) ?? component(c, node);
 }
 
-/** Linked groups of queue nodes that no ride owns, ordered by their lowest node id. */
+/** Linked groups of queue nodes that no ride owns, ordered by their lowest node id; each group's nodes ascending. */
 export function unlinkedQueueGroups(world: World): readonly (readonly number[])[] {
   const c = network(world);
   if (c.unlinked) return c.unlinked;
@@ -84,7 +84,7 @@ export function unlinkedQueueGroups(world: World): readonly (readonly number[])[
     const data = c.components.get(n) ?? component(c, n);
     if (listed.has(data)) continue;
     listed.add(data);
-    out.push(data.nodes);
+    out.push(data.nodes.slice().sort((a, b) => a - b));
   }
   c.unlinked = out;
   return out;

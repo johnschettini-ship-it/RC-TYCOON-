@@ -1539,3 +1539,7 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 
 /* Reduced motion (Phase 6 §4.7): no UI transitions or animations. */
 .tc-rm *, .tc-rm *::before, .tc-rm *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+
+/* Queue clarity (spec 2026-11-18 §2): the queue card's count and Open ride share a row and come before warnings. */
+.queue-card .queue-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 8px; }
+.queue-card .queue-count { margin: 0; }

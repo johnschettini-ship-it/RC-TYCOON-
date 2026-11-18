@@ -109,6 +109,7 @@ describe('unlinked groups after a tap on a far tile', () => {
     const u2 = placeQueue(world, 31, 30);
     markNetworkDirty(world);
     queueComponent(world, u2);
-    expect(unlinkedQueueGroups(world).map((g) => [...g].sort((x, y) => x - y))).toEqual([[u1, u2]]);
+    // Nodes ascending, so the marker sits on the same tile whichever tile was tapped first.
+    expect(unlinkedQueueGroups(world)).toEqual([[u1, u2]]);
   });
 });

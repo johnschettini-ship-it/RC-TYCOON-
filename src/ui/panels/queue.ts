@@ -2,7 +2,7 @@
 import { text } from '../../data/strings/en';
 import type { PanelView, UiContext } from '../context';
 import { h, setText } from '../dom';
-import { section, warningList } from '../widgets';
+import { warningList } from '../widgets';
 import { queueCard } from './queueCard';
 
 export function createQueuePanel(ctx: UiContext, node: number): PanelView {
@@ -20,10 +20,13 @@ export function createQueuePanel(ctx: UiContext, node: number): PanelView {
       if (rideId !== null) ctx.openPanel('ride', rideId);
     },
   });
-  const body = h('div', { class: 'panel-content queue-card', 'data-testid': 'queue-card' }, warnings.el, section(null, count, open));
+  // Count and Open ride first, on one row where they fit, so a short card (phone peek, landscape) shows them unscrolled.
+  const body = h('div', { class: 'panel-content queue-card', 'data-testid': 'queue-card' }, h('div', { class: 'queue-head' }, count, open), warnings.el);
   return {
     kind: 'queue',
     id: node,
+    // A small card: on the phone it opens low, so the highlighted line shows above it.
+    sheet: 'peek',
     title: first?.title ?? text('queue.card.title'),
     body,
     titleNow: () => queueCard(game.world, node)?.title ?? text('queue.card.title'),
