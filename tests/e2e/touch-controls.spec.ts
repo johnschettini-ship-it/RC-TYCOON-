@@ -78,21 +78,27 @@ test.describe('touch controls on the phone', () => {
     watch.expectNoErrors();
   });
 
-  test('land: Drag to paint off pans; on, the same drag raises the land; it resets when the tool closes (§2)', async ({ page }) => {
+  test('land: Drag paints off pans; on, the same drag raises the land; the hint follows; it resets when the tool closes (§2)', async ({ page }) => {
     const watch = watchErrors(page);
     await openTool(page, 'land', { tap: true });
     const toggle = page.getByTestId('land-paint-drag');
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    await expect(toggle).toHaveText('Drag paintsOff');
+    const hint = page.locator('.land-hint');
     const b = (await toggle.boundingBox())!;
     expect(b.width).toBeGreaterThanOrEqual(44);
     expect(b.height).toBeGreaterThanOrEqual(44);
     const before = await mapState(page);
     await fingerDrag(page);
     expect(await mapState(page)).toBe(before);
+    // After a touch on the map the hint speaks of touch; with the toggle off it says one finger moves the map.
+    await expect(hint).toHaveText('One finger moves the map · Tap a tile, then Raise or Lower');
     // Chrome's touch emulation drops a tap inside the double-tap window of the last lift (a thumb is never that quick).
     await page.waitForTimeout(400);
     await toggle.tap();
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggle).toHaveText('Drag paintsOn');
+    await expect(hint).toHaveText('Drag to paint · Two fingers move the map');
     const cam = await tc(page, (g) => g.camera.centerX);
     await fingerDrag(page);
     expect(await tc(page, (g) => g.camera.centerX), 'the map stays').toBe(cam);
@@ -105,10 +111,13 @@ test.describe('touch controls on the phone', () => {
     watch.expectNoErrors();
   });
 
-  test('buy land: Drag to select on, a drag keeps a rectangle for Confirm (§2)', async ({ page }) => {
+  test('buy land: Drag paints on, a drag keeps a rectangle for Confirm; the same wording as land and patrol (§2)', async ({ page }) => {
     await openTool(page, 'buyLand', { tap: true });
     const toggle = page.getByTestId('buy-paint-drag');
+    await expect(toggle).toHaveText('Drag paintsOff');
+    await expect(page.getByTestId('buy-detail')).toHaveText('One finger moves the map · Tap land for sale, then Confirm');
     await toggle.tap();
+    await expect(toggle).toHaveText('Drag paintsOn');
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     await fingerDrag(page);
     await expect(page.getByTestId('buy-land-bar')).toBeVisible();

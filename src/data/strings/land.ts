@@ -15,7 +15,7 @@ export const landStrings: Record<string, string> = {
   'land.tool.buyLand': 'Buy Land',
   'land.buy.hint': 'Click land for sale to buy it',
   'land.buy.hintTouch': 'Tap land for sale, then Confirm',
-  'land.buy.hintDrag': 'Drag over land for sale, then Confirm',
+  'land.buy.hintDrag': 'Drag over land for sale, then Confirm · Two fingers move the map',
   /** Drag total: tiles of land and of construction rights, and the price. */
   'land.buy.total': '{land} land, {rights} rights: {cost}',
   'land.buy.nothing': 'Nothing to buy here',

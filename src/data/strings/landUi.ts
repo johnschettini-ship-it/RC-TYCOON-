@@ -52,6 +52,5 @@ export const landUiStrings: Record<string, string> = {
   'landUi.hint.cornerTouch': 'Tap near a corner, then Raise or Lower',
   'landUi.hint.levelMouse': 'Click a tile to level it',
   'landUi.hint.levelTouch': 'Tap a tile, set the target, then Confirm',
-  'landUi.hint.levelDrag': 'Drag a rectangle, set the target, then Confirm',
-  'landUi.hint.drag': 'Drag to paint · Two fingers pan and zoom',
+  'landUi.hint.levelDrag': 'Drag a rectangle, set the target, then Confirm · Two fingers move the map',
 };

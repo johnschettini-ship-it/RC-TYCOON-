@@ -13,7 +13,7 @@ import { localizeReason } from '../../i18n';
 import { rotateView } from '../../input/camera';
 import { buyLandSelection, cancelBuyLand, confirmBuyLand } from '../../input/landPurchase';
 import { dragPaints } from '../../input/dragPaint';
-import { paintToggle } from '../paintToggle';
+import { dragHint, paintToggle } from '../paintToggle';
 import { buyLandQuote } from '../../sim/land/commands';
 import type { UiContext } from '../context';
 import { h, setText, toggleClass } from '../dom';
@@ -120,7 +120,7 @@ function bar(ctx: UiContext): UiPart {
     },
     h('span', { text: text('land.buy.cancel') }),
   );
-  const select = paintToggle(game.tool, 'ui.selectDrag', 'buy-paint-drag');
+  const select = paintToggle(game.tool, 'buy-paint-drag');
   const legend = h(
     'span',
     { class: 'buy-legend', style: 'display:flex;flex-wrap:wrap;gap:4px 10px' },
@@ -155,7 +155,7 @@ function bar(ctx: UiContext): UiPart {
         valid = b.valid;
       } else {
         setText(msg, text('land.tool.buyLand'));
-        setText(detail, dragPaints(t) ? text('land.buy.hintDrag') : coarsePointer() ? text('land.buy.hintTouch') : text('land.buy.hint'));
+        setText(detail, dragPaints(t) ? text('land.buy.hintDrag') : dragHint(false, coarsePointer() ? text('land.buy.hintTouch') : text('land.buy.hint')));
       }
       select.update();
       confirm.hidden = !sel?.pending;

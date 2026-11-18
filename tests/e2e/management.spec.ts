@@ -88,7 +88,7 @@ test.describe('Phase 3 management UI', () => {
     await expect(page.getByTestId('toast')).toHaveText('Campaign already running');
   });
 
-  test('phone: one finger pans, then with Drag to paint on paints a patrol; two fingers paint nothing; the loan repays', async ({ page }, info) => {
+  test('phone: one finger pans, then with Drag paints on paints a patrol; two fingers paint nothing; the loan repays', async ({ page }, info) => {
     test.skip(info.project.name !== 'phone', 'touch flow');
     await openTool(page, 'staff');
     await page.getByTestId('hire-mechanic').click();
@@ -125,8 +125,10 @@ test.describe('Phase 3 management UI', () => {
     expect(await patrolTiles()).toBe(0);
     expect(await camX()).not.toBe(cam0);
     // Toggle on: the same drag paints.
+    await expect(page.getByTestId('patrol-paint-drag')).toHaveText('Drag paintsOff');
     await page.getByTestId('patrol-paint-drag').tap();
     await expect(page.getByTestId('patrol-paint-drag')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('patrol-paint-drag')).toHaveText('Drag paintsOn');
     await touch('pointerdown', 1, x, y);
     for (let k = 1; k <= 6; k++) await touch('pointermove', 1, x + k * 15, y + k * 3);
     await touch('pointerup', 1, x + 90, y + 18);

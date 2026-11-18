@@ -553,6 +553,14 @@ button { font: inherit; color: inherit; }
 /* The buttons go to a new line when they do not fit (phone, large text). */
 .tool-status .status-actions { flex-wrap: wrap; }
 .status-details { flex: none; }
+/* Drag paints (touch controls spec §2): a setting with a small switch and On / Off, not a tool button. */
+.paint-toggle { gap: 8px; }
+.paint-toggle[aria-pressed='true'] { background: var(--surface-2); color: var(--ink); }
+.paint-toggle-switch { flex: none; position: relative; width: 30px; height: 18px; border-radius: 999px; border: 2px solid var(--ink); background: var(--surface); }
+.paint-toggle-knob { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); transition: left 0.12s; }
+.paint-toggle[aria-pressed='true'] .paint-toggle-switch { background: var(--ok); }
+.paint-toggle[aria-pressed='true'] .paint-toggle-knob { left: 14px; background: var(--surface); }
+.paint-toggle-state { font-weight: 700; min-width: 2em; text-align: left; }
 /* Touch controls spec §4: the large Rotate button of ride and stall placement. */
 .tool-status .btn.rotate-big { min-height: 56px; min-width: 56px; padding: 8px 18px; font-size: calc(16px * var(--ts, 1)); }
 .tool-status .btn.rotate-big .icon { width: 26px; height: 26px; }

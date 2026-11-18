@@ -127,7 +127,7 @@ test.describe('desktop', () => {
     watch.expectNoErrors();
   });
 
-  test('buy land: with Drag to select on, the drag shows the total, release buys, cash drops (turned view)', async ({ page }) => {
+  test('buy land: with Drag paints on, the drag shows the total, release buys, cash drops (turned view)', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Land Park');
     await setSpeed(page, 'Pause');
@@ -160,7 +160,7 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.beforeEach(() => test.skip(!isPhone(test.info()), 'phone flow'));
 
-  test('both turn-view buttons on the upright phone; buy land by drag (Drag to select) and Confirm', async ({ page }) => {
+  test('both turn-view buttons on the upright phone; buy land by drag (Drag paints) and Confirm', async ({ page }) => {
     const watch = watchErrors(page);
     await newPark(page, 'Thumb Park');
     await setSpeed(page, 'Pause');
