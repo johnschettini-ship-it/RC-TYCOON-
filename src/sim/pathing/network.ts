@@ -63,6 +63,31 @@ export interface NetworkCache {
   pool: Uint16Array[];
   /** BFS work queue (one slot per node). */
   work: Int32Array;
+  /** Queue clarity: each ride's queue nodes in flood-fill order (a by-product of `computeQueueOwners`). */
+  queueLines: Map<number, QueueLineData>;
+  /** Rides whose entrance node is a queue node another ride owns, ascending ride id. New array per rebuild. */
+  queueConflicts: QueueConflictData[];
+  /** Linked groups of queue nodes no ride owns (lazy, see `queues.ts`). */
+  unlinked: number[][] | null;
+  /** Linked queue group of each queue node (lazy, see `queues.ts`). */
+  components: Map<number, QueueComponentData>;
+}
+
+/** A ride's queue nodes in flood-fill order; `toward[k]` is the node one step nearer the entrance (−1 at it). */
+export interface QueueLineData {
+  rideId: number;
+  nodes: number[];
+  toward: number[];
+}
+
+export interface QueueConflictData {
+  rideId: number;
+  ownerId: number;
+}
+
+export interface QueueComponentData {
+  owner: number | null;
+  nodes: number[];
 }
 
 const caches = new WeakMap<World, NetworkCache>();
@@ -135,6 +160,10 @@ function rebuild(world: World, old: NetworkCache | undefined): NetworkCache {
     staffFields: new Map(),
     pool,
     work: reuse ? old.work : new Int32Array(nodeCount),
+    queueLines: new Map(),
+    queueConflicts: [],
+    unlinked: null,
+    components: new Map(),
   };
   computeNodes(c);
   computeLinks(c);
@@ -223,15 +252,26 @@ function groundLink(c: NetworkCache, i: number, j: number, dir: number, z: numbe
   return j;
 }
 
-/** Flood fill each queue from its ride's entrance node. Rides in ascending id order; the first claim wins. */
+/**
+ * Flood fill each queue from its ride's entrance node. Rides in ascending id order; the first claim wins.
+ * Queue clarity: the BFS visit order (distance from the entrance, ties N, E, S, W) and each node's parent are kept
+ * as the ride's queue line; a ride whose entrance node another ride already claimed is a conflict. Neither changes
+ * `owner`.
+ */
 function computeQueueOwners(c: NetworkCache): void {
   const { owner, work, kind, adj } = c;
   owner.fill(-1);
   const rides = c.state.rides.slice().sort((a, b) => a.id - b.id);
   for (const ride of rides) {
     const seed = ride.entrance ? gateNode(c.world, ride.entrance.gate, ride.entrance.outside) : -1;
-    if (seed < 0 || kind[seed] !== KIND_QUEUE || owner[seed] !== -1) continue;
+    if (seed < 0 || kind[seed] !== KIND_QUEUE) continue;
+    if (owner[seed] !== -1) {
+      if (owner[seed] !== ride.id) c.queueConflicts.push({ rideId: ride.id, ownerId: owner[seed] as number });
+      continue;
+    }
     owner[seed] = ride.id;
+    const nodes: number[] = [seed];
+    const toward: number[] = [-1];
     let head = 0;
     let tail = 0;
     work[tail++] = seed;
@@ -242,8 +282,11 @@ function computeQueueOwners(c: NetworkCache): void {
         if (j < 0 || kind[j] !== KIND_QUEUE || owner[j] !== -1) continue;
         owner[j] = ride.id;
         work[tail++] = j;
+        nodes.push(j);
+        toward.push(i);
       }
     }
+    c.queueLines.set(ride.id, { rideId: ride.id, nodes, toward });
   }
 }
 
