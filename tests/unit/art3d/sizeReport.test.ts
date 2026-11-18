@@ -140,7 +140,8 @@ describe('sizeReport', () => {
      * A complete fake bake of `type`'s `pieces` at both densities, in the class layout: each rail frame in
      * `<type>~<its piece class>` (an alpha sheet `a.webp`, or the masked sheet `m.webp` for station, brakes and water),
      * each car pose in `<type>~<its pose class>`. `d4Sheet` sizes the d4 r0 base alpha sheet. Each rail tile's shadow
-     * (`<piece>:t<i>:sh`, Task 4) is on the plain sheet `s.webp`.
+     * (`<piece>:t<i>:sh`, Task 4) and a chainable piece's chain trough (`<piece>:t<i>:chain`, Task 5) are on the plain
+     * sheet `s.webp`.
      */
     const complete = (type: string, pieces: readonly string[], d4Sheet: [number, number] = [8, 8], opt: { spin?: boolean; front?: boolean } = {}): RealSetEntry[] => {
       const out: RealSetEntry[] = [];
@@ -151,7 +152,12 @@ describe('sizeReport', () => {
             const cls = pieceClass(pc);
             const masked = MASKED_GROUPS.includes(getTrackPieceDef(pc)!.group);
             const f = byClass.get(cls) ?? {};
-            railTileRanges(pc, r).forEach((_, ti) => { f[`${pc}:t${ti}`] = fr(masked ? 'm.webp' : 'a.webp'); f[`${pc}:t${ti}:sh`] = fr('s.webp'); });
+            const chain = !!getTrackPieceDef(pc)!.chainable;
+            railTileRanges(pc, r).forEach((_, ti) => {
+              f[`${pc}:t${ti}`] = fr(masked ? 'm.webp' : 'a.webp');
+              f[`${pc}:t${ti}:sh`] = fr('s.webp');
+              if (chain) f[`${pc}:t${ti}:chain`] = fr('s.webp');
+            });
             byClass.set(cls, f);
           }
           for (const [cls, frames] of byClass) {
@@ -291,6 +297,13 @@ describe('sizeReport', () => {
         'TRACK_COMPLETE support:junior_coaster d2 r1: 1 support frame(s) missing (seg:sh)',
         'TRACK_COMPLETE rail:junior_coaster~base d4 r0: 1 rail shadow(s) missing (straight:t0:sh)',
       ]);
+    });
+    it('a chainable piece\'s rail tile without its chain trough fails; other pieces need none (Task 5)', () => {
+      const sets = complete('junior_coaster', junior);
+      const base = sets.find((s) => s.key === 'rail:junior_coaster~base:d2:r3')!;
+      delete base.frames['gentle_up:t0:chain'];
+      expect(trackComplete(index(sets))).toEqual(['TRACK_COMPLETE rail:junior_coaster~base d2 r3: 1 chain trough(s) missing (gentle_up:t0:chain)']);
+      expect(Object.keys(base.frames).some((k) => k.startsWith('station:') && k.endsWith(':chain'))).toBe(false);
     });
     it('shadows sit on plain sheets (no mask, no tint), and nothing else does (Task 4)', () => {
       const sets = complete('junior_coaster', junior);

@@ -264,6 +264,17 @@ export function trackComplete(index: RealIndex): string[] {
             });
           }
           for (const [item, l] of noShadow) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} rail shadow(s) missing (${l.slice(0, 4).join(', ')})`);
+          // and every rail tile's chain trough of a chainable piece (Task 5)
+          const noTrough = new Map<string, string[]>();
+          for (const pc of pieces) {
+            if (!getTrackPieceDef(pc)?.chainable) continue;
+            const item = railItem(pc);
+            railTileRanges(pc, h).forEach((_, ti) => {
+              const fk = `${pc}:t${ti}:chain`;
+              if (has('rail', item, d, h, `${pc}:t${ti}`) && !has('rail', item, d, h, fk)) (noTrough.get(item) ?? noTrough.set(item, []).get(item)!).push(fk);
+            });
+          }
+          for (const [item, l] of noTrough) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} chain trough(s) missing (${l.slice(0, 4).join(', ')})`);
         }
         for (const s of ofType) {
           if (s.kind !== 'rail' || s.density !== d || s.rot !== h) continue;

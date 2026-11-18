@@ -8,7 +8,8 @@
 //                                 tile. No tile is cut into sub-frames: the reader draws one picture per tile, so a
 //                                 tile over TALL_M of rail range fails the plan (Task 3 review P2; the tallest tile of
 //                                 the 17 types is the vertical loop's, 13 m).
-//                                 Each rail tile also has its shadow [pieceId, `t<i>`, `sh`] (Task 4), untinted.
+//                                 Each rail tile also has its shadow [pieceId, `t<i>`, `sh`] (Task 4), and each tile of
+//                                 a chainable piece its chain trough [pieceId, `t<i>`, `chain`] (Task 5), untinted.
 //   support:<type>:d*:r<t>        frames [`foot`], [`seg`], [`top`], and their shadows [`<part>`, `sh`] (Task 4)
 //   car:<type>~<class>:d*:r<q>    frames [`y<yaw>`, `p<pitch>`, `r<roll>`, `full` | `empty`] and, for a type with a
 //                                 front car (input `front`), the same keys plus `front`. q: the pose's yaw quadrant
@@ -53,7 +54,7 @@ export function supportKey(part) {
 
 /**
  * Every rail picture of the bake, in bake order: classes, then headings, then pieces, then rail tiles; `shadow` the key
- * of the tile's shadow (Task 4, shot with it). `alpha`: the frame takes the track colour everywhere and goes on an alpha-tint sheet; a piece with
+ * of the tile's shadow (Task 4, shot with it), `chain` of a chainable piece's chain trough (Task 5; else null). `alpha`: the frame takes the track colour everywhere and goes on an alpha-tint sheet; a piece with
  * untinted parts (station deck, brake fins, water: input `untinted`) goes on a masked sheet.
  */
 export function railFrames(track) {
@@ -65,7 +66,7 @@ export function railFrames(track) {
         const pc = track.pieces[id];
         pc.dirs[t].tiles.filter((tile) => tile.rail).forEach((tile, ti) => {
           if (tile.railMax - tile.railMin > TALL_M) throw new Error(`${id} r${t} tile ${ti}: ${(tile.railMax - tile.railMin).toFixed(1)} m of rail, taller than ${TALL_M} m (no sub-frames: the reader draws one picture per tile)`);
-          out.push({ cls: c.cls, heading: t, piece: id, ti, tile, key: railKey(id, ti), shadow: railPartKey(id, ti, 'sh'), alpha: !pc.untinted });
+          out.push({ cls: c.cls, heading: t, piece: id, ti, tile, key: railKey(id, ti), shadow: railPartKey(id, ti, 'sh'), chain: pc.chainable ? railPartKey(id, ti, 'chain') : null, alpha: !pc.untinted });
         });
       }
     }

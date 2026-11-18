@@ -199,6 +199,7 @@ The instrument comes before the art, so later tasks are graded against a number 
 - Modify: `tools/art3d/items/trackKit.js` (chain trough frames for `chainable` pieces: `[pieceId, tN, 'chain']`, masked out, so untinted), `src/render/track/layer.ts` (realistic: draw the baked trough after the rail when `piece.chain`, then today's moving dashes, at the realistic rail line's height and in a darker, thinner style)
 - Test: `trackReal.test.ts`
 - [ ] Steps: failing test (a chained piece draws rail, trough, dashes in that order; an unchained one draws the rail only); implement; bake; look at it at zoom 2; commit `feat(real): baked chain troughs with live dashes`.
+- **Done (b5-t4).** Troughs for every rail tile of a `chainable` piece (28 for steel), on plain sheets at full density, shot with the rail held out (depth only) and without the hold-out ground (a flat chain straight's trough sat under it). The chain's top is `CHAIN_LINE_M` = −0.04 m (`src/render/real/trackChain.ts`), where the realistic dashes run (`CHAIN_STYLE`: thinner, darker). TRACK_COMPLETE wants every trough.
 
 ### Tasks 6–7: Dry gravity coaster modules (parallel worktrees)
 

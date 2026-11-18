@@ -88,6 +88,7 @@ import {
 import { trackToolOf, type TrackPieceGhost } from './toolState';
 // Last: its imports must not move the website bundle's module order (it is realistic-only and folds away there).
 import { CAR_SHADOW_HALF_W, railShadowPlane, sunShift } from '../real/trackShadow';
+import { CHAIN_LINE_M, CHAIN_STYLE } from '../real/trackChain';
 
 /** Draw-list kind for track drawables (outside the renderer's own kind numbers). */
 export const KIND_TRACK = 40;
@@ -805,6 +806,11 @@ export class TrackLayer {
           }
         }
         this.blit(ctx, rail, rp.ax, rp.ay);
+        // A chained piece (Task 5): its baked trough over the rail; the moving dashes follow (SUB_CHAIN).
+        if (sl.data.pieces[sl.pieceIndex]?.chain && look.railPart) {
+          const trough = look.railPart(type, sl.pieceId, sl.tile, rp.heading, 'chain');
+          if (trough) this.blit(ctx, trough, rp.ax, rp.ay);
+        }
         return;
       }
     }
@@ -856,13 +862,15 @@ export class TrackLayer {
     const s = sl.samples;
     const f = this.frameRef;
     const fr = this.fr;
+    // Realistic (Task 5): on the baked trough's chain, at the rail line, not today's 5 cm over it.
+    const real = import.meta.env.VITE_ART === 'real' && this.look !== undefined;
     ctx.beginPath();
     for (let r = 0; r < sl.runs.length; r += 2) {
       const k0 = sl.runs[r] as number;
       const k1 = sl.runs[r + 1] as number;
       for (let k = k0; k <= k1; k++) {
         trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, fr);
-        const up = (sl.look.lift ?? 0) + 0.05;
+        const up = (sl.look.lift ?? 0) + (real ? CHAIN_LINE_M : 0.05);
         const wx = (s.x[k] as number) + (fr[6] as number) * up;
         const wy = (s.y[k] as number) + (fr[7] as number) * up;
         const wz = (s.z[k] as number) + (fr[8] as number) * up;
@@ -875,16 +883,16 @@ export class TrackLayer {
     const k = this.scale;
     ctx.lineCap = 'butt';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#262a31';
-    ctx.lineWidth = Math.max(1, 1.8 * k);
+    ctx.strokeStyle = real ? CHAIN_STYLE.base : '#262a31';
+    ctx.lineWidth = real ? Math.max(0.6, CHAIN_STYLE.baseW * k) : Math.max(1, 1.8 * k);
     ctx.stroke();
-    const period = 4 * k;
+    const period = (real ? CHAIN_STYLE.periodPx : 4) * k;
     this.dash[0] = period / 2;
     this.dash[1] = period / 2;
     ctx.setLineDash(this.dash);
     ctx.lineDashOffset = -((this.tick % 8) / 8) * period;
-    ctx.strokeStyle = '#c8ced6';
-    ctx.lineWidth = Math.max(0.8, 1 * k);
+    ctx.strokeStyle = real ? CHAIN_STYLE.link : '#c8ced6';
+    ctx.lineWidth = real ? Math.max(0.4, CHAIN_STYLE.linkW * k) : Math.max(0.8, 1 * k);
     ctx.stroke();
     ctx.setLineDash(NO_DASH);
     ctx.lineDashOffset = 0;
