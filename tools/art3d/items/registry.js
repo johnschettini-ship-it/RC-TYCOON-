@@ -20,12 +20,15 @@ const FAMILY_DEPS = [...RIDE_DEPS, 'items/familyKeys.js', '../../src/render/spri
 const SCENERY_DEPS = ['items/scenery.js', '../../src/render/scenery/sprites.ts'];
 const PATH_ITEM_DEPS = SCENERY_DEPS; // bench and bin bake through items/scenery.js, which imports sprites.ts
 
-/** The steel coaster pieces of the coaster test park (tests/perf/scenes.ts), plus the left turn. */
-export const COASTER_PIECES = [
-  'station', 'straight', 'block_brake', 'brakes',
-  'flat_to_gentle_up', 'gentle_up', 'gentle_to_steep_up', 'steep_up', 'steep_to_gentle_up', 'gentle_up_to_flat',
-  'flat_to_gentle_down', 'gentle_down', 'gentle_to_steep_down', 'steep_down', 'steep_to_gentle_down', 'gentle_down_to_flat',
-  'turn_medium_right', 'turn_medium_left',
+/** Code every track type's pictures are built from: the track kit and its frame plan (batch 5 Task 3). */
+const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js'];
+
+/**
+ * Baked track types (batch 5): the type id (TRACK_RIDES) and its module, a style spec on the track kit. The bake input
+ * is every piece the type builds, at every heading, with its classes and car poses (bakeNode.ts trackGeometry).
+ */
+export const TRACK_TYPES = [
+  { type: 'steel_coaster', file: 'items/steel_coaster.js' },
 ];
 
 /**
@@ -76,8 +79,7 @@ export const ITEM_LIST = [
   { id: 'bunting_pole', file: 'items/bunting_pole.js', catalog: ['scenery', 'bunting_pole'], deps: SCENERY_DEPS },
   { id: 'bench', file: 'items/bench.js', deps: PATH_ITEM_DEPS },
   { id: 'bin', file: 'items/bin.js', deps: PATH_ITEM_DEPS },
-  {
-    id: 'steel_coaster', file: 'items/steel_coaster.js', track: { type: 'steel_coaster', pieces: COASTER_PIECES } },
+  ...TRACK_TYPES.map((t) => ({ id: t.type, file: t.file, track: { type: t.type }, deps: TRACK_DEPS })),
   { id: 'facade', file: 'items/facade.js' },
   { id: 'teacup_twirl', file: 'items/teacup_twirl.js', catalog: ['ride', 'teacup_twirl'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
   { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
@@ -104,7 +106,7 @@ for (const id of ['chair_swing_twist', 'spin_wheel_drop', 'loop_swing', 'carouse
 // item is out of the default bake (`explicit`): `bake.mjs --only title` still bakes it.
 ITEM_LIST.push({
   id: 'title', file: 'items/title.js', out: 'title-panorama', explicit: true,
-  deps: ['items/titleMirror.js', 'items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js', 'items/flatRides.js', '../../src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'],
+  deps: ['items/titleMirror.js', 'items/big_wheel.js', 'items/swing_tower.js', 'items/steel_coaster.js', ...TRACK_DEPS, 'items/flatRides.js', '../../src/assets/fonts/fredoka/fredoka-latin-wght-normal.woff2'],
 });
 
 // One small card picture per baked game item, in one set preview:cards:d2:rall (frames keyed by item id), for the

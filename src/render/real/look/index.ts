@@ -43,10 +43,12 @@
  *            turn = the piece's heading in the view, (piece.dir + view turn) mod 4; tile = the slice's number among
  *            the piece's rail tiles; anchor: the tile's centre at the piece's ENTRY rail height (piece.z)
  *   car      set car:<item>~<class> frame [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (car-colour mask)
- *            class = the pose's class (`poseClassOf`, the first class whose pieces reach it); steps from
+ *            class = the pose's class (`poseClassOf`, the first class whose pieces reach it); turn = the yaw quadrant
+ *            the car faces in the view (`carQuadrant`: quadrants centred on the 4 headings); steps from
  *            `quantisePose` (./pose.ts, shared with the bake); anchor: the car centre on the rail line
  *            Stage 1 layout (no class sets: `rail:<item>`, `car:<item>`): read as class `base`, serving every class.
- *            The scope wants only the (class, heading) rail sets and the car classes the ride's built pieces use.
+ *            The scope wants only the (class, heading) rail sets and the (class, quadrant) car sets the ride's built
+ *            pieces use (`carSetsOf`).
  *   support  set support:<item>     frames [`foot`], [`seg`], [`top`]           (support-colour mask)
  *            turn = the saddle's (track's) heading in the view. Stacked by the track layer (`supportStack`):
  *            `foot` at the ground point; `seg` (1 m, anchored at its bottom centre, drawn 1.1 m tall) once per

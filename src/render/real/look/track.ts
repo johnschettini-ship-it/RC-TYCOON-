@@ -1,6 +1,6 @@
 import { paletteColour } from '../../track/colours';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from '../pose';
-import { pieceClass, poseClassOf } from '../trackClasses';
+import { carQuadrant, pieceClass, poseClassOf } from '../trackClasses';
 import { getTrackTypeDef } from '../../../data/track';
 import { mod, type LookCore } from './core';
 import type { ItemRec, RealLook, SupportPart } from './types';
@@ -18,7 +18,8 @@ export function poseTypeOf(rec: ItemRec | null, trackType: string): string {
 
 /**
  * Track rides: rails (per piece and tile), cars (per pose) and supports (foot, seg, top), all colour-tinted. Rails and
- * cars resolve their class set (batch 5 Task 2, `../trackClasses.ts`): a rail by its piece's class, a car by its pose's.
+ * cars resolve their class set (batch 5 Task 2, `../trackClasses.ts`): a rail by its piece's class, a car by its pose's
+ * class and the yaw quadrant it faces in the view (`carQuadrant`: sets `car:<type>~<class>:d*:r<q>`).
  */
 export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' | 'support'> {
   /** The pose-class type per car record (made once). */
@@ -39,7 +40,8 @@ export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' 
         if (t === undefined) poseType.set(rec, (t = poseTypeOf(rec, trackType)));
         cr = core.classRec(rec, poseClassOf(t, pose));
       }
-      return core.sprite('car', cr, trackType, core.curRot, code, null, paletteColour(colour));
+      // Class sets are split by the quadrant of the car's view yaw (`r<q>`); a stage 1 `rall` set serves every quadrant.
+      return core.sprite('car', cr, trackType, carQuadrant(yawStep), code, null, paletteColour(colour));
     },
 
     support(trackType, part, heading, colour) {

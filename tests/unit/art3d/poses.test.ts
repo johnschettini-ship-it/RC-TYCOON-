@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { reachedPoses } from '../../../tools/art3d/poses';
+import { carPoses, hasFrontCar, reachedPoses } from '../../../tools/art3d/poses';
 
 describe('reachedPoses', () => {
   it('lists the unique quantised poses of a flat and a 25° up piece, every heading', () => {
@@ -24,6 +24,21 @@ describe('reachedPoses', () => {
   });
   it('rejects pieces the track type cannot use', () => {
     expect(() => reachedPoses('steel_coaster', ['no_such_piece'])).toThrow();
+  });
+});
+
+describe('carPoses (batch 5 Task 3)', () => {
+  it('a type that does not spin bakes its reached poses', () => {
+    expect(carPoses('steel_coaster', ['straight', 'gentle_up'])).toEqual(reachedPoses('steel_coaster', ['straight', 'gentle_up']));
+  });
+  it('a spinning type bakes every reached pitch and roll at all 32 yaws', () => {
+    const p = carPoses('spinning_mouse', ['straight', 'gentle_up']);
+    expect(p).toHaveLength(64); // pitch 0 and pitch 2, roll 0
+    expect(new Set(p.map((x) => x.yaw)).size).toBe(32);
+    expect(new Set(p.map((x) => `${x.pitch}:${x.roll}`))).toEqual(new Set(['0:0', '2:0']));
+  });
+  it('loco and monorail trains have a front car', () => {
+    expect(['mini_railway', 'monorail', 'steel_coaster', 'spinning_mouse'].map(hasFrontCar)).toEqual([true, true, false, false]);
   });
 });
 

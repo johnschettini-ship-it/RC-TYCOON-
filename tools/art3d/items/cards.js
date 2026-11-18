@@ -6,7 +6,8 @@
 // game's three-quarter view; a ride at rotation 0 and a stall at service direction 2 (its counter towards the
 // viewer), and a scenery item at sprite rotation 2, each on the grass of its footprint (so a small item stays small
 // against its tile, as in today's picker); the steel coaster as today's track preview scene (station, small turn,
-// small hill) with a two-car train in the type's default colours. Path items have no card picture (their tool shows
+// small hill) with a two-car train in the type's default colours; any baked track type the same way, with its own
+// style spec (TRACK_SPECS) and its own preview scene (bakeNode.ts cardInput: one for every track ride type). Path items have no card picture (their tool shows
 // icons).
 //
 // The models come from the items' own bake modules: each module's `bake` runs against a stand-in API that renders
@@ -18,8 +19,8 @@
 import { THREE, TILE, frameKey, kit } from './common.js';
 import { std, rep, tx } from '../kit.js';
 import { bakeCamera } from '../camera.ts';
-import { sitCar } from '../rides.js';
-import { railModel, supportPiece, SEG_H } from './steel_coaster.js';
+import { railModel, supportPiece, stylesOf, SEG_H } from './trackKit.js';
+import { SPEC as steel_coaster } from './steel_coaster.js';
 import carousel from './carousel.js';
 import swing_tower from './swing_tower.js';
 import big_wheel from './big_wheel.js';
@@ -162,17 +163,21 @@ async function itemCard(B, card) {
   return shot;
 }
 
-/** Today's track preview scene for the steel coaster, from the placed rail samples bake.mjs passes in. */
-function coasterCard(B, coaster) {
+/** Track types with a card picture: their style specs (the type modules, on the track kit). */
+const TRACK_SPECS = { steel_coaster };
+
+/** Today's track preview scene of a track type (`scene`: the placed rail samples bake.mjs passes in), in its style. */
+function trackCard(B, spec, scene) {
   const K = kit();
-  const col = coaster.colours;
-  const railMat = new THREE.MeshPhysicalMaterial({ color: col.track, roughness: 0.4, metalness: 0.3, clearcoat: 0.4 });
-  const supMat = new THREE.MeshPhysicalMaterial({ color: col.supports, roughness: 0.45, metalness: 0.3, clearcoat: 0.3 });
+  const st = stylesOf(spec);
+  const col = scene.colours;
+  const railMat = st.rail.material(col.track);
+  const supMat = st.supports.material(col.supports);
   const bs = B.newScene();
   const group = new THREE.Group();
   bs.world.add(group);
-  for (const pc of coaster.pieces) {
-    group.add(railModel(K, pc.samples, pc.special, { rail: railMat }));
+  for (const pc of scene.pieces) {
+    group.add(railModel(K, pc.samples, pc.special, { rail: railMat }, st.rail, spec.gauge ?? st.rail.gauge));
     // Grass under the track tiles, as today's preview.
     const g = grassPatch(1, 1);
     g.position.x += pc.tile[0] * TILE;
@@ -181,38 +186,47 @@ function coasterCard(B, coaster) {
   }
   // Supports: under every raised piece (as today's preview: middle sample above 0.5 m), at its middle sample, stacked
   // as the game stacks them (foot, 1 m segments to 1.2 m under the rail line, the saddle across the track there).
-  for (const pc of coaster.pieces) {
+  for (const pc of scene.pieces) {
     const s = pc.samples;
     const k = Math.floor(s.n / 2);
     const z = s.z[k];
     if (z <= 0.5) continue;
     const at = (o, y) => { o.position.set(s.x[k], y, s.y[k]); group.add(o); };
-    at(supportPiece(K, 'foot', 0, supMat), 0);
+    at(supportPiece(K, 'foot', 0, supMat, st.supports), 0);
     const top = Math.max(0.25, z - 1.2);
     for (let y = 0.25; y + 0.2 < top; y += 1) {
-      const seg = supportPiece(K, 'seg', 0, supMat);
+      const seg = supportPiece(K, 'seg', 0, supMat, st.supports);
       seg.scale.y = Math.min(1, (top - y) / SEG_H);
       at(seg, y);
     }
     const heading = ((Math.round(s.yaw[k] / (Math.PI / 2)) % 4) + 4) % 4;
-    at(supportPiece(K, 'top', heading, supMat), top);
+    at(supportPiece(K, 'top', heading, supMat, st.supports), top);
   }
   // A two-car train on the second station piece (as today's preview), as the game draws cars: centre on the rail
   // line, facing along it.
-  const st = (coaster.pieces[1] ?? coaster.pieces[0]).samples;
+  const sp = (scene.pieces[1] ?? scene.pieces[0]).samples;
   for (const [i, frac] of [[0, 0.3], [1, 0.85]]) {
-    const k = Math.min(st.n - 1, Math.round(frac * (st.n - 1)));
-    const car = sitCar(K, { seed: 1300 + i, color: col.cars, trim: '#c9ccd0', rows: 2 });
-    const yaw = st.yaw[k], pitch = st.pitch[k];
+    const k = Math.min(sp.n - 1, Math.round(frac * (sp.n - 1)));
+    const { car } = st.car.build(K, col.cars, i);
+    if (st.car.front) st.car.front(car, i === 1); // the leading car (the train runs along +x, so the second one)
+    // the pose at the sample, unquantised
+    const yaw = sp.yaw[k], pitch = sp.pitch[k];
     const tn = new THREE.Vector3(Math.cos(pitch) * Math.cos(yaw), Math.sin(pitch), Math.cos(pitch) * Math.sin(yaw)).normalize();
     const lat = new THREE.Vector3(0, 1, 0).cross(tn).normalize();
     const up = tn.clone().cross(lat).normalize();
     car.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(lat, up, tn));
-    car.position.set(st.x[k], st.z[k], st.y[k]);
+    car.position.set(sp.x[k], sp.z[k], sp.y[k]);
     group.add(car);
   }
   B.setEnv(group);
   return cardShot(B, bs, group);
+}
+
+function trackCardOf(B, id, tracks) {
+  const spec = TRACK_SPECS[id];
+  if (!spec) throw new Error(`cards: no track style spec for ${id}`);
+  if (!tracks[id]) throw new Error(`cards: no preview scene for ${id}`);
+  return trackCard(B, spec, tracks[id]);
 }
 
 /** A base tool card's object (`tool:<id>`, items/toolCards.js), framed as the other card pictures. */
@@ -229,10 +243,10 @@ function toolCard(B, card) {
 
 export default {
   async bake(B) {
-    const { items, coaster } = B.input.cards;
+    const { items, tracks } = B.input.cards;
     const set = B.set('preview', 'cards', 'all');
     for (const card of items) {
-      const shot = card.kind === 'track' ? coasterCard(B, coaster) : card.kind === 'tool' ? toolCard(B, card) : await itemCard(B, card);
+      const shot = card.kind === 'track' ? trackCardOf(B, card.id, tracks) : card.kind === 'tool' ? toolCard(B, card) : await itemCard(B, card);
       set.add([frameKey([card.id])], shot);
       B.log(`cards: ${card.id} ${shot[2].canvas.width}x${shot[2].canvas.height}`);
     }

@@ -12,7 +12,7 @@ import { getFlatRideDef } from '../../../data/catalog/flatRides';
 import { CARD_SET } from '../cards';
 import type { RealKind, SetKey } from '../indexFormat';
 import type { LookCore } from './core';
-import { carClassesOf, pieceClass } from '../trackClasses';
+import { carSetsOf, pieceClass } from '../trackClasses';
 import { poseTypeOf } from './track';
 import type { Combo, ItemRec, RealSets, ScopeObject } from './types';
 
@@ -169,7 +169,7 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
    * A track ride's combos (batch 5 Task 2): only what its built pieces use. Rails: one combo per (piece class, piece
    * direction), turned like any object (its set is the heading `(dir + view turn) mod 4`), so a circuit without loops
    * never wants a loop set and only the headings its pieces face are wanted (the next turn's ahead, at density 2).
-   * Cars: the pose classes its pieces reach (`rall`). Supports: every saddle heading (small sets). A stage 1 bake (one
+   * Cars: the pose classes its pieces reach, at the world yaw quadrants they face (`carSetsOf`). Supports: every saddle heading (small sets). A stage 1 bake (one
    * rail set per heading, read as every class) is wanted at the union of the pieces' headings.
    */
   function trackCombos(defId: string, pieces: readonly { defId: string; dir: number }[]): number[] {
@@ -188,9 +188,13 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     }
     const carRec = gameRec('car', defId);
     if (carRec) {
-      for (const cls of carClassesOf(poseTypeOf(carRec, defId), new Set(pieces.map((p) => p.defId)))) {
-        const id = combo(classRec(carRec, cls), 0);
-        if (!out.includes(id)) out.push(id);
+      // Car sets by class and yaw quadrant (fix wave): a quadrant turns with the view like a rail heading, so each is a
+      // combo at its world quadrant. A stage 1 `rall` set resolves to the one set at every quadrant.
+      for (const [cls, quads] of carSetsOf(poseTypeOf(carRec, defId), pieces)) {
+        for (const q of quads) {
+          const id = combo(classRec(carRec, cls), q);
+          if (!out.includes(id)) out.push(id);
+        }
       }
     }
     const sup = gameCombo('support', defId, 0, true);
