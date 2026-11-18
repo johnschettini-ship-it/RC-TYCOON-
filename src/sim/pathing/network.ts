@@ -71,6 +71,24 @@ export interface NetworkCache {
   unlinked: number[][] | null;
   /** Linked queue group of each queue node (lazy, see `queues.ts`). */
   components: Map<number, QueueComponentData>;
+  /** Path clarity: nodes guests can walk to from the park entrance, and what the path tools mark (lazy, `reach.ts`). */
+  reach: ReachData | null;
+}
+
+/** Path clarity (spec 2026-11-18): derived reach data, dropped with the network. */
+export interface ReachData {
+  /** 1 on guest-walkable nodes (footpath, park entrance) joined to the park entrance. */
+  reached: Uint8Array;
+  /** Per ride id with a queue line: some node of the line links to a reached node. */
+  lineReached: Map<number, boolean>;
+  /** Path tool marks (lazy). */
+  marks: ReachMarks | null;
+}
+
+export interface ReachMarks {
+  entrances: readonly { rideId: number; tile: number; z: number }[];
+  queueEnds: readonly { rideId: number; node: number }[];
+  dimmed: readonly number[];
 }
 
 /** A ride's queue nodes in flood-fill order; `toward[k]` is the node one step nearer the entrance (−1 at it). */
@@ -164,6 +182,7 @@ function rebuild(world: World, old: NetworkCache | undefined): NetworkCache {
     queueConflicts: [],
     unlinked: null,
     components: new Map(),
+    reach: null,
   };
   computeNodes(c);
   computeLinks(c);
@@ -405,6 +424,16 @@ export function isGuestWalkableContent(t: number | undefined): boolean {
 
 export function isQueueNode(c: NetworkCache, node: number): boolean {
   return node >= 0 && node < c.nodeCount && c.kind[node] === KIND_QUEUE;
+}
+
+/** True for a footpath node (ground or elevated). */
+export function isFootNode(c: NetworkCache, node: number): boolean {
+  return node >= 0 && node < c.nodeCount && c.kind[node] === KIND_FOOT;
+}
+
+/** True for the park entrance node. */
+export function isEntranceNode(c: NetworkCache, node: number): boolean {
+  return node >= 0 && node < c.nodeCount && c.kind[node] === KIND_ENTRANCE;
 }
 
 export function isNode(c: NetworkCache, node: number): boolean {
