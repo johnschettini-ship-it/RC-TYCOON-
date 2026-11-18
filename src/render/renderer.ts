@@ -541,6 +541,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
   function placeQueues(world: World, alpha: number): void {
     const s = world.state;
     const t = s.tick + alpha;
+    let placed = 0;
     for (const r of s.rides) {
       if (r.queue.length === 0 || !r.entrance) continue;
       const line = queueLine(world, r.id);
@@ -557,9 +558,13 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
         qfy[gi] = eased.fy;
         qz[gi] = eased.z;
         qdir[gi] = eased.dir;
+        placed++;
       }
     }
     queueEase.sweep();
+    // For e2e tests: how many queueing guests stand on a queue line this frame (written only when it changes).
+    const placedText = String(placed);
+    if (canvas.dataset.queueGuests !== placedText) canvas.dataset.queueGuests = placedText;
   }
 
   /**
