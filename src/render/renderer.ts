@@ -42,6 +42,7 @@ import type { RealLook } from './real/look';
 import type { GroundLayer } from './real/ground';
 import { CLASSIC_HOLD } from './real/setManager';
 import { createWorldLayers } from './worldLayers';
+import { drawEntranceBanners } from './rides/entranceBanner';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
 import { titleHolds } from './real/titleHold';
@@ -999,6 +1000,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement, real: RealOption
     drawGhost(world, tool);
     track.drawOverlay(ctx as CanvasRenderingContext2D, world, tool);
     for (const l of layers) l.drawOverlay?.(ctx as CanvasRenderingContext2D, world, tool, frame);
+    drawEntranceBanners(ctx as CanvasRenderingContext2D, world, tool, frame);
   }
 
   function drawDebug(world: World, drawn: number): void {

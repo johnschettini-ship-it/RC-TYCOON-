@@ -384,6 +384,14 @@ export const uiStrings: Record<string, string> = {
 
   // Ride panel additions (Phase 3 §7.1)
   'ui.ride.maintenance': 'Maintenance',
+  'ui.ride.pathConnect': 'Paths & Queue',
+  'ui.ride.pathConnectHint': 'Quickly build or connect paths to the ride entrance and exit.',
+  'ui.ride.buildQueue': 'Build Queue',
+  'ui.ride.buildExit': 'Build Footpath',
+  'ui.ride.autoConnect': 'Auto-Connect Paths',
+  'ui.ride.autoConnectSuccess': 'Paths connected successfully for {cost}',
+  'ui.ride.autoConnectNoPath': 'No clear path route found from entrance/exit to footpath',
+  'ui.ride.alreadyConnected': 'Entrance and exit are already fully connected',
   'ui.ride.reliability': 'Reliability',
   'ui.ride.breakdown': 'Breakdown',
   'ui.ride.breakdownNone': 'None',

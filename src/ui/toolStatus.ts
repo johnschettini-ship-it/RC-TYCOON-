@@ -54,8 +54,13 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
         const w = game.world.state.map.width;
         const x = g.tile % w;
         const y = Math.floor(g.tile / w);
-        if (g.kind === 'ride') game.dispatch({ type: 'placeRide', defId: g.defId, x, y, rotation: g.rotation });
-        else if (g.kind === 'stall') game.dispatch({ type: 'placeStall', defId: g.defId, x, y, rotation: g.rotation });
+        if (g.kind === 'ride') {
+          const res = game.dispatch({ type: 'placeRide', defId: g.defId, x, y, rotation: g.rotation });
+          if (res?.ok && res.id !== undefined) {
+            game.tool.selectedEntity = { kind: 'ride', id: res.id };
+            ctx.openPanel('ride', res.id);
+          }
+        } else if (g.kind === 'stall') game.dispatch({ type: 'placeStall', defId: g.defId, x, y, rotation: g.rotation });
       },
     },
     icon('check'),

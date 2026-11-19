@@ -34,6 +34,7 @@ import { worldToScreen } from '../render/camera';
 import { centerOnTile, tileCentreWorld } from './camera';
 import { resetMapCursor, type CursorInput } from '../a11y/cursor';
 import { edgeScrollDir, EDGE_SCROLL_SPEED_PX } from './edgeScroll';
+import { snapPathGate } from '../sim/paths/autoConnect';
 
 /** Requests for the UI layer (it owns panels). */
 export type UiIntent = 'finance' | 'closePanel' | 'staff' | 'office' | 'messages';
@@ -314,7 +315,11 @@ export class InputController {
           this.strokeStart(a.x, a.y);
           break;
         }
-        this.pathDragStart(this.tileAtClamped(a.x, a.y));
+        const rawTile = this.tileAtClamped(a.x, a.y);
+        const startTile = (tool.tool === 'queue' || tool.tool === 'footpath')
+          ? snapPathGate(this.game.world, tool.tool, rawTile)
+          : rawTile;
+        this.pathDragStart(startTile);
         break;
       }
       case 'dragMove': {
@@ -355,8 +360,9 @@ export class InputController {
       case 'queue': {
         // The step builder (spec §3): a tap next to the end adds that tile, any other tap moves the start.
         if (tile === null) return;
-        tool.hoverTile = tile;
-        tapAt(game, tile);
+        const targetTile = snapPathGate(game.world, tool.tool, tile);
+        tool.hoverTile = targetTile;
+        tapAt(game, targetTile);
         return;
       }
       case 'placeRide':
@@ -421,10 +427,13 @@ export class InputController {
     const tool = this.game.tool;
     const kind = pathKindOf(tool.tool);
     if (!kind) return;
-    const preview = pathLinePreview(this.game.world, kind, start, start, pathCommandHeight(tool));
+    const snapped = (tool.tool === 'queue' || tool.tool === 'footpath')
+      ? snapPathGate(this.game.world, tool.tool, start)
+      : start;
+    const preview = pathLinePreview(this.game.world, kind, snapped, snapped, pathCommandHeight(tool));
     this.lineDrag = true;
-    tool.drag = { startTile: start, endTile: start, tiles: [start], cost: preview.cost, reason: preview.reason };
-    tool.hoverTile = start;
+    tool.drag = { startTile: snapped, endTile: snapped, tiles: [snapped], cost: preview.cost, reason: preview.reason };
+    tool.hoverTile = snapped;
   }
 
   private pathDragMove(cur: number): void {
