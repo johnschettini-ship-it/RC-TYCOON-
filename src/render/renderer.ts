@@ -36,6 +36,7 @@ import type { Camera, Renderer, ToolState } from './types';
 import { KIND_PATH_ITEM, KIND_STAFF, ManagementLayer } from './management/layer';
 import type { LayerFrame, WorldLayer } from './layers';
 import { createWorldLayers } from './worldLayers';
+import { drawEntranceBanners } from './rides/entranceBanner';
 import { displayPrefs } from '../a11y/prefs';
 import { perfProbe } from '../perf/stats';
 import { AutoScale, browserDeviceEnv, deviceClass, renderPlan, renderQuality, renderQualityVersion } from '../perf/quality';
@@ -878,6 +879,7 @@ export function createCanvasRenderer(canvas: HTMLCanvasElement): Renderer {
     drawGhost(world, tool);
     track.drawOverlay(ctx as CanvasRenderingContext2D, world, tool);
     for (const l of layers) l.drawOverlay?.(ctx as CanvasRenderingContext2D, world, tool, frame);
+    drawEntranceBanners(ctx as CanvasRenderingContext2D, world, tool, frame);
   }
 
   function drawDebug(world: World, drawn: number): void {
