@@ -124,15 +124,26 @@ function pulse(now: number): number {
   return displayPrefs().reducedMotion ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2);
 }
 
-/** Footpaths the park entrance does not reach, dimmed: ground ones under the objects, decks over them. */
+/** Footpaths the park entrance does not reach, dimmed and edged in dashes: ground ones under the objects, decks over them. */
 function drawDimmed(ctx: CanvasRenderingContext2D, world: World, f: LayerFrame, ground: boolean): number {
   const dimmed = pathMarks(world).dimmed;
   if (nodesOn(world, dimmed, ground, part).length === 0) return dimmed.length;
-  ctx.fillStyle = PATH_COLOURS.dim;
+  const dash = Math.max(3, 5 * f.scale);
   for (const n of part) {
     diamond(ctx, nodeCorners(world, n, f, corners));
+    ctx.fillStyle = PATH_COLOURS.dim;
     ctx.fill();
+    // "Not connected": a dashed red-orange edge on a dark edge (both looks, any ground, day or night).
+    ctx.setLineDash([]);
+    ctx.lineWidth = Math.max(2.5, 4 * f.scale);
+    ctx.strokeStyle = PATH_COLOURS.cutHalo;
+    ctx.stroke();
+    ctx.setLineDash([dash, dash * 0.8]);
+    ctx.lineWidth = Math.max(1.5, 2.2 * f.scale);
+    ctx.strokeStyle = PATH_COLOURS.cut;
+    ctx.stroke();
   }
+  ctx.setLineDash([]);
   return dimmed.length;
 }
 

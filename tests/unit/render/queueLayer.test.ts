@@ -114,6 +114,7 @@ describe('path clarity marks (spec 2026-11-18 §3–4)', () => {
   }
   const GLOW = 'rgba(57,208,255';
   const DIM = 'rgba(20,24,40';
+  const CUT = '#ff7a2f';
 
   it('no glows or dimming with the inspect tool', () => {
     const { world } = chainPark();
@@ -134,8 +135,11 @@ describe('path clarity marks (spec 2026-11-18 §3–4)', () => {
       const layer = createQueueLayer(() => 0);
       const g = recordingCtx();
       layer.drawGround!(g.ctx, world, tool, frame());
-      // The park's own entrance stub reaches the park: only the lone footpath dims.
+      // The park's own entrance stub reaches the park: only the lone footpath dims, with a dashed orange outline over
+      // a dark edge so "not connected" reads on grass, on paths and at night.
       expect(g.calls.filter((c) => c.op === 'fill' && c.fill?.startsWith(DIM)).length).toBe(1);
+      expect(g.calls.some((c) => c.op === 'setLineDash' && (c.args[0] as number[]).length > 0)).toBe(true);
+      expect(g.calls.filter((c) => c.op === 'stroke' && c.stroke === CUT).length).toBe(1);
       const o = recordingCtx(g.canvas);
       layer.drawOverlay!(o.ctx, world, tool, frame());
       expect(o.calls.filter((c) => c.op === 'fill' && c.fill?.startsWith(GLOW)).length).toBe(2);

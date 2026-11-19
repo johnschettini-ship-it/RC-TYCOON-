@@ -5,6 +5,8 @@
  * first query after a rebuild and dropped with the network. It has its own buffers (never the field pool or `work`),
  * is never saved, and no game rule reads it.
  */
+import { Content } from '../map';
+import { dirTo, edgeHeight, groundRamp } from '../paths/nodes';
 import type { Ride } from '../rides/types';
 import type { World } from '../types';
 import { isEntranceNode, isFootNode, network, type NetworkCache, type ReachData, type ReachMarks } from './network';
@@ -13,9 +15,15 @@ export type ReachStatus = 'noQueue' | 'noFootpath' | 'closed' | 'ok';
 
 export interface RideReach {
   status: ReachStatus;
-  /** The tile to show (Show me): outside the entrance gate (noQueue) or the queue's open end (noFootpath); −1 else. */
+  /**
+   * The tile to show (Show me): outside the entrance gate (noQueue) or the queue tile where a footpath could join
+   * (noFootpath, see `joinNode`); −1 else.
+   */
   tile: number;
-  /** Height of that spot (gate height, or the end node's height); 0 when `tile` is −1. */
+  /**
+   * Height of that spot: the outside tile's own ground when a ground queue there would meet the gate, else the gate
+   * height (a queue deck); the join node's height. 0 when `tile` is −1.
+   */
   z: number;
 }
 
@@ -52,7 +60,7 @@ function compute(c: NetworkCache): ReachData {
     }
     lineReached.set(rideId, ok);
   }
-  return { reached, lineReached, marks: null };
+  return { reached, lineReached, marks: null, dist: null };
 }
 
 function reachOf(c: NetworkCache): ReachData {
@@ -70,10 +78,99 @@ function nodeHeight(c: NetworkCache, node: number): number {
 function missing(c: NetworkCache, r: ReachData, ride: Ride): RideReach | null {
   const e = ride.entrance as NonNullable<Ride['entrance']>;
   const line = c.queueLines.get(ride.id);
-  if (!line || line.nodes.length === 0) return { status: 'noQueue', tile: e.outside, z: c.map.heights[e.gate] as number };
+  if (!line || line.nodes.length === 0) return { status: 'noQueue', tile: e.outside, z: outsideHeight(c, e.gate, e.outside) };
   if (r.lineReached.get(ride.id) === true) return null;
-  const end = line.nodes[line.nodes.length - 1] as number;
+  const end = joinNode(c, r, line.nodes, line.toward);
   return { status: 'noFootpath', tile: c.nodeTile[end] as number, z: nodeHeight(c, end) };
+}
+
+/**
+ * Where a queue at the entrance would stand: the outside tile's ground when its ground edge meets the gate height
+ * (a flat or sloped ground queue), else the gate height (a deck, e.g. by a cliff or a raised station).
+ */
+function outsideHeight(c: NetworkCache, gate: number, outside: number): number {
+  const map = c.map;
+  const h = map.heights[gate] as number;
+  const dir = dirTo(map, outside, gate);
+  const ground = map.heights[outside] as number;
+  if (dir >= 0 && edgeHeight(ground, (map.slope[outside] as number) === 0 ? -1 : groundRamp(map, outside), dir) === h) return ground;
+  return h;
+}
+
+/** A neighbour tile of node `n` where a footpath could join: empty land or a footpath (not a queue, ride or other). */
+function hasFreeNeighbour(c: NetworkCache, n: number): boolean {
+  const map = c.map;
+  const w = map.width;
+  const t = c.nodeTile[n] as number;
+  const x = t % w;
+  const y = (t - x) / w;
+  const near = [y > 0 ? t - w : -1, x < w - 1 ? t + 1 : -1, y < map.height - 1 ? t + w : -1, x > 0 ? t - 1 : -1];
+  for (const j of near) {
+    if (j < 0) continue;
+    const k = map.content[j];
+    if (k === Content.Empty || k === Content.Footpath) return true;
+  }
+  return false;
+}
+
+/** Grid steps from every tile to the nearest tile holding a reached node (Manhattan, BFS); max int where none. */
+function distances(c: NetworkCache, r: ReachData): Int32Array {
+  if (r.dist) return r.dist;
+  const map = c.map;
+  const w = map.width;
+  const dist = new Int32Array(c.tiles).fill(0x7fffffff);
+  const queue = new Int32Array(c.tiles);
+  let tail = 0;
+  for (let n = 0; n < c.nodeCount; n++) {
+    if (r.reached[n] !== 1) continue;
+    const t = c.nodeTile[n] as number;
+    if (dist[t] !== 0) {
+      dist[t] = 0;
+      queue[tail++] = t;
+    }
+  }
+  for (let head = 0; head < tail; head++) {
+    const t = queue[head] as number;
+    const x = t % w;
+    const y = (t - x) / w;
+    const d = (dist[t] as number) + 1;
+    for (const j of [y > 0 ? t - w : -1, x < w - 1 ? t + 1 : -1, y < map.height - 1 ? t + w : -1, x > 0 ? t - 1 : -1]) {
+      if (j >= 0 && (dist[j] as number) > d) {
+        dist[j] = d;
+        queue[tail++] = j;
+      }
+    }
+  }
+  r.dist = dist;
+  return dist;
+}
+
+/**
+ * The queue node a footpath should join (Show me and the glow, §3–4). Candidates: line nodes with a free neighbour
+ * (`hasFreeNeighbour`). A line with one end: the candidate farthest from the entrance. A branching line (several
+ * ends): among the ends that are candidates (else all candidates), the one nearest a footpath the park reaches; ties go
+ * to the one farther from the entrance (flood-fill order, itself deterministic). No candidate: the farthest node.
+ */
+function joinNode(c: NetworkCache, r: ReachData, nodes: readonly number[], toward: readonly number[]): number {
+  const children = new Map<number, number>();
+  for (const p of toward) if (p >= 0) children.set(p, (children.get(p) ?? 0) + 1);
+  const ends: number[] = [];
+  for (let k = 1; k < nodes.length; k++) if (!children.has(nodes[k] as number)) ends.push(k);
+  const cands: number[] = [];
+  for (let k = 0; k < nodes.length; k++) if (hasFreeNeighbour(c, nodes[k] as number)) cands.push(k);
+  if (cands.length === 0) return nodes[nodes.length - 1] as number;
+  if (ends.length <= 1) return nodes[cands[cands.length - 1] as number] as number;
+  const endCands = cands.filter((k) => ends.includes(k));
+  const pool = endCands.length > 0 ? endCands : cands;
+  const dist = distances(c, r);
+  let best = pool[0] as number;
+  for (const k of pool) {
+    const dk = dist[c.nodeTile[nodes[k] as number] as number] as number;
+    const db = dist[c.nodeTile[nodes[best] as number] as number] as number;
+    // `pool` ascends in flood-fill order, so on a tie the later (farther) end wins; the order itself is fixed.
+    if (dk <= db) best = k;
+  }
+  return nodes[best] as number;
 }
 
 /** Reach status of ride `rideId` (first failing step wins), or null when there is no such ride or it has no entrance. */
@@ -106,7 +203,7 @@ export function pathMarks(world: World): PathMarks {
     if (gap.status === 'noQueue') entrances.push({ rideId: ride.id, tile: gap.tile, z: gap.z });
     else {
       const line = c.queueLines.get(ride.id);
-      if (line) queueEnds.push({ rideId: ride.id, node: line.nodes[line.nodes.length - 1] as number });
+      if (line) queueEnds.push({ rideId: ride.id, node: joinNode(c, r, line.nodes, line.toward) });
     }
   }
   const dimmed: number[] = [];

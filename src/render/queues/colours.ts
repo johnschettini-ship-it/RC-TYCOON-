@@ -12,12 +12,16 @@ export const QUEUE_COLOURS = {
 
 /**
  * Path clarity colours (spec 2026-11-18 §3–4). Glows use the queue highlight cyan with a white halo so they read on
- * grass, on paths and at night; the Show me ring is gold with a dark halo; cut-off footpaths get a dark wash.
+ * grass, on paths and at night; the Show me ring is gold with a dark halo; cut-off footpaths get a dark wash and a
+ * dashed red-orange edge.
  */
 export const PATH_COLOURS = {
   glow: '#39d0ff',
   glowHalo: 'rgba(255,255,255,0.9)',
   dim: 'rgba(20,24,40,0.55)',
+  /** Dashed edge of a cut-off footpath: #ff7a2f on its #141828 edge is 6.8:1. */
+  cut: '#ff7a2f',
+  cutHalo: 'rgba(20,24,40,0.9)',
   focus: '#ffd23f',
   focusHalo: 'rgba(20,24,40,0.85)',
 } as const;

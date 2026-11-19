@@ -1,9 +1,9 @@
 /** Path clarity (spec 2026-11-18 §2, §4): ride reach from the park entrance, cached with the path network. */
 import { describe, expect, it } from 'vitest';
-import { markNetworkDirty } from '../../../src/sim/pathing';
+import { distanceTo, markNetworkDirty } from '../../../src/sim/pathing';
 import { queueLine } from '../../../src/sim/pathing/queues';
 import { footpathReached, pathMarks, rideReach } from '../../../src/sim/pathing/reach';
-import { tileIndex } from '../../../src/sim/map';
+import { Content, tileIndex } from '../../../src/sim/map';
 import type { World } from '../../../src/sim/types';
 import { makeTestWorld, placeFootpath, placeQueue, placeRideDirect } from '../../helpers/world';
 import { elevated } from './helpers';
@@ -153,5 +153,91 @@ describe('ride reach', () => {
     ride.entrance = null;
     expect(rideReach(world, ride.id)).toBeNull();
     expect(rideReach(world, 999)).toBeNull();
+  });
+
+  it('a footpath joining the middle of the queue: ok', () => {
+    const world = makeTestWorld();
+    const ride = carousel(world);
+    ride.status = 'open';
+    for (let y = 13; y <= 17; y++) placeQueue(world, 11, y);
+    // The road comes in from the east to the side of the third queue tile.
+    road(world, 12, 15);
+    expect(rideReach(world, ride.id)?.status).toBe('ok');
+  });
+
+  it('a boxed-in queue end: Show me points at the farthest queue tile a footpath can still join', () => {
+    const world = makeTestWorld();
+    const ride = carousel(world);
+    placeQueue(world, 11, 13);
+    const mid = placeQueue(world, 11, 14);
+    placeQueue(world, 11, 15);
+    // Box the last tile in: rides' buildings on its three free sides.
+    const map = world.state.map;
+    for (const [x, y] of [[10, 15], [12, 15], [11, 16], [10, 14]] as const) map.content[tileIndex(map, x, y)] = Content.Building;
+    markNetworkDirty(world);
+    // (11,14) still has a free side (east); (11,15) has none.
+    expect(rideReach(world, ride.id)).toMatchObject({ status: 'noFootpath', tile: mid });
+  });
+
+  it('a branching queue: Show me points at the end nearest a footpath the park reaches', () => {
+    const world = makeTestWorld();
+    const ride = carousel(world);
+    // A T: from (11,14) west to (8,14) and east to (14,14); the road runs north-south at x = 20 (east side).
+    placeQueue(world, 11, 13);
+    placeQueue(world, 11, 14);
+    for (let x = 8; x <= 10; x++) placeQueue(world, x, 14);
+    for (let x = 12; x <= 14; x++) placeQueue(world, x, 14);
+    road(world, 20, 20);
+    for (let y = 14; y < 20; y++) placeFootpath(world, 20, y);
+    markNetworkDirty(world);
+    expect(rideReach(world, ride.id)).toMatchObject({ status: 'noFootpath', tile: tileIndex(world.state.map, 14, 14) });
+    expect(pathMarks(world).queueEnds[0]?.node).toBe(tileIndex(world.state.map, 14, 14));
+  });
+
+  it('no queue: the spot is the outside tile on its own ground, or a deck at the gate height by a cliff', () => {
+    const world = makeTestWorld();
+    const ride = carousel(world);
+    const map = world.state.map;
+    const e = ride.entrance!;
+    expect(rideReach(world, ride.id)).toMatchObject({ tile: e.outside, z: map.heights[e.outside] });
+    // The outside tile two steps lower than the gate: a ground queue there would not meet the gate.
+    map.heights[e.outside] = (map.heights[e.gate] as number) - 2;
+    markNetworkDirty(world);
+    expect(rideReach(world, ride.id)).toMatchObject({ tile: e.outside, z: map.heights[e.gate] });
+  });
+
+  it('agrees with the guests\' own route field on generated layouts', () => {
+    let seed = 12345;
+    const rnd = (n: number): number => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed % n;
+    };
+    const seen = new Set<string>();
+    for (let k = 0; k < 40; k++) {
+      const world = makeTestWorld();
+      const ride = carousel(world);
+      ride.status = 'open';
+      const map = world.state.map;
+      // A road from the park to a random row under the ride, a queue down from the entrance of random length (0: none),
+      // then random queue and footpath tiles around them (which may bridge, branch, or block).
+      road(world, 11, 18 + rnd(4));
+      const length = rnd(7);
+      for (let y = 13; y < 13 + length; y++) placeQueue(world, 11, y);
+      for (let n = 0; n < 12; n++) {
+        const x = 8 + rnd(7);
+        const y = 13 + rnd(8);
+        const i = tileIndex(map, x, y);
+        if (map.content[i] !== Content.Empty) continue;
+        map.content[i] = rnd(2) === 0 ? Content.Footpath : Content.Queue;
+      }
+      markNetworkDirty(world);
+      const r = rideReach(world, ride.id)!;
+      const routed = distanceTo(world, map.entranceTile, `ride:${ride.id}`) !== null;
+      seen.add(r.status);
+      expect(r.status === 'ok', `layout ${k}: ${r.status} vs route ${routed}`).toBe(routed);
+      if (r.status === 'noQueue') expect(queueLine(world, ride.id)).toBeNull();
+    }
+    // The layouts cover every path status.
+    expect([...seen].sort()).toEqual(['noFootpath', 'noQueue', 'ok']);
   });
 });

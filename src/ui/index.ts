@@ -40,7 +40,7 @@ import { mountTrackUi } from './track';
 import { blockedReason, buildModeOn } from './track/builder';
 import { trackToolOf } from '../render/track/toolState';
 import { extensionPanel, UI_EXTENSIONS } from './extensions';
-import { tileCentreWorld } from '../input/camera';
+import { mapPointToWorld, tileCentreWorld } from '../input/camera';
 import { bindScenarioSettings, titleOpen } from './scenario/shared';
 import { localizeReason } from '../i18n';
 import { confirmDialog } from './dialogs';
@@ -189,13 +189,13 @@ export function mountUI(root: HTMLElement, game: Game): void {
     closePanel() {
       panels.close();
     },
-    showMapPlace(tile: number) {
+    showMapPlace(tile: number, z?: number) {
       const map = game.world.state.map;
       if (tile < 0 || tile >= map.width * map.height) return;
       panels.lower();
       const r = visibleMapRect();
       const cam = game.camera;
-      const p = tileCentreWorld(map, tile, cam.rotation);
+      const p = z === undefined ? tileCentreWorld(map, tile, cam.rotation) : mapPointToWorld(map, (tile % map.width) + 0.5, Math.floor(tile / map.width) + 0.5, z, cam.rotation);
       cam.centerX = p.sx - ((r.left + r.right) / 2 - window.innerWidth / 2) / cam.zoom;
       cam.centerY = p.sy - ((r.top + r.bottom) / 2 - window.innerHeight / 2) / cam.zoom;
     },

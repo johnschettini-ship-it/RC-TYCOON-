@@ -229,7 +229,7 @@ test.describe('path clarity', () => {
     if (phone) await page.getByRole('button', { name: 'Confirm', exact: true }).tap();
     await expect.poll(() => tc(page, (g) => g.tool.tool, null)).toBe('queue');
     await expect(tip).toBeVisible();
-    await expect(tip).toHaveText('Guests walk: park entrance → footpath → queue → ride. Build a queue from the glowing entrance, then a footpath to its end');
+    await expect(tip).toHaveText('Guests walk: park entrance → footpath → queue → ride. Build a queue from the glowing entrance, then a footpath to its end. Dimmed paths are not connected to the park entrance');
     // The Shift tip waits while this one shows.
     await expect(page.getByTestId('path-tip')).toBeHidden();
     await expect.poll(() => canvasData(page, 'pathGlows')).toBe('1');

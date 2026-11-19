@@ -57,11 +57,11 @@ describe('reach status line', () => {
     const host: ShowMeHost = {
       game: { tool },
       closePanel: () => calls.push('close'),
-      showMapPlace: (t) => calls.push(`show ${t}`),
+      showMapPlace: (t, z) => calls.push(`show ${t} at ${z}`),
     };
     const line = reachLine(w, ride.id)!;
     showMe(host, line, 1000);
-    expect(calls).toEqual(['close', `show ${ride.entrance!.outside}`]);
+    expect(calls).toEqual(['close', `show ${ride.entrance!.outside} at ${line.z}`]);
     expect(SHOW_ME_MS).toBe(3000);
     expect(tool.pathFocus).toEqual({ tile: ride.entrance!.outside, z: line.z, until: 4000 });
   });
@@ -71,5 +71,22 @@ describe('reach status line', () => {
     const ride = placeRideDirect(w, 'carousel', 10, 10, 0);
     expect(rideWarnings(w, ride)).toEqual(['The exit needs a footpath']);
     expect(en['ui.ride.entranceQueue']).toBeUndefined();
+  });
+
+  it('a reached ride that is not open says why in its own words', () => {
+    const w = makeTestWorld();
+    const ride = placeRideDirect(w, 'carousel', 10, 10, 0);
+    placeQueue(w, 11, 13);
+    road(w, 11, 14);
+    const said = (status: typeof ride.status): string | undefined => {
+      ride.status = status;
+      return reachLine(w, ride.id)?.text;
+    };
+    expect(said('closed')).toBe('The ride is closed');
+    expect(said('testing')).toBe('Testing');
+    expect(said('broken')).toBe('Broken down');
+    expect(said('inspecting')).toBe('Being inspected');
+    expect(said('stormHold')).toBe('Closed for the storm');
+    expect(said('open')).toBe('Guests can reach this ride');
   });
 });

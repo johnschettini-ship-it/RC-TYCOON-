@@ -83,6 +83,8 @@ export interface ReachData {
   lineReached: Map<number, boolean>;
   /** Path tool marks (lazy). */
   marks: ReachMarks | null;
+  /** Grid steps from each tile to the nearest reached node's tile (lazy; only branching queues need it). */
+  dist: Int32Array | null;
 }
 
 export interface ReachMarks {

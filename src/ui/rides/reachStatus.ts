@@ -28,20 +28,31 @@ export interface ReachLine {
 export function reachLine(world: World, rideId: number): ReachLine | null {
   const r = rideReach(world, rideId);
   if (!r) return null;
-  return { status: r.status, text: text(`ride.reach.${r.status}`), showMe: r.status === 'noQueue' || r.status === 'noFootpath', tile: r.tile, z: r.z };
+  return { status: r.status, text: statusText(world, rideId, r.status), showMe: r.status === 'noQueue' || r.status === 'noFootpath', tile: r.tile, z: r.z };
+}
+
+/**
+ * The line's text. A ride that is reached but not open says why in its own words: "The ride is closed" when the player
+ * closed it, else the ride's state as the panel's status chip names it (Testing, Broken down, Being inspected, Closed
+ * for the storm, Under construction).
+ */
+function statusText(world: World, rideId: number, status: ReachStatus): string {
+  if (status !== 'closed') return text(`ride.reach.${status}`);
+  const state = world.state.rides.find((x) => x.id === rideId)?.status ?? 'closed';
+  return state === 'closed' ? text('ride.reach.closed') : text(`ui.ride.status.${state}`);
 }
 
 export interface ShowMeHost {
   game: { tool: ToolState };
   closePanel(): void;
-  showMapPlace?(tile: number): void;
+  showMapPlace?(tile: number, z?: number): void;
 }
 
-/** Close the panel, bring `line`'s spot into view and pulse it until `now + SHOW_ME_MS`. */
+/** Close the panel, bring `line`'s spot (at its own height: a deck stays centred) into view and pulse it until `now + SHOW_ME_MS`. */
 export function showMe(host: ShowMeHost, line: ReachLine, now: number): void {
   if (!line.showMe || line.tile < 0) return;
   host.closePanel();
-  host.showMapPlace?.(line.tile);
+  host.showMapPlace?.(line.tile, line.z);
   host.game.tool.pathFocus = { tile: line.tile, z: line.z, until: now + SHOW_ME_MS };
 }
 
