@@ -1,20 +1,14 @@
-/** Queue clarity (spec 2026-11-18 §1–3): entrance signs, the tapped queue's highlight, unlinked queue markers. */
+/** Queue clarity (spec 2026-11-18 §2–3): the tapped queue's highlight, unlinked queue markers; no entrance sign (path clarity). */
 import { describe, expect, it } from 'vitest';
 import { createQueueLayer } from '../../../src/render/queues/layer';
-import { fitSignText, signBoxes, type SignBox } from '../../../src/render/queues/sign';
 import { queueKey } from '../../../src/sim/pathing/queues';
 import type { LayerFrame } from '../../../src/render/layers';
 import { defaultToolState, type ToolState } from '../../../src/render/types';
 import { markNetworkDirty } from '../../../src/sim/pathing';
 import type { World } from '../../../src/sim/types';
-import { makeTestWorld, placeQueue, placeRideDirect } from '../../helpers/world';
+import { makeTestWorld, placeFootpath, placeQueue, placeRideDirect } from '../../helpers/world';
 
 const measure = (s: string): number => s.length * 6;
-const fit = (name: string, maxPx: number): { text: string; width: number } => {
-  const text = fitSignText(measure, name, maxPx);
-  return { text, width: measure(text) };
-};
-
 function frame(zoom = 1, dpr = 1): LayerFrame {
   // Camera centred near tile (12, 12) at the given zoom.
   const scale = zoom * dpr;
@@ -28,8 +22,6 @@ interface Call {
   stroke?: string;
 }
 
-const measured = { n: 0 };
-
 function recordingCtx(canvas: { dataset: Record<string, string> } = { dataset: {} }): { ctx: CanvasRenderingContext2D; calls: Call[]; canvas: { dataset: Record<string, string> } } {
   const calls: Call[] = [];
   const state: Record<string, unknown> = { fillStyle: '#000', strokeStyle: '#000', font: '', lineWidth: 1, globalAlpha: 1, textAlign: 'start', textBaseline: 'alphabetic' };
@@ -37,7 +29,7 @@ function recordingCtx(canvas: { dataset: Record<string, string> } = { dataset: {
     get(t, p: string) {
       if (p === 'canvas') return canvas;
       if (p in t) return t[p];
-      if (p === 'measureText') return (s: string) => (measured.n++, { width: measure(s) });
+      if (p === 'measureText') return (s: string) => ({ width: measure(s) });
       return (...args: unknown[]) => calls.push({ op: p, args, fill: String(t.fillStyle), stroke: String(t.strokeStyle) });
     },
     set(t, p: string, v) {
@@ -61,59 +53,15 @@ function park(): { world: World; a: number; b: number } {
   return { world, a: a.id, b: b.id };
 }
 
-describe('fitSignText', () => {
-  it('keeps a short name, cuts a long one with an ellipsis, leaves empty empty', () => {
-    expect(fitSignText(measure, 'Carousel', 120)).toBe('Carousel');
-    const cut = fitSignText(measure, 'The Extremely Long Ride Name Of Doom', 60);
-    expect(cut.endsWith('…')).toBe(true);
-    expect(measure(cut)).toBeLessThanOrEqual(60);
-    expect(cut.length).toBe(10);
-    expect(fitSignText(measure, '', 60)).toBe('');
-  });
-});
-
-describe('signBoxes', () => {
-  it('one box per ride with an entrance, text = ride.name; a renamed ride shows its new name', () => {
-    const { world, a, b } = park();
-    const out: SignBox[] = [];
-    signBoxes(world, frame(), fit, out);
-    expect(out.map((s) => [s.rideId, s.text])).toEqual([
-      [a, 'Carousel 1'],
-      [b, 'Carousel 2'],
-    ]);
-    world.state.rides[0]!.name = 'Merry Spin';
-    signBoxes(world, frame(), fit, out);
-    expect(out[0]?.text).toBe('Merry Spin');
-    for (const s of out) expect(s.w).toBeGreaterThan(measure(s.text));
-  });
-
-  it('none at the farthest zoom (guests as dots)', () => {
-    const { world } = park();
-    expect(signBoxes(world, frame(0.5), fit, [])).toEqual([]);
-    expect(signBoxes(world, frame(0.4, 2), fit, [])).toEqual([]);
-    expect(signBoxes(world, frame(0.75), fit, []).length).toBe(2);
-  });
-
-  it('follows the renderer\'s own guest-dot zoom (low quality draws dots sooner)', () => {
-    const { world } = park();
-    expect(signBoxes(world, { ...frame(0.7), guestLodZoom: 0.75 }, fit, [])).toEqual([]);
-    expect(signBoxes(world, { ...frame(0.8), guestLodZoom: 0.75 }, fit, []).length).toBe(2);
-  });
-
-  it('the sign sits above its entrance', () => {
-    const { world } = park();
-    const [s1, s2] = signBoxes(world, frame(), fit, []);
-    expect(s2!.x).toBeGreaterThan(s1!.x);
-  });
-});
-
 describe('queue layer', () => {
-  it('draws the ride names and records them on the canvas', () => {
+  it('draws no ride name over an entrance (path clarity removed the sign)', () => {
     const { world } = park();
     const { ctx, calls, canvas } = recordingCtx();
     createQueueLayer().drawOverlay!(ctx, world, defaultToolState(), frame());
-    expect(calls.filter((c) => c.op === 'fillText').map((c) => c.args[0])).toEqual(['Carousel 1', 'Carousel 2']);
-    expect(canvas.dataset.queueSigns).toBe('Carousel 1|Carousel 2');
+    const texts = calls.filter((c) => c.op === 'fillText').map((c) => c.args[0]);
+    expect(texts).not.toContain('Carousel 1');
+    expect(texts).not.toContain('Carousel 2');
+    expect(canvas.dataset.queueSigns).toBeUndefined();
   });
 
   it('highlights the tapped queue on the ground (under the guests) only while one is selected', () => {
@@ -130,18 +78,6 @@ describe('queue layer', () => {
     const r3 = recordingCtx();
     layer.drawOverlay!(r3.ctx, world, tool, frame());
     expect(r3.calls.some((c) => c.op === 'fill' && c.fill?.startsWith('rgba(57,208,255'))).toBe(false);
-  });
-
-  it('measures sign text once, not every frame', () => {
-    const { world } = park();
-    const layer = createQueueLayer();
-    layer.drawOverlay!(recordingCtx().ctx, world, defaultToolState(), frame());
-    measured.n = 0;
-    layer.drawOverlay!(recordingCtx().ctx, world, defaultToolState(), frame());
-    expect(measured.n).toBe(0);
-    world.state.rides[0]!.name = 'Renamed Ride';
-    layer.drawOverlay!(recordingCtx().ctx, world, defaultToolState(), frame());
-    expect(measured.n).toBeGreaterThan(0);
   });
 
   it('marks queues that reach no ride only while a path tool is on', () => {
@@ -161,5 +97,100 @@ describe('queue layer', () => {
     layer.drawOverlay!(on.ctx, world, tool, frame());
     expect(on.canvas.dataset.queueWarnings).toBe('2');
     expect(on.calls.filter((c) => c.op === 'fillText' && c.args[0] === '!').length).toBe(2);
+  });
+});
+
+describe('path clarity marks (spec 2026-11-18 §3–4)', () => {
+  /** Ride A at (10,10) with no queue; ride B at (16,10) with a queue that reaches nothing; a lone footpath at (30,30). */
+  function chainPark(): { world: World; lone: number } {
+    const world = makeTestWorld();
+    placeRideDirect(world, 'carousel', 10, 10, 0);
+    placeRideDirect(world, 'carousel', 16, 10, 0);
+    placeQueue(world, 17, 13);
+    placeQueue(world, 17, 14);
+    const lone = placeFootpath(world, 30, 30);
+    markNetworkDirty(world);
+    return { world, lone };
+  }
+  const GLOW = 'rgba(57,208,255';
+  const DIM = 'rgba(20,24,40';
+  const CUT = '#ff7a2f';
+
+  it('no glows or dimming with the inspect tool', () => {
+    const { world } = chainPark();
+    const layer = createQueueLayer(() => 0);
+    const g = recordingCtx();
+    layer.drawGround!(g.ctx, world, defaultToolState(), frame());
+    const o = recordingCtx(g.canvas);
+    layer.drawOverlay!(o.ctx, world, defaultToolState(), frame());
+    expect([...g.calls, ...o.calls].some((c) => c.op === 'fill' && (c.fill?.startsWith(GLOW) || c.fill?.startsWith(DIM)))).toBe(false);
+    expect(o.canvas.dataset.pathGlows).toBe('0');
+    expect(o.canvas.dataset.pathDimmed).toBe('0');
+  });
+
+  for (const toolId of ['footpath', 'queue'] as const) {
+    it(`the ${toolId} tool: the unqueued entrance and the unreached queue end glow, the cut-off footpath dims`, () => {
+      const { world } = chainPark();
+      const tool: ToolState = { ...defaultToolState(), tool: toolId };
+      const layer = createQueueLayer(() => 0);
+      const g = recordingCtx();
+      layer.drawGround!(g.ctx, world, tool, frame());
+      // The park's own entrance stub reaches the park: only the lone footpath dims, with a dashed orange outline over
+      // a dark edge so "not connected" reads on grass, on paths and at night.
+      expect(g.calls.filter((c) => c.op === 'fill' && c.fill?.startsWith(DIM)).length).toBe(1);
+      expect(g.calls.some((c) => c.op === 'setLineDash' && (c.args[0] as number[]).length > 0)).toBe(true);
+      expect(g.calls.filter((c) => c.op === 'stroke' && c.stroke === CUT).length).toBe(1);
+      const o = recordingCtx(g.canvas);
+      layer.drawOverlay!(o.ctx, world, tool, frame());
+      expect(o.calls.filter((c) => c.op === 'fill' && c.fill?.startsWith(GLOW)).length).toBe(2);
+      expect(o.canvas.dataset.pathGlows).toBe('2');
+      expect(o.canvas.dataset.pathDimmed).toBe('1');
+    });
+  }
+
+  it('glow at deck height: an elevated queue end glows on its deck, not the ground', () => {
+    const tool: ToolState = { ...defaultToolState(), tool: 'queue' };
+    const glowTops = (deck: boolean): number => {
+      const world = makeTestWorld();
+      const ride = placeRideDirect(world, 'carousel', 10, 10, 0);
+      const h = world.state.map.heights[ride.entrance!.gate] as number;
+      if (deck) {
+        // A ramp from the gate up to a deck one step high: the queue's open end is the deck.
+        world.state.elevatedPaths.push({ id: 900, x: 11, y: 13, z: h, kind: 'queue', rampDir: 2 });
+        world.state.elevatedPaths.push({ id: 901, x: 11, y: 14, z: h + 1, kind: 'queue', rampDir: -1 });
+      } else {
+        placeQueue(world, 11, 13);
+        placeQueue(world, 11, 14);
+      }
+      markNetworkDirty(world);
+      const o = recordingCtx();
+      createQueueLayer(() => 0).drawOverlay!(o.ctx, world, tool, frame());
+      const ys = o.calls.filter((c) => (c.op === 'moveTo' || c.op === 'lineTo') && c.fill?.startsWith(GLOW)).map((c) => c.args[1] as number);
+      expect(ys.length).toBeGreaterThan(0);
+      return Math.min(...ys);
+    };
+    expect(glowTops(true)).toBeLessThan(glowTops(false));
+  });
+
+  it('Show me: the focus pulses until its time, then stops; a bad tile draws nothing', () => {
+    const { world } = chainPark();
+    let now = 1000;
+    const layer = createQueueLayer(() => now);
+    const tool: ToolState = { ...defaultToolState(), pathFocus: { tile: world.state.map.width * 13 + 11, z: 0, until: 4000 } };
+    const PULSE = '#ffd23f';
+    const a = recordingCtx();
+    layer.drawOverlay!(a.ctx, world, tool, frame());
+    expect(a.calls.some((c) => c.op === 'stroke' && c.stroke === PULSE)).toBe(true);
+    expect(a.canvas.dataset.pathFocus).toBe(String(world.state.map.width * 13 + 11));
+    now = 4001;
+    const b = recordingCtx(a.canvas);
+    layer.drawOverlay!(b.ctx, world, tool, frame());
+    expect(b.calls.some((c) => c.stroke === PULSE)).toBe(false);
+    expect(b.canvas.dataset.pathFocus).toBe('');
+    now = 1000;
+    tool.pathFocus = { tile: -5, z: 0, until: 4000 };
+    const c2 = recordingCtx();
+    layer.drawOverlay!(c2.ctx, world, tool, frame());
+    expect(c2.calls.some((c) => c.stroke === PULSE)).toBe(false);
   });
 });

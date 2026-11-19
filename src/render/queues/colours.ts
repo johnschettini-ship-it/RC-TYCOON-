@@ -1,15 +1,27 @@
 /**
- * Queue clarity colours (spec 2026-11-18: contrast ≥ 4.5:1 on the sign). Sign text #ffffff on #14213d: 15.6:1.
- * Badge "!" #1a1a1a on #ffb020: 10.0:1. The highlight is a cyan wash that differs from every queue and path colour.
+ * Queue clarity colours (spec 2026-11-18). Badge "!" #1a1a1a on #ffb020: 10.0:1. The highlight is a cyan wash that
+ * differs from every queue and path colour.
  */
 export const QUEUE_COLOURS = {
-  sign: '#14213d',
-  signText: '#ffffff',
-  signEdge: 'rgba(255,255,255,0.55)',
-  signPost: '#14213d',
   highlight: '#39d0ff',
   highlightFill: 'rgba(57,208,255,0.30)',
   unlinkedFill: 'rgba(255,176,32,0.28)',
   badge: '#ffb020',
   badgeText: '#1a1a1a',
+} as const;
+
+/**
+ * Path clarity colours (spec 2026-11-18 §3–4). Glows use the queue highlight cyan with a white halo so they read on
+ * grass, on paths and at night; the Show me ring is gold with a dark halo; cut-off footpaths get a dark wash and a
+ * dashed red-orange edge.
+ */
+export const PATH_COLOURS = {
+  glow: '#39d0ff',
+  glowHalo: 'rgba(255,255,255,0.9)',
+  dim: 'rgba(20,24,40,0.55)',
+  /** Dashed edge of a cut-off footpath: #ff7a2f on its #141828 edge is 6.8:1. */
+  cut: '#ff7a2f',
+  cutHalo: 'rgba(20,24,40,0.9)',
+  focus: '#ffd23f',
+  focusHalo: 'rgba(20,24,40,0.85)',
 } as const;

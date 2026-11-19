@@ -21,7 +21,7 @@ export function createWorldLayers(): WorldLayer[] {
     createElevatedPathLayer(),
     createSceneryLayer(),
     createTerrainToolLayer(),
-    // Queue clarity (spec 2026-11-18): entrance signs, the tapped queue, unlinked queue markers.
+    // Queue clarity (spec 2026-11-18): the tapped queue, unlinked queue markers.
     createQueueLayer(),
     createShowLayer(),
     createA11yLayer(),

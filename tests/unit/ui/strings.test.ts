@@ -12,7 +12,6 @@ describe('UI strings (master R4)', () => {
   });
 
   it('spec strings are exact', () => {
-    expect(text('ui.ride.entranceQueue')).toBe('The entrance needs a queue path');
     expect(text('ui.ride.exitPath')).toBe('The exit needs a footpath');
     expect(text('ui.stall.facePath')).toBe('This stall must face a footpath');
     expect(text('ui.ghost.noCash')).toBe('Not enough cash');

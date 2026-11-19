@@ -46,7 +46,7 @@ The complete core tycoon game on one flat 64 × 64 map.
 ## How to play
 1. **Start.** On the title screen pick **New game**, then the **Tutorial**, a **Scenario** (with a difficulty: Relaxed, Standard, or Tough), the **Sandbox**, or a free park with your own name and map size. The tutorial walks you through your first ride.
 2. **Paths first.** Build a footpath from the park entrance. Guests only reach what the paths connect.
-3. **Rides.** Open the **Rides** deck, press a ride card, then press the map to place it (or drag the card to the map with a mouse), then connect its entrance with a **queue path** and its exit with a **footpath**. Open the ride to set its price.
+3. **Rides.** Open the **Rides** deck, press a ride card, then press the map to place it (or drag the card to the map with a mouse), then connect its entrance with a **queue path** and its exit with a **footpath**. Guests walk park entrance → footpath → queue → ride: the ride panel says which step is missing, and **Show me** points at it. While a path tool is on, an entrance with no queue and a queue end no footpath reaches glow, and footpaths cut off from the park entrance are dimmed. Open the ride to set its price.
 4. **Stalls.** Food, drinks, and restrooms must face a footpath. Hungry, thirsty, or tired guests leave unhappy.
 5. **Balance the crowd.** Watch the mood bar at the top. Chill guests like gentle rides, gardens, and benches; Thrill guests want intense rides and buzz.
 6. **Run the park.** Hire groundskeepers and mechanics, set the research budget, run marketing, and check the finance panel each month. Take a loan if cash runs low.

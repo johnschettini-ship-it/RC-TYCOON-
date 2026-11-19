@@ -22,6 +22,7 @@ import { icon } from '../icons';
 import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
+import { createReachStatus } from '../rides/reachStatus';
 import { centreOnTile } from '../management/widgets';
 import { editTrackRide } from './builder';
 import { createTestChart } from './chart';
@@ -99,6 +100,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
 
   // ---------- overview
   const warnings = warningList();
+  const reach = createReachStatus(ctx, rideId);
   const nextStep = h('p', { class: 'next-step muted', 'data-testid': 'track-next-step' });
   // R7 (owner 2026-11-12): centre the map on the trouble place of the last test (stall or safety limit).
   const showPlace = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-trouble-show', hidden: true, onclick: () => {
@@ -130,6 +132,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   const throughput = statRow(text('ui.track.throughput'));
   const maintenance = createMaintenanceSection(ctx, rideId);
   panels.get('overview')!.append(
+    reach.el,
     warnings.el,
     nextStep,
     showPlace,
@@ -254,6 +257,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
           bars[k].el.hidden = r.stats === null;
         }
         noRatings.hidden = r.stats !== null;
+        reach.update();
         warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
         nextStep.hidden = block === null || r.status === 'testing';
         if (block) setText(nextStep, `${text('ui.track.nextStep')}: ${localizeReason(block)}`);

@@ -48,4 +48,6 @@ export const pathStrings: Record<string, string> = {
   'paths.done': 'Done',
   'paths.tipShift': 'Tip: Shift + drag draws a straight line',
   'paths.tipClose': 'Close tip',
+  /** Path clarity (spec 2026-11-18 §5): shown once, the first time a ride is placed. */
+  'paths.tipChain': 'Guests walk: park entrance → footpath → queue → ride. Build a queue from the glowing entrance, then a footpath to its end. Dimmed paths are not connected to the park entrance',
 };

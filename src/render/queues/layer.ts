@@ -4,9 +4,13 @@
  *   ground nodes in `drawGround` (under the guests), deck nodes over the decks;
  * - while a path tool (footpath or queue) is on: queue groups that reach no ride entrance tinted, with one "!" badge
  *   per group;
- * - a ride name sign over every ride entrance (`./sign.ts`).
- * The canvas carries `data-queue-signs` (sign texts joined by "|") and `data-queue-warnings` (unlinked groups marked),
- * written only when they change, for e2e tests. Hints only: nothing here changes which ride owns a queue.
+ * Path clarity (spec 2026-11-18 §3–4; it removed the entrance sign):
+ * - while a path tool is on: footpaths the park entrance does not reach are dimmed; ride entrances with no queue and
+ *   queue open ends no reached footpath touches glow (`../../sim/pathing/reach.ts` `pathMarks`);
+ * - Show me (`ToolState.pathFocus`): the spot pulses until its time (steady with reduced motion).
+ * The canvas carries `data-queue-warnings` (unlinked groups marked), `data-path-glows`, `data-path-dimmed` and
+ * `data-path-focus` (the pulsing tile, or empty), written only when they change, for e2e tests. Hints only: nothing
+ * here changes which ride owns a queue or where guests can walk.
  */
 import { nodeZOf } from '../../sim/paths/nodes';
 import { nodeTile, queueComponent, queueNodeOfKey, unlinkedQueueGroups } from '../../sim/pathing/queues';
@@ -16,17 +20,20 @@ import { STEP_PX, TILE_H, TILE_W } from '../iso';
 import type { LayerFrame, WorldLayer } from '../layers';
 import type { ToolState } from '../types';
 import { mapToViewContinuous } from '../view';
-import { QUEUE_COLOURS } from './colours';
-import { createSignFit, SIGN_FONT_PX, signBoxes, signFont, signScale, type SignBox } from './sign';
+import { displayPrefs } from '../../a11y/prefs';
+import { pathMarks } from '../../sim/pathing/reach';
+import { PATH_COLOURS, QUEUE_COLOURS } from './colours';
 
 const corners: number[] = [];
-const signs: SignBox[] = [];
 
 /** Device-px corners (N, E, S, W) of path node `node`: the ground surface for a ground node, flat at `z` for a deck. */
 function nodeCorners(world: World, node: number, f: LayerFrame, out: number[]): number[] {
+  return spotCorners(world, nodeTile(world, node), nodeZOf(world, node), f, out);
+}
+
+/** Device-px corners of tile `tile` at height `z`: its ground surface when `z` is its ground height, else flat at `z`. */
+function spotCorners(world: World, tile: number, z: number, f: LayerFrame, out: number[]): number[] {
   const map = world.state.map;
-  const tile = nodeTile(world, node);
-  const z = nodeZOf(world, node);
   if (z === (map.heights[tile] as number)) return tileCorners(map, tile, f, out);
   const x = tile % map.width;
   const y = (tile - x) / map.width;
@@ -83,35 +90,7 @@ function drawBadge(ctx: CanvasRenderingContext2D, world: World, node: number, f:
   ctx.fillText('!', cx, cy + r * 0.05);
 }
 
-function drawSign(ctx: CanvasRenderingContext2D, s: SignBox, f: LayerFrame): void {
-  const k = s.fontPx / SIGN_FONT_PX;
-  // Post from the sign down to the entrance.
-  ctx.strokeStyle = QUEUE_COLOURS.signPost;
-  ctx.lineWidth = Math.max(1, 1.6 * k);
-  ctx.beginPath();
-  ctx.moveTo(s.footX, s.y + s.h);
-  ctx.lineTo(s.footX, s.footY);
-  ctx.stroke();
-  const r = Math.min(s.h / 2, 5 * k);
-  ctx.beginPath();
-  ctx.moveTo(s.x + r, s.y);
-  ctx.arcTo(s.x + s.w, s.y, s.x + s.w, s.y + s.h, r);
-  ctx.arcTo(s.x + s.w, s.y + s.h, s.x, s.y + s.h, r);
-  ctx.arcTo(s.x, s.y + s.h, s.x, s.y, r);
-  ctx.arcTo(s.x, s.y, s.x + s.w, s.y, r);
-  ctx.closePath();
-  ctx.fillStyle = QUEUE_COLOURS.sign;
-  ctx.fill();
-  ctx.lineWidth = Math.max(1, f.dpr);
-  ctx.strokeStyle = QUEUE_COLOURS.signEdge;
-  ctx.stroke();
-  ctx.fillStyle = QUEUE_COLOURS.signText;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(s.text, s.x + s.w / 2, s.y + s.h / 2 + s.fontPx * 0.06);
-}
-
-function setData(ctx: CanvasRenderingContext2D, key: 'queueSigns' | 'queueWarnings', value: string): void {
+function setData(ctx: CanvasRenderingContext2D, key: 'queueWarnings' | 'pathGlows' | 'pathDimmed' | 'pathFocus', value: string): void {
   const ds = (ctx.canvas as { dataset?: Record<string, string> } | undefined)?.dataset;
   if (ds && ds[key] !== value) ds[key] = value;
 }
@@ -138,14 +117,95 @@ function drawMarks(ctx: CanvasRenderingContext2D, world: World, tool: ToolState,
   }
 }
 
-export function createQueueLayer(): WorldLayer {
-  const fitFor = createSignFit();
+const pathToolOn = (tool: ToolState): boolean => tool.tool === 'footpath' || tool.tool === 'queue';
+
+/** Pulse phase in [0, 1] (1 Hz); a steady 1 with reduced motion. */
+function pulse(now: number): number {
+  return displayPrefs().reducedMotion ? 1 : 0.5 + 0.5 * Math.sin((now / 1000) * Math.PI * 2);
+}
+
+/** Footpaths the park entrance does not reach, dimmed and edged in dashes: ground ones under the objects, decks over them. */
+function drawDimmed(ctx: CanvasRenderingContext2D, world: World, f: LayerFrame, ground: boolean): number {
+  const dimmed = pathMarks(world).dimmed;
+  if (nodesOn(world, dimmed, ground, part).length === 0) return dimmed.length;
+  const dash = Math.max(3, 5 * f.scale);
+  for (const n of part) {
+    diamond(ctx, nodeCorners(world, n, f, corners));
+    ctx.fillStyle = PATH_COLOURS.dim;
+    ctx.fill();
+    // "Not connected": a dashed red-orange edge on a dark edge (both looks, any ground, day or night).
+    ctx.setLineDash([]);
+    ctx.lineWidth = Math.max(2.5, 4 * f.scale);
+    ctx.strokeStyle = PATH_COLOURS.cutHalo;
+    ctx.stroke();
+    ctx.setLineDash([dash, dash * 0.8]);
+    ctx.lineWidth = Math.max(1.5, 2.2 * f.scale);
+    ctx.strokeStyle = PATH_COLOURS.cut;
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  return dimmed.length;
+}
+
+/** A glowing spot: a pulsing cyan wash with a white and a cyan edge. */
+function drawGlow(ctx: CanvasRenderingContext2D, c: readonly number[], f: LayerFrame, k: number): void {
+  ctx.fillStyle = `rgba(57,208,255,${(0.3 + 0.35 * k).toFixed(2)})`;
+  diamond(ctx, c);
+  ctx.fill();
+  ctx.lineWidth = Math.max(3, 6 * f.scale);
+  ctx.strokeStyle = PATH_COLOURS.glowHalo;
+  ctx.stroke();
+  ctx.lineWidth = Math.max(2, 3 * f.scale);
+  ctx.strokeStyle = PATH_COLOURS.glow;
+  ctx.stroke();
+}
+
+/** Entrances with no queue and queue ends no footpath reaches (§4); returns how many glow. */
+function drawGlows(ctx: CanvasRenderingContext2D, world: World, f: LayerFrame, k: number): number {
+  const m = pathMarks(world);
+  for (const e of m.entrances) drawGlow(ctx, spotCorners(world, e.tile, e.z, f, corners), f, k);
+  for (const q of m.queueEnds) drawGlow(ctx, nodeCorners(world, q.node, f, corners), f, k);
+  return m.entrances.length + m.queueEnds.length;
+}
+
+/** The Show me spot (§3): a ring that swells and fades once a second; −1 when nothing draws. */
+function drawFocus(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame, now: number): number {
+  const p = tool.pathFocus;
+  const map = world.state.map;
+  if (!p || now >= p.until || !Number.isInteger(p.tile) || p.tile < 0 || p.tile >= map.width * map.height) return -1;
+  const c = spotCorners(world, p.tile, p.z, f, corners);
+  const cx = ((c[0] as number) + (c[4] as number)) / 2;
+  const cy = ((c[1] as number) + (c[5] as number)) / 2;
+  const reduced = displayPrefs().reducedMotion;
+  const t = reduced ? 0 : (now % 1000) / 1000;
+  ctx.fillStyle = 'rgba(255,210,63,0.35)';
+  diamond(ctx, c);
+  ctx.fill();
+  for (const grow of reduced ? [1.25] : [1 + t * 0.9, 1 + ((t + 0.5) % 1) * 0.9]) {
+    const ring = c.map((v, i) => (i % 2 === 0 ? cx + (v - cx) * grow : cy + (v - cy) * grow));
+    ctx.globalAlpha = reduced ? 1 : Math.max(0, 1 - (grow - 1) / 0.9);
+    diamond(ctx, ring);
+    ctx.lineWidth = Math.max(3, 6 * f.scale);
+    ctx.strokeStyle = PATH_COLOURS.focusHalo;
+    ctx.stroke();
+    ctx.lineWidth = Math.max(2, 3.5 * f.scale);
+    ctx.strokeStyle = PATH_COLOURS.focus;
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  return p.tile;
+}
+
+/** `now`: the clock of the Show me pulse (ms, the `performance.now()` clock `pathFocus.until` uses). */
+export function createQueueLayer(now: () => number = () => performance.now()): WorldLayer {
   return {
     name: 'queues',
     kinds: [],
     // Ground queues are marked before the objects, so the guests standing in the line stay untinted on top.
     drawGround(ctx: CanvasRenderingContext2D, world: World, tool: ToolState, f: LayerFrame): void {
       ctx.save();
+      // Path clarity §4: cut-off footpaths dim on the ground, under guests and objects.
+      if (pathToolOn(tool)) drawDimmed(ctx, world, f, true);
       drawMarks(ctx, world, tool, f, true);
       ctx.restore();
     },
@@ -160,13 +220,18 @@ export function createQueueLayer(): WorldLayer {
         marked = groups.length;
       }
       setData(ctx, 'queueWarnings', String(marked));
-      const zoom = f.scale / f.dpr;
-      // The font depends only on the zoom: set it once; text fits are measured once per name, zoom step and font.
-      const font = signFont(SIGN_FONT_PX * signScale(zoom) * f.dpr);
-      ctx.font = font;
-      signBoxes(world, f, fitFor((s) => ctx.measureText(s).width, font), signs);
-      for (const s of signs) drawSign(ctx, s, f);
-      setData(ctx, 'queueSigns', signs.map((s) => s.text).join('|'));
+      // Path clarity §3–4: dimmed decks, then the glows, then the Show me spot on top.
+      let glows = 0;
+      let dimmed = 0;
+      const t = now();
+      if (pathToolOn(tool)) {
+        dimmed = drawDimmed(ctx, world, f, false);
+        glows = drawGlows(ctx, world, f, pulse(t));
+      }
+      setData(ctx, 'pathGlows', String(glows));
+      setData(ctx, 'pathDimmed', String(dimmed));
+      const focus = drawFocus(ctx, world, tool, f, t);
+      setData(ctx, 'pathFocus', focus < 0 ? '' : String(focus));
       ctx.restore();
     },
   };

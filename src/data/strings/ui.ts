@@ -83,7 +83,6 @@ export const uiStrings: Record<string, string> = {
   'ui.ride.income': 'Income this month',
   'ui.ride.incomeTotal': 'Income in total',
   'ui.ride.warnings': 'Warnings',
-  'ui.ride.entranceQueue': 'The entrance needs a queue path',
   'ui.ride.exitPath': 'The exit needs a footpath',
   'ui.stall.price': 'Stall price',
   'ui.stall.kind': 'Type',

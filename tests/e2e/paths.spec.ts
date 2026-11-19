@@ -109,7 +109,9 @@ test('desktop: Page Up sets the path height, a Shift-drag builds an elevated lin
   ]);
   // $10 + 2 m of support at $2 each, per tile.
   expect(await page.evaluate(() => (window as unknown as TcWindow).__tc.world.state.park.cash)).toBe(cash - 4 * 1_400);
-  // The deck draws in the footpath colour at its height.
+  // The deck draws in the footpath colour at its height. (While a path tool is on it is dimmed: path clarity marks a
+  // footpath the park entrance does not reach, and this one stands alone; so leave the tool first.)
+  await page.getByTestId('path-done').click();
   await page.mouse.move(10, 10);
   await page.waitForTimeout(150);
   const [r, g, b] = await pixelAt(page, await pointOf(page, 25, 30, 10));

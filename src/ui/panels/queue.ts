@@ -5,6 +5,7 @@ import { h, setText } from '../dom';
 import { warningList } from '../widgets';
 import { queueNodeOfKey } from '../../sim/pathing/queues';
 import { queueCard, resolveQueueCard } from './queueCard';
+import { createReachStatus } from '../rides/reachStatus';
 
 /** `key`: a `queueKey` (tile and layer), stable while elevated paths come and go; the card closes when it stops resolving. */
 export function createQueuePanel(ctx: UiContext, key: number): PanelView {
@@ -13,6 +14,8 @@ export function createQueuePanel(ctx: UiContext, key: number): PanelView {
   const first = node0 < 0 ? null : queueCard(game.world, node0);
   const owner = first?.rideId ?? null;
   let rideId = owner;
+  // Path clarity: the owning ride's reach status (the same line as its panel). The owner never changes while open.
+  const reach = owner === null ? null : createReachStatus(ctx, owner);
   const count = h('p', { class: 'queue-count', 'data-testid': 'queue-count' });
   const warnings = warningList();
   const open = h('button', {
@@ -25,7 +28,7 @@ export function createQueuePanel(ctx: UiContext, key: number): PanelView {
     },
   });
   // Count and Open ride first, on one row where they fit, so a short card (phone peek, landscape) shows them unscrolled.
-  const body = h('div', { class: 'panel-content queue-card', 'data-testid': 'queue-card' }, h('div', { class: 'queue-head' }, count, open), warnings.el);
+  const body = h('div', { class: 'panel-content queue-card', 'data-testid': 'queue-card' }, h('div', { class: 'queue-head' }, count, open), ...(reach ? [reach.el] : []), warnings.el);
   return {
     kind: 'queue',
     id: key,
@@ -43,6 +46,7 @@ export function createQueuePanel(ctx: UiContext, key: number): PanelView {
       count.hidden = card.count === null;
       open.hidden = card.rideId === null;
       warnings.set(card.lines);
+      reach?.update();
       return true;
     },
   };

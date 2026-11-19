@@ -5,10 +5,10 @@ import { PARK_NAME_MAX, validateParkName } from '../../../src/ui/names';
 import { en } from '../../../src/data/strings/en';
 
 describe('ride and stall warnings (shown until fixed)', () => {
-  it('a ride without a queue at the entrance and a footpath at the exit shows both warnings', () => {
+  it('a ride without a footpath at the exit warns (the entrance queue is in the reach status line)', () => {
     const w = makeTestWorld();
     const ride = placeRideDirect(w, 'carousel', 10, 10, 0);
-    expect(rideWarnings(w, ride)).toEqual(['The entrance needs a queue path', 'The exit needs a footpath']);
+    expect(rideWarnings(w, ride)).toEqual(['The exit needs a footpath']);
     // Rotation 0: the front faces south; the entrance gate is (11, 12), outside (11, 13); exit outside (11, 9).
     placeQueue(w, 11, 13);
     expect(rideWarnings(w, ride)).toEqual(['The exit needs a footpath']);
