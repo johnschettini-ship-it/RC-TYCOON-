@@ -90,10 +90,11 @@ button { font: inherit; color: inherit; }
   padding: calc(8px + var(--safe-top)) calc(10px + var(--safe-right)) 8px calc(10px + var(--safe-left));
   display: grid;
   align-items: start;
-  gap: 8px;
+  justify-content: space-between;
+  gap: 8px 12px;
   pointer-events: none;
-  /* Desktop: status pill | mood slot | controls over the chip row. */
-  grid-template-columns: minmax(0, 1fr) clamp(280px, 40vw, 400px) minmax(320px, 1fr);
+  /* Desktop: status pill | flexible mood slot | controls over the chip row. */
+  grid-template-columns: auto minmax(80px, 1fr) auto;
   grid-template-areas: 'status mood controls' '. . day';
 }
 .pill {
@@ -109,14 +110,15 @@ button { font: inherit; color: inherit; }
   max-width: 100%;
   min-height: calc(var(--touch) + 6px);
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 4px 16px;
-  padding: 6px 16px;
+  gap: 4px 14px;
+  padding: 6px 14px;
   text-align: left;
   background: var(--surface);
   border-radius: var(--radius-surface);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .status-pill:hover { background: var(--surface-3); }
 .hud-field { display: inline-flex; flex-direction: column; min-width: 0; }
@@ -126,7 +128,7 @@ button { font: inherit; color: inherit; }
 .hud-field .icon { display: none; width: 18px; height: 18px; color: var(--muted-ink); }
 .hud-field-rating .icon { color: var(--ink); }
 .hud-name { font-weight: 700; font-size: calc(15px * var(--ts, 1)); max-width: calc(220px * var(--ts, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-mood { grid-area: mood; justify-self: stretch; min-width: 0; }
+.hud-mood { grid-area: mood; justify-self: center; width: 100%; max-width: 380px; min-width: 0; }
 /* Mood bar (Phase 7 §4.3): a 44 px plate (100% text) with three segments and a knot. The lean text is in the name and
    the title; the percentages show on the desktop only and grow with the text, as does the track. The mascot faces at
    its ends were removed (Task 23): the track takes their width. */
@@ -348,8 +350,10 @@ button { font: inherit; color: inherit; }
   max-width: none;
   margin: 0;
   transform: none;
-  padding: 0 10px;
+  padding: 0 8px;
   border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  overflow: hidden;
 }
 #ui[data-layout='side']:has(.panel[data-layout='side']:not([hidden])) .hand {
   left: calc(310px + var(--safe-left));
@@ -371,7 +375,7 @@ button { font: inherit; color: inherit; }
   box-shadow: none;
 }
 .hand-scroll {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
@@ -380,11 +384,31 @@ button { font: inherit; color: inherit; }
   touch-action: pan-x;
 }
 .hand-scroll::-webkit-scrollbar { display: none; }
-/* Cards centre while they fit and scroll from the first card when they do not. The zone groups, and the cards in them,
-   are as high as the highest card (Task 18): a card is never shorter than its size, and grows only when its text needs
-   the room (large text, high contrast). */
-.hand-cards { display: flex; align-items: stretch; gap: 8px; width: max-content; margin: 0 auto; padding: calc(var(--card-lift, 12px) + 6px) 8px 8px; }
-.hand-arrow { flex: none; padding: 0; border-radius: 50%; background: var(--surface-2); }
+/* Cards align from the start and scroll smoothly across the dynamic tray width. */
+.hand-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: max-content;
+  min-width: 100%;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  margin: 0;
+  padding: calc(var(--card-lift, 12px) + 6px) 8px 8px;
+}
+.hand-arrow {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--surface-2);
+  display: inline-grid;
+  place-items: center;
+  z-index: 2;
+}
 .card-wrap { position: relative; flex: none; display: flex; flex-direction: column; transition: transform 120ms ease-out; }
 .card-wrap > .card { flex: 1 0 auto; }
 /* A card outside the zone groups (the Shows tool card of the Rides deck, the cards of a tool deck) keeps its own height. */
@@ -684,12 +708,12 @@ button { font: inherit; color: inherit; }
 }
 .panel[data-layout='side'] {
   top: calc(var(--hud-bottom) + 10px);
-  bottom: calc(10px + var(--safe-bottom));
   left: calc(10px + var(--safe-left));
   right: auto;
   width: 290px;
-  max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom));
+  max-height: calc(100vh - var(--hud-bottom) - 20px - var(--safe-bottom));
   border-radius: var(--radius-surface);
+  box-sizing: border-box;
 }
 .panel[data-layout='bottom'] {
   left: 0; right: 0;
@@ -719,9 +743,30 @@ button { font: inherit; color: inherit; }
 }
 .panel-header { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-bottom: var(--control-outline); flex: none; }
 .panel-title { margin: 0; font-size: calc(17px * var(--ts, 1)); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.panel-body { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; }
-.panel-content { padding: 6px 14px 14px; display: flex; flex-direction: column; gap: 4px; }
-.panel-section { padding: 8px 0; border-bottom: 1px solid var(--rule); display: flex; flex-direction: column; gap: 6px; }
+.panel-body {
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-ink) transparent;
+}
+.panel-body::-webkit-scrollbar {
+  width: 5px;
+}
+.panel-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.panel-body::-webkit-scrollbar-thumb {
+  background: var(--muted-ink);
+  border-radius: 999px;
+}
+.panel-body::-webkit-scrollbar-thumb:hover {
+  background: var(--ink);
+}
+.panel-content { padding: 6px 12px 10px; display: flex; flex-direction: column; gap: 3px; }
+.panel-section { padding: 6px 0; border-bottom: 1px solid var(--rule); display: flex; flex-direction: column; gap: 4px; }
 .panel-section:last-child { border-bottom: 0; }
 .section-title { margin: 0; font-size: calc(12px * var(--ts, 1)); text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-ink); }
 .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 26px; }
@@ -765,7 +810,7 @@ button { font: inherit; color: inherit; }
 /* Desktop: a details panel that does not fit above the hand (the UI measures it and sets `data-details="tall"`) runs to
    the bottom of the screen, and the hand ends at its left edge: it sits between the deck list and the panel, as the
    tool status bar does. A hand that fills this space keeps its left edge, so its cards do not move. */
-#ui[data-details='tall'] .panel[data-layout='side'] { max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom)); }
+#ui[data-details='tall'] .panel[data-layout='side'] { max-height: calc(100vh - var(--hud-bottom) - 20px - var(--safe-bottom)); }
 #ui[data-layout='side'][data-details='tall'] .hand {
   left: calc(310px + var(--safe-left));
   right: calc(var(--deck-w) + 20px + var(--safe-right));

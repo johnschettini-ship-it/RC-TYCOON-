@@ -141,8 +141,8 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
     showPlace,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
     section(null, price.el),
-    maintenance.el,
     section(text('ui.ride.ratings'), bars.excitement.el, bars.intensity.el, bars.nausea.el, noRatings),
+    maintenance.el,
     section(null, queue.el, riding.el, riders.el, ridersTotal.el, income.el, incomeTotal.el, throughput.el),
   );
 
