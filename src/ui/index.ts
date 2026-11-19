@@ -297,6 +297,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
       const pr = panels.el.getBoundingClientRect();
       if (pr.width >= vw * 0.6) r.bottom = Math.min(r.bottom, pr.top);
       else if (pr.left > vw / 2) r.right = Math.min(r.right, pr.left);
+      else r.left = Math.max(r.left, pr.right);
     }
     if (r.bottom <= r.top) r.bottom = r.top + 1;
     return r;
