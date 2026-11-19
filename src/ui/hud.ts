@@ -26,7 +26,7 @@ import { UI_EXTENSIONS, type MenuItem } from './extensions';
 
 const SPEEDS: readonly Speed[] = [0, 1, 2, 4];
 
-export function createHud(ctx: UiContext, openMenu: (extra: readonly MenuItem[]) => void): { el: HTMLElement; moodSlot: HTMLElement; update(now: number): void } {
+export function createHud(ctx: UiContext, openMenu: (extra: readonly MenuItem[]) => void): { el: HTMLElement; statusPill: HTMLElement; moodSlot: HTMLElement; update(now: number): void } {
   const { game } = ctx;
 
   // Status pill: one button that opens the Park panel. A hidden field is `hidden`, not removed.
@@ -220,6 +220,7 @@ export function createHud(ctx: UiContext, openMenu: (extra: readonly MenuItem[])
 
   return {
     el,
+    statusPill,
     moodSlot,
     update(now: number) {
       const s = game.world.state;

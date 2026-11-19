@@ -306,6 +306,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   // region is the hand on desktop (0 when closed) and the chip row with the hand on the phone.
   const measure = (): void => {
     root.style.setProperty('--hud-bottom', `${Math.ceil(hud.el.getBoundingClientRect().bottom)}px`);
+    root.style.setProperty('--status-bottom', `${Math.ceil(hud.statusPill.getBoundingClientRect().bottom)}px`);
     const tops: number[] = [];
     if (!decks.hand.hidden) tops.push(decks.hand.getBoundingClientRect().top);
     if (root.dataset.layout === 'bottom' && !decks.list.hidden) tops.push(decks.list.getBoundingClientRect().top);
@@ -321,6 +322,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(measure);
     ro.observe(hud.el);
+    ro.observe(hud.statusPill);
     ro.observe(decks.list);
     ro.observe(decks.hand);
     // The path height bar sits above the tool status bar at its real height (it grows with the text scale).
