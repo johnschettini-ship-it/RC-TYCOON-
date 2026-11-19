@@ -286,7 +286,8 @@ button { font: inherit; color: inherit; }
 .deck-divider { flex: none; background: var(--muted-ink); border-radius: 2px; }
 #ui[data-layout='side'] .deck-list {
   top: calc(var(--hud-bottom) + 10px);
-  left: calc(10px + var(--safe-left));
+  right: calc(10px + var(--safe-right));
+  left: auto;
   width: var(--deck-w);
   max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom));
   overflow-y: auto;
@@ -328,8 +329,8 @@ button { font: inherit; color: inherit; }
   /* Tool cards are smaller than ride and stall cards, so the bars above the hand keep the middle of the map free. */
   --card-w: calc(92px * min(var(--ts, 1), 1.5));
   --card-h: calc(110px * min(var(--ts, 1), 1.5));
-  --content-w: calc(112px * min(var(--ts, 1), 1.5));
-  --content-h: calc(152px * min(var(--ts, 1), 1.5));
+  --content-w: calc(118px * min(var(--ts, 1), 1.5));
+  --content-h: calc(158px * min(var(--ts, 1), 1.5));
   position: absolute;
   pointer-events: auto;
   display: flex;
@@ -340,12 +341,23 @@ button { font: inherit; color: inherit; }
   box-shadow: var(--shadow);
 }
 #ui[data-layout='side'] .hand {
-  left: 50%;
-  transform: translateX(-50%);
+  left: calc(20px + var(--safe-left));
+  right: calc(var(--deck-w) + 20px + var(--safe-right));
   bottom: calc(10px + var(--safe-bottom));
-  max-width: calc(100% - 2 * (var(--deck-w) + 30px + var(--safe-left)));
-  padding: 0 8px;
+  width: fit-content;
+  max-width: calc(100% - var(--deck-w) - 40px - var(--safe-left) - var(--safe-right));
+  margin: 0 auto;
+  transform: none;
+  padding: 0 10px;
   border-radius: var(--radius-surface);
+}
+#ui[data-layout='side']:has(.panel[data-layout='side']:not([hidden])) .hand {
+  left: calc(380px + var(--safe-left));
+  right: calc(var(--deck-w) + 20px + var(--safe-right));
+  width: fit-content;
+  max-width: calc(100% - var(--deck-w) - 400px - var(--safe-left) - var(--safe-right));
+  margin: 0 auto;
+  transform: none;
 }
 #ui[data-layout='bottom'] .hand {
   --card-w: calc(82px * min(var(--ts, 1), 1.5));
@@ -645,8 +657,8 @@ button { font: inherit; color: inherit; }
 }
 /* Desktop with a side panel open: the bubble centres between the deck list and the panel. */
 #ui[data-layout='side']:has(.panel[data-layout='side']:not([hidden])) .tip-bubble {
-  left: calc(var(--deck-w) + 20px + var(--safe-left));
-  right: calc(380px + var(--safe-right));
+  left: calc(380px + var(--safe-left));
+  right: calc(var(--deck-w) + 20px + var(--safe-right));
   max-width: min(420px, calc(100% - var(--deck-w) - 400px - var(--safe-left) - var(--safe-right)));
   margin: 0 auto;
   transform: none;
@@ -672,7 +684,8 @@ button { font: inherit; color: inherit; }
 }
 .panel[data-layout='side'] {
   top: calc(var(--hud-bottom) + 10px);
-  right: calc(10px + var(--safe-right));
+  left: calc(10px + var(--safe-left));
+  right: auto;
   width: 360px;
   max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px - var(--safe-bottom));
   border-radius: var(--radius-surface);
@@ -737,15 +750,15 @@ button { font: inherit; color: inherit; }
 /* Desktop: the bars of the held card keep clear of the open details panel. The tool status bar centres between the deck
    list and the panel; the station builder of a held track card sits next to the deck list. */
 #ui[data-layout='side']:has(.panel[data-kind='cardDetails']:not([hidden])) .tool-status {
-  left: calc(var(--deck-w) + 20px + var(--safe-left));
-  right: calc(380px + var(--safe-right));
+  left: calc(380px + var(--safe-left));
+  right: calc(var(--deck-w) + 20px + var(--safe-right));
   width: fit-content;
   margin: 0 auto;
   transform: none;
 }
 #ui[data-layout='side']:has(.panel[data-kind='cardDetails']:not([hidden])) .track-builder {
-  left: calc(var(--deck-w) + 20px + var(--safe-left));
-  right: auto;
+  left: calc(380px + var(--safe-left));
+  right: calc(var(--deck-w) + 20px + var(--safe-right));
   max-width: calc(100% - var(--deck-w) - 410px - var(--safe-left) - var(--safe-right));
 }
 /* Desktop: a details panel that does not fit above the hand (the UI measures it and sets `data-details="tall"`) runs to
@@ -753,8 +766,8 @@ button { font: inherit; color: inherit; }
    tool status bar does. A hand that fills this space keeps its left edge, so its cards do not move. */
 #ui[data-details='tall'] .panel[data-layout='side'] { max-height: calc(100% - var(--hud-bottom) - 20px - var(--safe-bottom)); }
 #ui[data-layout='side'][data-details='tall'] .hand {
-  left: calc(var(--deck-w) + 30px + var(--safe-left));
-  right: calc(380px + var(--safe-right));
+  left: calc(380px + var(--safe-left));
+  right: calc(var(--deck-w) + 20px + var(--safe-right));
   width: fit-content;
   max-width: calc(100% - var(--deck-w) - 410px - var(--safe-left) - var(--safe-right));
   margin: 0 auto;

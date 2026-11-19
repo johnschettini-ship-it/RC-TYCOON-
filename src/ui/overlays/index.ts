@@ -37,7 +37,7 @@ function coarsePointer(): boolean {
 const STYLE_ID = 'tc-overlay-styles';
 const CSS = `
 .tc-overlay-card { position: absolute; pointer-events: none; display: flex; flex-direction: column; gap: 8px; max-width: min(300px, calc(100% - 20px)); }
-#ui[data-layout='side'] .tc-overlay-card { left: calc(var(--deck-w) + 30px + var(--safe-left)); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
+#ui[data-layout='side'] .tc-overlay-card { left: calc(30px + var(--safe-left)); bottom: calc(max(var(--toolbar-space), var(--safe-bottom)) + 16px); }
 #ui[data-layout='bottom'] .tc-overlay-card { right: calc(8px + var(--safe-right)); top: calc(var(--hud-bottom) + 8px); max-width: min(260px, calc(100% - 16px)); }
 .tc-overlay-box { pointer-events: auto; background: var(--surface); border: var(--outline); border-radius: var(--radius-surface); box-shadow: var(--shadow); padding: 8px 10px; }
 .tc-overlay-chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
