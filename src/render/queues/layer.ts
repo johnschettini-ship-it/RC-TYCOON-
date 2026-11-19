@@ -141,10 +141,10 @@ function drawGlow(ctx: CanvasRenderingContext2D, c: readonly number[], f: LayerF
   ctx.fillStyle = `rgba(57,208,255,${(0.3 + 0.35 * k).toFixed(2)})`;
   diamond(ctx, c);
   ctx.fill();
-  ctx.lineWidth = Math.max(2, 4 * f.scale);
+  ctx.lineWidth = Math.max(3, 6 * f.scale);
   ctx.strokeStyle = PATH_COLOURS.glowHalo;
   ctx.stroke();
-  ctx.lineWidth = Math.max(1, 2 * f.scale);
+  ctx.lineWidth = Math.max(2, 3 * f.scale);
   ctx.strokeStyle = PATH_COLOURS.glow;
   ctx.stroke();
 }
@@ -174,10 +174,10 @@ function drawFocus(ctx: CanvasRenderingContext2D, world: World, tool: ToolState,
     const ring = c.map((v, i) => (i % 2 === 0 ? cx + (v - cx) * grow : cy + (v - cy) * grow));
     ctx.globalAlpha = reduced ? 1 : Math.max(0, 1 - (grow - 1) / 0.9);
     diamond(ctx, ring);
-    ctx.lineWidth = Math.max(2, 3 * f.scale);
+    ctx.lineWidth = Math.max(3, 6 * f.scale);
     ctx.strokeStyle = PATH_COLOURS.focusHalo;
     ctx.stroke();
-    ctx.lineWidth = Math.max(1.5, 2 * f.scale);
+    ctx.lineWidth = Math.max(2, 3.5 * f.scale);
     ctx.strokeStyle = PATH_COLOURS.focus;
     ctx.stroke();
   }

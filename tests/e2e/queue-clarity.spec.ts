@@ -167,10 +167,13 @@ test.describe('queue clarity', () => {
     // On the phone the card opens low (peek), so the highlighted line stays in view above it.
     if (phone) {
       await expect(page.locator('.panel')).toHaveAttribute('data-sheet', 'peek');
-      // The low sheet is no taller than its content: no empty band under Open ride.
+      // The low sheet is no taller than its content: no empty band under its last row (the ride's reach status, path
+      // clarity), and Open ride shows above it.
       const panel = await page.locator('.panel').boundingBox();
+      const last = await page.getByTestId('reach-status').boundingBox();
       const button = await page.getByTestId('queue-open-ride').boundingBox();
-      expect(panel && button && panel.y + panel.height - (button.y + button.height), 'space under Open ride').toBeLessThan(40);
+      expect(panel && last && panel.y + panel.height - (last.y + last.height), 'space under the last row').toBeLessThan(40);
+      expect(panel && button && button.y + button.height <= panel.y + panel.height, 'Open ride inside the card').toBe(true);
     }
     await shot(page, 'tap-card', phone);
     await scan(page, 'queue card open');
