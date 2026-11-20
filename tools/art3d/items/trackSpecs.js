@@ -4,8 +4,9 @@
 import { SPEC as steel_coaster } from './steel_coaster.js';
 import { SPEC as bobsled_run } from './bobsled_run.js';
 import { SPEC as launch_coaster } from './launch_coaster.js';
+import { SPEC as mine_train } from './mine_train.js';
 
-export const TRACK_SPECS = { steel_coaster, bobsled_run, launch_coaster };
+export const TRACK_SPECS = { steel_coaster, bobsled_run, launch_coaster, mine_train };
 
 /**
  * The spec a type is measured with: its own, or, for a type whose module is not written yet, the steel coaster's (its

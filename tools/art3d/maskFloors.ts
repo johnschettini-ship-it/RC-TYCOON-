@@ -24,12 +24,17 @@ export const MASK_COVERAGE_MEASURED: Readonly<Record<string, number>> = {
  *   rail@bobsled_run  0.443  the trough's ice lining never takes the track colour (every rail frame masked)
  *   car~*@launch_coaster      the launch car's tall dark seat backs, white side stripes and open chassis: base 0.502,
  *                             turn 0.493, bank 0.473, loop 0.480, cork 0.478, helix 0.481
+ *   rail@mine_train   0.246  the timber sleepers and stringers never take the track colour (every rail frame masked)
+ *   car~*@mine_train          the ore cart's timber rim, benches and dark chassis: base 0.518, turn 0.512, bank 0.507,
+ *                             helix 0.514
  */
 function TYPE_MEASURED(): Record<string, number> {
   return {
     'rail@bobsled_run': 0.443,
     'car~base@launch_coaster': 0.502, 'car~turn@launch_coaster': 0.493, 'car~bank@launch_coaster': 0.473,
     'car~loop@launch_coaster': 0.48, 'car~cork@launch_coaster': 0.478, 'car~helix@launch_coaster': 0.481,
+    'rail@mine_train': 0.246,
+    'car~base@mine_train': 0.518, 'car~turn@mine_train': 0.512, 'car~bank@mine_train': 0.507, 'car~helix@mine_train': 0.514,
   };
 }
 

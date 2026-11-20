@@ -34,6 +34,7 @@ export const TRACK_TYPES = [
   { type: 'steel_coaster', file: 'items/steel_coaster.js' },
   { type: 'bobsled_run', file: 'items/bobsled_run.js' },
   { type: 'launch_coaster', file: 'items/launch_coaster.js' },
+  { type: 'mine_train', file: 'items/mine_train.js' },
 ];
 
 /**
@@ -50,6 +51,7 @@ export const CARD_ITEMS = [
   { id: 'steel_coaster', kind: 'track' },
   { id: 'bobsled_run', kind: 'track' },
   { id: 'launch_coaster', kind: 'track' },
+  { id: 'mine_train', kind: 'track' },
   { id: 'teacup_twirl', kind: 'ride' },
   { id: 'rocket_rounds', kind: 'ride' },
   { id: 'kiddie_cars', kind: 'ride' },

@@ -18,6 +18,7 @@ const BAKED = [
   'steel_coaster',
   'bobsled_run',
   'launch_coaster',
+  'mine_train',
   'teacup_twirl', 'rocket_rounds', 'kiddie_cars', 'merry_mill',
   'pendulum_ship', 'magic_carpet', 'flip_arm',
   'bumper_cars', 'mirror_maze', 'haunted_manor', 'thunder_disc',

@@ -24,6 +24,7 @@ interface RailFrame { piece: string; key: string; alpha: boolean }
 const TYPES = [
   { type: 'bobsled_run', masked: true, signature: 'helix_left_down', maskedPieces: [] },
   { type: 'launch_coaster', masked: false, signature: 'launch', maskedPieces: ['launch', 'station', 'brakes', 'block_brake'] },
+  { type: 'mine_train', masked: true, signature: 'helix_right_down', maskedPieces: [] },
 ] as const;
 
 describe.each(TYPES)('$type on the track kit', ({ type, masked, signature, maskedPieces }) => {
@@ -81,11 +82,15 @@ describe('mask coverage floors of a type with untinted parts by design', () => {
     expect(coverageKind({ kind: 'rail', item: 'steel_coaster~helix' })).toBe('rail');
     expect(coverageKind({ kind: 'car', item: 'bobsled_run~bank' })).toBe('car~bank');
   });
-  it('the launch car (tall dark seat backs, white stripes) is measured against its own floor per class', () => {
-    for (const c of trackGeometry('launch_coaster').classes.filter((x) => x.poses.length)) {
-      const k = `car~${c.cls}@launch_coaster`;
-      expect(coverageKind({ kind: 'car', item: `launch_coaster~${c.cls}` }), c.cls).toBe(k);
+  it.each(['launch_coaster', 'mine_train'])('the %s car is measured against its own floor per class', (type) => {
+    for (const c of trackGeometry(type).classes.filter((x) => x.poses.length)) {
+      const k = `car~${c.cls}@${type}`;
+      expect(coverageKind({ kind: 'car', item: `${type}~${c.cls}` }), c.cls).toBe(k);
       expect(MASK_COVERAGE_FLOOR[k], k).toBe(floorOf(MASK_COVERAGE_MEASURED[k]!));
     }
+  });
+  it('the mine train\'s rails (timber sleepers and stringers) are measured against their own floor', () => {
+    expect(coverageKind({ kind: 'rail', item: 'mine_train~base' })).toBe('rail@mine_train');
+    expect(MASK_COVERAGE_FLOOR['rail@mine_train']).toBe(floorOf(MASK_COVERAGE_MEASURED['rail@mine_train']!));
   });
 });
