@@ -180,8 +180,8 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
   expect(ride.height).toBeLessThanOrEqual(phone ? 139 : 165);
   const hand = await boxOf(page, '[data-testid="hand"]');
   expect(hand.height, 'hand height').toBeLessThanOrEqual(phone ? 199 : 232);
-  // All ride cards of the deck keep one height.
-  const heights = await page.evaluate(() => [...new Set([...document.querySelectorAll('.card.content-card')].map((c) => c.getBoundingClientRect().height))]);
+  // All ride cards of the deck keep one height (to 0.01 px: layout can differ by a float rounding step, 158 vs 158.00006).
+  const heights = await page.evaluate(() => [...new Set([...document.querySelectorAll('.card.content-card')].map((c) => Math.round(c.getBoundingClientRect().height * 100) / 100))]);
   expect(heights).toHaveLength(1);
   if (!phone) {
     // Desktop: every name fits one line, and no picture is a thin strip (at least 0.3 × 152 px, the picture of a card
