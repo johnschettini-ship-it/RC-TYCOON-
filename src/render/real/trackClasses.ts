@@ -41,7 +41,7 @@ export function railSplitClass(pieceId: string): string {
   return `${cls}.${i % 2}`;
 }
 
-/** Whether a set's class name is a class or a class's half (`<class>.0`, `<class>.1`). */
+/** Whether a set's class name is a class or a class's half (`<class>.0`, `<class>.1`: rails railSplitClass, cars carSplitClass). */
 export function isRailSetClass(name: string): boolean {
   const m = /^(\w+)(?:\.([01]))?$/.exec(name);
   return !!m && (TRACK_CLASSES as readonly string[]).includes(m[1] as string);
@@ -66,6 +66,19 @@ export const poseCode = (yaw: number, pitch: number, roll: number): number => (y
 export function carQuadrant(yawStep: number): 0 | 1 | 2 | 3 {
   const y = ((Math.round(yawStep) % CAR_YAW_STEPS) + CAR_YAW_STEPS) % CAR_YAW_STEPS;
   return (Math.floor(((y + CAR_YAW_STEPS / 8) % CAR_YAW_STEPS) / (CAR_YAW_STEPS / 4)) & 3) as 0 | 1 | 2 | 3;
+}
+
+/**
+ * A car class's half (after batch 5 Task 7: once the hold-out ground stopped cutting cars, the steel coaster's cork car
+ * sets were 8.0-8.6 MiB per quadrant at d4): `<class>.0` for the first 4 yaw steps of its quadrant (`carQuadrant`),
+ * `<class>.1` for the last 4 (a car facing a heading is step 4 of its quadrant: half 1). Like rail halves, opt-in per
+ * type and class by the bake (spec `splitCarClasses`); the reader and the scope ask for the half and get the whole
+ * class when the art has no halves (look/core.ts classRec).
+ */
+export function carSplitClass(cls: string, yawStep: number): string {
+  const y = ((Math.round(yawStep) % CAR_YAW_STEPS) + CAR_YAW_STEPS) % CAR_YAW_STEPS;
+  const off = (y + CAR_YAW_STEPS / 8) % (CAR_YAW_STEPS / 4); // 0-7 within its quadrant
+  return `${cls}.${off < CAR_YAW_STEPS / 8 ? 0 : 1}`;
 }
 
 const codesByPieceDir = new Map<string, number[]>();
@@ -185,3 +198,32 @@ export function carSetsOf(typeId: string, pieces: Iterable<{ defId: string; dir:
   return out;
 }
 
+
+/**
+ * `carSetsOf` by car class half (`carSplitClass`): `<class>.<k>` → the world yaw quadrants its built pieces' poses
+ * reach. The scope wants these; a half the art does not split resolves to its whole class (the same set).
+ */
+export function carHalfSetsOf(typeId: string, pieces: Iterable<{ defId: string; dir: number }>): Map<string, Set<number>> {
+  const m = poseClasses(typeId);
+  const spins = getTrackTypeDef(typeId)?.vehicle.spins === true;
+  const out = new Map<string, Set<number>>();
+  const add = (code: number): void => {
+    const yaw = Math.floor(code / (CAR_TILT_STEPS * CAR_TILT_STEPS));
+    const k = carSplitClass(m.get(code) ?? 'base', yaw);
+    let set = out.get(k);
+    if (!set) out.set(k, (set = new Set()));
+    set.add(carQuadrant(yaw));
+  };
+  const seen = new Set<string>();
+  for (const p of pieces) {
+    const k = `${p.defId}/${p.dir & 3}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    for (const c of piecePoseCodesAt(p.defId, p.dir)) {
+      if (!spins) { add(c); continue; }
+      const tilt = c % (CAR_TILT_STEPS * CAR_TILT_STEPS);
+      for (let y = 0; y < CAR_YAW_STEPS; y++) add(y * CAR_TILT_STEPS * CAR_TILT_STEPS + tilt);
+    }
+  }
+  return out;
+}

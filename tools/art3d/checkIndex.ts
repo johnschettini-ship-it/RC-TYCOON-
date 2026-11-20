@@ -8,7 +8,7 @@ import { checkCoverFolder, checkTitleIndex, type TitleFiles } from './titleIndex
 import { carPoses, hasFrontCar } from './poses';
 import { railTileRanges, typePieces } from './sizeReport';
 import { trackTypeOfItem } from './trackBudget';
-import { TRACK_CLASSES, carQuadrant, isRailSetClass, pieceClass, poseClassOf, poseCode, railSplitClass } from '../../src/render/real/trackClasses';
+import { carQuadrant, carSplitClass, isRailSetClass, pieceClass, poseClassOf, poseCode, railSplitClass } from '../../src/render/real/trackClasses';
 import { getTrackPieceDef } from '../../src/data/track';
 
 const MAX_SHEET = 2048;
@@ -74,8 +74,8 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
   for (const set of index.sets) {
     const cls = set.item.includes('~') ? set.item.slice(set.item.indexOf('~') + 1) : null;
     if (cls !== null && (set.kind !== 'rail' && set.kind !== 'car')) problems.push(`${set.key}: only rail and car sets have track classes`);
-    // (a rail set may hold a class's half, `<class>.<k>`: trackClasses.ts railSplitClass)
-    if (cls !== null && !(set.kind === 'rail' ? isRailSetClass(cls) : (TRACK_CLASSES as readonly string[]).includes(cls))) problems.push(`${set.key}: unknown track class '${cls}'`);
+    // (a set may hold a class's half, `<class>.<k>`: trackClasses.ts railSplitClass, carSplitClass)
+    if (cls !== null && !isRailSetClass(cls)) problems.push(`${set.key}: unknown track class '${cls}'`);
     // Never tint station decks, brake fins or water (review fix): their frames sit on a masked sheet.
     if (set.kind === 'rail') {
       const alphaSheets = new Set(set.sheets.filter((s) => s.tint === 'alpha').map((s) => s.file));
@@ -237,11 +237,19 @@ export function trackComplete(index: RealIndex): string[] {
       const half = `${type}~${railSplitClass(pc)}`;
       return railItems.has(half) ? half : `${type}~${pieceClass(pc)}`;
     };
-    for (const it of railItems) {
-      const m = /~(\w+)\.\d$/.exec(it);
-      if (m && railItems.has(`${type}~${m[1]}`)) problems.push(`TRACK_COMPLETE rail:${type}~${m[1]}: rail sets in both layouts (whole and halves, ${it})`);
+    const carItems = new Set(ofType.filter((s) => s.kind === 'car').map((s) => s.item));
+    for (const [kind, items] of [['rail', railItems], ['car', carItems]] as const) {
+      for (const it of items) {
+        const m = /~(\w+)\.\d$/.exec(it);
+        if (m && items.has(`${type}~${m[1]}`)) problems.push(`TRACK_COMPLETE ${kind}:${type}~${m[1]}: ${kind} sets in both layouts (whole and halves, ${it})`);
+      }
     }
-    const carItem = (code: number): string => (classed('car') ? `${type}~${poseClassOf(type, code)}` : type);
+    const carItem = (code: number): string => {
+      if (!classed('car')) return type;
+      const cls = poseClassOf(type, code);
+      const half = `${type}~${carSplitClass(cls, Math.floor(code / (24 * 24)))}`; // its class's yaw half when the art splits it
+      return carItems.has(half) ? half : `${type}~${cls}`;
+    };
     /** The set a car frame is in: its yaw quadrant's in the class layout, the one `rall` set in the stage 1 layout. */
     const carRot = (yaw: number): number | 'all' => (classed('car') ? carQuadrant(yaw) : 'all');
     // A support set of a class-layout type holds every part and its shadow (Task 4).

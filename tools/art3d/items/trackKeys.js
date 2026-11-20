@@ -76,13 +76,13 @@ export function railFrames(track) {
   return out;
 }
 
-/** Every car picture of the bake, in bake order: classes, then poses, then full and empty (then the front car); `q` its set's quadrant. */
+/** Every car picture of the bake, in bake order: classes, then poses, then full and empty (then the front car); `q` its set's quadrant, `set` its set's class (the class or its yaw half: input pose `set`). */
 export function carFrames(track) {
   const out = [];
   for (const c of track.classes) {
     for (const pose of c.poses) {
       for (const front of track.front ? [false, true] : [false]) {
-        for (const full of [true, false]) out.push({ cls: c.cls, q: pose.q, pose, full, front, key: carKey(pose, full, front) });
+        for (const full of [true, false]) out.push({ cls: c.cls, set: pose.set ?? c.cls, q: pose.q, pose, full, front, key: carKey(pose, full, front) });
       }
     }
   }

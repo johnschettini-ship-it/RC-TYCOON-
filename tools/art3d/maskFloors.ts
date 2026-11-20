@@ -54,7 +54,7 @@ export const MASK_COVERAGE_FLOOR: Readonly<Record<string, number>> = {
  * kind's; either one by the set's type when the type has its own floor (`<kind>@<type>`, TYPE_MEASURED).
  */
 export function coverageKind(s: { kind: string; item: string }): string {
-  const m = s.kind === 'car' ? /~(\w+)$/.exec(s.item) : null;
+  const m = s.kind === 'car' ? /~(\w+)(?:\.\d)?$/.exec(s.item) : null; // a class's half counts as its class
   const base = m && `car~${m[1]}` in MASK_COVERAGE_FLOOR ? `car~${m[1]}` : s.kind;
   const own = `${base}@${s.item.split('~')[0]}`; // a type with a floor of its own (TYPE_MEASURED)
   return own in MASK_COVERAGE_FLOOR ? own : base;

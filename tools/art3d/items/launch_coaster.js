@@ -121,7 +121,7 @@ export const SPEC = {
   // the steel rail's numbers (the same rail model): half the track's width, and the game's column top under the line
   straddleHalfM: 0.6,
   supportTopBelowRail: 1.2,
-  groundHoldOut: false, // trackKit.js: the hold-out ground cut descending pieces and pitched cars
+  splitCarClasses: ['cork'], // its corkscrew cars in yaw halves, as the steel coaster's (each set under 8 MiB at d4)
 };
 
 export default {

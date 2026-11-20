@@ -1,6 +1,6 @@
 import { paletteColour } from '../../track/colours';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from '../pose';
-import { carQuadrant, poseClassOf, railSplitClass } from '../trackClasses';
+import { carQuadrant, carSplitClass, poseClassOf, railSplitClass } from '../trackClasses';
 import { getTrackTypeDef } from '../../../data/track';
 import { mod, type LookCore } from './core';
 import type { ItemRec, RealLook, SupportPart } from './types';
@@ -39,7 +39,7 @@ export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' 
       if (rec) {
         let t = poseType.get(rec);
         if (t === undefined) poseType.set(rec, (t = poseTypeOf(rec, trackType)));
-        cr = core.classRec(rec, poseClassOf(t, pose));
+        cr = core.classRec(rec, carSplitClass(poseClassOf(t, pose), yawStep)); // its class's yaw half, or the whole class
       }
       // Class sets are split by the quadrant of the car's view yaw (`r<q>`); a stage 1 `rall` set serves every quadrant.
       return core.sprite('car', cr, trackType, carQuadrant(yawStep), code, null, paletteColour(colour));

@@ -17,7 +17,7 @@ import { setKey, type RealIndex, type RealKind, type RealSetEntry, type SetKey }
 import type { ReadySet, SetState } from '../../../../src/render/real/setManager';
 import type { CanvasLike } from '../../../../src/render/real/tint';
 import { TINT_PAGE_PX } from '../../../../src/render/real/tintAtlas';
-import { carQuadrant, carSetsOf, pieceClass, poseClasses, poseClassesReady, poseClassOf, poseCode, railSplitClass } from '../../../../src/render/real/trackClasses';
+import { carQuadrant, carSetsOf, pieceClass, poseClasses, poseClassesReady, poseClassOf, poseCode, railSplitClass, carSplitClass, carHalfSetsOf } from '../../../../src/render/real/trackClasses';
 import { createWorld } from '../../../../src/sim/world';
 import type { Ride } from '../../../../src/sim/rides/types';
 import type { World } from '../../../../src/sim/types';
@@ -272,6 +272,34 @@ describe('track class sets (batch 5 Task 2)', () => {
     createRealLook(whole, s2, { makeCanvas: make }).prepare(worldWith([{ defId: 'station', dir: 0 }, { defId: 'helix_left_down', dir: 0 }]), 0, VIEW, 2, 2);
     expect(s2.wanted('now')).toContain('rail:steel_coaster~helix:d4:r0');
     expect(s2.wanted('now').some((k) => k.includes('~helix.'))).toBe(false);
+  });
+
+  // Car set halves (the hold-out fix made whole steel cork cars, 8.0-8.6 MiB per quadrant set): a car class split in
+  // two by the yaw within its quadrant (`<class>.0`: the quadrant's first 4 steps, `.1` the last 4).
+  it('a split car class: cars draw from their yaw half, and the scope wants only the halves the built poses reach', () => {
+    expect([28, 31, 0, 3, 4, 8, 11].map((y) => carSplitClass('cork', y))).toEqual(['cork.0', 'cork.0', 'cork.1', 'cork.1', 'cork.0', 'cork.1', 'cork.1']);
+    // a straight car faces its heading: the quadrant's middle step, half 1 only
+    const straight = carHalfSetsOf('steel_coaster', [{ defId: 'straight', dir: 0 }]);
+    expect([...straight.keys()]).toEqual(['base.1']);
+    expect([...straight.get('base.1')!]).toEqual([0]);
+    const sets: RealSetEntry[] = [...classIndex().sets];
+    for (const d of [2, 4] as const) for (const q of [0, 1, 2, 3] as const) for (const h of [0, 1]) sets.push(entry('car', `steel_coaster~loop.${h}`, d, q, [], 'mask'));
+    const index = idx(sets.filter((x) => !(x.kind === 'car' && x.item === 'steel_coaster~loop')));
+    const s1 = new Sets(index);
+    const look = createRealLook(index, s1, { makeCanvas: make });
+    look.prepare(worldWith([{ defId: 'station', dir: 0 }, { defId: 'vertical_loop_left', dir: 0 }]), 0, VIEW, 2, 2);
+    const want = [...s1.wanted('now'), ...s1.wanted('ahead')].filter((k) => k.startsWith('car:steel_coaster~loop'));
+    const need = carHalfSetsOf('steel_coaster', [{ defId: 'vertical_loop_left', dir: 0 }]);
+    const expected = [...need].filter(([c]) => c.startsWith('loop.')).flatMap(([c, qs]) => [...qs].map((q) => `car:steel_coaster~${c}:d4:r${q}`));
+    expect(expected.length).toBeGreaterThan(0);
+    expect(want.filter((k) => k.includes(':d4:')).sort()).toEqual(expected.sort());
+    // a loop pose draws from its half's set
+    const code = [...poseClasses('steel_coaster')].find(([, c]) => c === 'loop')![0];
+    const y = Math.floor(code / 576), p = Math.floor(code / 24) % 24, r = code % 24;
+    const key = `car:steel_coaster~${carSplitClass('loop', y)}:d4:r${carQuadrant(y)}` as SetKey;
+    s1.setReady(key);
+    look.car('steel_coaster', y, p, r, true, 0);
+    expect(s1.used).toContain(key);
   });
 
   it('wants only the headings its pieces face, shifted by the view turn', () => {

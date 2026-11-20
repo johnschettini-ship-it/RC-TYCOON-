@@ -170,7 +170,6 @@ export const SPEC = {
   colours: { track: '#e2e2e2', supports: '#dedede', cars: '#ececec' },
   straddleHalfM: 0.9,
   supportTopBelowRail: 1.2,
-  groundHoldOut: false, // trackKit.js: the hold-out ground cut descending pieces and pitched cars
   maskedRails: true,
   // its helix rail sets in two halves (trackClasses.ts railSplitClass): masked, one set per heading was 9-11 MiB at d4
   splitRailClasses: ['helix'],

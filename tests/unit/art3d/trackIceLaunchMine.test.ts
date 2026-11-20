@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // Batch 5 Task 7: the bobsled run, the launch coaster and the mine train on the track kit. One table row per type: the
 // bake list, the reader's map, the style spec (its numbers and the game's render row it draws), the bake input and
 // which rail frames go on masked sheets.
@@ -55,7 +56,6 @@ describe.each(TYPES)('$type on the track kit', ({ type, masked, signature, maske
     expect(typeof st.car.build).toBe('function');
     expect(SPEC.supportTopBelowRail).toBe(SUPPORT_TOP_BELOW_RAIL);
     expect(SPEC.straddleHalfM).toBeGreaterThan(0.5);
-    expect(SPEC.groundHoldOut).toBe(false); // shot without the hold-out ground, which cut drops and pitched cars
     for (const c of Object.values(SPEC.colours)) expect(c).toMatch(/^#[0-9a-f]{6}$/);
   });
 
@@ -112,7 +112,7 @@ describe('rail sets split in halves (coordinator decision: masked helix sets ove
     const t = trackGeometry(type);
     for (const d of [2, 4] as const) {
       for (const f of railFrames(t)) for (const k of [f.key, f.shadow, ...(f.chain ? [f.chain] : [])]) add('rail', classItem(type, f.set), d, f.heading, k);
-      for (const f of carFrames(t)) add('car', classItem(type, f.cls), d, f.q, f.key);
+      for (const f of carFrames(t)) add('car', classItem(type, f.set), d, f.q, f.key);
     }
     return { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
   }
@@ -129,9 +129,9 @@ describe('rail sets split in halves (coordinator decision: masked helix sets ove
     for (const f of railFrames(trackGeometry('launch_coaster'))) expect(f.set).toBe(f.cls);
   });
 
-  it.each(['bobsled_run', 'mine_train', 'launch_coaster'])('%s: the kit\'s frame plan is exactly what TRACK_COMPLETE wants; a half missing a frame fails', async (type) => {
+  it.each(['bobsled_run', 'mine_train', 'launch_coaster', 'steel_coaster'])('%s: the kit\'s frame plan is exactly what TRACK_COMPLETE wants; a half missing a frame fails', async (type) => {
     expect(trackComplete(await planIndex(type))).toEqual([]);
-    if (type === 'launch_coaster') return;
+    if (type === 'launch_coaster' || type === 'steel_coaster') return; // no rail halves
     const p = trackComplete(await planIndex(type, (key, item) => item.endsWith('~helix.1') && key === 'helix_left_down:t0'));
     expect(p.some((x) => x.startsWith(`TRACK_COMPLETE rail:${type}~helix.1`))).toBe(true);
   });
@@ -146,5 +146,50 @@ describe('rail sets split in halves (coordinator decision: masked helix sets ove
     const bad = await planIndex('bobsled_run');
     bad.sets.push({ ...half, key: 'rail:bobsled_run~helix.7:d4:r0' as RealSetEntry['key'], item: 'bobsled_run~helix.7' });
     expect(checkIndex(bad, new Set(['a.webp'])).some((x) => /unknown track class 'helix.7'/.test(x))).toBe(true);
+  });
+});
+
+// The hold-out ground (P1, found in Task 7): it sat at y = 0 and hid whatever lay under it and was drawn after it,
+// cutting the lower half of descending pieces and pitched cars (the steel car at y8:p3 lost its front). The kit now
+// drops it under each shot's lowest point; a model wholly above y = 0 keeps it where it was.
+describe('the hold-out ground never cuts a track model (every type)', () => {
+  it('a pitched car (steel y8:p3) and a descending piece get the ground under their lowest point; a model above y = 0 keeps it at -0.002', async () => {
+    const T = await load('vendor/three-0.160.0.module.min.js');
+    const { poseCar, holdOutY, GROUND_Y } = await load('items/trackKit.js');
+    expect(GROUND_Y).toBe(-0.002);
+    const car = new T.Group();
+    const body = new T.Mesh(new T.BoxGeometry(1.3, 0.8, 2.1));
+    body.position.y = 0.3;
+    car.add(body);
+    poseCar(car, { yaw: 8, pitch: 3, roll: 0 });
+    const min = new T.Box3().setFromObject(car).min.y;
+    expect(min).toBeLessThan(-0.3); // the nose dips well under the rail line
+    expect(holdOutY(min)).toBeLessThan(min);
+    expect(holdOutY(0.25)).toBe(GROUND_Y);
+    expect(holdOutY(-6.4)).toBeLessThan(-6.4); // a steep drop's lowest rail
+  });
+  it('the kit sets the ground under every rail and car shot, for every type (no per-type flag)', () => {
+    const src = readFileSync(new URL('items/trackKit.js', dir), 'utf8');
+    expect(src).not.toMatch(/groundHoldOut/);
+    expect(src.match(/bs\.ground\.position\.y = holdOutY\(/g)?.length).toBe(2); // rails, cars
+    for (const t of ['bobsled_run', 'launch_coaster', 'mine_train', 'steel_coaster']) expect(readFileSync(new URL(`items/${t}.js`, dir), 'utf8')).not.toMatch(/groundHoldOut/);
+  });
+});
+
+describe('car sets split in halves by yaw (steel and launch cork cars once uncut)', () => {
+  it.each(['steel_coaster', 'launch_coaster'])('%s bakes its cork cars in yaw halves; other car classes whole', async (type) => {
+    const { carFrames } = await load('items/trackKeys.js');
+    const { carSplitClass } = await import('../../../src/render/real/trackClasses');
+    for (const f of carFrames(trackGeometry(type))) expect(f.set, f.key).toBe(f.cls === 'cork' ? carSplitClass('cork', f.pose.yaw) : f.cls);
+  });
+  it('a car frame missing from its half fails TRACK_COMPLETE; a split car class is known; floors read the class of a half', async () => {
+    const { carFrames, classItem } = await load('items/trackKeys.js');
+    const f = carFrames(trackGeometry('steel_coaster')).find((x: { cls: string }) => x.cls === 'cork');
+    expect(coverageKind({ kind: 'car', item: `steel_coaster~${f.set}` })).toBe('car~cork');
+    const fr: RealFrame = { sheet: 'a.webp', sx: 0, sy: 0, w: 1, h: 1, ox: 0, oy: 0 };
+    const set: RealSetEntry = { key: `car:${classItem('steel_coaster', f.set)}:d4:r${f.q}` as RealSetEntry['key'], kind: 'car', item: classItem('steel_coaster', f.set), density: 4, rot: f.q, sheets: [{ file: 'a.webp', w: 1, h: 1, mask: 'm.png' }, { file: 'm.png', w: 1, h: 1 }], frames: { other: fr } };
+    const ix: RealIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [4], sets: [set], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
+    expect(checkIndex(ix, new Set(['a.webp', 'm.png'])).filter((x) => /unknown track class/.test(x))).toEqual([]);
+    expect(trackComplete(ix).some((x) => x.includes(`car:steel_coaster~${f.set} d4 r${f.q}`) && x.includes(f.key))).toBe(true);
   });
 });
