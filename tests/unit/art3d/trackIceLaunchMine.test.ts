@@ -203,3 +203,16 @@ describe('chain troughs only where the type can chain a piece', () => {
     expect(src).toMatch(/getTrackTypeDef\(type\)\?\.chain/);
   });
 });
+
+describe('track card supports', () => {
+  it('every part of a card\'s support stack faces the track, as the game stacks them (the mine trestle\'s legs stand across it)', async () => {
+    const { cardSupportStacks } = await load('items/cards.js');
+    const { SPEC } = await load('items/mine_train.js');
+    const { cardInput } = await import('../../../tools/art3d/bakeNode');
+    const scene = cardInput([]).tracks.mine_train!;
+    const stacks = cardSupportStacks(scene, SPEC);
+    expect(stacks.length).toBeGreaterThan(0);
+    expect(stacks.some((st: { heading: number }) => st.heading !== 0)).toBe(true);
+    for (const st of stacks) for (const p of st.parts) expect(p.heading, `${p.part} at ${st.heading}`).toBe(st.heading);
+  });
+});
