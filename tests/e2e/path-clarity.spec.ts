@@ -5,7 +5,7 @@
  * PC_SHOTS=<dir> saves screenshots.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
+import { isPhone, newPark, pickCard, presetSettings, scan, showTile, stepPx, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Ride {
@@ -158,12 +158,13 @@ test.describe('path clarity', () => {
     await expect.poll(() => canvasData(page, 'pathFocus')).toBe(String(end));
     await frames(page);
     // The queue's open end is on screen, well inside the window.
-    const p = await page.evaluate(([tx, ty]) => {
+    const step = await stepPx(page);
+    const p = await page.evaluate(([tx, ty, sp]) => {
       const g = (window as unknown as { __tc: PcTc }).__tc;
       const h = g.world.state.map.heights[ty * 64 + tx] ?? 0;
       const r = (document.getElementById('game') as HTMLCanvasElement).getBoundingClientRect();
-      return { x: r.left + ((tx - ty) * 32 - g.camera.centerX) * g.camera.zoom + r.width / 2, y: r.top + ((tx + ty + 1) * 16 - h * 8 - g.camera.centerY) * g.camera.zoom + r.height / 2 };
-    }, [ox, 46] as const);
+      return { x: r.left + ((tx - ty) * 32 - g.camera.centerX) * g.camera.zoom + r.width / 2, y: r.top + ((tx + ty + 1) * 16 - h * sp - g.camera.centerY) * g.camera.zoom + r.height / 2 };
+    }, [ox, 46, step] as const);
     const vp = page.viewportSize() as { width: number; height: number };
     expect(p.x).toBeGreaterThan(vp.width * 0.2);
     expect(p.x).toBeLessThan(vp.width * 0.8);

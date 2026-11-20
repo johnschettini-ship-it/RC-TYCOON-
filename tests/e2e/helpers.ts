@@ -5,6 +5,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type CDPSession, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { REAL_STEP_PX } from '../../src/render/artStyle';
 
 /** Collect console errors and page errors; call `expectNoErrors` at the end of the test. */
 export function watchErrors(page: Page): { errors: string[]; expectNoErrors(): void } {
@@ -42,14 +43,29 @@ export async function presetSave(page: Page, file: string, slot: number | 'auto'
 }
 
 /**
- * The realistic build (VITE_ART=real) welcomes a new park with a modal card when the push through the arch ends
- * (title-to-play bridge §3): closed here, so the tests that start a park go on as before. Nothing in the website build.
+ * The realistic build (VITE_ART=real) welcomes a new sandbox or free-play park with a modal card when the push through
+ * the arch ends (title-to-play bridge §3, `docs/superpowers/specs/2026-11-17-title-to-play-bridge-design.md`); it pauses
+ * the game and covers the park, so a test that starts a park from the title closes it here, right after the title
+ * hides. The card opens in the same task that hides the title (`src/ui/titleScreen/real/view.ts` `leave` → `end`:
+ * `hideTitle()` then `arrived()`), so once the title is hidden the card is either there or never comes (Continue,
+ * Load, a scenario, the tutorial): no waiting on a timer. Nothing in the website build.
  */
 export async function dismissWelcome(page: Page): Promise<void> {
   if (process.env.VITE_ART !== 'real') return;
+  await expect(page.locator('.title-screen')).toBeHidden();
   const go = page.getByTestId('welcome-go');
-  await go.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined);
-  if (await go.isVisible()) await go.click();
+  if ((await go.count()) > 0) await go.click();
+  await expect(page.getByTestId('welcome-card')).toHaveCount(0);
+}
+
+/**
+ * Screen px per height step in the page's look: 8 in today's look, `REAL_STEP_PX` (9.8) once the realistic look booted
+ * (`src/render/real/boot.ts` sets it with `setStepPx`; without baked art the realistic build keeps today's look and 8).
+ * Tests that turn a tile height into a screen point pass it into the page instead of a literal 8.
+ */
+export async function stepPx(page: Page): Promise<number> {
+  const real = await page.evaluate(() => Boolean((window as unknown as { __tcReal?: { look?: unknown } }).__tcReal?.look));
+  return real ? REAL_STEP_PX : 8;
 }
 
 /** Start a new park from the title screen. The game starts at 1×. */
@@ -188,32 +204,34 @@ export async function pickCard(page: Page, kind: CardKind, defId: string, opts: 
 
 /** Centre the camera on a tile (debug hook; the same as panning there). */
 export async function centerOn(page: Page, x: number, y: number): Promise<void> {
+  const step = await stepPx(page);
   await page.evaluate(
-    ([tx, ty]) => {
+    ([tx, ty, sp]) => {
       const g = (window as unknown as { __tc: TcGame }).__tc;
       const map = g.world.state.map;
       const h = map.heights[ty * map.width + tx] ?? 0;
       g.camera.centerX = (tx - ty) * 32;
-      g.camera.centerY = (tx + ty + 1) * 16 - h * 8;
+      g.camera.centerY = (tx + ty + 1) * 16 - h * sp;
     },
-    [x, y] as const,
+    [x, y, step] as const,
   );
 }
 
 /** Page coordinates of the centre of tile (x, y). */
 export async function tilePoint(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  const step = await stepPx(page);
   return page.evaluate(
-    ([tx, ty]) => {
+    ([tx, ty, sp]) => {
       const g = (window as unknown as { __tc: TcGame }).__tc;
       const map = g.world.state.map;
       const h = map.heights[ty * map.width + tx] ?? 0;
       const canvas = document.getElementById('game') as HTMLCanvasElement;
       const r = canvas.getBoundingClientRect();
       const wx = (tx - ty) * 32;
-      const wy = (tx + ty + 1) * 16 - h * 8;
+      const wy = (tx + ty + 1) * 16 - h * sp;
       return { x: r.left + (wx - g.camera.centerX) * g.camera.zoom + r.width / 2, y: r.top + (wy - g.camera.centerY) * g.camera.zoom + r.height / 2 };
     },
-    [x, y] as const,
+    [x, y, step] as const,
   );
 }
 
@@ -222,8 +240,9 @@ export async function tilePoint(page: Page, x: number, y: number): Promise<{ x: 
  * hand, the top region (and the toast under it), and the builder (right side panel, or a bottom sheet on the phone).
  */
 export async function showTile(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  const step = await stepPx(page);
   return page.evaluate(
-    ([tx, ty]) => {
+    ([tx, ty, sp]) => {
       const g = (window as unknown as { __tc: TcGame }).__tc;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -232,10 +251,10 @@ export async function showTile(page: Page, x: number, y: number): Promise<{ x: n
       const map = g.world.state.map;
       const z = map.heights[ty * map.width + tx] ?? 8;
       g.camera.centerX = (tx - ty) * 32 - (fx * vw - vw / 2) / g.camera.zoom;
-      g.camera.centerY = (tx + ty + 1) * 16 - z * 8 - (fy * vh - vh / 2) / g.camera.zoom;
+      g.camera.centerY = (tx + ty + 1) * 16 - z * sp - (fy * vh - vh / 2) / g.camera.zoom;
       return { x: fx * vw, y: fy * vh };
     },
-    [x, y] as const,
+    [x, y, step] as const,
   );
 }
 

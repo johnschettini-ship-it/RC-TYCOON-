@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { dismissWelcome, openTool } from './helpers';
+import { dismissWelcome, openTool, stepPx } from './helpers';
 
 /**
  * Elevated paths (Phase 4 §4.2, §7 Path height row; W3-B): the path height mini-bar with `Page Up` / `Page Down`
@@ -33,32 +33,34 @@ async function newPark(page: Page): Promise<string[]> {
 
 /** Put tile (x, y) at height z at a clear spot of the screen; returns that point (CSS px). */
 async function showTile(page: Page, x: number, y: number, z: number): Promise<{ x: number; y: number }> {
+  const step = await stepPx(page);
   return page.evaluate(
-    ([tx, ty, tz]) => {
+    ([tx, ty, tz, sp]) => {
       const g = (window as unknown as TcWindow).__tc;
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const fx = 0.5;
       const fy = vw < 900 ? 0.35 : 0.45;
       g.camera.centerX = (tx - ty) * 32 - (fx * vw - vw / 2) / g.camera.zoom;
-      g.camera.centerY = (tx + ty + 1) * 16 - tz * 8 - (fy * vh - vh / 2) / g.camera.zoom;
+      g.camera.centerY = (tx + ty + 1) * 16 - tz * sp - (fy * vh - vh / 2) / g.camera.zoom;
       return { x: fx * vw, y: fy * vh };
     },
-    [x, y, z] as const,
+    [x, y, z, step] as const,
   );
 }
 
 /** Screen point (CSS px) of the centre of tile (x, y) at height z, for the current camera. */
 async function pointOf(page: Page, x: number, y: number, z: number): Promise<{ x: number; y: number }> {
+  const step = await stepPx(page);
   return page.evaluate(
-    ([tx, ty, tz]) => {
+    ([tx, ty, tz, sp]) => {
       const g = (window as unknown as TcWindow).__tc;
       const r = (document.getElementById('game') as HTMLCanvasElement).getBoundingClientRect();
       const wx = (tx - ty) * 32;
-      const wy = (tx + ty + 1) * 16 - tz * 8;
+      const wy = (tx + ty + 1) * 16 - tz * sp;
       return { x: r.left + (wx - g.camera.centerX) * g.camera.zoom + r.width / 2, y: r.top + (wy - g.camera.centerY) * g.camera.zoom + r.height / 2 };
     },
-    [x, y, z] as const,
+    [x, y, z, step] as const,
   );
 }
 

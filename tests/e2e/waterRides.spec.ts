@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, pickCard, showTile } from './helpers';
+import { cardOf, dismissWelcome, pickCard, showTile } from './helpers';
 
 /**
  * Water rides smoke (Phase 4 §4.4, §9.1; W3-C "Done"): build a Log Flume and a Rapids Raft through the builder on
@@ -32,6 +32,7 @@ async function newPark(page: Page): Promise<void> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
 }
 
 /** Mark both water rides researched, then lay the paths: entrance road, a queue to (10, 8), a footpath to (11, 8). */

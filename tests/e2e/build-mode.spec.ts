@@ -7,7 +7,7 @@
  * with the reason in the line and as its accessible description, and no toast with the same text.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
+import { dismissWelcome, isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Box {
@@ -341,6 +341,7 @@ test.describe('build mode (Task 22): phone and low layout', () => {
     await page.getByTestId('title-size-64').click();
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await tc(page, (g) => g.setSpeed(0));
     await pieces(page, true);

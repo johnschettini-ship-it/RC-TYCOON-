@@ -5,7 +5,7 @@
  * Every test fails on any console error.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, openTool, watchErrors } from './helpers';
+import { dismissWelcome, isPhone, openTool, watchErrors } from './helpers';
 
 type Debug = {
   world: { events: unknown[]; state: { scenario: { kind: string } & Record<string, unknown>; map: { width: number }; park: { afterDark: boolean } } };
@@ -93,6 +93,7 @@ test.describe('Scenario flow: desktop', () => {
     await page.getByTestId('sandbox-seed').fill('424242');
     await page.getByTestId('sandbox-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     const s = await state(page);
     expect(s.scenario).toMatchObject({ kind: 'sandbox', options: { mapSize: 64, seed: 424242, afterDark: false, unlimitedMoney: true } });
     expect(s.width).toBe(64);
@@ -117,6 +118,7 @@ test.describe('Scenario flow: desktop', () => {
     await page.getByTestId('title-name').fill('Big Park');
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     const s = await state(page);
     expect(s.width).toBe(128);
     expect(s.scenario.kind).toBe('freePlay');
@@ -183,6 +185,7 @@ test.describe('Scenario flow: desktop', () => {
     await page.getByTestId('title-new').click();
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     await page.evaluate(() => {
       const g = (window as unknown as { __tc: Debug }).__tc;
       g.world.events.push({ type: 'award', id: 'chillHaven', positive: true, monthIndex: 0 }, { type: 'award', id: 'queueNightmare', positive: false, monthIndex: 0 });

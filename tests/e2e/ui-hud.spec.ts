@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { dismissWelcome } from './helpers';
 
 /** Start a new park from the title screen. */
 async function newPark(page: Page, name = 'Test Park'): Promise<void> {
@@ -9,6 +10,7 @@ async function newPark(page: Page, name = 'Test Park'): Promise<void> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
 }
 
 test.describe('HUD and deck list', () => {

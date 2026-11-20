@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
-import { cardOf, openTool, presetSettings, toolControl } from './helpers';
+import { cardOf, dismissWelcome, openTool, presetSettings, toolControl } from './helpers';
 
 /**
  * Localization (Phase 6 §4.8, §9; master R28). The pseudo-locale `en-XA` accents every letter of every string, so
@@ -54,6 +54,7 @@ test('switching to en-XA changes the HUD text at once', async ({ page }, info) =
   await page.getByTestId('title-new').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
   const date = phone ? page.getByTestId('day-pill') : page.getByTestId('hud-date');
   const dateText = phone ? 'aria-label' : null;
   const expectDate = async (re: RegExp, not = false): Promise<void> => {
@@ -81,6 +82,7 @@ test('a command reason shows in the current locale', async ({ page }) => {
   await page.getByTestId('title-new').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
   // Demolish on an empty tile: the sim answers "Nothing to remove" in English; the toast shows the pseudo-locale.
   const reason = await page.evaluate(() => {
     const g = (window as unknown as { __tc: TcHook & { dispatch(c: unknown): { ok: boolean; reason?: string } } }).__tc;
@@ -140,6 +142,7 @@ test.describe('hard-coded text', () => {
     await page.getByTestId('title-name').fill('Ļåķéšîðé');
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     expect(unexpectedEnglish(await plainEnglish(page))).toEqual([]);
     for (const tool of ['park', 'finance', 'rides', 'stalls', 'staff', 'research', 'marketing', 'messages']) {
       await openTool(page, tool);
@@ -177,6 +180,7 @@ test.describe('hard-coded text', () => {
     await page.getByTestId('title-name').fill('Ļåķéšîðé');
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     await openTool(page, 'scenery');
     await expect(page.getByTestId('scenery-picker')).toBeVisible();
     // Every theme tab: an open theme lists its items; a locked one names the theme in its note.

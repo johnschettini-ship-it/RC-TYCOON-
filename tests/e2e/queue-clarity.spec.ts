@@ -5,7 +5,7 @@
  * open; the card fits 390 × 844 and 812 × 375 at large pseudo-locale text. QC_SHOTS=<dir> saves screenshots.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, presetSettings, scan, showTile, watchErrors } from './helpers';
+import { isPhone, newPark, presetSettings, scan, showTile, stepPx, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Ride {
@@ -98,18 +98,19 @@ const canvasData = (page: Page, key: string): Promise<string | undefined> => pag
 
 /** Page point of map point (fx, fy) on the ground of its tile, `lift` CSS px above it. */
 async function mapPoint(page: Page, fx: number, fy: number, lift = 0): Promise<{ x: number; y: number }> {
+  const step = await stepPx(page);
   return page.evaluate(
-    ([px, py, up]) => {
+    ([px, py, up, sp]) => {
       const g = (window as unknown as { __tc: QcTc & { world: { state: { map: { heights: ArrayLike<number> } } } } }).__tc;
       const map = g.world.state.map;
       const h = map.heights[Math.floor(py) * map.width + Math.floor(px)] ?? 0;
       const canvas = document.getElementById('game') as HTMLCanvasElement;
       const r = canvas.getBoundingClientRect();
       const wx = (px - py) * 32;
-      const wy = (px + py) * 16 - h * 8;
+      const wy = (px + py) * 16 - h * sp;
       return { x: r.left + (wx - g.camera.centerX) * g.camera.zoom + r.width / 2, y: r.top + (wy - g.camera.centerY) * g.camera.zoom + r.height / 2 - up };
     },
-    [fx, fy, lift] as const,
+    [fx, fy, lift, step] as const,
   );
 }
 

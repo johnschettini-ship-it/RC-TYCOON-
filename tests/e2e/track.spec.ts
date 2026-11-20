@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, openTool, pickCard, setSpeed, showTile } from './helpers';
+import { cardOf, dismissWelcome, openTool, pickCard, setSpeed, showTile } from './helpers';
 
 /**
  * Track builder smoke (phase-2 §7, §9.4): build the reference circuit R1 (§9.2) through the builder UI on desktop
@@ -28,6 +28,7 @@ async function newPark(page: Page): Promise<void> {
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
 }
 
 /** Footpaths to the park entrance and a queue to the entrance gate, laid before the track (§9.2 script). */

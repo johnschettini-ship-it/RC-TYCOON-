@@ -6,7 +6,7 @@
  * Desktop: Enter confirms, Escape cancels.
  */
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
+import { dismissWelcome, isPhone, newPark, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 interface Box {
@@ -200,6 +200,7 @@ test('390 × 844 at 175% text in en-XA: the found path and its buttons are not c
   await page.getByTestId('title-size-64').click();
   await page.getByTestId('title-start').click();
   await expect(page.locator('.title-screen')).toBeHidden();
+  await dismissWelcome(page);
   await page.evaluate(() => document.fonts.ready.then(() => undefined));
   await juniorWithThreePieces(page, true);
   await page.getByTestId('track-autofinish').tap();
