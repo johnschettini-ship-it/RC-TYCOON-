@@ -190,7 +190,7 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     if (carRec) {
       // Car sets by class and yaw quadrant (fix wave): a quadrant turns with the view like a rail heading, so each is a
       // combo at its world quadrant. A stage 1 `rall` set resolves to the one set at every quadrant.
-      for (const [cls, quads] of carHalfSetsOf(poseTypeOf(carRec, defId), pieces)) { // class yaw halves (whole when not split)
+      for (const [cls, quads] of carHalfSetsOf(poseTypeOf(carRec, defId), pieces)) { // class roll halves (whole when not split)
         for (const q of quads) {
           const id = combo(classRec(carRec, cls), q);
           if (!out.includes(id)) out.push(id);
