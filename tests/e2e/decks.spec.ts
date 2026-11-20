@@ -238,9 +238,10 @@ test('a held track ride card shows its five values, and the station builder stay
     // The sheet lies where the builder is: the builder comes back when the sheet closes.
     await expect(builder).toBeHidden();
   } else {
+    // The panel docks at the left (owner 2026-11-19); the builder sits beside it, never under it.
     const a = (await panel.boundingBox())!;
     const b = (await builder.boundingBox())!;
-    expect(b.x + b.width).toBeLessThanOrEqual(a.x);
+    expect(b.x >= a.x + a.width || b.x + b.width <= a.x, `builder ${JSON.stringify(b)} panel ${JSON.stringify(a)}`).toBe(true);
   }
   await panel.getByRole('button', { name: 'Close' }).click();
   await expect(panel).toBeHidden();
@@ -289,7 +290,7 @@ for (const scale of [100, 175] as const) {
   });
 }
 
-test('desktop: a details panel that does not fit above the hand runs to the bottom, and the hand ends at its left edge', async ({ page }) => {
+test('desktop: a details panel that does not fit above the hand runs to the bottom, and the hand starts at its right edge', async ({ page }) => {
   test.skip(isPhone(test.info()), 'desktop layout');
   const ui = page.locator('#ui');
   const panel = page.locator('.panel');
@@ -297,14 +298,19 @@ test('desktop: a details panel that does not fit above the hand runs to the bott
   const right = (box: Box): number => box.x + box.width;
   const bottom = (box: Box): number => box.y + box.height;
 
-  // 100% text on a high screen: the panel fits above the hand, and the hand keeps its place.
+  // The panels dock at the left and the decks at the right (owner 2026-11-19): the hand lies between them.
+  const list = page.getByRole('toolbar', { name: 'Card decks' });
+  // 100% text on a high screen: the panel fits above the hand, which keeps its height and bottom and sits beside it.
   await page.setViewportSize({ width: 1280, height: 900 });
   const handBefore = (await hand.boundingBox())!;
   await pickCard(page, 'flat', 'carousel');
   await expect(panel.locator('.panel-title')).toHaveText('Carousel');
   await expect(ui).not.toHaveAttribute('data-details');
   expect(bottom((await panel.boundingBox())!)).toBeLessThanOrEqual(handBefore.y);
-  expect(await hand.boundingBox()).toEqual(handBefore);
+  const handOpen = (await hand.boundingBox())!;
+  expect(handOpen.y).toBe(handBefore.y);
+  expect(handOpen.height).toBe(handBefore.height);
+  expect(right(handOpen)).toBeLessThanOrEqual((await list.boundingBox())!.x);
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();
 
@@ -319,9 +325,9 @@ test('desktop: a details panel that does not fit above the hand runs to the bott
   let h = (await hand.boundingBox())!;
   expect(bottom(p)).toBeGreaterThan(h.y);
   expect(bottom(p)).toBeLessThanOrEqual(800 - 10);
-  expect(right(h)).toBeLessThanOrEqual(p.x - 8);
-  // The hand keeps its left edge (its cards do not move) and its height (the bars above it do not move).
-  expect(h.x).toBe(wide.x);
+  expect(h.x).toBeGreaterThanOrEqual(right(p) + 8);
+  expect(right(h)).toBeLessThanOrEqual((await list.boundingBox())!.x);
+  // The hand keeps its height (the bars above it do not move).
   expect(h.height).toBe(wide.height);
   // The whole panel shows with no scroll: the seven rows and the hint.
   expect(await panel.locator('.panel-body').evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
@@ -345,13 +351,14 @@ test('desktop: a details panel that does not fit above the hand runs to the bott
   const scroll = await panel.locator('.panel-body').evaluate((el) => el.scrollHeight - el.clientHeight);
   expect(bottom(p) === 720 - 10 || scroll === 0, `panel bottom ${bottom(p)}, body scroll ${scroll}`).toBe(true);
   // A lower window, where the content needs more room than there is: the panel ends exactly 10 px above the bottom.
-  await page.setViewportSize({ width: 1280, height: 660 });
-  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBe(660 - 10);
+  // (The panel docks under the status pill since 2026-11-19, so it has more room: 600 px, not 660, is too low.)
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await expect.poll(async () => bottom((await panel.boundingBox())!)).toBe(600 - 10);
   await page.setViewportSize({ width: 1280, height: 720 });
   await expect.poll(async () => bottom((await panel.boundingBox())!)).toBeLessThanOrEqual(720 - 10);
   p = (await panel.boundingBox())!;
   h = (await hand.boundingBox())!;
-  expect(right(h)).toBeLessThanOrEqual(p.x - 8);
+  expect(h.x).toBeGreaterThanOrEqual(right(p) + 8);
   expect(bottom((await panel.locator('.details-rows .row').last().boundingBox())!)).toBeLessThanOrEqual(bottom(p));
 
   // Close: the hand takes its width back. A panel of another kind ends above the hand.
@@ -365,7 +372,10 @@ test('desktop: a details panel that does not fit above the hand runs to the bott
   await openTool(page, 'finance');
   await expect(panel.locator('.panel-title')).toHaveText('Finance');
   await expect(ui).not.toHaveAttribute('data-details');
-  expect(bottom((await panel.boundingBox())!)).toBeLessThanOrEqual((await hand.boundingBox())!.y);
+  // Above the hand or beside it (the hand moves right of an open panel), never over it.
+  const fin = (await panel.boundingBox())!;
+  const handNow = (await hand.boundingBox())!;
+  expect(bottom(fin) <= handNow.y || right(fin) <= handNow.x, `panel ${JSON.stringify(fin)} hand ${JSON.stringify(handNow)}`).toBe(true);
 });
 
 test('no toolbar named Tools is on the screen', async ({ page }) => {
@@ -746,6 +756,11 @@ test('the locked card research is on shows a progress bar; the Stalls deck shows
 });
 
 test('ride cards line up: names from one top, prices on one line, "Track" a chip on the picture (owner, 2026-11-17)', async ({ page }) => {
+  // The cards at rest: a mouse over a card lifts it (owner 2026-11-19).
+  if (!isPhone(test.info())) {
+    await page.mouse.move(640, 300);
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
+  }
   const rows = await page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('[data-testid="hand"] .content-card')].map((c) => {
       const top = (sel: string): number => Math.round((c.querySelector(sel) as HTMLElement).getBoundingClientRect().top);

@@ -4,12 +4,10 @@ import { text } from '../../data/strings/en';
 import type { UiContext, PanelView } from '../context';
 import { h, setAttr, setText } from '../dom';
 import { formatMoney, formatPrice, formatRating } from '../format';
-import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
 import { createTrackRidePanel } from '../track/ridePanel';
-import { createReachStatus } from '../rides/reachStatus';
-import { createPathConnectSection } from '../paths/rideConnect';
+import { createReachStatus, warningsBesideReach } from '../rides/reachStatus';
 import { RIDE_COLOUR_CHOICES } from '../../data/catalog/flatRides';
 import { TRACK_PALETTE } from '../../render/track/colours';
 
@@ -98,7 +96,6 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
   const colour = rideColourRow((c) => game.dispatch({ type: 'setRideColour', rideId, colour: c }));
   const warnings = warningList();
   const reach = createReachStatus(ctx, rideId);
-  const pathConnect = createPathConnectSection(ctx, rideId);
   const maintenance = createMaintenanceSection(ctx, rideId);
 
   const body = h(
@@ -106,7 +103,6 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
     { class: 'panel-content' },
     reach.el,
     warnings.el,
-    pathConnect.el,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
     section(null, price.el),
     section(null, colour.el),
@@ -143,8 +139,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
       income.set(formatMoney(r.totals.incomeThisMonth));
       incomeTotal.set(formatMoney(r.totals.income));
       reach.update();
-      warnings.set(rideWarnings(game.world, r));
-      pathConnect.update(r);
+      warnings.set(warningsBesideReach(game.world, r));
       maintenance.update(r);
       return true;
     },

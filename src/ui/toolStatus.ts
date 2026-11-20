@@ -56,9 +56,16 @@ export function createToolStatus(ctx: UiContext): { el: HTMLElement; update(): v
         const y = Math.floor(g.tile / w);
         if (g.kind === 'ride') {
           const res = game.dispatch({ type: 'placeRide', defId: g.defId, x, y, rotation: g.rotation });
+          // The placed ride's panel (owner 2026-11-19) opens only where it cannot cover the queue builder that opened
+          // at its entrance (touch controls spec §6): on the desktop, docked at the left beside it. The phone keeps
+          // the builder in view; the ride is still the selected one.
           if (res?.ok && res.id !== undefined) {
-            game.tool.selectedEntity = { kind: 'ride', id: res.id };
-            ctx.openPanel('ride', res.id);
+            const builderOpen = game.tool.tool === 'queue';
+            const desktop = ctx.root.dataset.layout === 'side' && ctx.root.dataset.low !== '1';
+            if (!builderOpen || desktop) {
+              game.tool.selectedEntity = { kind: 'ride', id: res.id };
+              ctx.openPanel('ride', res.id);
+            }
           }
         } else if (g.kind === 'stall') game.dispatch({ type: 'placeStall', defId: g.defId, x, y, rotation: g.rotation });
       },

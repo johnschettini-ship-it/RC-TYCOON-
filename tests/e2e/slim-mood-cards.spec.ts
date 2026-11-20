@@ -172,7 +172,8 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
   await newPark(page);
   await expect(page.getByTestId('hand')).toHaveAttribute('data-deck', 'rides');
   const ride = await boxOf(page, '.card.content-card');
-  expect(ride.width).toBeLessThanOrEqual(phone ? 92 : 112);
+  // Desktop ride cards: 112 → 118 px wide (owner 2026-11-19, the wider card tray).
+  expect(ride.width).toBeLessThanOrEqual(phone ? 92 : 118);
   // Starting roster (owner, 2026-11-17): every card holds two name lines, so names and prices line up across the hand
   // whether a name takes one line or two (Observation Tower). The owner accepted the taller hand: desktop cards
   // 152 → 165 px (hand 219 → 232), phone cards 124 → 139 px.
@@ -195,8 +196,9 @@ test('cards are about 12% smaller and the hand is at least 12 px lower than at t
         return { name: name.textContent ?? '', lines, picture: (c.querySelector('.card-preview') as HTMLElement).getBoundingClientRect().height };
       }),
     );
-    // New rides batch A (2026-11-17): the Mini Pirate Ship's name takes two lines too.
-    const twoLines = ['Observation Tower', 'Spinning Mouse', 'Wooden Coaster', 'Haunted Manor', 'Mini Pirate Ship'];
+    // On the 118 px card (owner 2026-11-19) only these two names take two lines (Spinning Mouse, Haunted Manor and the
+    // Mini Pirate Ship fit one now).
+    const twoLines = ['Observation Tower', 'Wooden Coaster'];
     for (const p of parts) {
       expect(p.lines, `${p.name} lines`).toBe(twoLines.includes(p.name.replace(/,$/, '')) ? 2 : 1);
       expect(p.picture, `${p.name} picture`).toBeGreaterThanOrEqual(45.6 - 0.5);

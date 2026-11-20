@@ -36,6 +36,13 @@
   --danger-text: #b34700;
   --outline: 3px solid var(--ink);
   --shadow: 0 4px 0 var(--ink);
+  /* Soft drop-shadow tints (black at a set opacity) for the docked panels, sliders and cards. */
+  --shade-08: rgba(0, 0, 0, 0.08);
+  --shade-10: rgba(0, 0, 0, 0.1);
+  --shade-12: rgba(0, 0, 0, 0.12);
+  --shade-14: rgba(0, 0, 0, 0.14);
+  --shade-18: rgba(0, 0, 0, 0.18);
+  --shade-20: rgba(0, 0, 0, 0.2);
   --radius: 12px;
   --radius-surface: 18px;
   /* Focus ring: 2 px white, then 3 px ink. The inset form is for controls inside scrolling areas, which clip it. */

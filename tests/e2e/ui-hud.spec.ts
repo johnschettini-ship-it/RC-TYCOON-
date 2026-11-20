@@ -64,7 +64,7 @@ test.describe('HUD and deck list', () => {
     await expect(two).not.toHaveClass(/active/);
   });
 
-  test('the deck list shows 5 decks and Demolish of at least 44 × 44 px, at the top left or above the hand', async ({ page }, info) => {
+  test('the deck list shows 5 decks and Demolish of at least 44 × 44 px, at the top right or above the hand', async ({ page }, info) => {
     const list = page.getByRole('toolbar', { name: 'Card decks' });
     await expect(list).toBeVisible();
     const controls = ['deck-rides', 'deck-stalls', 'deck-paths', 'deck-scenery', 'deck-manage', 'tool-demolish'].map((id) => list.getByTestId(id));
@@ -79,8 +79,9 @@ test.describe('HUD and deck list', () => {
     const hand = await page.getByTestId('hand').boundingBox();
     if (!box || !pill || !hand) throw new Error('no layout');
     if (info.project.name === 'desktop') {
-      // Wide screen: a column at the top left, below the status pill.
-      expect(box.x).toBeLessThan(40);
+      // Wide screen: a column at the top right (owner 2026-11-19: the decks dock at the right, panels at the left),
+      // below the top row.
+      expect(box.x + box.width).toBeGreaterThan(page.viewportSize()!.width - 40);
       expect(box.y).toBeGreaterThanOrEqual(pill.y + pill.height);
       expect(box.y).toBeLessThan(page.viewportSize()!.height / 2);
       expect(box.height).toBeGreaterThan(box.width);

@@ -26,6 +26,7 @@ import { createTitleScreen } from './title';
 import { createTipBubble } from './tips/bubble';
 import { toastForResult } from './toasts';
 import { createToastView } from './toastView';
+import { setLabelAvoidBoxes } from '../render/screenAvoid';
 import { createToolStatus } from './toolStatus';
 import { createMarketingPanel } from './management/marketingPanel';
 import { createMessageToast } from './management/messageToast';
@@ -318,6 +319,19 @@ export function mountUI(root: HTMLElement, game: Game): void {
       root.style.setProperty('--chips-space', `${Math.max(0, chips)}px`);
     }
     fitDetails();
+    publishLabelAvoid();
+  };
+  // Review 2026-11-20: entrance banners keep out of the turn-view buttons floating over the map (the upright phone).
+  const publishLabelAvoid = (): void => {
+    const canvas = document.getElementById('game');
+    const c = canvas?.getBoundingClientRect();
+    const boxes = [...root.querySelectorAll<HTMLElement>('.view-controls.view-float > *')]
+      .filter((e) => !e.hidden && e.getClientRects().length > 0)
+      .map((e) => {
+        const r = e.getBoundingClientRect();
+        return { x: r.left - (c?.left ?? 0), y: r.top - (c?.top ?? 0), w: r.width, h: r.height };
+      });
+    setLabelAvoidBoxes(boxes);
   };
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(measure);
@@ -345,7 +359,10 @@ export function mountUI(root: HTMLElement, game: Game): void {
     const shown = blockedReason(trackToolOf(game.tool));
     if (!result.ok && shown !== null && localizeReason(shown) === t.message) return;
     toast(t.message, t.kind);
+    // The gate warnings of a placed ride repeat its panel's reach card: they go when that panel is open (review 2026-11-20).
+    if (_cmd.type === 'placeRide' && result.ok && result.id !== undefined) gateToast = { rideId: result.id, message: t.message, until: performance.now() + TOAST_MS };
   });
+  let gateToast: { rideId: number; message: string; until: number } | null = null;
   game.onEvents((events) => {
     // The world behind the title is not the player's park: it never overwrites the autosave.
     if (!titleOpen()) saves.autosave(events);
@@ -440,6 +457,7 @@ export function mountUI(root: HTMLElement, game: Game): void {
         place = `${Math.floor(top - 8 - height)}px|${Math.floor(left)}px|${Math.floor(window.innerWidth - right)}px`;
       }
     }
+    if (place === '' && toastButton && !toastView.el.hidden && !toastButton.hidden) place = clearOfTipAndPanel(toastButton);
     if (place === toastPlace) return;
     toastPlace = place;
     const [top = '', left = '', right = ''] = place === '' ? [] : place.split('|');
@@ -447,6 +465,28 @@ export function mountUI(root: HTMLElement, game: Game): void {
     toastView.el.style.left = left;
     toastView.el.style.right = right;
   };
+
+  /**
+   * Review 2026-11-20: a toast never covers the tip card or a right-side panel of the low layout. Beside such a panel
+   * the toast centres in the map to its left; over the tip (the phone shows it under the top region, where the toast
+   * goes) it moves to 8 px below the tip. '' when its own place is clear.
+   */
+  function clearOfTipAndPanel(button: HTMLElement): string {
+    let right = '';
+    if (root.dataset.low === '1') {
+      const side = root.querySelector<HTMLElement>(".panel[data-layout='side']:not([hidden])");
+      if (side) right = `${Math.ceil(window.innerWidth - side.getBoundingClientRect().left + 8)}px`;
+    }
+    let top = '';
+    if (!tip.el.hidden && tip.el.getClientRects().length > 0) {
+      const t = tip.el.getBoundingClientRect();
+      const b = button.getBoundingClientRect();
+      const ownTop = Math.ceil(hud.el.getBoundingClientRect().bottom) + 10;
+      const across = b.left < t.right && t.left < b.right;
+      if (across && t.top < ownTop + b.height && t.bottom > ownTop) top = `${Math.ceil(t.bottom + 8)}px`;
+    }
+    return top === '' && right === '' ? '' : `${top}||${right}`;
+  }
 
   let lastTool = game.tool.tool;
   let lastHeld: string | null = null;
@@ -506,6 +546,14 @@ export function mountUI(root: HTMLElement, game: Game): void {
     const hidePlain = msgVisible || now < plainHiddenUntil;
     if (toastView.el.hidden !== hidePlain) toastView.el.hidden = hidePlain;
     toastView.update(now);
+    if (gateToast) {
+      const open = ctx.activePanel();
+      if (now >= gateToast.until) gateToast = null;
+      else if (open?.kind === 'ride' && open.id === gateToast.rideId) {
+        toastView.dismissIf(gateToast.message);
+        gateToast = null;
+      }
+    }
     placeToast();
   });
 

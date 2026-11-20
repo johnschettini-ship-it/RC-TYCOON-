@@ -4,7 +4,7 @@ import { h, setAttr, setText } from './dom';
 import { icon } from './icons';
 import { ToastQueue, type ToastKind } from './toasts';
 
-export function createToastView(): { el: HTMLElement; show(message: string, kind: ToastKind): void; update(now: number): void } {
+export function createToastView(): { el: HTMLElement; show(message: string, kind: ToastKind): void; dismissIf(message: string): void; update(now: number): void } {
   const queue = new ToastQueue();
   const msg = h('span', { class: 'toast-text', 'data-testid': 'toast' });
   const warn = icon('warning', 'icon toast-icon');
@@ -18,6 +18,10 @@ export function createToastView(): { el: HTMLElement; show(message: string, kind
     el,
     show(message: string, kind: ToastKind) {
       queue.show(message, kind, performance.now());
+    },
+    /** Take the toast down now when it shows `message` (another view says the same thing). */
+    dismissIf(message: string) {
+      if (queue.current(performance.now())?.message === message) queue.dismiss();
     },
     update(now: number) {
       const t = queue.current(now);

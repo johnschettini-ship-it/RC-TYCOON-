@@ -3,13 +3,32 @@
  * queue card, checked live, first failing step wins: no queue at the entrance → no footpath reaches the queue → the
  * ride is closed → guests can reach it. When a queue or footpath is missing, Show me closes the panel, moves the camera
  * to the spot (`showMapPlace`) and pulses it there for `SHOW_ME_MS` (`ToolState.pathFocus`, drawn by the queue layer).
+ *
+ * Auto-connect (owner 2026-11-19, merged here by the review of 2026-11-20): when a queue, the footpath to it or the exit
+ * footpath is missing and a route exists, the same line offers "Connect it ($cost)". It asks once, with the cost, then
+ * builds (`sim/paths/autoConnect.ts`); Undo takes that connection back with a full refund. When no route exists, the
+ * line says why under the status.
  */
 import { text } from '../../data/strings/en';
+import { localizeReason } from '../../i18n';
 import type { ToolState } from '../../render/types';
 import { rideReach, type ReachStatus } from '../../sim/pathing/reach';
+import {
+  applyAutoConnect,
+  cachedAutoConnectPlan,
+  canPayPlan,
+  lastAutoConnect,
+  planAutoConnect,
+  undoLastAutoConnect,
+  type ConnectPlan,
+} from '../../sim/paths/autoConnect';
+import type { Ride } from '../../sim/rides/types';
 import type { World } from '../../sim/types';
+import { rideWarnings } from '../info';
 import type { UiContext } from '../context';
+import { openDialog } from '../dialogs';
 import { h, setAttr, setText } from '../dom';
+import { formatMoney } from '../format';
 import { icon } from '../icons';
 
 /** How long the Show me pulse lasts (ms). */
@@ -56,7 +75,65 @@ export function showMe(host: ShowMeHost, line: ReachLine, now: number): void {
   host.game.tool.pathFocus = { tile: line.tile, z: line.z, until: now + SHOW_ME_MS };
 }
 
-/** The status row: an icon, the status text and Show me. Hidden while the ride has no entrance. */
+/** The ride's exit opens onto no footpath (the panel warning `ui.ride.exitPath`, shown in this card instead). */
+export function exitNeedsPath(world: World, rideId: number): boolean {
+  const ride = world.state.rides.find((r) => r.id === rideId);
+  return ride !== undefined && rideWarnings(world, ride).includes(text('ui.ride.exitPath'));
+}
+
+/** The panel's warning list without the exit line, which the reach card shows. */
+export function warningsBesideReach(world: World, ride: Ride): string[] {
+  return rideWarnings(world, ride).filter((w) => w !== text('ui.ride.exitPath'));
+}
+
+/** What the Connect action offers for ride `rideId`: a plan with something to build, a reason it cannot, or nothing. */
+export function connectOffer(world: World, rideId: number): { plan: ConnectPlan | null; reason: string | null } {
+  const p = cachedAutoConnectPlan(world, rideId);
+  if (!p.ok) return { plan: null, reason: p.code === 'noGates' ? null : text(`ui.ride.connect.${p.code}`) };
+  return { plan: p.plan.steps.length > 0 ? p.plan : null, reason: null };
+}
+
+/** Ask once with the whole cost, then build; a refusal or a failure says why in a toast. */
+function confirmConnect(ctx: UiContext, rideId: number): void {
+  const { game } = ctx;
+  const p = planAutoConnect(game.world, rideId);
+  if (!p.ok) {
+    ctx.toast(text(`ui.ride.connect.${p.code}`), 'error');
+    return;
+  }
+  const plan = p.plan;
+  if (plan.steps.length === 0) return;
+  const cost = formatMoney(plan.cost);
+  if (!canPayPlan(game.world, plan)) {
+    ctx.toast(text('ui.ride.connect.noCash', { cost }), 'error');
+    return;
+  }
+  const footpath = plan.join.length + plan.exit.length;
+  const d = openDialog(ctx.root, {
+    title: text('ui.ride.connect.confirm', { cost }),
+    body: h('p', { class: 'dialog-text', 'data-testid': 'connect-detail', text: text('ui.ride.connect.detail', { queue: plan.queue.length, footpath }) }),
+    actions: [
+      { label: text('ui.dialog.cancel'), onClick: () => d.close(), kind: 'plain', testId: 'confirm-no' },
+      {
+        label: text('ui.ride.connect.yes', { cost }),
+        kind: 'primary',
+        testId: 'confirm-yes',
+        onClick: () => {
+          d.close();
+          const r = applyAutoConnect(game.world, plan, (cmd) => game.dispatch(cmd));
+          if (r.ok) ctx.toast(text('ui.ride.connect.done', { cost: formatMoney(r.built.cost) }), 'info');
+          else if (r.code === 'failed') ctx.toast(localizeReason(r.reason ?? ''), 'error');
+          else ctx.toast(text(`ui.ride.connect.${r.code}`, { cost }), 'error');
+        },
+      },
+    ],
+  });
+}
+
+/**
+ * The status row: an icon, the status text, Show me and Connect it ($cost) (Undo after a connection), and the reason a
+ * connection cannot be built. Hidden while the ride has no entrance.
+ */
 export function createReachStatus(ctx: UiContext, rideId: number): { el: HTMLElement; update(): void } {
   const okIcon = icon('check', 'icon reach-ok');
   const badIcon = icon('warning', 'icon reach-bad');
@@ -71,13 +148,36 @@ export function createReachStatus(ctx: UiContext, rideId: number): { el: HTMLEle
       if (line) showMe(ctx, line, performance.now());
     },
   });
-  const el = h('div', { class: 'reach-status', 'data-testid': 'reach-status' }, okIcon, badIcon, say, button);
+  const connect = h('button', { type: 'button', class: 'btn primary reach-connect', 'data-testid': 'reach-connect', hidden: true, onclick: () => confirmConnect(ctx, rideId) });
+  const undo = h('button', {
+    type: 'button',
+    class: 'btn reach-undo',
+    'data-testid': 'reach-connect-undo',
+    hidden: true,
+    text: text('ui.ride.connect.undo'),
+    onclick: () => {
+      const game = ctx.game;
+      const before = game.world.state.park.cash;
+      if (undoLastAutoConnect(game.world, rideId, (cmd) => game.dispatch(cmd))) {
+        ctx.toast(text('ui.ride.connect.undone', { cost: formatMoney(Math.max(0, game.world.state.park.cash - before)) }), 'info');
+      }
+    },
+  });
+  const why = h('p', { class: 'reach-why muted', 'data-testid': 'reach-connect-why', hidden: true });
+  // The exit's footpath is the other half of what Connect builds (review 2026-11-20): its line is in this card, not in
+  // the panel's warning list.
+  const exitLine = h('p', { class: 'reach-exit', 'data-testid': 'reach-exit', hidden: true }, icon('warning', 'icon reach-bad'), h('span', { text: text('ui.ride.exitPath') }));
+  const el = h('div', { class: 'reach-status', 'data-testid': 'reach-status' }, okIcon, badIcon, say, exitLine, button, connect, undo, why);
   let last = '';
   return {
     el,
     update() {
-      line = reachLine(ctx.game.world, rideId);
-      const key = line ? `${line.status}|${line.text}` : '';
+      const world = ctx.game.world;
+      line = reachLine(world, rideId);
+      const offer = line ? connectOffer(world, rideId) : { plan: null, reason: null };
+      const canUndo = line !== null && lastAutoConnect(world, rideId) !== null;
+      const exitMissing = line !== null && exitNeedsPath(world, rideId);
+      const key = line ? `${line.status}|${line.text}|${offer.plan?.cost ?? -1}|${offer.reason ?? ''}|${canUndo}|${exitMissing}` : '';
       if (key === last) return;
       last = key;
       el.hidden = line === null;
@@ -88,6 +188,13 @@ export function createReachStatus(ctx: UiContext, rideId: number): { el: HTMLEle
       okIcon.style.display = good ? '' : 'none';
       badIcon.style.display = good ? 'none' : '';
       button.hidden = !line.showMe;
+      connect.hidden = offer.plan === null;
+      if (offer.plan) setText(connect, text('ui.ride.connect', { cost: formatMoney(offer.plan.cost) }));
+      undo.hidden = !canUndo;
+      exitLine.hidden = !exitMissing;
+      setAttr(el, 'data-exit', exitMissing ? 'missing' : 'ok');
+      why.hidden = offer.reason === null;
+      setText(why, offer.reason ?? '');
     },
   };
 }

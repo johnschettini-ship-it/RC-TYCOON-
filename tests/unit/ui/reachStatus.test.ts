@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { markNetworkDirty } from '../../../src/sim/pathing';
 import { tileIndex } from '../../../src/sim/map';
 import { defaultToolState } from '../../../src/render/types';
-import { reachLine, showMe, SHOW_ME_MS, type ShowMeHost } from '../../../src/ui/rides/reachStatus';
+import { connectOffer, reachLine, showMe, SHOW_ME_MS, type ShowMeHost } from '../../../src/ui/rides/reachStatus';
 import { rideWarnings } from '../../../src/ui/info';
 import { en } from '../../../src/data/strings/en';
 import type { World } from '../../../src/sim/types';
@@ -89,4 +89,22 @@ describe('reach status line', () => {
     expect(said('stormHold')).toBe('Closed for the storm');
     expect(said('open')).toBe('Guests can reach this ride');
   });
+
+  it('Connect offers the plan with its cost when a route exists, the reason when none does, nothing when all is built', () => {
+    const w = makeTestWorld();
+    const ride = placeRideDirect(w, 'carousel', 10, 10, 0);
+    // Only the park entrance's stub: too far.
+    expect(connectOffer(w, ride.id)).toEqual({ plan: null, reason: en['ui.ride.connect.noRoute'] });
+    road(w, 11, 16);
+    const offer = connectOffer(w, ride.id);
+    expect(offer.reason).toBeNull();
+    expect(offer.plan?.cost).toBeGreaterThan(0);
+    // Every code a plan or a build can fail with has a string, without a final period.
+    for (const code of ['noRoute', 'entranceOnPath', 'exitOnQueue', 'entranceRaised', 'exitRaised', 'noCash', 'noGates']) {
+      const s = en[`ui.ride.connect.${code}`];
+      expect(s, code).toBeTruthy();
+      expect(s!.endsWith('.'), code).toBe(false);
+    }
+  });
 });
+

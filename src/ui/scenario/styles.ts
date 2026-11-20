@@ -106,7 +106,8 @@ const CSS = `
   padding: 12px 14px; overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border: var(--outline); box-shadow: var(--shadow);
 }
-#ui[data-layout='side'] .tc-objectives { top: calc(var(--hud-bottom) + 10px); right: calc(10px + var(--safe-right)); width: 340px; max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px); border-radius: var(--radius-surface); }
+/* Desktop: beside the deck list, which docks at the right (owner 2026-11-19), never over it. */
+#ui[data-layout='side'] .tc-objectives { top: calc(var(--hud-bottom) + 10px); right: calc(var(--deck-w) + 20px + var(--safe-right)); width: 340px; max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 20px); border-radius: var(--radius-surface); }
 #ui[data-layout='bottom'] .tc-objectives { left: 0; right: 0; bottom: var(--toolbar-space); max-height: 60%; border-radius: var(--radius-surface) var(--radius-surface) 0 0; }
 /* Task 19, the low layout (a phone held sideways): a right-side panel from below the top region to above the chips row. */
 #ui[data-low='1'] .tc-objectives {
