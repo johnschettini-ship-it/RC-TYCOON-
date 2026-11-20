@@ -163,9 +163,16 @@ describe('the shadow pass draws track shadows (renderer)', () => {
     expect(at(supSh).length).toBeGreaterThan(0);
     expect(Math.min(...shadows)).toBeGreaterThan(0); // the ground is drawn first
     expect(Math.max(...shadows)).toBeLessThan(Math.min(...solid));
-    // one rail shadow per slice drawn, asked once a frame
-    expect(calls['railPart:sh']).toBe(calls.rail);
-    expect(at(railSh).length).toBe(at(rail).length);
+    // one rail shadow per slice drawn, asked once a frame, except where it would fall off the map (2026-11-20: the
+    // lift's shadow at the map's top edge here)
+    const { newShadowGround, shadowGround } = await import('../../../../src/render/real/groundShadow');
+    const G = newShadowGround();
+    const f = viewFrame(0, world.state.map.width, world.state.map.height);
+    const rideId = world.state.rides.find((x) => x.kind === 'track')!.id;
+    const offMap = buildRideSlices(world, rideId, f).filter((sl) => !shadowGround(world.state.map, (sl.x + 0.5) * 4, (sl.y + 0.5) * 4, railShadowPlane(sl.railMin), f, G)).length;
+    expect(offMap).toBeGreaterThan(0);
+    expect(calls['railPart:sh']).toBe(calls.rail! - offMap);
+    expect(at(railSh).length).toBe(at(rail).length - offMap);
     // one soft ellipse (a transformed unit circle) per car drawn
     expect(calls.car).toBeGreaterThan(0);
     expect(canvas.count('transform')).toBe(calls.car);
