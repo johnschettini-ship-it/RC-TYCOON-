@@ -9,7 +9,7 @@ import { checkCoverFolder, coverDecoded, titleDecoded } from './titleIndex';
 import { cacheKey } from './cacheKey';
 import { sizeReport, formatSizeReport, S5_LIMIT_BYTES, typePieces } from './sizeReport';
 import { carPoses, hasFrontCar, reachedPoses } from './poses';
-import { TRACK_CLASSES, carQuadrant, pieceClass, poseClassOf, poseCode, type TrackClass } from '../../src/render/real/trackClasses';
+import { TRACK_CLASSES, carQuadrant, carSplitClass, pieceClass, poseClassOf, poseCode, railSplitClass, type TrackClass } from '../../src/render/real/trackClasses';
 import { TRACK_RIDES } from '../../src/data/catalog';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
 import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
@@ -24,7 +24,7 @@ export { itemSpec, contentHash, checkIndex, checkCoverFolder, coverDecoded, titl
 export type { ItemKind };
 
 /** One car pose (quantised yaw 0-31, pitch and roll 0-23: src/render/real/pose.ts) and its yaw quadrant (car set `r<q>`). */
-export interface BakePose { yaw: number; pitch: number; roll: number; q: number }
+export interface BakePose { yaw: number; pitch: number; roll: number; q: number; set: string }
 /** Rail samples and rail tiles of a piece built at one heading, entering tile (0, 0) at height 0. */
 export interface PieceDir {
   n: number; x: number[]; y: number[]; z: number[]; yaw: number[]; pitch: number[]; bankSin: number[]; bankCos: number[];
@@ -111,8 +111,9 @@ export function clipRects<T extends { x: number; y: number; railMin: number; rai
 }
 /**
  * The bake input of a track type (items/trackKit.js bakeTrackType, frame plan items/trackKeys.js):
- *   pieces   every piece the type builds (`typeBuildsPiece`), with its class, its special, whether it has untinted
- *            parts (`UNTINTED_GROUPS`: masked sheet, not alpha), whether it takes a chain lift (`chainable`: Task 5's trough) and its samples and tiles at every heading;
+ *   pieces   every piece the type builds (`typeBuildsPiece`), with its class and its rail set's class (`railSet`: the
+ *            class, or its half when the spec's `splitRailClasses` names it), its special, whether it has untinted
+ *            parts (`UNTINTED_GROUPS`, or every piece of a type whose spec says `maskedRails`: masked sheet, not alpha), whether it takes a chain lift (`chainable`: the type chains and the piece is chainable; Task 5's trough) and its samples and tiles at every heading;
  *   classes  in `TRACK_CLASSES` order, the class's pieces and its car poses (`poseClassOf`, as the game files them), each
  *            with its yaw quadrant `q` (`carQuadrant`: the car set `car:<type>~<class>:r<q>` it goes in);
  *   spins    `vehicle.spins`: every reached (pitch, roll) at all 32 yaws; a yaw no piece reaches files under `base`;
@@ -120,11 +121,11 @@ export function clipRects<T extends { x: number; y: number; railMin: number; rai
  */
 export interface TrackBakeInput {
   type: string; spins: boolean; front: boolean;
-  pieces: Record<string, { special: string | null; group: string; cls: TrackClass; untinted: boolean; chainable: boolean; dirs: PieceDir[] }>;
+  pieces: Record<string, { special: string | null; group: string; cls: TrackClass; railSet: string; untinted: boolean; chainable: boolean; dirs: PieceDir[] }>;
   classes: { cls: TrackClass; pieces: string[]; poses: BakePose[] }[];
 }
 
-export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHalfM'> = trackSpecOf(typeId)): TrackBakeInput {
+export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHalfM' | 'maskedRails' | 'splitRailClasses' | 'splitCarClasses'> = trackSpecOf(typeId)): TrackBakeInput {
   const type = getTrackTypeDef(typeId);
   if (!type) throw new Error(`trackGeometry: unknown track type ${typeId}`);
   const ids = typePieces(typeId);
@@ -141,12 +142,17 @@ export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHal
         tiles: trackRuns(s, clipRects(pieceWorldTiles(piece)), spec.straddleHalfM),
       });
     }
-    pieces[id] = { special: def.special ?? null, group: def.group, cls: pieceClass(id), untinted: UNTINTED_GROUPS.includes(def.group), chainable: !!def.chainable, dirs };
+    const cls = pieceClass(id);
+    pieces[id] = { special: def.special ?? null, group: def.group, cls, railSet: spec.splitRailClasses?.includes(cls) ? railSplitClass(id) : cls, untinted: !!spec.maskedRails || UNTINTED_GROUPS.includes(def.group), chainable: type.chain && !!def.chainable, dirs }; // a trough only where the type can chain the piece
   }
   const spins = type.vehicle.spins;
   const front = hasFrontCar(typeId);
   const classes = TRACK_CLASSES.map((cls) => ({ cls, pieces: ids.filter((id) => pieces[id]!.cls === cls), poses: [] as BakePose[] }));
-  for (const p of carPoses(typeId, ids)) classes.find((c) => c.cls === poseClassOf(typeId, poseCode(p.yaw, p.pitch, p.roll)))!.poses.push({ ...p, q: carQuadrant(p.yaw) });
+  for (const p of carPoses(typeId, ids)) {
+    const cls = poseClassOf(typeId, poseCode(p.yaw, p.pitch, p.roll));
+    // its set's class: the class, or its roll half when the spec's `splitCarClasses` names it
+    classes.find((c) => c.cls === cls)!.poses.push({ ...p, q: carQuadrant(p.yaw), set: spec.splitCarClasses?.includes(cls) ? carSplitClass(cls, p.roll) : cls });
+  }
   return { type: typeId, spins, front, pieces, classes: classes.filter((c) => c.pieces.length || c.poses.length) };
 }
 

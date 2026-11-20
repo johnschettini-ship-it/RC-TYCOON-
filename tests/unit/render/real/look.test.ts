@@ -165,7 +165,7 @@ describe('fallbacks', () => {
     expect(realItem('mini_railway')).toBe('steel_coaster');
     expect(realItem('bench')).toBe('bench');
     expect(realItem('bin')).toBe('bin');
-    expect(REAL_FALLBACK['wooden_coaster']).toBe('classic');
+    expect(REAL_FALLBACK['ghost_train']).toBe('classic');
     expect(realItem('no_such_thing')).toBe('classic');
   });
 });
@@ -204,8 +204,8 @@ describe('RealLook', () => {
   it('falls back for unbaked items', () => {
     const { sets, look } = setup();
     look.prepare(emptyWorld(), 0, VIEW, 1, 1);
-    expect(look.ride('wooden_coaster', 0, 0, 0)).toBeUndefined();
-    expect(look.fallbacksUsed()).toContain('wooden_coaster');
+    expect(look.ride('ghost_train', 0, 0, 0)).toBeUndefined();
+    expect(look.fallbacksUsed()).toContain('ghost_train');
     sets.setState(setKey('stall', 'snack_shack', 2, 0), 'ready');
     const sp = look.stall('fizz_stand', 0);
     expect(sp).toBeTruthy();

@@ -14,8 +14,8 @@ import { TRACK_SET_MAX_D4 } from '../../../tools/art3d/trackBudget';
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-interface RailFrame { cls: string; heading: number; piece: string; ti: number; key: string; shadow: string; chain: string | null; alpha: boolean }
-interface CarFrame { cls: string; q: number; pose: { yaw: number; pitch: number; roll: number }; full: boolean; front: boolean; key: string }
+interface RailFrame { cls: string; set: string; heading: number; piece: string; ti: number; key: string; shadow: string; chain: string | null; alpha: boolean }
+interface CarFrame { cls: string; set: string; q: number; pose: { yaw: number; pitch: number; roll: number }; full: boolean; front: boolean; key: string }
 
 describe('track kit frame plan', () => {
   it('every piece the steel coaster builds is in its bake input, at every heading, all 34', () => {
@@ -42,8 +42,8 @@ describe('track kit frame plan', () => {
       expect(rails.length, r.id).toBe(tiles);
       expect(new Set(rails.map((f) => `${f.cls}|${f.heading}|${f.key}`)).size, `${r.id}: one picture per key and set`).toBe(rails.length);
       for (const f of rails) expect(f.shadow, r.id).toBe(`${f.key}:sh`); // and its shadow (Task 4)
-      // and, for a chainable piece, its chain trough (Task 5)
-      for (const f of rails) expect(f.chain, `${r.id} ${f.key}`).toBe(getTrackPieceDef(f.piece)!.chainable ? `${f.key}:chain` : null);
+      // and, for a chainable piece on a type that chains, its chain trough (Task 5)
+      for (const f of rails) expect(f.chain, `${r.id} ${f.key}`).toBe(getTrackTypeDef(r.id)!.chain && getTrackPieceDef(f.piece)!.chainable ? `${f.key}:chain` : null);
       const cars: CarFrame[] = carFrames(t);
       expect(cars.length, r.id).toBe(carFramesOf(r.id, pieces).frames);
       const type = getTrackTypeDef(r.id)!;
@@ -68,9 +68,9 @@ describe('track kit frame plan', () => {
       };
       for (const d of [2, 4] as const) {
         for (const f of railFrames(t) as RailFrame[]) {
-          for (const k of [f.key, f.shadow, ...(f.chain ? [f.chain] : [])]) add('rail', classItem(r.id, f.cls), d, f.heading as 0, k);
+          for (const k of [f.key, f.shadow, ...(f.chain ? [f.chain] : [])]) add('rail', classItem(r.id, f.set), d, f.heading as 0, k); // its set: the class, or the class's half
         }
-        for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.cls), d, f.q as 0, f.key);
+        for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.set), d, f.q as 0, f.key); // its class, or the class's roll half
       }
       const index: RealIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
       expect(trackComplete(index), r.id).toEqual([]);
@@ -281,7 +281,7 @@ describe('style constants live in the type\'s spec (Task 3 review P2)', () => {
     const { TRACK_SPECS, trackSpecOf } = await load('items/trackSpecs.js');
     expect(TRACK_SPECS.steel_coaster).toBe(SPEC);
     // a type with no module yet is measured with the steel spec until its module sets its own
-    expect(trackSpecOf('junior_coaster')).toBe(SPEC);
+    expect(trackSpecOf('monorail')).toBe(SPEC);
   });
 
   it('trackGeometry reads the straddle half-width from the spec it is given (the steel one by default)', async () => {

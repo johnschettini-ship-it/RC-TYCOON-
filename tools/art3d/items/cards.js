@@ -163,6 +163,28 @@ async function itemCard(B, card) {
   return shot;
 }
 
+/**
+ * The supports of a track card (pure): under every raised piece (middle sample above 0.5 m), at its middle sample, the
+ * foot, 1 m segments up to the spec's supportTopBelowRail under the rail line, and the top, every part at the track's
+ * heading there, as the game stacks them (a lattice trestle's legs stand across the track; they stood across heading 0).
+ */
+export function cardSupportStacks(scene, spec) {
+  const out = [];
+  for (const pc of scene.pieces) {
+    const s = pc.samples;
+    const k = Math.floor(s.n / 2);
+    const z = s.z[k];
+    if (z <= 0.5) continue;
+    const heading = ((Math.round(s.yaw[k] / (Math.PI / 2)) % 4) + 4) % 4;
+    const parts = [{ part: 'foot', heading, y: 0, scaleY: 1 }];
+    const top = Math.max(0.25, z - spec.supportTopBelowRail);
+    for (let y = 0.25; y + 0.2 < top; y += 1) parts.push({ part: 'seg', heading, y, scaleY: Math.min(1, (top - y) / SEG_H) });
+    parts.push({ part: 'top', heading, y: top, scaleY: 1 });
+    out.push({ x: s.x[k], z: s.y[k], heading, parts });
+  }
+  return out;
+}
+
 /** Today's track preview scene of a track type (`scene`: the placed rail samples bake.mjs passes in), in its style. */
 function trackCard(B, spec, scene) {
   const K = kit();
@@ -184,21 +206,13 @@ function trackCard(B, spec, scene) {
   // Supports: under every raised piece (as today's preview: middle sample above 0.5 m), at its middle sample, stacked
   // as the game stacks them (foot, 1 m segments to the spec's supportTopBelowRail under the rail line, the saddle across
   // the track there).
-  for (const pc of scene.pieces) {
-    const s = pc.samples;
-    const k = Math.floor(s.n / 2);
-    const z = s.z[k];
-    if (z <= 0.5) continue;
-    const at = (o, y) => { o.position.set(s.x[k], y, s.y[k]); group.add(o); };
-    at(supportPiece(K, 'foot', 0, supMat, st.supports), 0);
-    const top = Math.max(0.25, z - spec.supportTopBelowRail);
-    for (let y = 0.25; y + 0.2 < top; y += 1) {
-      const seg = supportPiece(K, 'seg', 0, supMat, st.supports);
-      seg.scale.y = Math.min(1, (top - y) / SEG_H);
-      at(seg, y);
+  for (const sup of cardSupportStacks(scene, spec)) {
+    for (const p of sup.parts) {
+      const o = supportPiece(K, p.part, p.heading, supMat, st.supports);
+      if (p.scaleY !== 1) o.scale.y = p.scaleY;
+      o.position.set(sup.x, p.y, sup.z);
+      group.add(o);
     }
-    const heading = ((Math.round(s.yaw[k] / (Math.PI / 2)) % 4) + 4) % 4;
-    at(supportPiece(K, 'top', heading, supMat, st.supports), top);
   }
   // A two-car train on the second station piece (as today's preview), as the game draws cars: centre on the rail
   // line, facing along it.
