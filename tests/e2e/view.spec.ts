@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { isPhone, newPark, openTool, setSpeed, touch, watchErrors } from './helpers';
+import { isPhone, newPark, openTool, setSpeed, stepPx, touch, watchErrors } from './helpers';
 
 /**
  * View rotation and land purchase (Phase 4 §9.5, W3-G), plus the opt-in 128 × 128 frame-rate measurement
@@ -27,13 +27,14 @@ interface ViewMap {
 
 /** Map tile under the screen centre (flat ground), through the inverse view table. */
 async function centreTile(page: Page): Promise<number> {
-  return page.evaluate(() => {
+  const step = await stepPx(page);
+  return page.evaluate((sp) => {
     const g = (window as unknown as { __tc: ViewGame }).__tc;
     const map = g.world.state.map;
     const c = g.camera;
     const z = map.heights[0] ?? 0;
     const a = c.centerX / 32;
-    const b = (c.centerY + z * 8) / 16;
+    const b = (c.centerY + z * sp) / 16;
     const u = (a + b) / 2;
     const v = (b - a) / 2;
     const W = map.width;
@@ -41,13 +42,14 @@ async function centreTile(page: Page): Promise<number> {
     const r = c.rotation;
     const [fx, fy] = r === 1 ? [v, H - u] : r === 2 ? [W - u, H - v] : r === 3 ? [W - v, u] : [u, v];
     return Math.floor(fy) * W + Math.floor(fx);
-  });
+  }, step);
 }
 
 /** Page coordinates of the centre of map tile (x, y) in the current view rotation. */
 async function tilePointR(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
+  const step = await stepPx(page);
   return page.evaluate(
-    ([tx, ty]) => {
+    ([tx, ty, sp]) => {
       const g = (window as unknown as { __tc: ViewGame }).__tc;
       const map = g.world.state.map;
       const W = map.width;
@@ -60,26 +62,27 @@ async function tilePointR(page: Page, x: number, y: number): Promise<{ x: number
       const canvas = document.getElementById('game') as HTMLCanvasElement;
       const rect = canvas.getBoundingClientRect();
       const wx = (u - v) * 32;
-      const wy = (u + v) * 16 - h * 8;
+      const wy = (u + v) * 16 - h * sp;
       return { x: rect.left + (wx - g.camera.centerX) * g.camera.zoom + rect.width / 2, y: rect.top + (wy - g.camera.centerY) * g.camera.zoom + rect.height / 2 };
     },
-    [x, y] as const,
+    [x, y, step] as const,
   );
 }
 
 /** Make the block x0–x1 × y0–y1 land for sale (state 2) and centre the camera on it. */
 async function landForSale(page: Page, x0: number, y0: number, x1: number, y1: number): Promise<void> {
+  const step = await stepPx(page);
   await page.evaluate(
-    ([a, b, c, d]) => {
+    ([a, b, c, d, sp]) => {
       const g = (window as unknown as { __tc: ViewGame }).__tc;
       const map = g.world.state.map;
       for (let y = b; y <= d; y++) for (let x = a; x <= c; x++) map.owned[y * map.width + x] = 2;
       const cx = (a + c + 1) / 2;
       const cy = (b + d + 1) / 2;
       g.camera.centerX = (cx - cy) * 32;
-      g.camera.centerY = (cx + cy) * 16 - (map.heights[0] ?? 0) * 8;
+      g.camera.centerY = (cx + cy) * 16 - (map.heights[0] ?? 0) * sp;
     },
-    [x0, y0, x1, y1] as const,
+    [x0, y0, x1, y1, step] as const,
   );
 }
 

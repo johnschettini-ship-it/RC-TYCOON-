@@ -6,6 +6,11 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
  * `tc-<buildId>` cache.
  */
 
+// The realistic test build registers no service worker by design (`src/main.ts`: it shares the website's origin, and its
+// worker would delete the main game's offline cache): these are the website build's tests; `offline-real.spec.ts`
+// checks the realistic build registers none.
+test.skip(process.env.VITE_ART === 'real', 'the realistic build registers no service worker (src/main.ts); see offline-real.spec.ts');
+
 async function workerReady(page: Page): Promise<string> {
   return page.evaluate(async () => {
     const reg = await navigator.serviceWorker.ready;

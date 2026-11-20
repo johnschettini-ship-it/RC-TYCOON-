@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { cardOf, newPark, pickCard, watchErrors } from './helpers';
+import { cardOf, newPark, pickCard, stepPx, watchErrors } from './helpers';
 
 /**
  * Build 3 extra content (phase-6-polish.md §4.5, W4-D) in the real game on desktop and phone: once researched, the 4 flat
@@ -43,7 +43,8 @@ async function press(page: Page, phone: boolean, testId: string): Promise<void> 
 
 /** Move the camera so tile (x, y) shows at a clear spot of the screen; returns that point (CSS px). */
 async function showTile(page: Page, x: number, y: number): Promise<{ x: number; y: number }> {
-  return page.evaluate(([tx, ty]) => {
+  const step = await stepPx(page);
+  return page.evaluate(([tx, ty, sp]) => {
     const g = (window as unknown as { __tc: ContentTc }).__tc;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
@@ -52,9 +53,9 @@ async function showTile(page: Page, x: number, y: number): Promise<{ x: number; 
     const map = g.world.state.map;
     const z = map.heights[ty * map.width + tx] ?? 8;
     g.camera.centerX = (tx - ty) * 32 - (fx * vw - vw / 2) / g.camera.zoom;
-    g.camera.centerY = (tx + ty + 1) * 16 - z * 8 - (fy * vh - vh / 2) / g.camera.zoom;
+    g.camera.centerY = (tx + ty + 1) * 16 - z * sp - (fy * vh - vh / 2) / g.camera.zoom;
     return { x: fx * vw, y: fy * vh };
-  }, [x, y] as const);
+  }, [x, y, step] as const);
 }
 
 async function pieceCount(page: Page): Promise<number> {

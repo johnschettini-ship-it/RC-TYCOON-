@@ -9,7 +9,7 @@
  * - 667 × 375: new park 0.09, hand closed 0.55, Rides deck 0.09, held Carousel 0.23, Finance 0.14, track builder 0.00.
  */
 import { expect, test, type Page } from '@playwright/test';
-import { freeMapShare, isPhone, newPark, openTool, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
+import { dismissWelcome, freeMapShare, isPhone, newPark, openTool, pickCard, presetSettings, scan, showTile, watchErrors } from './helpers';
 import { defaultSettings, serializeSettings } from '../../src/settings/schema';
 
 type Box = { left: number; top: number; right: number; bottom: number; width: number; height: number };
@@ -296,6 +296,7 @@ test.describe('low layout (Task 19)', () => {
     await page.getByTestId('title-size-64').click();
     await page.getByTestId('title-start').click();
     await expect(page.locator('.title-screen')).toBeHidden();
+    await dismissWelcome(page);
     await page.evaluate(() => document.fonts.ready.then(() => undefined));
     await page.evaluate(() => (window as unknown as { __tc: { setSpeed(n: number): void } }).__tc.setSpeed(0));
     await expect(page.locator('#ui')).toHaveAttribute('data-low', '1');

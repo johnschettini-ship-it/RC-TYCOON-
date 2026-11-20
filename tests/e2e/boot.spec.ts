@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { dismissWelcome } from './helpers';
 
 test('the game boots without console errors and draws the map', async ({ page }) => {
   const errors: string[] = [];
@@ -7,6 +8,14 @@ test('the game boots without console errors and draws the map', async ({ page })
   });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/');
+  if (process.env.VITE_ART === 'real') {
+    // The realistic build draws no park while its title covers the window (the park's pictures are released for the
+    // title's: spec 2026-11-16-realistic-title-and-cards-design.md, builder-check answers 2 and 4; `titleHolds` in
+    // src/render/real/titleHold.ts), so the map is drawn once a park opens.
+    await page.getByTestId('title-new').click();
+    await page.getByTestId('title-start').click();
+    await dismissWelcome(page);
+  }
   const canvas = page.locator('#game');
   await expect(canvas).toHaveAttribute('data-zoom', /\d/);
   const nonBackground = await page.evaluate(() => {
