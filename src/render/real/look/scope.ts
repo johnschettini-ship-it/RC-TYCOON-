@@ -12,7 +12,7 @@ import { getFlatRideDef } from '../../../data/catalog/flatRides';
 import { CARD_SET } from '../cards';
 import type { RealKind, SetKey } from '../indexFormat';
 import type { LookCore } from './core';
-import { carSetsOf, pieceClass } from '../trackClasses';
+import { carHalfSetsOf, railSplitClass } from '../trackClasses';
 import { poseTypeOf } from './track';
 import type { Combo, ItemRec, RealSets, ScopeObject } from './types';
 
@@ -178,7 +178,7 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     if (railRec) {
       const seen = new Set<string>();
       for (const p of pieces) {
-        const cls = pieceClass(p.defId);
+        const cls = railSplitClass(p.defId); // its class's half, or the whole class when the art does not split it
         const k = `${cls}/${p.dir & 3}`;
         if (seen.has(k)) continue;
         seen.add(k);
@@ -190,7 +190,7 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     if (carRec) {
       // Car sets by class and yaw quadrant (fix wave): a quadrant turns with the view like a rail heading, so each is a
       // combo at its world quadrant. A stage 1 `rall` set resolves to the one set at every quadrant.
-      for (const [cls, quads] of carSetsOf(poseTypeOf(carRec, defId), pieces)) {
+      for (const [cls, quads] of carHalfSetsOf(poseTypeOf(carRec, defId), pieces)) { // class yaw halves (whole when not split)
         for (const q of quads) {
           const id = combo(classRec(carRec, cls), q);
           if (!out.includes(id)) out.push(id);

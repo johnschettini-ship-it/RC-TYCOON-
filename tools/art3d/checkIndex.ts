@@ -8,15 +8,15 @@ import { checkCoverFolder, checkTitleIndex, type TitleFiles } from './titleIndex
 import { carPoses, hasFrontCar } from './poses';
 import { railTileRanges, typePieces } from './sizeReport';
 import { trackTypeOfItem } from './trackBudget';
-import { TRACK_CLASSES, carQuadrant, pieceClass, poseClassOf, poseCode } from '../../src/render/real/trackClasses';
-import { getTrackPieceDef } from '../../src/data/track';
+import { carQuadrant, carSplitClass, isRailSetClass, pieceClass, poseClassOf, poseCode, railSplitClass } from '../../src/render/real/trackClasses';
+import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
 
 const MAX_SHEET = 2048;
 /**
  * Piece groups whose rail frames have parts that never take the track colour (station decks, brake and block-brake
- * fins, water channels): they must sit on a masked sheet, never on an alpha-tint one (batch 5 tint rule).
+ * fins, water channels, the launch piece's motors): they must sit on a masked sheet, never on an alpha-tint one (batch 5 tint rule).
  */
-export const UNTINTED_GROUPS: readonly string[] = ['S', 'Br', 'BB', 'W'];
+export const UNTINTED_GROUPS: readonly string[] = ['S', 'Br', 'BB', 'W', 'Ln']; // Ln: the launch piece's motors (batch 5 Task 7)
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
 
 /** `#rrggbb` (either case). */
@@ -74,7 +74,8 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
   for (const set of index.sets) {
     const cls = set.item.includes('~') ? set.item.slice(set.item.indexOf('~') + 1) : null;
     if (cls !== null && (set.kind !== 'rail' && set.kind !== 'car')) problems.push(`${set.key}: only rail and car sets have track classes`);
-    if (cls !== null && !(TRACK_CLASSES as readonly string[]).includes(cls)) problems.push(`${set.key}: unknown track class '${cls}'`);
+    // (a set may hold a class's half, `<class>.<k>`: trackClasses.ts railSplitClass, carSplitClass)
+    if (cls !== null && !isRailSetClass(cls)) problems.push(`${set.key}: unknown track class '${cls}'`);
     // Never tint station decks, brake fins or water (review fix): their frames sit on a masked sheet.
     if (set.kind === 'rail') {
       const alphaSheets = new Set(set.sheets.filter((s) => s.tint === 'alpha').map((s) => s.file));
@@ -229,8 +230,26 @@ export function trackComplete(index: RealIndex): string[] {
       frames.set(k, f);
     }
     const has = (kind: string, item: string, d: number, rot: number | 'all', fk: string): boolean => frames.get(`${kind}|${item}|${d}|${rot}`)?.has(fk) ?? false;
-    const railItem = (pc: string): string => (classed('rail') ? `${type}~${pieceClass(pc)}` : type);
-    const carItem = (code: number): string => (classed('car') ? `${type}~${poseClassOf(type, code)}` : type);
+    // a piece's rail set: its class's half when the art splits that class (trackClasses.ts railSplitClass), else its class
+    const railItems = new Set(ofType.filter((s) => s.kind === 'rail').map((s) => s.item));
+    const railItem = (pc: string): string => {
+      if (!classed('rail')) return type;
+      const half = `${type}~${railSplitClass(pc)}`;
+      return railItems.has(half) ? half : `${type}~${pieceClass(pc)}`;
+    };
+    const carItems = new Set(ofType.filter((s) => s.kind === 'car').map((s) => s.item));
+    for (const [kind, items] of [['rail', railItems], ['car', carItems]] as const) {
+      for (const it of items) {
+        const m = /~(\w+)\.\d$/.exec(it);
+        if (m && items.has(`${type}~${m[1]}`)) problems.push(`TRACK_COMPLETE ${kind}:${type}~${m[1]}: ${kind} sets in both layouts (whole and halves, ${it})`);
+      }
+    }
+    const carItem = (code: number): string => {
+      if (!classed('car')) return type;
+      const cls = poseClassOf(type, code);
+      const half = `${type}~${carSplitClass(cls, code % 24)}`; // its class's roll half when the art splits it
+      return carItems.has(half) ? half : `${type}~${cls}`;
+    };
     /** The set a car frame is in: its yaw quadrant's in the class layout, the one `rall` set in the stage 1 layout. */
     const carRot = (yaw: number): number | 'all' => (classed('car') ? carQuadrant(yaw) : 'all');
     // A support set of a class-layout type holds every part and its shadow (Task 4).
@@ -264,10 +283,10 @@ export function trackComplete(index: RealIndex): string[] {
             });
           }
           for (const [item, l] of noShadow) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} rail shadow(s) missing (${l.slice(0, 4).join(', ')})`);
-          // and every rail tile's chain trough of a chainable piece (Task 5)
+          // and every rail tile's chain trough of a chainable piece on a type that chains (Task 5; a launch coaster none)
           const noTrough = new Map<string, string[]>();
           for (const pc of pieces) {
-            if (!getTrackPieceDef(pc)?.chainable) continue;
+            if (!getTrackPieceDef(pc)?.chainable || !getTrackTypeDef(type)?.chain) continue;
             const item = railItem(pc);
             railTileRanges(pc, h).forEach((_, ti) => {
               const fk = `${pc}:t${ti}:chain`;

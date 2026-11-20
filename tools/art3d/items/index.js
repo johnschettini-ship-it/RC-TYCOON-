@@ -48,6 +48,10 @@ import station_show from './station_show.js';
 import junior_coaster from './junior_coaster.js';
 import wooden_coaster from './wooden_coaster.js';
 import spinning_mouse from './spinning_mouse.js';
+// Batch 5 Task 7 track types.
+import bobsled_run from './bobsled_run.js';
+import launch_coaster from './launch_coaster.js';
+import mine_train from './mine_train.js';
 
 export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shrub_round, boulder, lamp_globe, bunting_pole, bench, bin, snack_shack, big_wheel, swing_tower, guests, ground, steel_coaster, facade, cards, teacup_twirl, rocket_rounds, kiddie_cars, merry_mill,
   observation_tower, drop_tower, gyro_globe, spiral_slide, pendulum_ship, magic_carpet, flip_arm, bumper_cars, mirror_maze, haunted_manor, thunder_disc, title,
@@ -55,3 +59,4 @@ export const ITEMS = { carousel, oak_round, pine_tall, birch_silver, willow, shr
 // New rides batch B (2026-11-17).
 Object.assign(ITEMS, { chair_swing_twist, spin_wheel_drop, loop_swing, carousel_deluxe, station_show });
 Object.assign(ITEMS, { junior_coaster, wooden_coaster, spinning_mouse });
+Object.assign(ITEMS, { bobsled_run, launch_coaster, mine_train });

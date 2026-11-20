@@ -26,6 +26,27 @@ export const GROUP_CLASS: Readonly<Record<PieceGroup, TrackClass>> = {
   Ts: 'turn', Tm: 'turn', B: 'bank', L: 'loop', Cs: 'cork', Hx: 'helix', Sp: 'spooky', W: 'water', Ln: 'launch',
 };
 
+/**
+ * A rail class's half (after batch 5 Task 7: a masked helix set was over the 8 MiB per-set rule): `<class>.0` or
+ * `<class>.1`, by the piece's place among its class's pieces in ALL_TRACK_PIECES order (even or odd), so the helix splits
+ * into its up and down pieces. A type's bake splits a class only when one set would pass the limit (its spec's
+ * `splitRailClasses`); the reader and the scope ask for the half and, when the art has no halves, get the whole class
+ * (look/core.ts classRec). Same for any type and view, like the class itself.
+ */
+export function railSplitClass(pieceId: string): string {
+  const def = getTrackPieceDef(pieceId);
+  if (!def) return 'base.0';
+  const cls = GROUP_CLASS[def.group];
+  const i = ALL_TRACK_PIECES.filter((p) => GROUP_CLASS[p.group] === cls).findIndex((p) => p.id === pieceId);
+  return `${cls}.${i % 2}`;
+}
+
+/** Whether a set's class name is a class or a class's half (`<class>.0`, `<class>.1`: rails railSplitClass, cars carSplitClass). */
+export function isRailSetClass(name: string): boolean {
+  const m = /^(\w+)(?:\.([01]))?$/.exec(name);
+  return !!m && (TRACK_CLASSES as readonly string[]).includes(m[1] as string);
+}
+
 /** The class of a rail piece (`base` for an unknown piece id: it then falls back like any missing frame). */
 export function pieceClass(pieceId: string): TrackClass {
   const def = getTrackPieceDef(pieceId);
@@ -45,6 +66,19 @@ export const poseCode = (yaw: number, pitch: number, roll: number): number => (y
 export function carQuadrant(yawStep: number): 0 | 1 | 2 | 3 {
   const y = ((Math.round(yawStep) % CAR_YAW_STEPS) + CAR_YAW_STEPS) % CAR_YAW_STEPS;
   return (Math.floor(((y + CAR_YAW_STEPS / 8) % CAR_YAW_STEPS) / (CAR_YAW_STEPS / 4)) & 3) as 0 | 1 | 2 | 3;
+}
+
+/**
+ * A car class's half (after batch 5 Task 7: once the hold-out ground stopped cutting cars, the steel coaster's cork car
+ * sets were 8.0-8.6 MiB per quadrant at d4): `<class>.0` for a roll step in the first half turn (0-11), `<class>.1` for
+ * the second (12-23). A corkscrew rolls its cars all the way round, so its poses split evenly (20 and 21 per quadrant
+ * for the steel coaster; its yaws all fall in one half of their quadrant, so a yaw split would not). Like rail halves,
+ * opt-in per type and class by the bake (spec `splitCarClasses`); the reader and the scope ask for the half and get the
+ * whole class when the art has no halves (look/core.ts classRec).
+ */
+export function carSplitClass(cls: string, rollStep: number): string {
+  const r = ((Math.round(rollStep) % CAR_TILT_STEPS) + CAR_TILT_STEPS) % CAR_TILT_STEPS;
+  return `${cls}.${r < CAR_TILT_STEPS / 2 ? 0 : 1}`;
 }
 
 const codesByPieceDir = new Map<string, number[]>();
@@ -164,3 +198,31 @@ export function carSetsOf(typeId: string, pieces: Iterable<{ defId: string; dir:
   return out;
 }
 
+
+/**
+ * `carSetsOf` by car class half (`carSplitClass`): `<class>.<k>` → the world yaw quadrants its built pieces' poses
+ * reach. The scope wants these; a half the art does not split resolves to its whole class (the same set).
+ */
+export function carHalfSetsOf(typeId: string, pieces: Iterable<{ defId: string; dir: number }>): Map<string, Set<number>> {
+  const m = poseClasses(typeId);
+  const spins = getTrackTypeDef(typeId)?.vehicle.spins === true;
+  const out = new Map<string, Set<number>>();
+  const add = (code: number): void => {
+    const k = carSplitClass(m.get(code) ?? 'base', code % CAR_TILT_STEPS);
+    let set = out.get(k);
+    if (!set) out.set(k, (set = new Set()));
+    set.add(carQuadrant(Math.floor(code / (CAR_TILT_STEPS * CAR_TILT_STEPS))));
+  };
+  const seen = new Set<string>();
+  for (const p of pieces) {
+    const k = `${p.defId}/${p.dir & 3}`;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    for (const c of piecePoseCodesAt(p.defId, p.dir)) {
+      if (!spins) { add(c); continue; }
+      const tilt = c % (CAR_TILT_STEPS * CAR_TILT_STEPS);
+      for (let y = 0; y < CAR_YAW_STEPS; y++) add(y * CAR_TILT_STEPS * CAR_TILT_STEPS + tilt);
+    }
+  }
+  return out;
+}

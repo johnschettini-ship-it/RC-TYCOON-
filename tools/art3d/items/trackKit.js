@@ -275,12 +275,26 @@ export function stylesOf(spec) {
 }
 
 // ------------------------------------------------------------------ the bake loop
+/** The bake scene's hold-out ground height (bakePage.ts newScene). */
+export const GROUND_Y = -0.002;
+/**
+ * The hold-out ground's height for a shot whose model's lowest point is `minY` (three.js y, m): where it always was,
+ * unless the model reaches under it, then 5 cm under the model. The hold-out writes depth only, at y = 0, and three.js
+ * draws it in material order, so it hid whatever lay under it and was drawn after it: the lower half of a descending
+ * piece (a drop, a down helix) in any material made after it, and the part of every car under its anchor (a pitched car
+ * lost its nose: steel y8:p3; fix after batch 5 Task 7). A track model has no ground of its own at bake time (the game
+ * builds it at any height), so the ground never cuts it; a model wholly above y = 0 is shot as before.
+ */
+export function holdOutY(minY) {
+  return Math.min(GROUND_Y, minY - 0.05);
+}
+
 /** Writes depth, no colour: the rail held out while its chain trough is shot (Task 5). */
 const DEPTH_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false });
 /**
  * Bakes one track type from its style spec:
  *   spec = { item, rail, supports, car (style names or style objects), colours: { track, supports, cars } (the
- *            light colours the pictures are painted in: the game tints them), gauge? }
+ *            light colours the pictures are painted in: the game tints them), gauge?, maskedRails?, splitRailClasses? }
  * B.input.track is bakeNode.ts trackGeometry(spec.item).
  */
 export function bakeTrackType(B, spec) {
@@ -332,15 +346,16 @@ export function bakeTrackType(B, spec) {
       B.setEnv(holder);
       cur = { at, model, holder, trough: null };
     }
+    bs.ground.position.y = holdOutY(B.boxOf(cur.holder).min.y);
     cur.model.position.set(-(f.tile.x + 0.5) * 4, 0, -(f.tile.y + 0.5) * 4);
     B.clip(runs ? null : clipOf(f.tile)); // a piece cut by its runs is cut across the track (bakeNode.ts trackRuns)
     const shot = f.alpha ? B.shoot(bs, { target: cur.holder }) : B.shoot(bs, { target: cur.holder, masked: (m) => m.material === railMat });
-    setOf(f.cls, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
+    setOf(f.set, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
     B.clip(null);
     // its shadow: the caster cut to the tile on its own materials (a global clip would cut the catcher too)
     const [x0, x1, y0, y1] = f.tile.clip ?? [-2, 2, -2, 2];
     const sh = B.shootShadow(bs, cur.holder, { clip: runs ? undefined : clipOf(f.tile), plane: f.tile.railMin - SHADOW_PLANE_BELOW_M, region: runs ? undefined : [x0, x1, y0, y1] });
-    setOf(f.cls, f.heading).add([f.shadow], sh, { plain: true, low: true });
+    setOf(f.set, f.heading).add([f.shadow], sh, { plain: true, low: true });
     if (f.chain) {
       // its chain trough (Task 5): clipped like the rail, the rail held out (depth only) so the trough's picture, drawn
       // over the rail by the game, never covers a rail in front of it
@@ -360,7 +375,7 @@ export function bakeTrackType(B, spec) {
       // no hold-out ground: on a flat piece the trough is a few cm under the rail line, which the ground at the piece's
       // height would hide in every picture (a flat chain straight lost its trough); the game shows the trough wherever
       // it draws the dashes
-      setOf(f.cls, f.heading).add([f.chain], B.shoot(bs, { target: cur.trough.holder, noGround: true }), { plain: true });
+      setOf(f.set, f.heading).add([f.chain], B.shoot(bs, { target: cur.trough.holder, noGround: true }), { plain: true });
       B.clip(null);
       for (const [o, m] of saved) o.material = m;
       bs.world.remove(cur.trough.holder);
@@ -369,6 +384,7 @@ export function bakeTrackType(B, spec) {
   }
   if (cur) bs.world.remove(cur.holder);
   bs.ground.material = holdOut;
+  bs.ground.position.y = GROUND_Y;
   B.log(`${spec.item}: ${n} rail pictures and their shadows, ${railFrames(track).filter((f) => f.chain).length} chain troughs`);
 
   // ---- supports per heading: foot, 1 m segment, top (the game stacks them)
@@ -395,12 +411,14 @@ export function bakeTrackType(B, spec) {
   const carSets = new Map();
   let last = null;
   for (const f of carFrames(track)) {
-    const sk = `${f.cls}|${f.q}`;
-    if (!carSets.has(sk)) carSets.set(sk, B.set('car', classItem(spec.item, f.cls), f.q, true));
+    const sk = `${f.set}|${f.q}`;
+    if (!carSets.has(sk)) carSets.set(sk, B.set('car', classItem(spec.item, f.set), f.q, true));
     if (f.pose !== last) { poseCar(car, f.pose); last = f.pose; }
     if (track.front) st.car.front(car, f.front);
     for (const rd of riders) rd.visible = f.full;
+    bs.ground.position.y = holdOutY(B.boxOf(holder).min.y);
     carSets.get(sk).add([f.key], B.shoot(bs, { target: holder, masked: (m) => st.car.masked(m, spec.colours.cars) }));
   }
+  bs.ground.position.y = GROUND_Y;
   B.log(`${spec.item}: ${track.classes.map((c) => `${c.cls} ${c.pieces.length} pieces, ${c.poses.length} poses`).join('; ')}`);
 }
