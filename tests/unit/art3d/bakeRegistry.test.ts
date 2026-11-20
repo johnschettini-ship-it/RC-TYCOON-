@@ -12,7 +12,7 @@ const REAL_FALLBACK_IDS = ['carousel', 'swing_tower', 'big_wheel', 'snack_shack'
 /** New rides batch B (2026-11-17): baked flat rides, each its own item. */
 const RIDES_B = RIDES_B_IDS;
 REAL_FALLBACK_IDS.push(...RIDES_B);
-REAL_FALLBACK_IDS.push('junior_coaster', 'wooden_coaster'); // batch 5 Task 6 track types
+REAL_FALLBACK_IDS.push('junior_coaster', 'wooden_coaster', 'spinning_mouse'); // batch 5 Task 6 track types
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 

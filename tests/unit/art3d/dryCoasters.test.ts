@@ -15,7 +15,7 @@ import { trackBudget } from '../../../tools/art3d/trackBudget';
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const T6: readonly string[] = ['junior_coaster', 'wooden_coaster'];
+const T6: readonly string[] = ['junior_coaster', 'wooden_coaster', 'spinning_mouse'];
 
 /** A stand-in kit: plain materials by name (the kit's textures need a canvas). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
