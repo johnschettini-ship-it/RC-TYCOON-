@@ -93,8 +93,10 @@ button { font: inherit; color: inherit; }
   justify-content: space-between;
   gap: 8px 12px;
   pointer-events: none;
-  /* Desktop: status pill | flexible mood slot | controls over the chip row. */
-  grid-template-columns: auto minmax(80px, 1fr) auto;
+  /* Desktop: status pill | mood slot | controls over the chip row. The side columns share the rest equally (each at
+     least as wide as its narrowest content), so the mood slot stays centred on the window and narrows (to 80 px) when the window
+     is narrow (owner 2026-11-19: a flexible mood slot). */
+  grid-template-columns: minmax(min-content, 1fr) minmax(80px, 400px) minmax(min-content, 1fr);
   grid-template-areas: 'status mood controls' '. . day';
 }
 .pill {
@@ -110,7 +112,7 @@ button { font: inherit; color: inherit; }
   max-width: 100%;
   min-height: calc(var(--touch) + 6px);
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 4px 14px;
   padding: 6px 14px;
@@ -118,8 +120,9 @@ button { font: inherit; color: inherit; }
   background: var(--surface);
   border-radius: var(--radius-surface);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
+/* Desktop (owner 2026-11-19): the pill is one line. The phone layouts keep their own pill rules. */
+#ui[data-layout='side'] .status-pill { flex-wrap: nowrap; white-space: nowrap; }
 .status-pill:hover { background: var(--surface-3); }
 .hud-field { display: inline-flex; flex-direction: column; min-width: 0; }
 .hud-label { font-size: calc(12px * var(--ts, 1)); font-weight: 500; line-height: 1.1; color: var(--muted-ink); }
@@ -128,7 +131,8 @@ button { font: inherit; color: inherit; }
 .hud-field .icon { display: none; width: 18px; height: 18px; color: var(--muted-ink); }
 .hud-field-rating .icon { color: var(--ink); }
 .hud-name { font-weight: 700; font-size: calc(15px * var(--ts, 1)); max-width: calc(220px * var(--ts, 1)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hud-mood { grid-area: mood; justify-self: center; width: 100%; max-width: 380px; min-width: 0; }
+.hud-mood { grid-area: mood; justify-self: stretch; min-width: 0; }
+#ui[data-layout='side'] .hud-mood { justify-self: center; width: 100%; max-width: 400px; }
 /* Mood bar (Phase 7 §4.3): a 44 px plate (100% text) with three segments and a knot. The lean text is in the name and
    the title; the percentages show on the desktop only and grow with the text, as does the track. The mascot faces at
    its ends were removed (Task 23): the track takes their width. */
@@ -406,29 +410,43 @@ button { font: inherit; color: inherit; }
   margin: 0;
   padding: calc(var(--card-lift, 12px) + 6px) 8px 8px;
 }
+/* The arrows look like 32 px discs (owner 2026-11-19) but are 44 × 44 targets (Phase 6 §4.7): the button is transparent
+   and the disc is drawn behind the chevron. */
 .hand-arrow {
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
+  position: relative;
+  flex: 0 0 var(--touch);
+  width: var(--touch);
+  height: var(--touch);
+  min-width: var(--touch);
+  min-height: var(--touch);
   padding: 0;
+  border: 0;
   border-radius: 50%;
-  border: var(--control-outline);
-  background: var(--surface);
-  box-shadow: 0 2px 6px var(--shade-12);
+  background: transparent;
+  box-shadow: none;
   display: inline-grid;
   place-items: center;
   z-index: 2;
   cursor: pointer;
+}
+.hand-arrow::before {
+  content: '';
+  position: absolute;
+  inset: 6px;
+  z-index: -1;
+  border-radius: 50%;
+  border: var(--control-outline);
+  background: var(--surface);
+  box-shadow: 0 2px 6px var(--shade-12);
   transition: transform 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
-.hand-arrow:hover {
+.hand-arrow:hover { background: transparent; }
+.hand-arrow:hover::before {
   background: var(--surface-3);
   transform: scale(1.1);
   box-shadow: 0 4px 10px var(--shade-18);
 }
-.hand-arrow:active {
+.hand-arrow:active::before {
   transform: scale(0.95);
 }
 .card-wrap { position: relative; flex: none; display: flex; flex-direction: column; transition: transform 120ms ease-out; }
@@ -472,10 +490,14 @@ button { font: inherit; color: inherit; }
   box-shadow: 0 2px 8px var(--shade-08);
   transition: transform 120ms cubic-bezier(0.2, 0, 0.2, 1), box-shadow 120ms cubic-bezier(0.2, 0, 0.2, 1);
 }
-.card.content-card:hover {
-  background: var(--surface);
-  transform: translateY(-3px);
-  box-shadow: 0 6px 16px var(--shade-14);
+/* The hover lift (owner 2026-11-19) is for a mouse only (a tap leaves no sticky lift on a phone) and not for the held
+   card, which is raised already: its Put back must keep ending above the card's middle, where a drag starts. */
+.card.content-card:hover { background: var(--surface); }
+@media (hover: hover) {
+  .card.content-card:not([aria-pressed='true']):hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px var(--shade-14);
+  }
 }
 .card.content-card[aria-pressed='true'] { box-shadow: 0 0 0 4px var(--gold), var(--shadow); }
 /* A mouse or a pen drags a flat ride or stall card to the map (§4.6). */
@@ -771,17 +793,25 @@ button { font: inherit; color: inherit; }
   background: var(--muted-ink);
 }
 .panel-header { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: var(--control-outline); flex: none; }
+/* Close looks like a 32 px disc but is a 44 × 44 target (Phase 6 §4.7): the disc is drawn behind the icon. */
 .panel-header .icon-btn {
-  width: 32px; height: 32px; min-width: 32px; min-height: 32px; border-radius: 50%;
-  display: inline-grid; place-items: center; transition: background 120ms ease, transform 120ms ease;
+  position: relative; isolation: isolate;
+  width: var(--touch); height: var(--touch); min-width: var(--touch); min-height: var(--touch); border-radius: 50%;
+  display: inline-grid; place-items: center; background: transparent;
 }
-.panel-header .icon-btn:hover { background: var(--surface-3); transform: scale(1.06); }
+.panel-header .icon-btn::before {
+  content: ''; position: absolute; inset: 6px; z-index: -1; border-radius: 50%;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.panel-header .icon-btn:hover { background: transparent; }
+.panel-header .icon-btn:hover::before { background: var(--surface-3); transform: scale(1.06); }
 .panel .btn.big {
   min-height: 40px; font-size: calc(14px * var(--ts, 1)); font-weight: 700; border-radius: var(--radius);
   transition: transform 100ms ease, opacity 100ms ease;
 }
 .panel .btn.big:hover { transform: translateY(-1px); }
-.panel .slider { height: 28px; cursor: pointer; }
+/* A slim track in a 44 px tall target (Phase 6 §4.7). */
+.panel .slider { height: var(--touch); cursor: pointer; }
 .panel .slider::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--rule); }
 .panel .slider::-moz-range-track { height: 6px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--rule); }
 .panel .slider::-webkit-slider-thumb {
@@ -1417,10 +1447,12 @@ button { font: inherit; color: inherit; }
    phone and in the low layout the top region also leaves out Messages and the objectives flag; the builder then sits at
    the bottom of the window, so it keeps the safe area below its controls. */
 #ui[data-build-mode='1'][data-layout='bottom'] :is([data-testid='tool-messages'], [data-testid='hud-objectives']) { display: none; }
-/* Desktop: with the deck list gone, the station builder of a held track card moves to the left edge. */
+/* Desktop: with the deck list gone, the station builder of a held track card keeps the right edge; the details panel
+   docks at the left (owner 2026-11-19), so the builder never lies under it. */
 #ui[data-build-mode='1'][data-layout='side']:has(.panel[data-kind='cardDetails']:not([hidden])) .track-builder {
-  left: calc(10px + var(--safe-left));
-  max-width: calc(100% - 400px - var(--safe-left) - var(--safe-right));
+  left: auto;
+  right: calc(10px + var(--safe-right));
+  max-width: calc(100% - 330px - var(--safe-left) - var(--safe-right));
 }
 #ui[data-build-mode='1'] .track-builder[data-layout='bottom']:not(.tb-slim, .tb-compact) { padding-bottom: calc(10px + var(--safe-bottom)); }
 #ui[data-build-mode='1']:not([data-low='1']) .track-builder.tb-slim { padding-bottom: calc(6px + var(--safe-bottom)); }
@@ -1472,6 +1504,9 @@ button { font: inherit; color: inherit; }
 .swatch-row.ride-colour-row { grid-template-columns: 1fr; gap: 4px; }
 .swatches.ride-colours { grid-template-columns: repeat(7, 1fr); gap: 3px; }
 .ride-colours .swatch { min-height: 32px; border-radius: 6px; }
+/* Touch: the swatches stay one row of 7 and are 44 px high targets (Phase 6 §4.7). */
+#ui[data-layout='bottom'] .ride-colours .swatch, #ui[data-low='1'] .ride-colours .swatch { min-height: var(--touch); }
+@media (pointer: coarse) { .ride-colours .swatch { min-height: var(--touch); } }
 .swatch-original { background: repeating-linear-gradient(135deg, var(--surface) 0 5px, var(--muted-ink) 5px 7px); }
 .swatch { pointer-events: auto; cursor: pointer; min-height: 30px; border-radius: 8px; border: 2px solid var(--ink); }
 .swatch[aria-pressed='true'] { border-width: 3px; box-shadow: inset 0 0 0 3px var(--surface), 0 0 0 2px var(--ink); }
@@ -1629,6 +1664,7 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 /* Right-side panels: the panels, the track builder. */
 #ui[data-low='1'] :is(.panel, .track-builder)[data-layout='side'] {
   top: calc(var(--hud-bottom) + 8px);
+  left: auto;
   right: calc(10px + var(--safe-right));
   width: min(360px, 48%);
   max-height: calc(100% - var(--hud-bottom) - var(--chips-space, var(--toolbar-space)) - 16px);

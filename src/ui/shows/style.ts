@@ -8,8 +8,9 @@ const CSS = `
   position: absolute; pointer-events: auto; display: flex; flex-direction: column;
   background: var(--surface); border: var(--outline); box-shadow: var(--shadow); overflow: hidden;
 }
+/* Desktop: beside the deck list, which docks at the right (owner 2026-11-19), never over it. */
 #ui[data-layout='side'] .shw-picker {
-  top: calc(var(--hud-bottom) + 10px); right: calc(10px + var(--safe-right)); width: 340px;
+  top: calc(var(--hud-bottom) + 10px); right: calc(var(--deck-w) + 20px + var(--safe-right)); width: 340px;
   max-height: calc(100% - var(--hud-bottom) - var(--toolbar-space) - 120px - var(--safe-bottom)); border-radius: var(--radius-surface);
 }
 #ui[data-layout='bottom'] .shw-picker {
