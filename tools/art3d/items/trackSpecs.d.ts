@@ -9,7 +9,7 @@ export interface TrackSpec {
   maskedRails?: boolean;
   /** Rail classes baked in two halves (`<class>.0`, `<class>.1`: trackClasses.ts railSplitClass), each set under the per-set limit. */
   splitRailClasses?: string[];
-  /** Car classes baked in roll halves (`<class>.0`, `<class>.1`: trackClasses.ts carSplitClass). */
+  /** Car classes baked in halves (`<class>.0`, `<class>.1`: trackClasses.ts carSplitClass, by roll or yaw parity, CAR_SPLIT_AXIS). */
   splitCarClasses?: string[];
   [k: string]: unknown;
 }

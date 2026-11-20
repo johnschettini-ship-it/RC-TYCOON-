@@ -9,7 +9,7 @@ import { checkCoverFolder, coverDecoded, titleDecoded } from './titleIndex';
 import { cacheKey } from './cacheKey';
 import { sizeReport, formatSizeReport, S5_LIMIT_BYTES, typePieces } from './sizeReport';
 import { carPoses, hasFrontCar, reachedPoses } from './poses';
-import { TRACK_CLASSES, carQuadrant, carSplitClass, pieceClass, poseClassOf, poseCode, railSplitClass, type TrackClass } from '../../src/render/real/trackClasses';
+import { CAR_SPLIT_AXIS, TRACK_CLASSES, carQuadrant, carSplitClass, pieceClass, poseClassOf, poseCode, railSplitClass, type TrackClass } from '../../src/render/real/trackClasses';
 import { TRACK_RIDES } from '../../src/data/catalog';
 import { pieceWorldSamples } from '../../src/sim/rides/track/api';
 import { pieceWorldTiles } from '../../src/sim/rides/track/geometry';
@@ -150,8 +150,17 @@ export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHal
   const classes = TRACK_CLASSES.map((cls) => ({ cls, pieces: ids.filter((id) => pieces[id]!.cls === cls), poses: [] as BakePose[] }));
   for (const p of carPoses(typeId, ids)) {
     const cls = poseClassOf(typeId, poseCode(p.yaw, p.pitch, p.roll));
-    // its set's class: the class, or its roll half when the spec's `splitCarClasses` names it
-    classes.find((c) => c.cls === cls)!.poses.push({ ...p, q: carQuadrant(p.yaw), set: spec.splitCarClasses?.includes(cls) ? carSplitClass(cls, p.roll) : cls });
+    // its set's class: the class, or its half (trackClasses.ts CAR_SPLIT_AXIS) when the spec's `splitCarClasses` names it
+    classes.find((c) => c.cls === cls)!.poses.push({ ...p, q: carQuadrant(p.yaw), set: spec.splitCarClasses?.includes(cls) ? carSplitClass(cls, p.yaw, p.roll) : cls });
+  }
+  // A split that leaves a quadrant's poses all in one half splits nothing there (a yaw-parity split of a type whose
+  // cars only face the headings): the spec names the wrong class or the class halves on the wrong axis.
+  for (const cls of spec.splitCarClasses ?? []) {
+    const poses = classes.find((c) => c.cls === cls)?.poses ?? []; // none: a type without the class (a style spec shared by types)
+    for (const q of [0, 1, 2, 3]) {
+      const n = [0, 1].map((h) => poses.filter((p) => p.q === q && p.set === `${cls}.${h}`).length);
+      if ((n[0] as number) + (n[1] as number) > 2 && Math.min(...n) === 0) throw new Error(`trackGeometry: ${typeId} car class '${cls}' quadrant ${q} splits ${n[0]} / ${n[1]} (${CAR_SPLIT_AXIS[cls as TrackClass]} halves split nothing there)`);
+    }
   }
   return { type: typeId, spins, front, pieces, classes: classes.filter((c) => c.pieces.length || c.poses.length) };
 }

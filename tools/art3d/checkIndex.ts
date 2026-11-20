@@ -242,12 +242,15 @@ export function trackComplete(index: RealIndex): string[] {
       for (const it of items) {
         const m = /~(\w+)\.\d$/.exec(it);
         if (m && items.has(`${type}~${m[1]}`)) problems.push(`TRACK_COMPLETE ${kind}:${type}~${m[1]}: ${kind} sets in both layouts (whole and halves, ${it})`);
+        // a half without its pair: the game asks for the pair and falls back to a whole class that is not there
+        const pair = m ? it.replace(/\d$/, (k) => String(1 - Number(k))) : null;
+        if (pair && !items.has(pair)) problems.push(`TRACK_COMPLETE ${kind}:${it}: a half without its pair (${pair})`);
       }
     }
     const carItem = (code: number): string => {
       if (!classed('car')) return type;
       const cls = poseClassOf(type, code);
-      const half = `${type}~${carSplitClass(cls, code % 24)}`; // its class's roll half when the art splits it
+      const half = `${type}~${carSplitClass(cls, Math.floor(code / 576), code % 24)}`; // its class's half when the art splits it
       return carItems.has(half) ? half : `${type}~${cls}`;
     };
     /** The set a car frame is in: its yaw quadrant's in the class layout, the one `rall` set in the stage 1 layout. */

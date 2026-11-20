@@ -69,14 +69,25 @@ export function carQuadrant(yawStep: number): 0 | 1 | 2 | 3 {
 }
 
 /**
- * A car class's half (after batch 5 Task 7: once the hold-out ground stopped cutting cars, the steel coaster's cork car
- * sets were 8.0-8.6 MiB per quadrant at d4): `<class>.0` for a roll step in the first half turn (0-11), `<class>.1` for
- * the second (12-23). A corkscrew rolls its cars all the way round, so its poses split evenly (20 and 21 per quadrant
- * for the steel coaster; its yaws all fall in one half of their quadrant, so a yaw split would not). Like rail halves,
- * opt-in per type and class by the bake (spec `splitCarClasses`); the reader and the scope ask for the half and get the
- * whole class when the art has no halves (look/core.ts classRec).
+ * How a car class halves (`carSplitClass`): the rolled classes by roll (a corkscrew rolls its cars all the way round,
+ * so its poses split evenly: 20 and 21 per quadrant for the steel coaster; its yaws all fall in one half of their
+ * quadrant, so a yaw split would not), the others by yaw parity (a spinning car takes all 32 yaws at roll 0: the
+ * spinning mouse's `base` cars were 7.85-7.96 MiB per quadrant set at d4, and the even and odd yaws of a quadrant are 4
+ * and 4). Fixed per class, the same for every type, so the game finds a half without knowing which types the bake split.
  */
-export function carSplitClass(cls: string, rollStep: number): string {
+export const CAR_SPLIT_AXIS: Readonly<Record<TrackClass, 'roll' | 'yaw'>> = {
+  base: 'yaw', turn: 'yaw', bank: 'roll', loop: 'roll', cork: 'roll', helix: 'roll', spooky: 'yaw', water: 'yaw', launch: 'yaw',
+};
+
+/**
+ * A car class's half (after batch 5 Task 7: once the hold-out ground stopped cutting cars, the steel coaster's cork car
+ * sets were 8.0-8.6 MiB per quadrant at d4): `<class>.0` or `<class>.1` by the class's `CAR_SPLIT_AXIS`: roll steps
+ * 0-11 / 12-23, or an even / odd yaw step (a view turn adds 8 steps, so neither half changes with the view). Like rail
+ * halves, opt-in per type and class by the bake (spec `splitCarClasses`); the reader and the scope ask for the half and
+ * get the whole class when the art has no halves (look/core.ts classRec).
+ */
+export function carSplitClass(cls: string, yawStep: number, rollStep: number): string {
+  if (CAR_SPLIT_AXIS[cls as TrackClass] === 'yaw') return `${cls}.${((Math.round(yawStep) % 2) + 2) % 2}`;
   const r = ((Math.round(rollStep) % CAR_TILT_STEPS) + CAR_TILT_STEPS) % CAR_TILT_STEPS;
   return `${cls}.${r < CAR_TILT_STEPS / 2 ? 0 : 1}`;
 }
@@ -208,10 +219,11 @@ export function carHalfSetsOf(typeId: string, pieces: Iterable<{ defId: string; 
   const spins = getTrackTypeDef(typeId)?.vehicle.spins === true;
   const out = new Map<string, Set<number>>();
   const add = (code: number): void => {
-    const k = carSplitClass(m.get(code) ?? 'base', code % CAR_TILT_STEPS);
+    const yaw = Math.floor(code / (CAR_TILT_STEPS * CAR_TILT_STEPS));
+    const k = carSplitClass(m.get(code) ?? 'base', yaw, code % CAR_TILT_STEPS);
     let set = out.get(k);
     if (!set) out.set(k, (set = new Set()));
-    set.add(carQuadrant(Math.floor(code / (CAR_TILT_STEPS * CAR_TILT_STEPS))));
+    set.add(carQuadrant(yaw));
   };
   const seen = new Set<string>();
   for (const p of pieces) {

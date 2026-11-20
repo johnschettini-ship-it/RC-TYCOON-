@@ -181,7 +181,7 @@ describe('car sets split in halves by roll (steel and launch cork cars once uncu
     const { carFrames } = await load('items/trackKeys.js');
     const { carSplitClass } = await import('../../../src/render/real/trackClasses');
     const frames = carFrames(trackGeometry(type));
-    for (const f of frames) expect(f.set, f.key).toBe(f.cls === 'cork' ? carSplitClass('cork', f.pose.roll) : f.cls);
+    for (const f of frames) expect(f.set, f.key).toBe(f.cls === 'cork' ? carSplitClass('cork', f.pose.yaw, f.pose.roll) : f.cls);
     for (const q of [0, 1, 2, 3]) {
       const n = (h: string) => frames.filter((f: { set: string; q: number }) => f.set === h && f.q === q).length;
       expect(Math.abs(n('cork.0') - n('cork.1')), `q${q}`).toBeLessThanOrEqual(n('cork.0') / 4); // neither half holds most
@@ -219,5 +219,47 @@ describe('track card supports', () => {
     expect(stacks.length).toBeGreaterThan(0);
     expect(stacks.some((st: { heading: number }) => st.heading !== 0)).toBe(true);
     for (const st of stacks) for (const p of st.parts) expect(p.heading, `${p.part} at ${st.heading}`).toBe(st.heading);
+  });
+});
+
+// Size room (after batch 5 Tasks 6-7): the spinning mouse's `base` car sets were 7.85-7.96 MiB per quadrant at d4, its
+// cars spun to all 32 yaws; split by yaw parity (trackClasses.ts CAR_SPLIT_AXIS) each half holds 4 of a quadrant's 8 yaws.
+describe('spinning mouse base cars split in halves by yaw parity', () => {
+  it('bakes its base cars in yaw halves, each quadrant split evenly; its turn cars whole', async () => {
+    const { carFrames } = await load('items/trackKeys.js');
+    const { carSplitClass } = await import('../../../src/render/real/trackClasses');
+    const frames = carFrames(trackGeometry('spinning_mouse'));
+    for (const f of frames) expect(f.set, f.key).toBe(f.cls === 'base' ? carSplitClass('base', f.pose.yaw, f.pose.roll) : f.cls);
+    for (const q of [0, 1, 2, 3]) {
+      const n = (h: string) => frames.filter((f: { set: string; q: number }) => f.set === h && f.q === q).length;
+      expect(n('base.0'), `q${q}`).toBeGreaterThan(0);
+      expect(Math.abs(n('base.0') - n('base.1')), `q${q}`).toBeLessThanOrEqual(n('base.0') / 8);
+    }
+  });
+  it('a split that splits nothing fails the bake input (a non-spinning type\'s base cars face the headings: even yaws only)', () => {
+    expect(() => trackGeometry('steel_coaster', { straddleHalfM: 0.6, splitCarClasses: ['base'] })).toThrow(/splits \d+ \/ 0/);
+  });
+  it('TRACK_COMPLETE refuses a class baked both whole and in halves, and a half without its pair', async () => {
+    const { carFrames, classItem } = await load('items/trackKeys.js');
+    const geo = trackGeometry('spinning_mouse');
+    const frames = carFrames(geo);
+    const fr: RealFrame = { sheet: 'a.webp', sx: 0, sy: 0, w: 1, h: 1, ox: 0, oy: 0 };
+    const setOf = (item: string, q: 0 | 1 | 2 | 3, keys: string[]): RealSetEntry => ({ key: `car:${item}:d4:r${q}` as RealSetEntry['key'], kind: 'car', item, density: 4, rot: q, sheets: [{ file: 'a.webp', w: 1, h: 1, mask: 'm.png' }, { file: 'm.png', w: 1, h: 1 }], frames: Object.fromEntries(keys.map((k) => [k, fr])) });
+    const sets = (items: (f: { set: string; cls: string }) => string[]): RealSetEntry[] => {
+      const by = new Map<string, string[]>();
+      for (const f of frames) for (const it of items(f)) { const k = `${it}|${f.q}`; by.set(k, [...(by.get(k) ?? []), f.key]); }
+      return [...by].map(([k, keys]) => { const [it, q] = k.split('|'); return setOf(it!, Number(q) as 0 | 1 | 2 | 3, keys); });
+    };
+    const ix = (s: RealSetEntry[]): RealIndex => ({ format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [4], sets: s, bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } });
+    const carProblems = (s: RealSetEntry[]): string[] => trackComplete(ix(s)).filter((x) => x.includes('car'));
+    // halves only: complete
+    expect(carProblems(sets((f) => [classItem('spinning_mouse', f.set)]))).toEqual([]);
+    // whole and halves together
+    const mixed = carProblems(sets((f) => (f.cls === 'base' ? [classItem('spinning_mouse', f.set), classItem('spinning_mouse', 'base')] : [classItem('spinning_mouse', f.set)])));
+    expect(mixed.some((x) => /car:spinning_mouse~base: car sets in both layouts/.test(x))).toBe(true);
+    // half 0 alone (its pair's frames nowhere): the odd yaws are missing
+    const half = carProblems(sets((f) => (f.set === 'base.1' ? [] : [classItem('spinning_mouse', f.set)])));
+    expect(half.some((x) => /frame\(s\) missing/.test(x))).toBe(true);
+    expect(half).toContain('TRACK_COMPLETE car:spinning_mouse~base.0: a half without its pair (spinning_mouse~base.1)');
   });
 });
