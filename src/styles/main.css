@@ -1713,4 +1713,9 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
 .reach-status .reach-bad { color: var(--warn-text); }
 .reach-status[data-status='closed'] .reach-bad { color: var(--danger-text); }
 .reach-status .reach-show { flex: 0 0 auto; margin-left: auto; }
+/* Auto-connect on the same line (review 2026-11-20): Connect it ($cost), Undo after a connection, and why a connection
+   cannot be built, on a line of its own. */
+.reach-status :is(.reach-connect, .reach-undo) { flex: 0 0 auto; }
+.reach-status .reach-show[hidden] + .reach-connect:not([hidden]) { margin-left: auto; }
+.reach-status .reach-why { flex: 1 0 100%; margin: 0; font-size: calc(13px * var(--ts, 1)); overflow-wrap: anywhere; }
 .queue-card .reach-status { margin-bottom: 8px; }

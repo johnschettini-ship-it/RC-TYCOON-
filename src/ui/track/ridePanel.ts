@@ -23,7 +23,6 @@ import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
 import { createReachStatus } from '../rides/reachStatus';
-import { createPathConnectSection } from '../paths/rideConnect';
 import { centreOnTile } from '../management/widgets';
 import { editTrackRide } from './builder';
 import { createTestChart } from './chart';
@@ -102,7 +101,6 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   // ---------- overview
   const warnings = warningList();
   const reach = createReachStatus(ctx, rideId);
-  const pathConnect = createPathConnectSection(ctx, rideId);
   const nextStep = h('p', { class: 'next-step muted', 'data-testid': 'track-next-step' });
   // R7 (owner 2026-11-12): centre the map on the trouble place of the last test (stall or safety limit).
   const showPlace = h('button', { type: 'button', class: 'btn', 'data-testid': 'track-trouble-show', hidden: true, onclick: () => {
@@ -136,7 +134,6 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
   panels.get('overview')!.append(
     reach.el,
     warnings.el,
-    pathConnect.el,
     nextStep,
     showPlace,
     section(null, h('div', { class: 'row' }, h('span', { class: 'row-label', text: text('ui.ride.status') }), status), openBtn.el),
@@ -261,8 +258,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
         }
         noRatings.hidden = r.stats !== null;
         reach.update();
-        pathConnect.update(r);
-        warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
+          warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
         nextStep.hidden = block === null || r.status === 'testing';
         if (block) setText(nextStep, `${text('ui.track.nextStep')}: ${localizeReason(block)}`);
         const noPlace = r.status === 'testing' || trackTroublePlace(game.world, rideId) === null;
