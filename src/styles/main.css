@@ -296,6 +296,8 @@ button { font: inherit; color: inherit; }
   transform: none;
 }
 .deck-btn[aria-pressed='true'] { background: var(--ink); color: var(--surface); }
+/* The keyboard focus ring shows at once: the hover easing on box-shadow must not fade it in. */
+.deck-btn:focus-visible, .card.content-card:focus-visible { transition-property: transform, background; }
 .deck-btn .icon { width: 20px; height: 20px; }
 .deck-list-title { font-size: calc(12px * var(--ts, 1)); font-weight: 600; color: var(--muted-ink); padding: 0 4px; }
 .deck-divider { flex: none; background: var(--muted-ink); border-radius: 2px; }
