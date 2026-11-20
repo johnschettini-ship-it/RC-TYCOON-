@@ -329,6 +329,21 @@ describe('sizeReport', () => {
         'rail:junior_coaster~base:d4:r0: frame straight:t0 has density 2; only an untinted track frame of a density-4 set may be kept at density 2',
       ]);
     });
+    // Size room: a shadow kept at density 2 is the density-2 set's own picture, so the bake writes it once and the
+    // density-4 set lists that sheet (it was written twice: 0.39 MB of the steel coaster's 5.98).
+    it('a shadow kept at density 2 is on its density-2 set\'s sheet at the same rectangle, not a second copy', () => {
+      const sets = complete('junior_coaster', junior);
+      const d4 = sets.find((s) => s.key === 'rail:junior_coaster~base:d4:r0')!;
+      d4.frames['straight:t0:sh'] = { ...d4.frames['straight:t0:sh']!, density: 2 };
+      expect(checkIndex(index(sets), FILES)).toEqual([]); // the fixture's twins share s.webp
+      d4.sheets = [...d4.sheets, { file: 's4.webp', w: 8, h: 8 }];
+      d4.frames['straight:t0:sh'] = { ...d4.frames['straight:t0:sh']!, sheet: 's4.webp' };
+      d4.frames['gentle_up:t0:sh'] = { ...d4.frames['gentle_up:t0:sh']!, density: 2, sx: 3 };
+      expect(checkIndex(index(sets), new Set([...FILES, 's4.webp']))).toEqual([
+        'rail:junior_coaster~base:d4:r0: frame straight:t0:sh is kept at density 2 but is not its density-2 set\'s picture (sheet s4.webp at 0,0, there s.webp at 0,0): a second copy',
+        'rail:junior_coaster~base:d4:r0: frame gentle_up:t0:sh is kept at density 2 but is not its density-2 set\'s picture (sheet s.webp at 3,0, there s.webp at 0,0): a second copy',
+      ]);
+    });
     it('a type with both layouts fails (review P2)', () => {
       const p = trackComplete(index([...complete('junior_coaster', junior), ...stage1('junior_coaster', junior).filter((s) => s.kind === 'rail')]));
       expect(p).toContain('TRACK_COMPLETE junior_coaster: rail sets in both layouts (rail:junior_coaster and rail:junior_coaster~<class>)');

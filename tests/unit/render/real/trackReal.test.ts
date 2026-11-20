@@ -277,7 +277,7 @@ describe('track class sets (batch 5 Task 2)', () => {
   // Car set halves (the hold-out fix made whole steel cork cars, 8.0-8.6 MiB per quadrant set): a car class split in
   // two by its roll (`<class>.0`: roll steps 0-11, `.1`: 12-23).
   it('a split car class: cars draw from their roll half, and the scope wants only the halves the built poses reach', () => {
-    expect([0, 5, 11, 12, 18, 23, 24].map((r) => carSplitClass('cork', r))).toEqual(['cork.0', 'cork.0', 'cork.0', 'cork.1', 'cork.1', 'cork.1', 'cork.0']);
+    expect([0, 5, 11, 12, 18, 23, 24].map((r) => carSplitClass('cork', 4, r))).toEqual(['cork.0', 'cork.0', 'cork.0', 'cork.1', 'cork.1', 'cork.1', 'cork.0']);
     // a straight car runs level: roll 0, half 0 only
     const straight = carHalfSetsOf('steel_coaster', [{ defId: 'straight', dir: 0 }]);
     expect([...straight.keys()]).toEqual(['base.0']);
@@ -296,10 +296,54 @@ describe('track class sets (batch 5 Task 2)', () => {
     // a loop pose draws from its half's set
     const code = [...poseClasses('steel_coaster')].find(([, c]) => c === 'loop')![0];
     const y = Math.floor(code / 576), p = Math.floor(code / 24) % 24, r = code % 24;
-    const key = `car:steel_coaster~${carSplitClass('loop', r)}:d4:r${carQuadrant(y)}` as SetKey;
+    const key = `car:steel_coaster~${carSplitClass('loop', y, r)}:d4:r${carQuadrant(y)}` as SetKey;
     s1.setReady(key);
     look.car('steel_coaster', y, p, r, true, 0);
     expect(s1.used).toContain(key);
+  });
+
+  // Car halves by yaw (size room for the spinning mouse: its spinning `base` cars were 7.85-7.96 MiB per quadrant set
+  // at d4): a class that does not roll halves by yaw parity, the rolled classes by roll.
+  it('car classes halve on their own axis: base and turn by yaw parity, rolled classes by roll, the same at every view turn', () => {
+    expect([0, 1, 2, 7, 8, 31].map((y) => carSplitClass('base', y, 5))).toEqual(['base.0', 'base.1', 'base.0', 'base.1', 'base.0', 'base.1']);
+    expect([0, 1].map((y) => carSplitClass('turn', y, 13))).toEqual(['turn.0', 'turn.1']);
+    for (const cls of ['bank', 'loop', 'cork', 'helix']) expect([[0, 0], [1, 0], [0, 12], [1, 12]].map(([y, r]) => carSplitClass(cls, y!, r!))).toEqual([`${cls}.0`, `${cls}.0`, `${cls}.1`, `${cls}.1`]);
+    // a view turn adds 8 yaw steps: the half stays
+    for (let y = 0; y < 32; y++) for (const cls of ['base', 'cork']) expect(carSplitClass(cls, y + 8, 3)).toBe(carSplitClass(cls, y, 3));
+  });
+
+  it('a spinning car split by yaw: the scope wants both halves of base at every quadrant and never the whole class; a car draws from its half', () => {
+    const sets: RealSetEntry[] = [];
+    for (const d of [2, 4] as const) {
+      for (const r of [0, 1, 2, 3] as const) {
+        sets.push(entry('rail', 'spinning_mouse~base', d, r, ['station:t0', 'straight:t0'], 'alpha'));
+        sets.push(entry('rail', 'spinning_mouse~turn', d, r, ['turn_small_left:t0'], 'alpha'));
+        sets.push(entry('support', 'spinning_mouse', d, r, ['foot', 'seg', 'top'], 'mask'));
+        for (const h of [0, 1]) sets.push(entry('car', `spinning_mouse~base.${h}`, d, r, [], 'mask'));
+        sets.push(entry('car', 'spinning_mouse~turn', d, r, [], 'mask'));
+      }
+    }
+    const index = idx(sets);
+    const s1 = new Sets(index);
+    const look = createRealLook(index, s1, { makeCanvas: make });
+    const built = [{ defId: 'station', dir: 0 }, { defId: 'flat_to_gentle_up', dir: 0 }, { defId: 'gentle_up', dir: 0 }];
+    const world = worldWith(built);
+    world.state.rides[0]!.defId = 'spinning_mouse';
+    look.prepare(world, 0, VIEW, 2, 2);
+    const want = [...s1.wanted('now'), ...s1.wanted('ahead')].filter((k) => k.startsWith('car:'));
+    const need = carHalfSetsOf('spinning_mouse', built);
+    // a slope spun to every yaw: both base halves at every quadrant (and the turn class for the level station's spun yaws)
+    for (const h of [0, 1]) expect([...need.get(`base.${h}`)!].sort()).toEqual([0, 1, 2, 3]);
+    const baked = (c: string): string => (sets.some((x) => x.item === `spinning_mouse~${c}`) ? c : c.split('.')[0]!); // turn is baked whole
+    const expected = [...new Set([...need].flatMap(([c, qs]) => [...qs].map((q) => `car:spinning_mouse~${baked(c)}:d4:r${q}`)))];
+    expect(want.filter((k) => k.includes(':d4:')).sort()).toEqual(expected.sort());
+    expect(want.some((k) => /~base:/.test(k))).toBe(false); // never the whole class
+    // an odd yaw draws from base.1 at its quadrant
+    const key = 'car:spinning_mouse~base.1:d4:r1' as SetKey;
+    s1.setReady(key);
+    look.car('spinning_mouse', 9, 1, 0, true, 0); // a spun slope
+    expect(s1.used).toContain(key);
+    expect(s1.used.some((k) => k.includes('~base.0'))).toBe(false);
   });
 
   it('wants only the headings its pieces face, shifted by the view turn', () => {

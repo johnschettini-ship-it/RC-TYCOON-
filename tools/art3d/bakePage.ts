@@ -628,13 +628,21 @@ function packPages(pics: { keys: string[]; pic: Pic }[], prefix: string): PackPa
   return pages;
 }
 
-function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
+/**
+ * Packs set `s` at density `d`; `prefixOf(d)` names a density's files. Low pictures (track shadows) are the same
+ * pictures at every density, so they go on sheets of their own (`-l<i>`), named, packed and written once at the lowest
+ * density, and each denser set lists those sheets (checkIndex: a frame kept at density 2 is its density-2 set's
+ * picture). They had shared a plain sheet with the set's chain troughs, so each was written once per density.
+ */
+function packSet(s: SetB, d: BakeDensity, prefixOf: (d: BakeDensity) => string): OutSet {
+  const prefix = prefixOf(d);
   const lowD = densities[0] as BakeDensity;
-  const every = s.pics.map((p) => ({ keys: p.keys, pic: p.shot[p.low ? lowD : d], alpha: !!p.alpha, plain: !!p.plain, low: !!p.low && lowD !== d })).filter((p): p is { keys: string[]; pic: Pic; alpha: boolean; plain: boolean; low: boolean } => !!p.pic);
-  const all = every.filter((p) => !p.plain);
+  const every = s.pics.map((p) => ({ keys: p.keys, pic: p.shot[p.low ? lowD : d], alpha: !!p.alpha, plain: !!p.plain && !p.low, shared: !!p.low })).filter((p): p is { keys: string[]; pic: Pic; alpha: boolean; plain: boolean; shared: boolean } => !!p.pic);
+  const all = every.filter((p) => !p.plain && !p.shared);
   const pics = all.filter((p) => !p.alpha);
   const alphaPics = all.filter((p) => p.alpha);
   const plainPics = every.filter((p) => p.plain);
+  const lowPics = every.filter((p) => p.shared);
   const pages = packPages(pics, prefix);
   const out: OutSet = { kind: s.kind, item: s.item, density: d, rot: s.rot, sheets: [], frames: {}, pictures: every.length };
   if (s.baseColour !== undefined) out.baseColour = s.baseColour;
@@ -689,21 +697,27 @@ function packSet(s: SetB, d: BakeDensity, prefix: string): OutSet {
       for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy };
     }
   });
-  // Plain pictures (never tinted): their own sheets, no mask, no tint.
-  packPages(plainPics, prefix).forEach((p, i) => {
-    if (p.items.length === 0) return;
-    const W = Math.min(PAGE, p.usedW), H = Math.min(PAGE, p.usedH);
-    const file = `${prefix}-s${i}.webp`;
-    const c = document.createElement('canvas'); c.width = W; c.height = H;
-    const g = c.getContext('2d') as CanvasRenderingContext2D;
-    for (const it of p.items) g.drawImage(it.p.canvas, it.x, it.y);
-    encode(c, file);
-    out.sheets.push({ file, w: W, h: H });
-    for (const it of p.items) {
-      const low = plainPics.find((x) => x.pic === it.p)?.low;
-      for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy, ...(low ? { density: lowD as 2 } : {}) };
-    }
-  });
+  // Plain pictures (never tinted): their own sheets, no mask, no tint. Low ones on the lowest density's sheets, packed
+  // the same way from the same pictures at every density and written once.
+  const plain = (list: typeof plainPics, name: (i: number) => string, low: boolean): void => {
+    packPages(list, prefix).forEach((p, i) => {
+      if (p.items.length === 0) return;
+      const W = Math.min(PAGE, p.usedW), H = Math.min(PAGE, p.usedH);
+      const file = name(i);
+      if (!files.has(file)) {
+        const c = document.createElement('canvas'); c.width = W; c.height = H;
+        const g = c.getContext('2d') as CanvasRenderingContext2D;
+        for (const it of p.items) g.drawImage(it.p.canvas, it.x, it.y);
+        encode(c, file);
+      }
+      out.sheets.push({ file, w: W, h: H });
+      for (const it of p.items) {
+        for (const k of it.keys) out.frames[k] = { sheet: file, sx: it.x, sy: it.y, w: it.p.canvas.width, h: it.p.canvas.height, ox: it.p.ox, oy: it.p.oy, ...(low ? { density: lowD as 2 } : {}) };
+      }
+    });
+  };
+  plain(plainPics, (i) => `${prefix}-s${i}.webp`, false);
+  plain(lowPics, (i) => `${prefixOf(lowD)}-l${i}.webp`, lowD !== d);
   return out;
 }
 
@@ -867,7 +881,7 @@ window.bakeItem = async (id, opts) => {
   renderer.clippingPlanes = [];
   const out: OutSet[] = [];
   for (const s of sets) for (const d of densities) {
-    const o = packSet(s, d, `${s.kind}-${s.item}-${opts.hash}-d${d}-r${s.rot}`);
+    const o = packSet(s, d, (x) => `${s.kind}-${s.item}-${opts.hash}-d${x}-r${s.rot}`);
     if (o.sheets.length) out.push(o);
   }
   await Promise.all(pending.splice(0));

@@ -39,7 +39,7 @@ export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' 
       if (rec) {
         let t = poseType.get(rec);
         if (t === undefined) poseType.set(rec, (t = poseTypeOf(rec, trackType)));
-        cr = core.classRec(rec, carSplitClass(poseClassOf(t, pose), rollStep)); // its class's roll half, or the whole class
+        cr = core.classRec(rec, carSplitClass(poseClassOf(t, pose), yawStep, rollStep)); // its class's half, or the whole class
       }
       // Class sets are split by the quadrant of the car's view yaw (`r<q>`); a stage 1 `rall` set serves every quadrant.
       return core.sprite('car', cr, trackType, carQuadrant(yawStep), code, null, paletteColour(colour));

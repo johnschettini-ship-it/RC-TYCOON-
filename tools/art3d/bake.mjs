@@ -167,10 +167,15 @@ const mb = (n) => (n / 1e6).toFixed(2);
   mkdirSync(outDir, { recursive: true });
   const index = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: o.densities, sets: [], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
   const counts = {};
+  // a file two sets list (a track shadow sheet, written once at the lowest density: bakePage.ts packSet) is written and
+  // counted once
+  const written = new Set();
   for (const r of report) {
     for (const s of r.sets) {
       const key = `${s.kind}:${s.item}:d${s.density}:r${s.rot}`;
       for (const sh of s.sheets) {
+        if (written.has(sh.file)) { index.bytes.decodedByDensity[s.density] += sh.w * sh.h * 4; continue; }
+        written.add(sh.file);
         const src = join(r.dir, sh.file);
         let buf = readFileSync(src);
         // tint masks: the page's zlib, again at level 9 (pngRepack.ts)
@@ -184,7 +189,7 @@ const mb = (n) => (n / 1e6).toFixed(2);
       index.sets.push({ key, kind: s.kind, item: s.item, density: s.density, rot: s.rot, sheets: s.sheets, frames: s.frames, ...(s.baseColour ? { baseColour: s.baseColour } : {}) });
       const c = (counts[s.kind] ??= { sets: 0, pictures: 0, keys: 0, sheets: 0, bytes: 0, decoded: { 2: 0, 4: 0 } });
       c.sets++; c.pictures += s.pictures; c.keys += Object.keys(s.frames).length; c.sheets += s.sheets.length;
-      for (const sh of s.sheets) { c.bytes += statSync(join(outDir, sh.file)).size; c.decoded[s.density] += sh.w * sh.h * 4; }
+      for (const sh of s.sheets) { if (!c.files?.has(sh.file)) c.bytes += statSync(join(outDir, sh.file)).size; (c.files ??= new Set()).add(sh.file); c.decoded[s.density] += sh.w * sh.h * 4; }
     }
   }
   // ride colour masks: each ride's mask share of its drawn pixels (sets at density 4). A set whose mask is empty shows no

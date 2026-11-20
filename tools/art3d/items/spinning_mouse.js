@@ -80,6 +80,9 @@ export const SPEC = {
   colours: { track: '#e2e2e2', supports: '#dedede', cars: '#ececec' },
   straddleHalfM: 0.45, // rails 0.36 m off the rail line, 0.04 m thick
   supportTopBelowRail: 1.2,
+  // its base cars (every reached slope spun to all 32 yaws) in yaw halves (trackClasses.ts carSplitClass, by yaw parity):
+  // whole, one set per quadrant was 7.85-7.96 MiB at d4, against the 8 MiB per-set rule
+  splitCarClasses: ['base'],
 };
 
 export default {
