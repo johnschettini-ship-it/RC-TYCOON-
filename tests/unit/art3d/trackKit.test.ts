@@ -281,7 +281,7 @@ describe('style constants live in the type\'s spec (Task 3 review P2)', () => {
     const { TRACK_SPECS, trackSpecOf } = await load('items/trackSpecs.js');
     expect(TRACK_SPECS.steel_coaster).toBe(SPEC);
     // a type with no module yet is measured with the steel spec until its module sets its own
-    expect(trackSpecOf('junior_coaster')).toBe(SPEC);
+    expect(trackSpecOf('monorail')).toBe(SPEC);
   });
 
   it('trackGeometry reads the straddle half-width from the spec it is given (the steel one by default)', async () => {

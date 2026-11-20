@@ -32,6 +32,7 @@ const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js', 'items/trackSpecs
  */
 export const TRACK_TYPES = [
   { type: 'steel_coaster', file: 'items/steel_coaster.js' },
+  { type: 'junior_coaster', file: 'items/junior_coaster.js', deps: ['items/tubeTrack.js'] },
 ];
 
 /**
@@ -46,6 +47,7 @@ export const CARD_ITEMS = [
   { id: 'snack_shack', kind: 'stall' },
   ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
   { id: 'steel_coaster', kind: 'track' },
+  { id: 'junior_coaster', kind: 'track' },
   { id: 'teacup_twirl', kind: 'ride' },
   { id: 'rocket_rounds', kind: 'ride' },
   { id: 'kiddie_cars', kind: 'ride' },
@@ -82,7 +84,7 @@ export const ITEM_LIST = [
   { id: 'bunting_pole', file: 'items/bunting_pole.js', catalog: ['scenery', 'bunting_pole'], deps: SCENERY_DEPS },
   { id: 'bench', file: 'items/bench.js', deps: PATH_ITEM_DEPS },
   { id: 'bin', file: 'items/bin.js', deps: PATH_ITEM_DEPS },
-  ...TRACK_TYPES.map((t) => ({ id: t.type, file: t.file, track: { type: t.type }, deps: TRACK_DEPS })),
+  ...TRACK_TYPES.map((t) => ({ id: t.type, file: t.file, track: { type: t.type }, deps: [...TRACK_DEPS, ...(t.deps ?? [])] })),
   { id: 'facade', file: 'items/facade.js' },
   { id: 'teacup_twirl', file: 'items/teacup_twirl.js', catalog: ['ride', 'teacup_twirl'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
   { id: 'rocket_rounds', file: 'items/rocket_rounds.js', catalog: ['ride', 'rocket_rounds'], deps: [...RIDE_DEPS, 'items/spinnerMotion.js'] },
