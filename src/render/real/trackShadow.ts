@@ -12,8 +12,9 @@
  *   anchor; the game draws one per stacked piece, shifted by `(piece height − ground) × sunShift()`.
  * - Cars (owner decision D1 a): no art. A soft ellipse drawn live under each car at its ground point, shifted by the
  *   car's height the same way.
- * Heights are true (STEP_PX, set to REAL_STEP_PX in the realistic build). The ground under a shadow is taken flat at
- * the tile's (or the car's tile's) height: a shadow reaching onto a slope is not bent over it.
+ * Heights are true (STEP_PX, set to REAL_STEP_PX in the realistic build). The placements here take the ground flat at
+ * the tile's height; the shadow pass (`../track/realShadow.ts`) lays each shadow on the actual ground under it, slopes
+ * included (`groundShadow.ts`), which on flat ground is the same shift.
  */
 import type { ArtBounds } from '../sprites/rides';
 import { isoX, isoY, PX_X } from '../track/project';
@@ -48,16 +49,22 @@ export function sunShift(): { readonly x: number; readonly y: number } {
 
 /** Px beyond a shadow's moved bounds: the soft edge of baked shadows and of the car ellipse. */
 const SHADOW_EDGE_PX = 4;
+/**
+ * A shadow falling down a slope away from the sun runs longer than its height over its own tile (groundShadow.ts: by
+ * 1 / (1 + slope · run), 1.25 at most on the game's 1-in-4 slopes): the reach is grown by this much.
+ */
+const SLOPE_REACH = 1.3;
 
 /**
  * Bounds `b` (world px around an anchor, zoom 1) grown to hold the drawable's shadow (review P2: culling by the rail
  * or car alone made a tall lift's shadow pop at the screen's edge). Every point of the drawable stands between `hLo` and
  * `hHi` m over the ground its shadow falls on, and its shadow is the point moved by that height × `sunShift()`, so the
- * shadow lies inside `b` swept along the shift from `hLo` to `hHi`. Written into `out`.
+ * shadow lies inside `b` swept along the shift from `hLo` to `hHi` (× SLOPE_REACH). Written into `out`.
  */
 export function withShadowReach(b: ArtBounds, hLo: number, hHi: number, out: ArtBounds): ArtBounds {
   const s = sunShift();
-  const x0 = hLo * s.x, x1 = hHi * s.x, y0 = hLo * s.y, y1 = hHi * s.y;
+  const lo = hLo * SLOPE_REACH, hi = hHi * SLOPE_REACH;
+  const x0 = lo * s.x, x1 = hi * s.x, y0 = lo * s.y, y1 = hi * s.y;
   out.left = b.left + Math.min(0, x0, x1) - SHADOW_EDGE_PX;
   out.right = b.right + Math.max(0, x0, x1) + SHADOW_EDGE_PX;
   out.top = b.top + Math.min(0, y0, y1) - SHADOW_EDGE_PX;
