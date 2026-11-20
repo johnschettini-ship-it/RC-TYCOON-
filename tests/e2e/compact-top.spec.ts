@@ -129,6 +129,8 @@ test.describe('compact top row on the upright phone (Task 21)', () => {
 
   test('a press on the mood circle toggles the Temperament overlay; its name holds the three percents, the lean and the rating', async ({ page }) => {
     await park(page);
+    // Paused, so the park rating read below is the one the name shows (a running park re-rates while the test reads).
+    await setSpeed(page, 'Pause', { tap: true });
     await addGuests(page, [20, 20, 20, 20, 50, 50, 50, 80, 80, 80]);
     const circle = page.getByTestId('hud-balance');
     const rating = await page.evaluate(() => (window as unknown as { __tc: { world: { state: { park: { rating: number } } } } }).__tc.world.state.park.rating);

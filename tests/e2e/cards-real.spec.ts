@@ -296,14 +296,15 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
 
   test('card pictures that decode after the cards were drawn replace the icon and today\'s preview', async ({ page }) => {
     test.setTimeout(60_000);
-    // The boot waits 3 s for the card set: hold its sheet back 8 s, so the first cards are drawn without it.
+    // The boot waits 3 s for the card set (CARD_WAIT_MS) and then goes on: hold its sheet back until the test releases
+    // it, so the first cards are drawn without it. (A fixed 8 s hold raced the park start on a loaded machine: the sheet
+    // could land before the "no picture yet" check.)
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
     await page.route('**/art/real/preview-cards-*.webp', async (route) => {
       await held;
       await route.continue();
     });
-    const timer = setTimeout(() => release(), 8_000);
     try {
       await newPark(page, 'Late Park');
       await expectRealLook(page);
@@ -329,7 +330,6 @@ test.describe('realistic card frames (VITE_ART=real build)', () => {
       await openDeck('rides');
       await expect.poll(preview, { timeout: 5_000 }).not.toBe(before);
     } finally {
-      clearTimeout(timer);
       release();
     }
   });

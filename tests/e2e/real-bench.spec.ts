@@ -5,9 +5,10 @@ import { expect, test } from '@playwright/test';
  *
  *   VITE_ART=real npx playwright test tests/e2e/real-bench.spec.ts --trace off
  *
- * Without baked art the realistic boot cannot fetch `art/real/index.json`: one error line, today's look. The smoke
- * checks the Run button, the results card with a row per park, and that the console has no errors other than that
- * missing index. Numbers are not asserted (headless timings are noise). `quick` runs every step at a tenth of its
+ * Runs with or without baked art in `art/real/` (tests/e2e/README.md). Without it the realistic boot cannot fetch
+ * `art/real/index.json`: one error line, today's look; with it, the realistic look and no error line. The smoke checks
+ * the Run button, the results card with a row per park, and that the console has no errors other than that missing
+ * index. Numbers are not asserted (headless timings are noise). `quick` runs every step at a tenth of its
  * length; the real run on a phone is `?bench=1`.
  */
 const REAL = process.env.VITE_ART === 'real';
@@ -15,7 +16,7 @@ const REAL = process.env.VITE_ART === 'real';
 test.describe('stage 1 bench (VITE_ART=real build)', () => {
   test.skip(!REAL, 'needs a VITE_ART=real build (set VITE_ART=real)');
 
-  test('Run benchmark shows the results card, no console errors but the missing index', async ({ page, context }) => {
+  test('Run benchmark shows the results card, no console errors but a missing index', async ({ page, context }) => {
     test.setTimeout(360_000);
     const errors: string[] = [];
     page.on('console', (m) => {
@@ -25,8 +26,10 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']).catch(() => undefined);
 
     await page.goto('/?art=real&bench=quick');
-    // Today's look with the one error line (no baked art yet).
-    await expect(page.getByRole('alert')).toBeVisible();
+    const baked = await page.evaluate(() => fetch('art/real/index.json').then((r) => r.ok, () => false));
+    // Without baked art: today's look with the one error line. With it: the realistic look, no error line.
+    if (baked) await expect.poll(() => page.evaluate(() => Boolean((window as unknown as { __tcReal?: { look?: unknown } }).__tcReal?.look))).toBe(true);
+    else await expect(page.getByRole('alert')).toBeVisible();
     const run = page.getByTestId('real-bench-run');
     await expect(run).toBeVisible();
     // No save may be written while the bench runs.
@@ -65,12 +68,12 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
     await page.getByTestId('real-bench-copy').click();
     await expect(page.getByTestId('real-bench-copy')).not.toHaveText('Copy results');
 
-    // The only error: the browser's line for the missing art index (HTTP 404).
-    const unexpected = errors.filter((e) => !(/404/.test(e) && /art\/real\/index\.json/.test(e)));
+    // The only possible error: the browser's line for the missing art index (HTTP 404), when there is no baked art.
+    const unexpected = errors.filter((e) => baked || !(/404/.test(e) && /art\/real\/index\.json/.test(e)));
     expect(unexpected).toEqual([]);
   });
 
-  test("today's look runs the same bench (?art=classic): n/a memory, turn and start bands, frame times measured", async ({ page }) => {
+  test("today's look runs the same bench (?art=classic): turns n/a, memory and frame times measured", async ({ page }) => {
     test.setTimeout(360_000);
     const errors: string[] = [];
     page.on('console', (m) => {
@@ -84,7 +87,11 @@ test.describe('stage 1 bench (VITE_ART=real build)', () => {
     const card = page.getByTestId('real-bench-card');
     await expect(card).toBeVisible({ timeout: 340_000 });
     await expect(card.locator('tr[data-look="classic"]')).toBeVisible();
-    for (const check of ['S2', 'S3']) for (const cell of await card.locator(`tr[data-check="${check}"] td[data-band]`).all()) await expect(cell).toHaveAttribute('data-band', 'n/a');
+    // S3 (turns) needs the realistic look: n/a. S2 counts all picture memory for either look (a454403 "S2 counts all
+    // picture memory"; tests/unit/perf/realBench.test.ts "S2 is all picture memory": today's look gets a band), so it
+    // is judged, never n/a.
+    for (const cell of await card.locator('tr[data-check="S3"] td[data-band]').all()) await expect(cell).toHaveAttribute('data-band', 'n/a');
+    for (const cell of await card.locator('tr[data-check="S2"] td[data-band]').all()) await expect(cell).not.toHaveAttribute('data-band', 'n/a');
     const result = await page.evaluate(() => (window as unknown as { __tcBench: { look: string; scenes: Array<{ frames: number; frameP95: number }> } }).__tcBench);
     expect(result.look).toBe('classic');
     for (const s of result.scenes) {
