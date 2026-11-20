@@ -15,7 +15,17 @@
 export const MASK_COVERAGE_MEASURED: Readonly<Record<string, number>> = {
   rail: 0.884, car: 0.562, support: 0.712, guest: 0.209,
   'car~base': 0.564, 'car~turn': 0.561, 'car~bank': 0.525, 'car~loop': 0.498, 'car~cork': 0.525, 'car~helix': 0.527,
+  ...TYPE_MEASURED(),
 };
+
+/**
+ * Per track type (batch 5 Task 7), `<kind>@<type>`: a type whose pictures leave a part untinted by design is measured
+ * against its own share, not the steel coaster's. Measured on the type's own bake at d4:
+ *   rail@bobsled_run  0.443  the trough's ice lining never takes the track colour (every rail frame masked)
+ */
+function TYPE_MEASURED(): Record<string, number> {
+  return { 'rail@bobsled_run': 0.443 };
+}
 
 /** The floor of a measured share: less 5 %, rounded down to a whole per cent. */
 export const floorOf = (share: number): number => Math.floor(share * 0.95 * 100 + 1e-9) / 100;
@@ -24,14 +34,17 @@ export const floorOf = (share: number): number => Math.floor(share * 0.95 * 100 
 export const MASK_COVERAGE_FLOOR: Readonly<Record<string, number>> = {
   rail: 0.84, car: 0.53, support: 0.67, guest: 0.19,
   'car~base': 0.53, 'car~turn': 0.53, 'car~bank': 0.49, 'car~loop': 0.47, 'car~cork': 0.49, 'car~helix': 0.5,
+  ...Object.fromEntries(Object.entries(TYPE_MEASURED()).map(([k, v]) => [k, floorOf(v)])),
 };
 
 /**
  * The floor a set is measured against: a track car class set (`car:<type>~<class>`) against its class's floor when the
  * class has one (a class not measured yet, such as `water`, against the stage 1 `car` floor); any other set against its
- * kind's.
+ * kind's; either one by the set's type when the type has its own floor (`<kind>@<type>`, TYPE_MEASURED).
  */
 export function coverageKind(s: { kind: string; item: string }): string {
   const m = s.kind === 'car' ? /~(\w+)$/.exec(s.item) : null;
-  return m && `car~${m[1]}` in MASK_COVERAGE_FLOOR ? `car~${m[1]}` : s.kind;
+  const base = m && `car~${m[1]}` in MASK_COVERAGE_FLOOR ? `car~${m[1]}` : s.kind;
+  const own = `${base}@${s.item.split('~')[0]}`; // a type with a floor of its own (TYPE_MEASURED)
+  return own in MASK_COVERAGE_FLOOR ? own : base;
 }

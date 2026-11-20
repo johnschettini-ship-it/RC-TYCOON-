@@ -5,6 +5,8 @@ export interface TrackSpec {
   straddleHalfM: number;
   /** The support top's anchor under the rail line (m). */
   supportTopBelowRail: number;
+  /** Every rail frame has parts that never take the track colour (the bobsled's ice): every piece on a masked sheet. */
+  maskedRails?: boolean;
   [k: string]: unknown;
 }
 export declare const TRACK_SPECS: Record<string, TrackSpec>;

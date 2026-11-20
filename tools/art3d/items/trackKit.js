@@ -280,7 +280,8 @@ const DEPTH_ONLY = new THREE.MeshBasicMaterial({ colorWrite: false });
 /**
  * Bakes one track type from its style spec:
  *   spec = { item, rail, supports, car (style names or style objects), colours: { track, supports, cars } (the
- *            light colours the pictures are painted in: the game tints them), gauge? }
+ *            light colours the pictures are painted in: the game tints them), gauge?, groundHoldOut? (false: rails and
+ *            cars are shot without the hold-out ground, see below) }
  * B.input.track is bakeNode.ts trackGeometry(spec.item).
  */
 export function bakeTrackType(B, spec) {
@@ -290,6 +291,11 @@ export function bakeTrackType(B, spec) {
   const st = stylesOf(spec);
   const gauge = spec.gauge ?? st.rail.gauge;
   const railMat = st.rail.material(spec.colours.track);
+  // `groundHoldOut: false` (batch 5 Task 7): rails and cars are shot without the hold-out ground. The hold-out sits at
+  // y = 0 and is drawn in material order, so it hides whatever is under the rail line's start height and drawn after it:
+  // the lower half of a descending piece (a gentle or steep drop, a down helix) for any material made after it, and the
+  // half of a pitched car under its anchor. A piece's ground is not known at bake time, so nothing is held out.
+  const noGround = spec.groundHoldOut === false;
   const supMat = st.supports.material(spec.colours.supports);
   const bs = B.newScene();
 
@@ -334,7 +340,7 @@ export function bakeTrackType(B, spec) {
     }
     cur.model.position.set(-(f.tile.x + 0.5) * 4, 0, -(f.tile.y + 0.5) * 4);
     B.clip(runs ? null : clipOf(f.tile)); // a piece cut by its runs is cut across the track (bakeNode.ts trackRuns)
-    const shot = f.alpha ? B.shoot(bs, { target: cur.holder }) : B.shoot(bs, { target: cur.holder, masked: (m) => m.material === railMat });
+    const shot = f.alpha ? B.shoot(bs, { target: cur.holder, noGround }) : B.shoot(bs, { target: cur.holder, noGround, masked: (m) => m.material === railMat });
     setOf(f.cls, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
     B.clip(null);
     // its shadow: the caster cut to the tile on its own materials (a global clip would cut the catcher too)
@@ -400,7 +406,7 @@ export function bakeTrackType(B, spec) {
     if (f.pose !== last) { poseCar(car, f.pose); last = f.pose; }
     if (track.front) st.car.front(car, f.front);
     for (const rd of riders) rd.visible = f.full;
-    carSets.get(sk).add([f.key], B.shoot(bs, { target: holder, masked: (m) => st.car.masked(m, spec.colours.cars) }));
+    carSets.get(sk).add([f.key], B.shoot(bs, { target: holder, noGround, masked: (m) => st.car.masked(m, spec.colours.cars) }));
   }
   B.log(`${spec.item}: ${track.classes.map((c) => `${c.cls} ${c.pieces.length} pieces, ${c.poses.length} poses`).join('; ')}`);
 }
