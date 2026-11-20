@@ -247,7 +247,7 @@ export function trackComplete(index: RealIndex): string[] {
     const carItem = (code: number): string => {
       if (!classed('car')) return type;
       const cls = poseClassOf(type, code);
-      const half = `${type}~${carSplitClass(cls, Math.floor(code / (24 * 24)))}`; // its class's yaw half when the art splits it
+      const half = `${type}~${carSplitClass(cls, code % 24)}`; // its class's roll half when the art splits it
       return carItems.has(half) ? half : `${type}~${cls}`;
     };
     /** The set a car frame is in: its yaw quadrant's in the class layout, the one `rall` set in the stage 1 layout. */

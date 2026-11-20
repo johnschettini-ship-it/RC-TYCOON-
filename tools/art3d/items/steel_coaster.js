@@ -19,7 +19,7 @@ export const SPEC = {
   colours: { track: '#e2e2e2', supports: '#dedede', cars: '#ececec' },
   straddleHalfM: 0.6,
   supportTopBelowRail: 1.2,
-  // its corkscrew cars in yaw halves (trackClasses.ts carSplitClass): whole (uncut by the hold-out ground) one set per
+  // its corkscrew cars in roll halves (trackClasses.ts carSplitClass): whole (uncut by the hold-out ground) one set per
   // quadrant was 8.0-8.6 MiB at d4
   splitCarClasses: ['cork'],
 };

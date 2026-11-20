@@ -70,15 +70,15 @@ export function carQuadrant(yawStep: number): 0 | 1 | 2 | 3 {
 
 /**
  * A car class's half (after batch 5 Task 7: once the hold-out ground stopped cutting cars, the steel coaster's cork car
- * sets were 8.0-8.6 MiB per quadrant at d4): `<class>.0` for the first 4 yaw steps of its quadrant (`carQuadrant`),
- * `<class>.1` for the last 4 (a car facing a heading is step 4 of its quadrant: half 1). Like rail halves, opt-in per
- * type and class by the bake (spec `splitCarClasses`); the reader and the scope ask for the half and get the whole
- * class when the art has no halves (look/core.ts classRec).
+ * sets were 8.0-8.6 MiB per quadrant at d4): `<class>.0` for a roll step in the first half turn (0-11), `<class>.1` for
+ * the second (12-23). A corkscrew rolls its cars all the way round, so its poses split evenly (20 and 21 per quadrant
+ * for the steel coaster; its yaws all fall in one half of their quadrant, so a yaw split would not). Like rail halves,
+ * opt-in per type and class by the bake (spec `splitCarClasses`); the reader and the scope ask for the half and get the
+ * whole class when the art has no halves (look/core.ts classRec).
  */
-export function carSplitClass(cls: string, yawStep: number): string {
-  const y = ((Math.round(yawStep) % CAR_YAW_STEPS) + CAR_YAW_STEPS) % CAR_YAW_STEPS;
-  const off = (y + CAR_YAW_STEPS / 8) % (CAR_YAW_STEPS / 4); // 0-7 within its quadrant
-  return `${cls}.${off < CAR_YAW_STEPS / 8 ? 0 : 1}`;
+export function carSplitClass(cls: string, rollStep: number): string {
+  const r = ((Math.round(rollStep) % CAR_TILT_STEPS) + CAR_TILT_STEPS) % CAR_TILT_STEPS;
+  return `${cls}.${r < CAR_TILT_STEPS / 2 ? 0 : 1}`;
 }
 
 const codesByPieceDir = new Map<string, number[]>();
@@ -208,11 +208,10 @@ export function carHalfSetsOf(typeId: string, pieces: Iterable<{ defId: string; 
   const spins = getTrackTypeDef(typeId)?.vehicle.spins === true;
   const out = new Map<string, Set<number>>();
   const add = (code: number): void => {
-    const yaw = Math.floor(code / (CAR_TILT_STEPS * CAR_TILT_STEPS));
-    const k = carSplitClass(m.get(code) ?? 'base', yaw);
+    const k = carSplitClass(m.get(code) ?? 'base', code % CAR_TILT_STEPS);
     let set = out.get(k);
     if (!set) out.set(k, (set = new Set()));
-    set.add(carQuadrant(yaw));
+    set.add(carQuadrant(Math.floor(code / (CAR_TILT_STEPS * CAR_TILT_STEPS))));
   };
   const seen = new Set<string>();
   for (const p of pieces) {

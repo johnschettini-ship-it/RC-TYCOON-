@@ -70,7 +70,7 @@ describe('track kit frame plan', () => {
         for (const f of railFrames(t) as RailFrame[]) {
           for (const k of [f.key, f.shadow, ...(f.chain ? [f.chain] : [])]) add('rail', classItem(r.id, f.set), d, f.heading as 0, k); // its set: the class, or the class's half
         }
-        for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.set), d, f.q as 0, f.key); // its class, or the class's yaw half
+        for (const f of carFrames(t) as CarFrame[]) add('car', classItem(r.id, f.set), d, f.q as 0, f.key); // its class, or the class's roll half
       }
       const index: RealIndex = { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
       expect(trackComplete(index), r.id).toEqual([]);

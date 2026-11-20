@@ -176,11 +176,16 @@ describe('the hold-out ground never cuts a track model (every type)', () => {
   });
 });
 
-describe('car sets split in halves by yaw (steel and launch cork cars once uncut)', () => {
-  it.each(['steel_coaster', 'launch_coaster'])('%s bakes its cork cars in yaw halves; other car classes whole', async (type) => {
+describe('car sets split in halves by roll (steel and launch cork cars once uncut)', () => {
+  it.each(['steel_coaster', 'launch_coaster'])('%s bakes its cork cars in roll halves, each quadrant split near evenly; other car classes whole', async (type) => {
     const { carFrames } = await load('items/trackKeys.js');
     const { carSplitClass } = await import('../../../src/render/real/trackClasses');
-    for (const f of carFrames(trackGeometry(type))) expect(f.set, f.key).toBe(f.cls === 'cork' ? carSplitClass('cork', f.pose.yaw) : f.cls);
+    const frames = carFrames(trackGeometry(type));
+    for (const f of frames) expect(f.set, f.key).toBe(f.cls === 'cork' ? carSplitClass('cork', f.pose.roll) : f.cls);
+    for (const q of [0, 1, 2, 3]) {
+      const n = (h: string) => frames.filter((f: { set: string; q: number }) => f.set === h && f.q === q).length;
+      expect(Math.abs(n('cork.0') - n('cork.1')), `q${q}`).toBeLessThanOrEqual(n('cork.0') / 4); // neither half holds most
+    }
   });
   it('a car frame missing from its half fails TRACK_COMPLETE; a split car class is known; floors read the class of a half', async () => {
     const { carFrames, classItem } = await load('items/trackKeys.js');

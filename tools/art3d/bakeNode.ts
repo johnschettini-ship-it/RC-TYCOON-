@@ -150,8 +150,8 @@ export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHal
   const classes = TRACK_CLASSES.map((cls) => ({ cls, pieces: ids.filter((id) => pieces[id]!.cls === cls), poses: [] as BakePose[] }));
   for (const p of carPoses(typeId, ids)) {
     const cls = poseClassOf(typeId, poseCode(p.yaw, p.pitch, p.roll));
-    // its set's class: the class, or its yaw half when the spec's `splitCarClasses` names it
-    classes.find((c) => c.cls === cls)!.poses.push({ ...p, q: carQuadrant(p.yaw), set: spec.splitCarClasses?.includes(cls) ? carSplitClass(cls, p.yaw) : cls });
+    // its set's class: the class, or its roll half when the spec's `splitCarClasses` names it
+    classes.find((c) => c.cls === cls)!.poses.push({ ...p, q: carQuadrant(p.yaw), set: spec.splitCarClasses?.includes(cls) ? carSplitClass(cls, p.roll) : cls });
   }
   return { type: typeId, spins, front, pieces, classes: classes.filter((c) => c.pieces.length || c.poses.length) };
 }

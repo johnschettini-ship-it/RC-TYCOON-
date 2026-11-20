@@ -275,13 +275,13 @@ describe('track class sets (batch 5 Task 2)', () => {
   });
 
   // Car set halves (the hold-out fix made whole steel cork cars, 8.0-8.6 MiB per quadrant set): a car class split in
-  // two by the yaw within its quadrant (`<class>.0`: the quadrant's first 4 steps, `.1` the last 4).
-  it('a split car class: cars draw from their yaw half, and the scope wants only the halves the built poses reach', () => {
-    expect([28, 31, 0, 3, 4, 8, 11].map((y) => carSplitClass('cork', y))).toEqual(['cork.0', 'cork.0', 'cork.1', 'cork.1', 'cork.0', 'cork.1', 'cork.1']);
-    // a straight car faces its heading: the quadrant's middle step, half 1 only
+  // two by its roll (`<class>.0`: roll steps 0-11, `.1`: 12-23).
+  it('a split car class: cars draw from their roll half, and the scope wants only the halves the built poses reach', () => {
+    expect([0, 5, 11, 12, 18, 23, 24].map((r) => carSplitClass('cork', r))).toEqual(['cork.0', 'cork.0', 'cork.0', 'cork.1', 'cork.1', 'cork.1', 'cork.0']);
+    // a straight car runs level: roll 0, half 0 only
     const straight = carHalfSetsOf('steel_coaster', [{ defId: 'straight', dir: 0 }]);
-    expect([...straight.keys()]).toEqual(['base.1']);
-    expect([...straight.get('base.1')!]).toEqual([0]);
+    expect([...straight.keys()]).toEqual(['base.0']);
+    expect([...straight.get('base.0')!]).toEqual([0]);
     const sets: RealSetEntry[] = [...classIndex().sets];
     for (const d of [2, 4] as const) for (const q of [0, 1, 2, 3] as const) for (const h of [0, 1]) sets.push(entry('car', `steel_coaster~loop.${h}`, d, q, [], 'mask'));
     const index = idx(sets.filter((x) => !(x.kind === 'car' && x.item === 'steel_coaster~loop')));
@@ -296,7 +296,7 @@ describe('track class sets (batch 5 Task 2)', () => {
     // a loop pose draws from its half's set
     const code = [...poseClasses('steel_coaster')].find(([, c]) => c === 'loop')![0];
     const y = Math.floor(code / 576), p = Math.floor(code / 24) % 24, r = code % 24;
-    const key = `car:steel_coaster~${carSplitClass('loop', y)}:d4:r${carQuadrant(y)}` as SetKey;
+    const key = `car:steel_coaster~${carSplitClass('loop', r)}:d4:r${carQuadrant(y)}` as SetKey;
     s1.setReady(key);
     look.car('steel_coaster', y, p, r, true, 0);
     expect(s1.used).toContain(key);
