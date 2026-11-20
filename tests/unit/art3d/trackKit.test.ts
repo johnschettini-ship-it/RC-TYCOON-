@@ -42,8 +42,8 @@ describe('track kit frame plan', () => {
       expect(rails.length, r.id).toBe(tiles);
       expect(new Set(rails.map((f) => `${f.cls}|${f.heading}|${f.key}`)).size, `${r.id}: one picture per key and set`).toBe(rails.length);
       for (const f of rails) expect(f.shadow, r.id).toBe(`${f.key}:sh`); // and its shadow (Task 4)
-      // and, for a chainable piece, its chain trough (Task 5)
-      for (const f of rails) expect(f.chain, `${r.id} ${f.key}`).toBe(getTrackPieceDef(f.piece)!.chainable ? `${f.key}:chain` : null);
+      // and, for a chainable piece on a type that chains, its chain trough (Task 5)
+      for (const f of rails) expect(f.chain, `${r.id} ${f.key}`).toBe(getTrackTypeDef(r.id)!.chain && getTrackPieceDef(f.piece)!.chainable ? `${f.key}:chain` : null);
       const cars: CarFrame[] = carFrames(t);
       expect(cars.length, r.id).toBe(carFramesOf(r.id, pieces).frames);
       const type = getTrackTypeDef(r.id)!;

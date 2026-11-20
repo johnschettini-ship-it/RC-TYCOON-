@@ -9,7 +9,7 @@ import { carPoses, hasFrontCar } from './poses';
 import { railTileRanges, typePieces } from './sizeReport';
 import { trackTypeOfItem } from './trackBudget';
 import { carQuadrant, carSplitClass, isRailSetClass, pieceClass, poseClassOf, poseCode, railSplitClass } from '../../src/render/real/trackClasses';
-import { getTrackPieceDef } from '../../src/data/track';
+import { getTrackPieceDef, getTrackTypeDef } from '../../src/data/track';
 
 const MAX_SHEET = 2048;
 /**
@@ -283,10 +283,10 @@ export function trackComplete(index: RealIndex): string[] {
             });
           }
           for (const [item, l] of noShadow) problems.push(`TRACK_COMPLETE rail:${item} d${d} r${h}: ${l.length} rail shadow(s) missing (${l.slice(0, 4).join(', ')})`);
-          // and every rail tile's chain trough of a chainable piece (Task 5)
+          // and every rail tile's chain trough of a chainable piece on a type that chains (Task 5; a launch coaster none)
           const noTrough = new Map<string, string[]>();
           for (const pc of pieces) {
-            if (!getTrackPieceDef(pc)?.chainable) continue;
+            if (!getTrackPieceDef(pc)?.chainable || !getTrackTypeDef(type)?.chain) continue;
             const item = railItem(pc);
             railTileRanges(pc, h).forEach((_, ti) => {
               const fk = `${pc}:t${ti}:chain`;

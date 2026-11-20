@@ -193,3 +193,13 @@ describe('car sets split in halves by yaw (steel and launch cork cars once uncut
     expect(trackComplete(ix).some((x) => x.includes(`car:steel_coaster~${f.set} d4 r${f.q}`) && x.includes(f.key))).toBe(true);
   });
 });
+
+describe('chain troughs only where the type can chain a piece', () => {
+  it('the launch coaster (chain: false) bakes no chain trough; TRACK_COMPLETE wants none; chain types keep theirs', async () => {
+    const { railFrames } = await load('items/trackKeys.js');
+    expect(railFrames(trackGeometry('launch_coaster')).filter((f: { chain: string | null }) => f.chain)).toEqual([]);
+    for (const t of ['steel_coaster', 'bobsled_run', 'mine_train']) expect(railFrames(trackGeometry(t)).some((f: { chain: string | null }) => f.chain), t).toBe(true);
+    const src = readFileSync(new URL('checkIndex.ts', dir), 'utf8');
+    expect(src).toMatch(/getTrackTypeDef\(type\)\?\.chain/);
+  });
+});

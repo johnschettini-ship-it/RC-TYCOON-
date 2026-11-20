@@ -113,7 +113,7 @@ export function clipRects<T extends { x: number; y: number; railMin: number; rai
  * The bake input of a track type (items/trackKit.js bakeTrackType, frame plan items/trackKeys.js):
  *   pieces   every piece the type builds (`typeBuildsPiece`), with its class and its rail set's class (`railSet`: the
  *            class, or its half when the spec's `splitRailClasses` names it), its special, whether it has untinted
- *            parts (`UNTINTED_GROUPS`, or every piece of a type whose spec says `maskedRails`: masked sheet, not alpha), whether it takes a chain lift (`chainable`: Task 5's trough) and its samples and tiles at every heading;
+ *            parts (`UNTINTED_GROUPS`, or every piece of a type whose spec says `maskedRails`: masked sheet, not alpha), whether it takes a chain lift (`chainable`: the type chains and the piece is chainable; Task 5's trough) and its samples and tiles at every heading;
  *   classes  in `TRACK_CLASSES` order, the class's pieces and its car poses (`poseClassOf`, as the game files them), each
  *            with its yaw quadrant `q` (`carQuadrant`: the car set `car:<type>~<class>:r<q>` it goes in);
  *   spins    `vehicle.spins`: every reached (pitch, roll) at all 32 yaws; a yaw no piece reaches files under `base`;
@@ -143,7 +143,7 @@ export function trackGeometry(typeId: string, spec: Pick<TrackSpec, 'straddleHal
       });
     }
     const cls = pieceClass(id);
-    pieces[id] = { special: def.special ?? null, group: def.group, cls, railSet: spec.splitRailClasses?.includes(cls) ? railSplitClass(id) : cls, untinted: !!spec.maskedRails || UNTINTED_GROUPS.includes(def.group), chainable: !!def.chainable, dirs };
+    pieces[id] = { special: def.special ?? null, group: def.group, cls, railSet: spec.splitRailClasses?.includes(cls) ? railSplitClass(id) : cls, untinted: !!spec.maskedRails || UNTINTED_GROUPS.includes(def.group), chainable: type.chain && !!def.chainable, dirs }; // a trough only where the type can chain the piece
   }
   const spins = type.vehicle.spins;
   const front = hasFrontCar(typeId);
