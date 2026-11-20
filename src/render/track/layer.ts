@@ -1,6 +1,7 @@
 /**
  * Track rendering layer (phase-2 §4.13). Owner: W2-A.
- * - Pieces: each occupied rail tile is a slice sprite holding the rail samples inside that tile and its support.
+ * - Pieces: each occupied rail tile is a slice sprite holding the rail samples inside that tile and its supports (one
+ *   per elevated rail run, beside any lower rail on the tile: `chooseRunSupport`).
  *   Slices sort with every other drawable by (x + y, railMin, layer). At most 20 slices are built per frame;
  *   a slice still waiting draws as a plain line. Slices rebuild when the track, the zoom bucket, or the view
  *   rotation changes.
@@ -18,6 +19,8 @@ import { getTrackPieceDef, getTrackTypeDef, type PieceSpecial } from '../../data
 import { TILE_M } from '../../data/tuning/track';
 import { pieceWorldSamples, trackTileSlices, trainSpinFrame } from '../../sim/rides/track/api';
 import { getLayout, newSamplePoint, type CircuitLayout } from '../../sim/rides/track/layout';
+import { buildOccupancy, type Occupancy } from '../../sim/rides/track/placement';
+import { Content } from '../../sim/map';
 import type { TrackPieceInstance, TrackRideData } from '../../sim/rides/track/types';
 import type { World } from '../../sim/types';
 import type { ZoomBucket } from '../camera';
@@ -134,7 +137,10 @@ export interface SliceRec {
   samples: WorldSamples;
   /** Sample ranges inside this tile: pairs k0, k1. */
   runs: number[];
-  support: { wx: number; wy: number; yaw: number; top: number } | null;
+  /** The slice's first support (`supports[0]`), or null: older callers and the realistic look's single-support paths. */
+  support: SupportRec | null;
+  /** Every support of the slice: one per elevated rail run (a helix tile holds its ground lead and its upper ring). */
+  supports: SupportRec[];
   special: PieceSpecial;
   /** Water channel slice (ripple overlay) and lift conveyor (belt cleats). */
   water: boolean;
@@ -232,6 +238,143 @@ export function supportSample(s: WorldSamples, runs: readonly number[], x: numbe
   return best;
 }
 
+/**
+ * One support: it stands at (wx, wy) from `base` (the tile's ground, or the rail of another piece it stands on where
+ * track is stacked over track) up to `top` (under the rail, or the top of an inverted track's spine).
+ */
+export interface SupportRec {
+  wx: number;
+  wy: number;
+  yaw: number;
+  top: number;
+  base: number;
+}
+
+/**
+ * Rail under a candidate support point (2026-11-20, stacked supports): the samples of the slice's own piece (`index` is
+ * the sample's number in that piece, so the track next to the candidate along its own run never blocks it) and the
+ * samples of other pieces on the tile (`other` 1, `index` −1).
+ */
+export interface SupportObstacles {
+  n: number;
+  x: Float64Array;
+  y: Float64Array;
+  z: Float64Array;
+  other: Uint8Array;
+  index: Int32Array;
+}
+
+/** A rail point at least this far (m) over its base gets a support (a tile whose lowest rail is higher always has one). */
+const SUPPORT_MIN_H = 1.5;
+/** Rail lower than a candidate by more than this (m) is under it. */
+const SUPPORT_UNDER_M = 0.5;
+/** Plan distance (m) from a column to rail under it: room for the car beside it, and the column a clear look. */
+const SUPPORT_CLEAR_GOOD = 1.5;
+const SUPPORT_CLEAR_MIN = 1;
+/** A support standing on lower track needs this much height (m) between that rail and its own. */
+const SUPPORT_STACK_ROOM = 2;
+/** Samples (0.25 m each) along its own piece that never block a candidate: the track it is part of. */
+const SUPPORT_NEAR_ALONG = 16;
+/** Runs shorter than this many samples on a tile with several runs get no support of their own (a corner clipped). */
+const SUPPORT_MIN_RUN = 6;
+/** A second support of a slice no nearer than this (m) to one it already has. */
+const SUPPORT_SPACING = 2;
+
+/**
+ * The support of one rail run `[k0, k1]` of a piece on a tile with centre (cx, cy) m: among the run's upright samples
+ * (not inverted, not near vertical) at least `minH` over the ground (hanging cars: any height, the arm holds the spine above), the nearest the tile centre whose column
+ * keeps SUPPORT_CLEAR_GOOD from every rail under it; else the one with the most room if that is at least
+ * SUPPORT_CLEAR_MIN; else, where another piece's rail is right under it (track stacked over track), standing on that
+ * rail. A tile whose ground is not the track's (`groundOk` false: a path under it) only takes the last kind. Null when
+ * no point qualifies: no column through the piece's own lower rail, which would stand in its cars.
+ */
+export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground: number, groundOk: boolean, ob: SupportObstacles, cx: number, cy: number, minH = SUPPORT_MIN_H): { k: number; base: number } | null {
+  let bestA = -1;
+  let scoreA = Infinity;
+  let bestB = -1;
+  let scoreB = -Infinity;
+  let bestC = -1;
+  let scoreC = Infinity;
+  let baseC = 0;
+  for (let k = k0; k <= k1; k++) {
+    const z = s.z[k] as number;
+    if (z - ground < minH) continue;
+    if (Math.cos(s.pitch[k] as number) < 0.5 || (s.bankCos[k] as number) < 0.5) continue;
+    const x = s.x[k] as number;
+    const y = s.y[k] as number;
+    let clear = Infinity;
+    let ownClose = false;
+    let stackTop = -Infinity;
+    for (let j = 0; j < ob.n; j++) {
+      const oz = ob.z[j] as number;
+      if (oz >= z - SUPPORT_UNDER_M) continue;
+      const other = (ob.other[j] as number) === 1;
+      if (!other && Math.abs((ob.index[j] as number) - k) < SUPPORT_NEAR_ALONG) continue;
+      const d = Math.hypot((ob.x[j] as number) - x, (ob.y[j] as number) - y);
+      if (d < clear) clear = d;
+      if (d < SUPPORT_CLEAR_MIN) {
+        if (other) stackTop = Math.max(stackTop, oz);
+        else ownClose = true;
+      }
+    }
+    const dc = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+    if (groundOk && clear >= SUPPORT_CLEAR_GOOD) {
+      if (dc < scoreA) {
+        scoreA = dc;
+        bestA = k;
+      }
+    } else if (groundOk && clear >= SUPPORT_CLEAR_MIN) {
+      if (clear > scoreB) {
+        scoreB = clear;
+        bestB = k;
+      }
+    } else if (!ownClose && stackTop > -Infinity && z - stackTop >= SUPPORT_STACK_ROOM && dc < scoreC) {
+      scoreC = dc;
+      bestC = k;
+      baseC = stackTop;
+    }
+  }
+  if (bestA >= 0) return { k: bestA, base: ground };
+  if (bestB >= 0) return { k: bestB, base: ground };
+  if (bestC >= 0) return { k: bestC, base: baseC };
+  return null;
+}
+
+/** The rail under candidate supports on tile (x, y): every sample of the slice's piece, and the samples of other pieces on the tile. */
+function supportObstacles(world: World, occ: Occupancy, tile: number, x: number, y: number, rideId: number, pieceIndex: number, s: WorldSamples): SupportObstacles {
+  const others: { s: WorldSamples; runs: number[] }[] = [];
+  let n = s.n;
+  for (const e of occ.get(tile) ?? []) {
+    if (e.rideId === rideId && e.pieceIndex === pieceIndex) continue;
+    const p = world.state.track.rides[String(e.rideId)]?.pieces[e.pieceIndex];
+    if (!p || !getTrackPieceDef(p.defId)) continue;
+    const os = samplesOf(p);
+    const runs = runsInTile(os, x, y);
+    for (let r = 0; r < runs.length; r += 2) n += (runs[r + 1] as number) - (runs[r] as number) + 1;
+    others.push({ s: os, runs });
+  }
+  const ob: SupportObstacles = { n, x: new Float64Array(n), y: new Float64Array(n), z: new Float64Array(n), other: new Uint8Array(n), index: new Int32Array(n) };
+  let i = 0;
+  for (let k = 0; k < s.n; k++, i++) {
+    ob.x[i] = s.x[k] as number;
+    ob.y[i] = s.y[k] as number;
+    ob.z[i] = s.z[k] as number;
+    ob.index[i] = k;
+  }
+  for (const o of others) {
+    for (let r = 0; r < o.runs.length; r += 2) {
+      for (let k = o.runs[r] as number; k <= (o.runs[r + 1] as number); k++, i++) {
+        ob.x[i] = o.s.x[k] as number;
+        ob.y[i] = o.s.y[k] as number;
+        ob.z[i] = o.s.z[k] as number;
+        ob.other[i] = 1;
+        ob.index[i] = -1;
+      }
+    }
+  }
+  return ob;
+}
+
 function coloursOf(data: TrackRideData): TrackColours {
   return { track: paletteColour(data.colours.track), supports: paletteColour(data.colours.supports), cars: paletteColour(data.colours.cars) };
 }
@@ -273,6 +416,7 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
   const colours = coloursOf(data);
   const out: SliceRec[] = [];
   let lastPiece = -1;
+  let occ: Occupancy | undefined;
   let tile = 0;
   for (const t of trackTileSlices(world, rideId)) {
     if (!t.rail) continue;
@@ -291,27 +435,58 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
     const ax = projectX(cx, cy, f);
     const ay = projectY(cx, cy, 0, f);
     const P = new Projector(f, ax, ay);
-    let support: SliceRec['support'] = null;
     const lift = look.lift ?? 0;
-    // Hanging cars (Phase 6 inverted): every rail tile on the track's own ground gets an arm support, stations too.
-    // Batch C, the sky ride: a tower on every third tile only (by the tile's diagonal), so the rope spans between them.
-    const towerTile = type.render.supports !== 'tower' || (t.x + t.y) % 3 === 0;
-    if (towerTile && (t.support || (lift > 0 && t.railMin <= t.ground))) {
-      const k = supportSample(s, runs, t.x, t.y);
+    // A support at sample k standing on `base`. Hanging cars (Phase 6 inverted): the arm holds the spine,
+    // `lift − drop` up the (possibly rolled) track frame from the sample.
+    const supportAt = (k: number, base: number): SupportRec => {
       if (lift > 0) {
-        // The arm holds the spine, `lift − drop` up the (possibly rolled) track frame from the sample.
         trackFrame(s.yaw[k] as number, s.pitch[k] as number, s.bankSin[k] as number, s.bankCos[k] as number, SUPPORT_FRAME);
         const up = lift - look.drop;
-        support = {
+        return {
           wx: (s.x[k] as number) + (SUPPORT_FRAME[6] as number) * up,
           wy: (s.y[k] as number) + (SUPPORT_FRAME[7] as number) * up,
           yaw: s.yaw[k] as number,
           top: (s.z[k] as number) + (SUPPORT_FRAME[8] as number) * up,
+          base,
         };
-      } else {
-        support = { wx: s.x[k] as number, wy: s.y[k] as number, yaw: s.yaw[k] as number, top: (s.z[k] as number) - look.drop };
       }
-    }
+      return { wx: s.x[k] as number, wy: s.y[k] as number, yaw: s.yaw[k] as number, top: (s.z[k] as number) - look.drop, base };
+    };
+    const supports: SupportRec[] = [];
+    // Hanging cars (Phase 6 inverted): every rail tile on the track's own ground gets an arm support, stations too.
+    // Batch C, the sky ride: a tower on every third tile only (by the tile's diagonal), so the rope spans between them.
+    const towerTile = type.render.supports !== 'tower' || (t.x + t.y) % 3 === 0;
+    const owned = t.support || (lift > 0 && t.railMin <= t.ground);
+    if (towerTile && type.render.supports !== 'tower') {
+      // One support per elevated rail run (2026-11-20): a tile can hold rail at two heights (a helix's ground lead
+      // and its upper ring, or another piece stacked over this one); its lowest rail alone used to decide the support,
+      // so the upper rail floated. A tile with one run, or a loop's tile, keeps its one support as before.
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let r = 0; r < runs.length; r += 2) {
+        for (let k = runs[r] as number; k <= (runs[r + 1] as number); k++) {
+          lo = Math.min(lo, s.z[k] as number);
+          hi = Math.max(hi, s.z[k] as number);
+        }
+      }
+      if (owned && (runs.length === 2 || hi - lo > 6)) supports.push(supportAt(supportSample(s, runs, t.x, t.y), t.ground));
+      else if (lift > 0 || hi - t.ground >= SUPPORT_MIN_H) {
+        occ ??= buildOccupancy(world);
+        const ob = supportObstacles(world, occ, t.tile, t.x, t.y, rideId, t.pieceIndex, s);
+        const groundOk = world.state.map.content[t.tile] === Content.Track;
+        for (let r = 0; r < runs.length; r += 2) {
+          const k0 = runs[r] as number;
+          const k1 = runs[r + 1] as number;
+          if (runs.length > 2 && k1 - k0 < SUPPORT_MIN_RUN) continue;
+          const c = chooseRunSupport(s, k0, k1, t.ground, groundOk, ob, cx, cy, lift > 0 ? -Infinity : SUPPORT_MIN_H);
+          if (!c) continue;
+          const su = supportAt(c.k, c.base);
+          if (supports.some((o) => Math.hypot(o.wx - su.wx, o.wy - su.wy) < SUPPORT_SPACING)) continue;
+          supports.push(su);
+        }
+        if (owned && supports.length === 0) supports.push(supportAt(supportSample(s, runs, t.x, t.y), t.ground));
+      }
+    } else if (towerTile && owned) supports.push(supportAt(supportSample(s, runs, t.x, t.y), t.ground));
     out.push({
       rideId,
       pieceIndex: t.pieceIndex,
@@ -325,14 +500,15 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
       bounds: sliceBounds(P, s, runs, t.ground, def.special, look.lift ?? 0),
       samples: s,
       runs,
-      support,
+      support: supports[0] ?? null,
+      supports,
       special: def.special,
       water: look.channel > 0 && !look.trough,
       conveyor: def.water?.drive === 'conveyor' && def.special !== 'station',
       look,
       supportStyle: type.render.supports,
       colours,
-      key: `${type.id}|${piece.defId}|${piece.x},${piece.y},${piece.z},${piece.dir}|${t.x},${t.y}|${support ? 1 : 0}|${colours.track}|${colours.supports}|${f.rot}`,
+      key: `${type.id}|${piece.defId}|${piece.x},${piece.y},${piece.z},${piece.dir}|${t.x},${t.y}|${supports.map((su) => `${su.wx.toFixed(2)},${su.wy.toFixed(2)},${su.base}`).join(';')}|${colours.track}|${colours.supports}|${f.rot}`,
       sprites: [null, null, null],
       data,
       pieceId: import.meta.env.VITE_ART === 'real' ? piece.defId : '',
@@ -362,12 +538,11 @@ export function realRailPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRo
  * Realistic support of a slice (Task 9b): the saddle's heading is the track's at the support point, in the view; the
  * pieces (`supportStack`) stand on the support point, each anchored at its own height. Null without a support.
  */
-export function realSupportPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRotation; ax: number; pieces: (SupportPiece & { ay: number })[] } | null {
-  const su = sl.support;
+export function realSupportPlacement(sl: SliceRec, f: ViewFrame, su: SupportRec | null = sl.support): { heading: ViewRotation; ax: number; pieces: (SupportPiece & { ay: number })[] } | null {
   if (!su) return null;
   const q = Math.round(viewYaw(su.yaw, f) / (Math.PI / 2));
   // `top` is the rail line less the look's drop (buildRideSlices), so the rail line is top + drop.
-  const pieces = supportStack(su.top + sl.look.drop, sl.ground).map((p) => ({ ...p, ay: projectY(su.wx, su.wy, p.z, f) }));
+  const pieces = supportStack(su.top + sl.look.drop, su.base).map((p) => ({ ...p, ay: projectY(su.wx, su.wy, p.z, f) }));
   return { heading: (((q % 4) + 4) % 4) as ViewRotation, ax: projectX(su.wx, su.wy, f), pieces };
 }
 
@@ -387,8 +562,8 @@ export function realRailShadowPlacement(sl: SliceRec, f: ViewFrame): { heading: 
  * Realistic support shadows of a slice (Task 4): one baked `<part>:sh` frame per stacked piece, each the piece's shadow
  * onto a plane at its own anchor, shifted by the piece's height above the ground. Null without a support.
  */
-export function realSupportShadowPlacement(sl: SliceRec, f: ViewFrame): { heading: ViewRotation; pieces: { part: SupportPiece['part']; ax: number; ay: number }[] } | null {
-  const su = realSupportPlacement(sl, f);
+export function realSupportShadowPlacement(sl: SliceRec, f: ViewFrame, rec: SupportRec | null = sl.support): { heading: ViewRotation; pieces: { part: SupportPiece['part']; ax: number; ay: number }[] } | null {
+  const su = realSupportPlacement(sl, f, rec);
   if (!su) return null;
   const s = sunShift();
   return { heading: su.heading, pieces: su.pieces.map((p) => ({ part: p.part, ax: su.ax + (p.z - sl.ground) * s.x, ay: p.ay + (p.z - sl.ground) * s.y })) };
@@ -419,7 +594,7 @@ export function carShadowAt(x: number, y: number, z: number, g: number, yaw: num
 /** Paint one slice around its anchor (world px). */
 export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame): void {
   const P = new Projector(f, sl.ax, sl.ay);
-  if (sl.support) paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, sl.support.wx, sl.support.wy, sl.support.yaw, sl.ground, sl.support.top);
+  for (const su of sl.supports) paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, su.wx, su.wy, su.yaw, su.base, su.top);
   for (let i = 0; i < sl.runs.length; i += 2) {
     paintRun(ctx, P, sl.look, sl.colours, sl.samples, sl.runs[i] as number, sl.runs[i + 1] as number, { special: sl.special, chain: false, conveyor: sl.conveyor });
   }
@@ -821,8 +996,9 @@ export class TrackLayer {
       if (rail === null) return;
       if (rail) {
         if (import.meta.env.VITE_ART === 'real') this.realRails?.add(sl);
-        const su = realSupportPlacement(sl, f);
-        if (su) {
+        for (const rec of sl.supports) {
+          const su = realSupportPlacement(sl, f, rec);
+          if (!su) continue;
           for (const p of su.pieces) {
             const sp = look.support(type, p.part, su.heading, sl.data.colours.supports);
             if (sp) this.blit(ctx, sp, su.ax, p.ay);

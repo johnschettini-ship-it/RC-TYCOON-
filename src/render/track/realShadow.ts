@@ -52,11 +52,14 @@ export function drawTrackShadow(layer: TrackLayer, ctx: CanvasRenderingContext2D
     const sl = L.slices[ref];
     if (!sl || !look.railPart) return;
     const type = sl.data.typeId;
-    const su = realSupportShadowPlacement(sl, f);
-    if (su && look.supportShadow) {
-      for (const p of su.pieces) {
-        const sp = look.supportShadow(type, p.part, su.heading);
-        if (sp) blit(L, ctx, sp, p.ax, p.ay);
+    if (look.supportShadow) {
+      for (const rec of sl.supports) {
+        const su = realSupportShadowPlacement(sl, f, rec);
+        if (!su) continue;
+        for (const p of su.pieces) {
+          const sp = look.supportShadow(type, p.part, su.heading);
+          if (sp) blit(L, ctx, sp, p.ax, p.ay);
+        }
       }
     }
     const rs = realRailShadowPlacement(sl, f);
