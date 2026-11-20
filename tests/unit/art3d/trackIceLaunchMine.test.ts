@@ -23,6 +23,7 @@ interface RailFrame { piece: string; key: string; alpha: boolean }
  */
 const TYPES = [
   { type: 'bobsled_run', masked: true, signature: 'helix_left_down', maskedPieces: [] },
+  { type: 'launch_coaster', masked: false, signature: 'launch', maskedPieces: ['launch', 'station', 'brakes', 'block_brake'] },
 ] as const;
 
 describe.each(TYPES)('$type on the track kit', ({ type, masked, signature, maskedPieces }) => {
@@ -67,7 +68,7 @@ describe.each(TYPES)('$type on the track kit', ({ type, masked, signature, maske
     const frames: RailFrame[] = railFrames(trackGeometry(type));
     expect(frames.length).toBeGreaterThan(0);
     for (const f of frames) expect(f.alpha, f.key).toBe(!masked && !UNTINTED_GROUPS.includes(getTrackPieceDef(f.piece)!.group));
-    for (const id of maskedPieces) expect(frames.filter((f) => f.piece === id).every((f) => !f.alpha), id).toBe(true);
+    for (const id of maskedPieces as readonly string[]) expect(frames.filter((f) => f.piece === id).every((f) => !f.alpha), id).toBe(true);
     if (!masked) expect([...new Set(frames.filter((f) => !f.alpha).map((f) => f.piece))].sort()).toEqual([...maskedPieces].sort());
   });
 });
@@ -79,5 +80,12 @@ describe('mask coverage floors of a type with untinted parts by design', () => {
     // other types and kinds keep the shared floors
     expect(coverageKind({ kind: 'rail', item: 'steel_coaster~helix' })).toBe('rail');
     expect(coverageKind({ kind: 'car', item: 'bobsled_run~bank' })).toBe('car~bank');
+  });
+  it('the launch car (tall dark seat backs, white stripes) is measured against its own floor per class', () => {
+    for (const c of trackGeometry('launch_coaster').classes.filter((x) => x.poses.length)) {
+      const k = `car~${c.cls}@launch_coaster`;
+      expect(coverageKind({ kind: 'car', item: `launch_coaster~${c.cls}` }), c.cls).toBe(k);
+      expect(MASK_COVERAGE_FLOOR[k], k).toBe(floorOf(MASK_COVERAGE_MEASURED[k]!));
+    }
   });
 });

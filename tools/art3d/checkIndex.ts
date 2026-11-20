@@ -14,9 +14,9 @@ import { getTrackPieceDef } from '../../src/data/track';
 const MAX_SHEET = 2048;
 /**
  * Piece groups whose rail frames have parts that never take the track colour (station decks, brake and block-brake
- * fins, water channels): they must sit on a masked sheet, never on an alpha-tint one (batch 5 tint rule).
+ * fins, water channels, the launch piece's motors): they must sit on a masked sheet, never on an alpha-tint one (batch 5 tint rule).
  */
-export const UNTINTED_GROUPS: readonly string[] = ['S', 'Br', 'BB', 'W'];
+export const UNTINTED_GROUPS: readonly string[] = ['S', 'Br', 'BB', 'W', 'Ln']; // Ln: the launch piece's motors (batch 5 Task 7)
 const NEEDS_ALL_ROTS: ReadonlySet<RealKind> = new Set<RealKind>(['ride', 'stall', 'scenery', 'car']);
 
 /** `#rrggbb` (either case). */

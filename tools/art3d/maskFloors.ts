@@ -22,9 +22,15 @@ export const MASK_COVERAGE_MEASURED: Readonly<Record<string, number>> = {
  * Per track type (batch 5 Task 7), `<kind>@<type>`: a type whose pictures leave a part untinted by design is measured
  * against its own share, not the steel coaster's. Measured on the type's own bake at d4:
  *   rail@bobsled_run  0.443  the trough's ice lining never takes the track colour (every rail frame masked)
+ *   car~*@launch_coaster      the launch car's tall dark seat backs, white side stripes and open chassis: base 0.502,
+ *                             turn 0.493, bank 0.473, loop 0.480, cork 0.478, helix 0.481
  */
 function TYPE_MEASURED(): Record<string, number> {
-  return { 'rail@bobsled_run': 0.443 };
+  return {
+    'rail@bobsled_run': 0.443,
+    'car~base@launch_coaster': 0.502, 'car~turn@launch_coaster': 0.493, 'car~bank@launch_coaster': 0.473,
+    'car~loop@launch_coaster': 0.48, 'car~cork@launch_coaster': 0.478, 'car~helix@launch_coaster': 0.481,
+  };
 }
 
 /** The floor of a measured share: less 5 %, rounded down to a whole per cent. */

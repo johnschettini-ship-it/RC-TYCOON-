@@ -33,6 +33,7 @@ const TRACK_DEPS = ['items/trackKit.js', 'items/trackKeys.js', 'items/trackSpecs
 export const TRACK_TYPES = [
   { type: 'steel_coaster', file: 'items/steel_coaster.js' },
   { type: 'bobsled_run', file: 'items/bobsled_run.js' },
+  { type: 'launch_coaster', file: 'items/launch_coaster.js' },
 ];
 
 /**
@@ -48,6 +49,7 @@ export const CARD_ITEMS = [
   ...['oak_round', 'pine_tall', 'birch_silver', 'willow', 'shrub_round', 'boulder', 'lamp_globe', 'bunting_pole'].map((id) => ({ id, kind: 'scenery' })),
   { id: 'steel_coaster', kind: 'track' },
   { id: 'bobsled_run', kind: 'track' },
+  { id: 'launch_coaster', kind: 'track' },
   { id: 'teacup_twirl', kind: 'ride' },
   { id: 'rocket_rounds', kind: 'ride' },
   { id: 'kiddie_cars', kind: 'ride' },
