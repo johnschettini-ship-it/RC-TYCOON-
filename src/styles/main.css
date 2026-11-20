@@ -1717,5 +1717,7 @@ kbd { font: inherit; font-weight: 700; padding: 1px 6px; border-radius: 6px; bor
    cannot be built, on a line of its own. */
 .reach-status :is(.reach-connect, .reach-undo) { flex: 0 0 auto; }
 .reach-status .reach-show[hidden] + .reach-connect:not([hidden]) { margin-left: auto; }
+.reach-status .reach-exit { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.reach-status[data-status='ok'][data-exit='missing'] { border-color: var(--warn); background: color-mix(in srgb, var(--gold) 22%, var(--surface)); }
 .reach-status .reach-why { flex: 1 0 100%; margin: 0; font-size: calc(13px * var(--ts, 1)); overflow-wrap: anywhere; }
 .queue-card .reach-status { margin-bottom: 8px; }

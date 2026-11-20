@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BANNER_MAX_TEXT_PX, drawEntranceBanners, drawBannerSign, fitBannerText } from '../../../src/render/rides/entranceBanner';
 import { setStepPx } from '../../../src/render/heightStep';
+import { setLabelAvoidBoxes } from '../../../src/render/screenAvoid';
 import { Content } from '../../../src/sim/map';
 import { makeTestWorld, placeRideDirect } from '../../helpers/world';
 import type { ToolState } from '../../../src/render/types';
@@ -175,5 +176,28 @@ describe('entranceBanner', () => {
       setStepPx(8);
     }
   });
-});
 
+  it('keeps out of the floating turn buttons: moves aside, or is not drawn when there is no room', () => {
+    const w = makeTestWorld();
+    const ride = placeRideDirect(w, 'carousel', 20, 20, 0);
+    const probe = createMockCtx();
+    drawEntranceBanners(probe.ctx, w, plainTool(ride.id), frame);
+    const pill = probe.mock.roundRect.mock.calls[0] as number[];
+    const box = { x: pill[0]! + 4, y: pill[1]! - 4, w: 44, h: 44 };
+    try {
+      setLabelAvoidBoxes([box]);
+      const moved = createMockCtx();
+      drawEntranceBanners(moved.ctx, w, plainTool(ride.id), frame);
+      const p = moved.mock.roundRect.mock.calls[0] as number[];
+      const apart = p[0]! + p[2]! <= box.x || p[0]! >= box.x + box.w;
+      expect(apart).toBe(true);
+      // A box as wide as the canvas leaves no room: no banner.
+      setLabelAvoidBoxes([{ x: 0, y: box.y, w: frame.width, h: 44 }]);
+      const none = createMockCtx();
+      drawEntranceBanners(none.ctx, w, plainTool(ride.id), frame);
+      expect(none.mock.fillText).not.toHaveBeenCalled();
+    } finally {
+      setLabelAvoidBoxes([]);
+    }
+  });
+});

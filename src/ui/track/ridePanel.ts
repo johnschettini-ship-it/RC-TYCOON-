@@ -19,10 +19,9 @@ import { openDialog } from '../dialogs';
 import { h, newId, setAttr, setText, toggleClass } from '../dom';
 import { formatMoney, formatPrice, formatRating } from '../format';
 import { icon } from '../icons';
-import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
-import { createReachStatus } from '../rides/reachStatus';
+import { createReachStatus, warningsBesideReach } from '../rides/reachStatus';
 import { centreOnTile } from '../management/widgets';
 import { editTrackRide } from './builder';
 import { createTestChart } from './chart';
@@ -258,7 +257,7 @@ export function createTrackRidePanel(ctx: UiContext, rideId: number): PanelView 
         }
         noRatings.hidden = r.stats !== null;
         reach.update();
-          warnings.set([...rideWarnings(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
+          warnings.set([...warningsBesideReach(game.world, r), ...(d.test?.passed ? tw.map(localizeReason) : [])]);
         nextStep.hidden = block === null || r.status === 'testing';
         if (block) setText(nextStep, `${text('ui.track.nextStep')}: ${localizeReason(block)}`);
         const noPlace = r.status === 'testing' || trackTroublePlace(game.world, rideId) === null;

@@ -80,6 +80,11 @@ test.describe('auto-connect in the reach status line', () => {
     const row = panel.getByTestId('reach-status');
     await expect(row).toHaveAttribute('data-status', 'noQueue');
     await expect(row.getByTestId('reach-show-me')).toBeVisible();
+    // The exit's missing footpath is the card's second line, not a separate warning; the placement toast that said both
+    // goes once this ride's panel is open.
+    await expect(row.getByTestId('reach-exit')).toHaveText('The exit needs a footpath');
+    await expect(panel.getByText('The exit needs a footpath')).toHaveCount(1);
+    await expect(page.getByTestId('toast')).not.toBeVisible();
     const connect = row.getByTestId('reach-connect');
     await expect(connect).toBeVisible();
     await expect(connect).toHaveText(/^Connect it \(\$\d+\)$/);
@@ -110,6 +115,7 @@ test.describe('auto-connect in the reach status line', () => {
     await expect(row).toHaveAttribute('data-status', 'closed');
     expect(before - (await cash(page))).toBe(cost);
     await expect(row.getByTestId('reach-connect')).toBeHidden();
+    await expect(row.getByTestId('reach-exit')).toBeHidden();
     await expect(row.getByTestId('reach-connect-undo')).toBeVisible();
     await shot(page, '3-connected', phone);
 

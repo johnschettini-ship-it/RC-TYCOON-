@@ -4,11 +4,10 @@ import { text } from '../../data/strings/en';
 import type { UiContext, PanelView } from '../context';
 import { h, setAttr, setText } from '../dom';
 import { formatMoney, formatPrice, formatRating } from '../format';
-import { rideWarnings } from '../info';
 import { meterBar, priceSlider, section, statRow, toggleButton, warningList } from '../widgets';
 import { createMaintenanceSection } from '../management/maintenanceSection';
 import { createTrackRidePanel } from '../track/ridePanel';
-import { createReachStatus } from '../rides/reachStatus';
+import { createReachStatus, warningsBesideReach } from '../rides/reachStatus';
 import { RIDE_COLOUR_CHOICES } from '../../data/catalog/flatRides';
 import { TRACK_PALETTE } from '../../render/track/colours';
 
@@ -140,7 +139,7 @@ export function createRidePanel(ctx: UiContext, rideId: number): PanelView {
       income.set(formatMoney(r.totals.incomeThisMonth));
       incomeTotal.set(formatMoney(r.totals.income));
       reach.update();
-      warnings.set(rideWarnings(game.world, r));
+      warnings.set(warningsBesideReach(game.world, r));
       maintenance.update(r);
       return true;
     },

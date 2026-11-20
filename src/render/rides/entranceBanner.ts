@@ -7,6 +7,8 @@
  * - a long name is shortened with an ellipsis to `BANNER_MAX_TEXT_PX`;
  * - a banner whose entrance is off screen is not drawn; one whose entrance is on screen is moved sideways and down
  *   until it is wholly on screen (its posts still point at the entrance);
+ * - a banner keeps out of the controls floating over the map (`../screenAvoid.ts`: the phone's turn-view buttons): it
+ *   moves to the side with room, else it is not drawn;
  * - the fitted text is measured once per (font, name, width) and cached, not every frame;
  * - the height step is the look's own (`STEP_PX`: classic 8, realistic 9.8 px per step);
  * - hidden at the farthest zoom, where guests are drawn as dots.
@@ -18,6 +20,7 @@ import { Content } from '../../sim/map';
 import type { Ride } from '../../sim/rides/types';
 import type { World } from '../../sim/types';
 import { STEP_PX } from '../heightStep';
+import { labelAvoidBoxes, type AvoidBox } from '../screenAvoid';
 import type { LayerFrame } from '../layers';
 import type { ToolState } from '../types';
 import { mapToViewContinuous } from '../view';
@@ -79,6 +82,11 @@ function drawPill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number
  * Draw one banner whose entrance (post foot) is at (`x`, `y` + its lift), centred on `x`, `y` (device px), scaled by
  * `k` (zoom factor × device pixel ratio). `bounds`: the canvas size (device px): the banner is moved inside it.
  */
+/** Boxes overlap (device px). */
+function hits(x: number, y: number, w: number, h: number, a: AvoidBox): boolean {
+  return x < a.x + a.w && a.x < x + w && y < a.y + a.h && a.y < y + h;
+}
+
 export function drawBannerSign(
   ctx: CanvasRenderingContext2D,
   ride: Ride,
@@ -87,6 +95,7 @@ export function drawBannerSign(
   k: number,
   isSelected: boolean,
   bounds?: { width: number; height: number; dpr: number },
+  avoid: readonly AvoidBox[] = [],
 ): void {
   const fontSize = Math.max(10, Math.round(11 * k));
   ctx.save();
@@ -107,6 +116,20 @@ export function drawBannerSign(
   if (bounds) {
     cx = Math.min(Math.max(cx, edge + bannerW / 2), bounds.width - edge - bannerW / 2);
     cy = Math.min(Math.max(cy, edge + bannerH / 2), bounds.height - edge - bannerH / 2);
+  }
+  // Out of the floating controls: to the side of a box with room (posts included), else no banner.
+  const postH = 7 * k;
+  for (const a of avoid) {
+    if (!hits(cx - bannerW / 2, cy - bannerH / 2, bannerW, bannerH + postH, a)) continue;
+    const leftX = a.x - edge - bannerW / 2;
+    const rightX = a.x + a.w + edge + bannerW / 2;
+    const roomLeft = leftX - bannerW / 2 >= edge;
+    const roomRight = !bounds || rightX + bannerW / 2 <= bounds.width - edge;
+    cx = roomLeft && (!roomRight || Math.abs(leftX - cx) <= Math.abs(rightX - cx)) ? leftX : roomRight ? rightX : NaN;
+  }
+  if (Number.isNaN(cx) || avoid.some((a) => hits(cx - bannerW / 2, cy - bannerH / 2, bannerW, bannerH + postH, a))) {
+    ctx.restore();
+    return;
   }
   const bx = Math.round(cx - bannerW / 2);
   const by = Math.round(cy - bannerH / 2);
@@ -159,6 +182,7 @@ export function drawEntranceBanners(ctx: CanvasRenderingContext2D, world: World,
   const w = map.width;
   const n = w * map.height;
   const bounds = { width: frame.width, height: frame.height, dpr: frame.dpr };
+  const avoid = labelAvoidBoxes().map((a) => ({ x: a.x * frame.dpr, y: a.y * frame.dpr, w: a.w * frame.dpr, h: a.h * frame.dpr }));
 
   for (const ride of world.state.rides) {
     const e = ride.entrance;
@@ -185,6 +209,6 @@ export function drawEntranceBanners(ctx: CanvasRenderingContext2D, world: World,
     if (footX < 0 || footX > frame.width || footY < 0 || footY > frame.height) continue;
     const sy = footY - LIFT_STEPS * STEP_PX * frame.scale;
 
-    drawBannerSign(ctx, ride, footX, sy, k, isSelected, bounds);
+    drawBannerSign(ctx, ride, footX, sy, k, isSelected, bounds, avoid);
   }
 }

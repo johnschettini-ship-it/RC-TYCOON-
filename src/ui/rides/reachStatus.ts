@@ -22,7 +22,9 @@ import {
   undoLastAutoConnect,
   type ConnectPlan,
 } from '../../sim/paths/autoConnect';
+import type { Ride } from '../../sim/rides/types';
 import type { World } from '../../sim/types';
+import { rideWarnings } from '../info';
 import type { UiContext } from '../context';
 import { openDialog } from '../dialogs';
 import { h, setAttr, setText } from '../dom';
@@ -71,6 +73,17 @@ export function showMe(host: ShowMeHost, line: ReachLine, now: number): void {
   host.closePanel();
   host.showMapPlace?.(line.tile, line.z);
   host.game.tool.pathFocus = { tile: line.tile, z: line.z, until: now + SHOW_ME_MS };
+}
+
+/** The ride's exit opens onto no footpath (the panel warning `ui.ride.exitPath`, shown in this card instead). */
+export function exitNeedsPath(world: World, rideId: number): boolean {
+  const ride = world.state.rides.find((r) => r.id === rideId);
+  return ride !== undefined && rideWarnings(world, ride).includes(text('ui.ride.exitPath'));
+}
+
+/** The panel's warning list without the exit line, which the reach card shows. */
+export function warningsBesideReach(world: World, ride: Ride): string[] {
+  return rideWarnings(world, ride).filter((w) => w !== text('ui.ride.exitPath'));
 }
 
 /** What the Connect action offers for ride `rideId`: a plan with something to build, a reason it cannot, or nothing. */
@@ -151,7 +164,10 @@ export function createReachStatus(ctx: UiContext, rideId: number): { el: HTMLEle
     },
   });
   const why = h('p', { class: 'reach-why muted', 'data-testid': 'reach-connect-why', hidden: true });
-  const el = h('div', { class: 'reach-status', 'data-testid': 'reach-status' }, okIcon, badIcon, say, button, connect, undo, why);
+  // The exit's footpath is the other half of what Connect builds (review 2026-11-20): its line is in this card, not in
+  // the panel's warning list.
+  const exitLine = h('p', { class: 'reach-exit', 'data-testid': 'reach-exit', hidden: true }, icon('warning', 'icon reach-bad'), h('span', { text: text('ui.ride.exitPath') }));
+  const el = h('div', { class: 'reach-status', 'data-testid': 'reach-status' }, okIcon, badIcon, say, exitLine, button, connect, undo, why);
   let last = '';
   return {
     el,
@@ -160,7 +176,8 @@ export function createReachStatus(ctx: UiContext, rideId: number): { el: HTMLEle
       line = reachLine(world, rideId);
       const offer = line ? connectOffer(world, rideId) : { plan: null, reason: null };
       const canUndo = line !== null && lastAutoConnect(world, rideId) !== null;
-      const key = line ? `${line.status}|${line.text}|${offer.plan?.cost ?? -1}|${offer.reason ?? ''}|${canUndo}` : '';
+      const exitMissing = line !== null && exitNeedsPath(world, rideId);
+      const key = line ? `${line.status}|${line.text}|${offer.plan?.cost ?? -1}|${offer.reason ?? ''}|${canUndo}|${exitMissing}` : '';
       if (key === last) return;
       last = key;
       el.hidden = line === null;
@@ -174,6 +191,8 @@ export function createReachStatus(ctx: UiContext, rideId: number): { el: HTMLEle
       connect.hidden = offer.plan === null;
       if (offer.plan) setText(connect, text('ui.ride.connect', { cost: formatMoney(offer.plan.cost) }));
       undo.hidden = !canUndo;
+      exitLine.hidden = !exitMissing;
+      setAttr(el, 'data-exit', exitMissing ? 'missing' : 'ok');
       why.hidden = offer.reason === null;
       setText(why, offer.reason ?? '');
     },
