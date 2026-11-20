@@ -3,8 +3,9 @@
 // straddleHalfM). A type module adds one line here.
 import { SPEC as steel_coaster } from './steel_coaster.js';
 import { SPEC as junior_coaster } from './junior_coaster.js';
+import { SPEC as wooden_coaster } from './wooden_coaster.js';
 
-export const TRACK_SPECS = { steel_coaster, junior_coaster };
+export const TRACK_SPECS = { steel_coaster, junior_coaster, wooden_coaster };
 
 /**
  * The spec a type is measured with: its own, or, for a type whose module is not written yet, the steel coaster's (its

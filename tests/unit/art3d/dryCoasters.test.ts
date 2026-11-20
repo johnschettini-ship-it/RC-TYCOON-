@@ -15,7 +15,7 @@ import { trackBudget } from '../../../tools/art3d/trackBudget';
 const dir = new URL('../../../tools/art3d/', import.meta.url);
 const load = (rel: string): Promise<any> => import(/* @vite-ignore */ new URL(rel, dir).href); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-const T6: readonly string[] = ['junior_coaster'];
+const T6: readonly string[] = ['junior_coaster', 'wooden_coaster'];
 
 /** A stand-in kit: plain materials by name (the kit's textures need a canvas). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -109,6 +109,32 @@ describe('models join up', () => {
       const t = bbox(T, top);
       expect(t.max.y, `${id}: the top reaches the track`).toBeGreaterThanOrEqual(r.min.y + 0.02);
       expect(t.max.y, `${id}: and stops under the rails`).toBeLessThan(-0.15);
+    }
+  });
+
+  it('wooden lattice bents: a 1 m segment\'s bracing runs leg to leg within its metre, so stacked segments line up', async () => {
+    const { T, K } = await fakeKit();
+    const { supportPiece, SEG_H } = await load('items/trackKit.js');
+    const { SPEC } = await load('items/wooden_coaster.js');
+    for (const t of [0, 1]) {
+      const mat = new T.MeshBasicMaterial();
+      const seg = supportPiece(K, 'seg', t, mat, SPEC.supports);
+      const all = bbox(T, seg);
+      expect(all.max.y).toBeCloseTo(SEG_H, 3);
+      expect(all.min.y).toBeCloseTo(0, 3);
+      // two legs across the track (z at t = 0, x at t = 1), the bracing between them
+      const across = t === 0 ? 'z' : 'x';
+      const along = t === 0 ? 'x' : 'z';
+      expect(all.max[across] - all.min[across]).toBeGreaterThan(1.4);
+      expect(all.max[along] - all.min[along]).toBeLessThan(0.4);
+      // every brace lies in [0, 1] m: what is above 1 m is only the legs' overlap
+      seg.updateMatrixWorld(true);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const braces: any[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      seg.traverse((m: any) => { if (m.isMesh && m.userData.brace) braces.push(m); });
+      expect(braces.length).toBeGreaterThan(0);
+      for (const b of braces) { const bb = new T.Box3().setFromObject(b); expect(bb.min.y).toBeGreaterThanOrEqual(-1e-6); expect(bb.max.y).toBeLessThanOrEqual(1 + 1e-6); }
     }
   });
 
