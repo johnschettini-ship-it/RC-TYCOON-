@@ -385,7 +385,7 @@ export const uiStrings: Record<string, string> = {
   // Ride panel additions (Phase 3 §7.1)
   'ui.ride.maintenance': 'Maintenance',
   'ui.ride.pathConnect': 'Paths & Queue',
-  'ui.ride.pathConnectHint': 'Quickly build or connect paths to the ride entrance and exit.',
+  'ui.ride.pathConnectHint': 'Quickly build or connect paths to the ride entrance and exit',
   'ui.ride.buildQueue': 'Build Queue',
   'ui.ride.buildExit': 'Build Footpath',
   'ui.ride.autoConnect': 'Auto-Connect Paths',

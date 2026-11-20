@@ -5,11 +5,11 @@
  */
 import { BUILD_STRINGS } from '../../sim/commands/build/strings';
 import { text } from '../../data/strings/en';
+import { autoConnectRidePaths } from '../../sim/paths/autoConnect';
 import {
   activateFootpathTool as simActivateFootpath,
   activateQueueTool as simActivateQueue,
-  autoConnectRidePaths,
-} from '../../sim/paths/autoConnect';
+} from '../../input/rideConnect';
 import type { Ride } from '../../sim/rides/types';
 import type { UiContext } from '../context';
 import { h } from '../dom';

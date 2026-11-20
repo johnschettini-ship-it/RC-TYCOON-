@@ -9,8 +9,6 @@ import { Content, DIR_DX, DIR_DY, isOwned, type MapState } from '../map';
 import { firstElevatedOnTile, gateNode, nodeKindOf, nodeTileOf, nodeZOf } from './nodes';
 import { queueOwner } from '../pathing';
 import type { Ride } from '../rides/types';
-import type { Camera, ToolState } from '../../render/types';
-import { centerOnTile } from '../../input/camera';
 import type { World } from '../types';
 
 /** The path node kind outside a gate, or null when no node connects there. */
@@ -41,7 +39,7 @@ export function exitNeedsFootpath(world: World, ride: Ride): boolean {
  * Snaps a target tile to a ride's entrance or exit outside tile when clicking/dragging
  * near or directly on a ride with the queue or footpath tool.
  */
-export function snapPathGate(world: World, tool: ToolState['tool'], tile: number): number {
+export function snapPathGate(world: World, tool: string, tile: number): number {
   if (tile < 0) return tile;
   const s = world.state;
   const map = s.map;
@@ -60,30 +58,6 @@ export function snapPathGate(world: World, tool: ToolState['tool'], tile: number
     }
   }
   return tile;
-}
-
-/** Activate queue tool directly positioned at ride entrance outside tile. */
-export function activateQueueTool(tool: ToolState, camera: Camera, map: MapState, ride: Ride): boolean {
-  if (!ride.entrance || ride.entrance.outside < 0) return false;
-  tool.tool = 'queue';
-  tool.defId = null;
-  tool.drag = null;
-  tool.ghost = null;
-  tool.hoverTile = ride.entrance.outside;
-  centerOnTile(camera, map, ride.entrance.outside);
-  return true;
-}
-
-/** Activate footpath tool directly positioned at ride exit outside tile. */
-export function activateFootpathTool(tool: ToolState, camera: Camera, map: MapState, ride: Ride): boolean {
-  if (!ride.exit || ride.exit.outside < 0) return false;
-  tool.tool = 'footpath';
-  tool.defId = null;
-  tool.drag = null;
-  tool.ghost = null;
-  tool.hoverTile = ride.exit.outside;
-  centerOnTile(camera, map, ride.exit.outside);
-  return true;
 }
 
 /**

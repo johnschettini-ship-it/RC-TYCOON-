@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { executeCommand } from '../../../src/sim/commands';
 import { makeTestWorld, placeFootpath, placeRideDirect } from '../../helpers/world';
+import { activateFootpathTool, activateQueueTool } from '../../../src/input/rideConnect';
 import {
-  activateFootpathTool,
-  activateQueueTool,
   autoConnectRidePaths,
   entranceNeedsQueue,
   exitNeedsFootpath,
