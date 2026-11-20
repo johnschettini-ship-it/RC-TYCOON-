@@ -2,8 +2,11 @@
 // trackKit.js). Read by the card bake (cards.js) and the bake input (bakeNode.ts trackGeometry: the spec's
 // straddleHalfM). A type module adds one line here.
 import { SPEC as steel_coaster } from './steel_coaster.js';
+import { SPEC as junior_coaster } from './junior_coaster.js';
+import { SPEC as wooden_coaster } from './wooden_coaster.js';
+import { SPEC as spinning_mouse } from './spinning_mouse.js';
 
-export const TRACK_SPECS = { steel_coaster };
+export const TRACK_SPECS = { steel_coaster, junior_coaster, wooden_coaster, spinning_mouse };
 
 /**
  * The spec a type is measured with: its own, or, for a type whose module is not written yet, the steel coaster's (its
