@@ -4,7 +4,8 @@
 // The bake input (tools/art3d/bakeNode.ts trackGeometry(typeId)) carries the classes, computed with the game's own
 // src/render/real/trackClasses.ts: rail pieces grouped by `pieceClass`, car poses by `poseClassOf` (spin yaws a piece
 // never reaches resolve to `base` there, so they are filed under `~base`).
-//   rail:<type>~<class>:d*:r<t>   frames [pieceId, `t<rail tile>`] (stage 1 contract, steel_coaster.js), one picture per
+//   rail:<type>~<class>:d*:r<t>   (or ~<class>.<k>, a class's half: trackClasses.ts railSplitClass)
+//                                 frames [pieceId, `t<rail tile>`] (stage 1 contract, steel_coaster.js), one picture per
 //                                 tile. No tile is cut into sub-frames: the reader draws one picture per tile, so a
 //                                 tile over TALL_M of rail range fails the plan (Task 3 review P2; the tallest tile of
 //                                 the 17 types is the vertical loop's, 13 m).
@@ -53,7 +54,8 @@ export function supportKey(part) {
 }
 
 /**
- * Every rail picture of the bake, in bake order: classes, then headings, then pieces, then rail tiles; `shadow` the key
+ * Every rail picture of the bake, in bake order: classes, then headings, then pieces, then rail tiles; `set` the class
+ * of its set (the class, or its half `<class>.<k>` when the type's spec splits it: input `railSet`); `shadow` the key
  * of the tile's shadow (Task 4, shot with it), `chain` of a chainable piece's chain trough (Task 5; else null). `alpha`: the frame takes the track colour everywhere and goes on an alpha-tint sheet; a piece with
  * untinted parts (station deck, brake fins, water: input `untinted`) goes on a masked sheet.
  */
@@ -66,7 +68,7 @@ export function railFrames(track) {
         const pc = track.pieces[id];
         pc.dirs[t].tiles.filter((tile) => tile.rail).forEach((tile, ti) => {
           if (tile.railMax - tile.railMin > TALL_M) throw new Error(`${id} r${t} tile ${ti}: ${(tile.railMax - tile.railMin).toFixed(1)} m of rail, taller than ${TALL_M} m (no sub-frames: the reader draws one picture per tile)`);
-          out.push({ cls: c.cls, heading: t, piece: id, ti, tile, key: railKey(id, ti), shadow: railPartKey(id, ti, 'sh'), chain: pc.chainable ? railPartKey(id, ti, 'chain') : null, alpha: !pc.untinted });
+          out.push({ cls: c.cls, set: pc.railSet ?? c.cls, heading: t, piece: id, ti, tile, key: railKey(id, ti), shadow: railPartKey(id, ti, 'sh'), chain: pc.chainable ? railPartKey(id, ti, 'chain') : null, alpha: !pc.untinted });
         });
       }
     }

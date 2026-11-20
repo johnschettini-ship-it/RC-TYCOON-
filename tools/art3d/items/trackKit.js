@@ -341,12 +341,12 @@ export function bakeTrackType(B, spec) {
     cur.model.position.set(-(f.tile.x + 0.5) * 4, 0, -(f.tile.y + 0.5) * 4);
     B.clip(runs ? null : clipOf(f.tile)); // a piece cut by its runs is cut across the track (bakeNode.ts trackRuns)
     const shot = f.alpha ? B.shoot(bs, { target: cur.holder, noGround }) : B.shoot(bs, { target: cur.holder, noGround, masked: (m) => m.material === railMat });
-    setOf(f.cls, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
+    setOf(f.set, f.heading).add([f.key], shot, f.alpha ? { alpha: true } : undefined);
     B.clip(null);
     // its shadow: the caster cut to the tile on its own materials (a global clip would cut the catcher too)
     const [x0, x1, y0, y1] = f.tile.clip ?? [-2, 2, -2, 2];
     const sh = B.shootShadow(bs, cur.holder, { clip: runs ? undefined : clipOf(f.tile), plane: f.tile.railMin - SHADOW_PLANE_BELOW_M, region: runs ? undefined : [x0, x1, y0, y1] });
-    setOf(f.cls, f.heading).add([f.shadow], sh, { plain: true, low: true });
+    setOf(f.set, f.heading).add([f.shadow], sh, { plain: true, low: true });
     if (f.chain) {
       // its chain trough (Task 5): clipped like the rail, the rail held out (depth only) so the trough's picture, drawn
       // over the rail by the game, never covers a rail in front of it
@@ -366,7 +366,7 @@ export function bakeTrackType(B, spec) {
       // no hold-out ground: on a flat piece the trough is a few cm under the rail line, which the ground at the piece's
       // height would hide in every picture (a flat chain straight lost its trough); the game shows the trough wherever
       // it draws the dashes
-      setOf(f.cls, f.heading).add([f.chain], B.shoot(bs, { target: cur.trough.holder, noGround: true }), { plain: true });
+      setOf(f.set, f.heading).add([f.chain], B.shoot(bs, { target: cur.trough.holder, noGround: true }), { plain: true });
       B.clip(null);
       for (const [o, m] of saved) o.material = m;
       bs.world.remove(cur.trough.holder);

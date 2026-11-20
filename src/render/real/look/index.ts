@@ -39,7 +39,8 @@
  *   rail     set rail:<item>~<class> frame [pieceId, `t<tile>`]                 (track colour: an alpha-tint sheet,
  *            `tint: 'alpha'`, no mask, where the frame takes the colour everywhere; a masked sheet where it has
  *            untinted parts: station decks, brake fins, water, tunnel shells)
- *            class = the piece's class (`../trackClasses.ts` pieceClass: base, turn, bank, loop, cork, helix, ...);
+ *            class = the piece's class (`../trackClasses.ts` pieceClass: base, turn, bank, loop, cork, helix, ...), or
+ *            that class's half `<class>.<k>` when the art splits it (railSplitClass);
  *            turn = the piece's heading in the view, (piece.dir + view turn) mod 4; tile = the slice's number among
  *            the piece's rail tiles; anchor: the tile's centre at the piece's ENTRY rail height (piece.z)
  *   car      set car:<item>~<class> frame [`y<0-31>`, `p<0-23>`, `r<0-23>`, `full` | `empty`] (car-colour mask)

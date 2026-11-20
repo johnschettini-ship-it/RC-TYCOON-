@@ -225,8 +225,10 @@ export function createLookCore(index: RealIndex, sets: RealSets, opts: RealLookO
     let c = m.get(cls);
     if (!c) {
       const item = `${rec.item}~${cls}`;
-      // Stage 1 sets serve only an item with no class set of that kind: a mixed index never loads both layouts.
-      c = recOf(rec.kind, item) ?? (!classed.has(`${rec.kind}:${rec.item}`) && (rec.k2.length || rec.k4.length) ? rec : missing(rec.kind, item));
+      const dot = cls.indexOf('.');
+      // A class's half (`<class>.<k>`, trackClasses.ts railSplitClass): its own sets when the art has them, else the
+      // whole class's. Stage 1 sets serve only an item with no class set of that kind: a mixed index never loads both layouts.
+      c = recOf(rec.kind, item) ?? (dot > 0 ? classRec(rec, cls.slice(0, dot)) : !classed.has(`${rec.kind}:${rec.item}`) && (rec.k2.length || rec.k4.length) ? rec : missing(rec.kind, item));
       m.set(cls, c);
     }
     return c;

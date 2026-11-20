@@ -7,6 +7,8 @@ export interface TrackSpec {
   supportTopBelowRail: number;
   /** Every rail frame has parts that never take the track colour (the bobsled's ice): every piece on a masked sheet. */
   maskedRails?: boolean;
+  /** Rail classes baked in two halves (`<class>.0`, `<class>.1`: trackClasses.ts railSplitClass), each set under the per-set limit. */
+  splitRailClasses?: string[];
   [k: string]: unknown;
 }
 export declare const TRACK_SPECS: Record<string, TrackSpec>;

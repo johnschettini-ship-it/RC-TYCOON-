@@ -12,7 +12,7 @@ import { getFlatRideDef } from '../../../data/catalog/flatRides';
 import { CARD_SET } from '../cards';
 import type { RealKind, SetKey } from '../indexFormat';
 import type { LookCore } from './core';
-import { carSetsOf, pieceClass } from '../trackClasses';
+import { carSetsOf, railSplitClass } from '../trackClasses';
 import { poseTypeOf } from './track';
 import type { Combo, ItemRec, RealSets, ScopeObject } from './types';
 
@@ -178,7 +178,7 @@ export function makeScope(core: LookCore, sets: RealSets): LookScope {
     if (railRec) {
       const seen = new Set<string>();
       for (const p of pieces) {
-        const cls = pieceClass(p.defId);
+        const cls = railSplitClass(p.defId); // its class's half, or the whole class when the art does not split it
         const k = `${cls}/${p.dir & 3}`;
         if (seen.has(k)) continue;
         seen.add(k);

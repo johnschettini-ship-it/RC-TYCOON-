@@ -26,6 +26,27 @@ export const GROUP_CLASS: Readonly<Record<PieceGroup, TrackClass>> = {
   Ts: 'turn', Tm: 'turn', B: 'bank', L: 'loop', Cs: 'cork', Hx: 'helix', Sp: 'spooky', W: 'water', Ln: 'launch',
 };
 
+/**
+ * A rail class's half (after batch 5 Task 7: a masked helix set was over the 8 MiB per-set rule): `<class>.0` or
+ * `<class>.1`, by the piece's place among its class's pieces in ALL_TRACK_PIECES order (even or odd), so the helix splits
+ * into its up and down pieces. A type's bake splits a class only when one set would pass the limit (its spec's
+ * `splitRailClasses`); the reader and the scope ask for the half and, when the art has no halves, get the whole class
+ * (look/core.ts classRec). Same for any type and view, like the class itself.
+ */
+export function railSplitClass(pieceId: string): string {
+  const def = getTrackPieceDef(pieceId);
+  if (!def) return 'base.0';
+  const cls = GROUP_CLASS[def.group];
+  const i = ALL_TRACK_PIECES.filter((p) => GROUP_CLASS[p.group] === cls).findIndex((p) => p.id === pieceId);
+  return `${cls}.${i % 2}`;
+}
+
+/** Whether a set's class name is a class or a class's half (`<class>.0`, `<class>.1`). */
+export function isRailSetClass(name: string): boolean {
+  const m = /^(\w+)(?:\.([01]))?$/.exec(name);
+  return !!m && (TRACK_CLASSES as readonly string[]).includes(m[1] as string);
+}
+
 /** The class of a rail piece (`base` for an unknown piece id: it then falls back like any missing frame). */
 export function pieceClass(pieceId: string): TrackClass {
   const def = getTrackPieceDef(pieceId);

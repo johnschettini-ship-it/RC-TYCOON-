@@ -1,6 +1,6 @@
 import { paletteColour } from '../../track/colours';
 import { CAR_TILT_STEPS, CAR_YAW_STEPS } from '../pose';
-import { carQuadrant, pieceClass, poseClassOf } from '../trackClasses';
+import { carQuadrant, poseClassOf, railSplitClass } from '../trackClasses';
 import { getTrackTypeDef } from '../../../data/track';
 import { mod, type LookCore } from './core';
 import type { ItemRec, RealLook, SupportPart } from './types';
@@ -18,7 +18,8 @@ export function poseTypeOf(rec: ItemRec | null, trackType: string): string {
 
 /**
  * Track rides: rails (per piece and tile), cars (per pose) and supports (foot, seg, top), all colour-tinted. Rails and
- * cars resolve their class set (batch 5 Task 2, `../trackClasses.ts`): a rail by its piece's class, a car by its pose's
+ * cars resolve their class set (batch 5 Task 2, `../trackClasses.ts`): a rail by its piece's class (or that class's
+ * half, `railSplitClass`, when the art splits it), a car by its pose's
  * class and the yaw quadrant it faces in the view (`carQuadrant`: sets `car:<type>~<class>:d*:r<q>`).
  */
 export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' | 'support' | 'railPart' | 'supportShadow'> {
@@ -27,7 +28,7 @@ export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' 
   return {
     rail(trackType, pieceId, tile, heading, colour) {
       const rec = core.gameRec('rail', trackType);
-      return core.sprite('rail', rec && core.classRec(rec, pieceClass(pieceId)), trackType, heading, tile, pieceId, paletteColour(colour));
+      return core.sprite('rail', rec && core.classRec(rec, railSplitClass(pieceId)), trackType, heading, tile, pieceId, paletteColour(colour));
     },
 
     car(trackType, yawStep, pitchStep, rollStep, full, colour) {
@@ -51,7 +52,7 @@ export function makeTrackGetters(core: LookCore): Pick<RealLook, 'rail' | 'car' 
     // Untinted extras (batch 5 Tasks 4-5): a rail tile's shadow or chain trough in its rail's set, a support's shadow.
     railPart(trackType, pieceId, tile, heading, part) {
       const rec = core.gameRec('rail', trackType);
-      return core.sprite('rail', rec && core.classRec(rec, pieceClass(pieceId)), trackType, heading, tile, pieceId, null, part);
+      return core.sprite('rail', rec && core.classRec(rec, railSplitClass(pieceId)), trackType, heading, tile, pieceId, null, part);
     },
 
     supportShadow(trackType, part, heading) {

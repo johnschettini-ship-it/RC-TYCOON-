@@ -6,7 +6,9 @@ import { getTrackPieceDef, getTrackTypeDef } from '../../../src/data/track';
 import { REAL_FALLBACK } from '../../../src/render/real/fallbacks';
 import { SUPPORT_TOP_BELOW_RAIL } from '../../../src/render/real/supportStack';
 import { trackGeometry } from '../../../tools/art3d/bakeNode';
-import { UNTINTED_GROUPS } from '../../../tools/art3d/checkIndex';
+import { UNTINTED_GROUPS, checkIndex, trackComplete } from '../../../tools/art3d/checkIndex';
+import type { RealFrame, RealIndex, RealSetEntry } from '../../../src/render/real/indexFormat';
+import { railSplitClass } from '../../../src/render/real/trackClasses';
 import { typePieces } from '../../../tools/art3d/sizeReport';
 import { MASK_COVERAGE_FLOOR, MASK_COVERAGE_MEASURED, coverageKind, floorOf } from '../../../tools/art3d/maskFloors';
 
@@ -92,5 +94,57 @@ describe('mask coverage floors of a type with untinted parts by design', () => {
   it('the mine train\'s rails (timber sleepers and stringers) are measured against their own floor', () => {
     expect(coverageKind({ kind: 'rail', item: 'mine_train~base' })).toBe('rail@mine_train');
     expect(MASK_COVERAGE_FLOOR['rail@mine_train']).toBe(floorOf(MASK_COVERAGE_MEASURED['rail@mine_train']!));
+  });
+});
+
+describe('rail sets split in halves (coordinator decision: masked helix sets over the 8 MiB per-set rule)', () => {
+  /** A fake index holding exactly the frames the kit's plan shoots (rail sets by `set`, cars by class and quadrant). */
+  async function planIndex(type: string, drop?: (key: string, item: string) => boolean): Promise<RealIndex> {
+    const { railFrames, carFrames, classItem } = await load('items/trackKeys.js');
+    const fr: RealFrame = { sheet: 'a.webp', sx: 0, sy: 0, w: 1, h: 1, ox: 0, oy: 0 };
+    const sets = new Map<string, RealSetEntry>();
+    const add = (kind: 'rail' | 'car', item: string, d: 2 | 4, rot: 0 | 1 | 2 | 3, key: string): void => {
+      if (drop?.(key, item)) return;
+      const k = `${kind}:${item}:d${d}:r${rot}`;
+      if (!sets.has(k)) sets.set(k, { key: k as RealSetEntry['key'], kind, item, density: d, rot, sheets: [{ file: 'a.webp', w: 1, h: 1 }], frames: {} });
+      sets.get(k)!.frames[key] = fr;
+    };
+    const t = trackGeometry(type);
+    for (const d of [2, 4] as const) {
+      for (const f of railFrames(t)) for (const k of [f.key, f.shadow, ...(f.chain ? [f.chain] : [])]) add('rail', classItem(type, f.set), d, f.heading, k);
+      for (const f of carFrames(t)) add('car', classItem(type, f.cls), d, f.q, f.key);
+    }
+    return { format: 'real/1', pxPerMetreZoom1: 11.31, stepPxPerMetre: 9.8, densities: [2, 4], sets: [...sets.values()], bytes: { compressed: 0, decodedByDensity: { 2: 0, 4: 0 } } };
+  }
+
+  it.each(['bobsled_run', 'mine_train'])('%s bakes its helix rails in two halves, by railSplitClass; other classes whole', async (type) => {
+    const { railFrames } = await load('items/trackKeys.js');
+    const frames = railFrames(trackGeometry(type));
+    for (const f of frames) expect(f.set, f.key).toBe(f.cls === 'helix' ? railSplitClass(f.piece) : f.cls);
+    expect(new Set(frames.filter((f: { cls: string }) => f.cls === 'helix').map((f: { set: string }) => f.set))).toEqual(new Set(['helix.0', 'helix.1']));
+  });
+
+  it('a type with no split (launch coaster) keeps every class whole', async () => {
+    const { railFrames } = await load('items/trackKeys.js');
+    for (const f of railFrames(trackGeometry('launch_coaster'))) expect(f.set).toBe(f.cls);
+  });
+
+  it.each(['bobsled_run', 'mine_train', 'launch_coaster'])('%s: the kit\'s frame plan is exactly what TRACK_COMPLETE wants; a half missing a frame fails', async (type) => {
+    expect(trackComplete(await planIndex(type))).toEqual([]);
+    if (type === 'launch_coaster') return;
+    const p = trackComplete(await planIndex(type, (key, item) => item.endsWith('~helix.1') && key === 'helix_left_down:t0'));
+    expect(p.some((x) => x.startsWith(`TRACK_COMPLETE rail:${type}~helix.1`))).toBe(true);
+  });
+
+  it('a split class name is a known class; a class in both layouts (whole and halves) is a problem', async () => {
+    const ix = await planIndex('bobsled_run');
+    expect(checkIndex(ix, new Set(['a.webp'])).filter((x) => /unknown track class/.test(x))).toEqual([]);
+    const both = await planIndex('bobsled_run');
+    const half = both.sets.find((s) => s.item === 'bobsled_run~helix.0' && s.density === 4 && s.rot === 0)!;
+    both.sets.push({ ...half, key: 'rail:bobsled_run~helix:d4:r0' as RealSetEntry['key'], item: 'bobsled_run~helix' });
+    expect(trackComplete(both).some((x) => /both layouts/.test(x) && x.includes('helix'))).toBe(true);
+    const bad = await planIndex('bobsled_run');
+    bad.sets.push({ ...half, key: 'rail:bobsled_run~helix.7:d4:r0' as RealSetEntry['key'], item: 'bobsled_run~helix.7' });
+    expect(checkIndex(bad, new Set(['a.webp'])).some((x) => /unknown track class 'helix.7'/.test(x))).toBe(true);
   });
 });
