@@ -102,6 +102,21 @@ export function checkIndex(index: RealIndex, files: Set<string>, title?: TitleFo
       else if (s.mask !== undefined) problems.push(`${set.key}: sheet ${s.file} is alpha-tinted and has a mask`);
     }
   }
+  // A frame kept at density 2 in a density-4 set (a track shadow) is its density-2 twin's picture (the same kind, item
+  // and turn): the bake writes it once, on a sheet both sets list, at the same rectangle (size room: the steel coaster
+  // wrote 0.39 MB of shadows twice). A file listed by two sets is one picture, not two.
+  const byPlace = new Map(index.sets.map((x) => [`${x.kind}|${x.item}|${x.density}|${String(x.rot)}`, x]));
+  for (const set of index.sets) {
+    if (set.density !== 4) continue;
+    const twin = byPlace.get(`${set.kind}|${set.item}|2|${String(set.rot)}`);
+    if (!twin) continue;
+    for (const [k, f] of Object.entries(set.frames)) {
+      if (f.density !== 2) continue;
+      const t = twin.frames[k];
+      if (t && t.sheet === f.sheet && t.sx === f.sx && t.sy === f.sy && t.w === f.w && t.h === f.h) continue;
+      problems.push(`${set.key}: frame ${k} is kept at density 2 but is not its density-2 set's picture (sheet ${f.sheet} at ${f.sx},${f.sy}, there ${t ? `${t.sheet} at ${t.sx},${t.sy}` : 'none'}): a second copy`);
+    }
+  }
   for (const f of files) if (f !== 'index.json' && f !== 'size-report.json' && f !== 'title' && f !== 'title-panorama' && !referenced.has(f)) problems.push(`file not in index: ${f}`);
 
   // Ride colour choice: every ride sheet has a tint mask of the ride's colour part, and the ride records the part's
