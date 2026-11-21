@@ -886,13 +886,13 @@ const GOAL_TRUSS = 0.6;
 const LATTICE_HALF = 0.75;
 
 /**
- * Half of a goalpost's beam (2026-11-21, `layer.ts` GoalPost) between legs at (x0, y0) and (x1, y1), top at `z`, and the
- * support's post on it at (wx, wy) up to `top`, in the style's look: a steel box beam (round), a truss of two chords and
- * braces (lattice), a concrete beam (pillar). `near` false: the beam from the far leg up to the post; true: the rest and
- * the post. The slice paints the far half before the rail under the beam and the near half after it (the lower cars run
- * between the legs, under the beam). The legs are drawables of their own tiles (`paintGoalLeg`).
+ * Half of a goalpost's beam (2026-11-21, `layer.ts` GoalPost) between legs at (x0, y0) and (x1, y1), top at `z`, split
+ * where the post stands at (wx, wy), in the style's look: a steel box beam (round), a truss of two chords and braces
+ * (lattice), a concrete beam (pillar). `near` false: from the far leg to the post; true: the rest. Each half is drawn
+ * with its leg (`paintGoalLeg`) as one drawable, the far frame sorted behind the cars that pass under the beam and the
+ * near frame in front of them; the post (`paintGoalPost`) is the slice's.
  */
-export function paintGoalpost(ctx: Ctx, P: Projector, style: SupportStyle, colour: string, g: { x0: number; y0: number; x1: number; y1: number; z: number }, wx: number, wy: number, yaw: number, top: number, near: boolean): void {
+export function paintGoalpost(ctx: Ctx, P: Projector, style: SupportStyle, colour: string, g: { x0: number; y0: number; x1: number; y1: number; z: number }, wx: number, wy: number, near: boolean): void {
   // leg A the far one, leg B the near one
   const flip = P.y(g.x0, g.y0, 0) > P.y(g.x1, g.y1, 0);
   const ax = flip ? g.x1 : g.x0;
@@ -903,7 +903,6 @@ export function paintGoalpost(ctx: Ctx, P: Projector, style: SupportStyle, colou
   const dy = by - ay;
   const len = Math.hypot(dx, dy);
   if (len <= 0) return;
-  const bYaw = Math.atan2(dy, dx);
   const f = [dx / len, dy / len, 0];
   const r = [-dy / len, dx / len, 0];
   const u = [0, 0, 1];
@@ -964,9 +963,13 @@ export function paintGoalpost(ctx: Ctx, P: Projector, style: SupportStyle, colou
     const c: [number, number, number] = [ax + (f[0] as number) * m, ay + (f[1] as number) * m, 0];
     paintBox(ctx, P, c, f, r, u, (t1 - t0) / 2, pillar ? 0.45 : 0.25, g.z - depth, g.z, pillar ? '#9aa3ad' : colour);
   }
-  if (!near) return;
-  // the post on the beam: a lattice frame's posts on the two chords (its yaw the beam's)
-  if (top > g.z) paintSupport(ctx, P, style, colour, wx, wy, lattice ? bYaw : yaw, g.z, top, false);
+}
+
+/** A goalpost's post on its beam at (wx, wy) up to `top` (a lattice frame's posts on the two chords: its yaw the beam's). */
+export function paintGoalPost(ctx: Ctx, P: Projector, style: SupportStyle, colour: string, g: { x0: number; y0: number; x1: number; y1: number; z: number }, wx: number, wy: number, yaw: number, top: number): void {
+  if (top <= g.z) return;
+  const bYaw = Math.atan2(g.y1 - g.y0, g.x1 - g.x0);
+  paintSupport(ctx, P, style, colour, wx, wy, style === 'lattice' ? bYaw : yaw, g.z, top, false);
 }
 
 /**

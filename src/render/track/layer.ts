@@ -63,6 +63,7 @@ import {
   paintGateBooth,
   paintBox,
   paintGoalLeg,
+  paintGoalPost,
   paintGoalpost,
   paintRun,
   paintSupport,
@@ -588,7 +589,9 @@ export function chooseGoalpost(
     for (const sg of [1, -1]) {
       let good = NaN;
       let min = NaN;
-      for (let d = SUPPORT_CLEAR_MIN; d <= GOAL_LEG_MAX + 1e-9 && Number.isNaN(good); d += GOAL_LEG_STEP) {
+      // the far side's leg pairs with this one only within GOAL_BEAM_MAX
+      const most = sg === 1 ? GOAL_LEG_MAX : Math.min(GOAL_LEG_MAX, GOAL_BEAM_MAX - (near[0] as [number, number])[1]);
+      for (let d = SUPPORT_CLEAR_MIN; d <= most + 1e-9 && Number.isNaN(good); d += GOAL_LEG_STEP) {
         const c = legClass(x + nx * d * sg, y + ny * d * sg, nx, ny);
         if (c === 2) good = d;
         if (c >= 1 && Number.isNaN(min)) min = d;
@@ -596,8 +599,9 @@ export function chooseGoalpost(
       near.push([good, min]);
       if (sg === 1 && Number.isNaN(min)) break;
     }
-    // A side with no leg spot square across the rail has none skewed either (rail along it only gets nearer): give up.
-    if (near.length < 2) {
+    // No leg spots square across the rail within GOAL_BEAM_MAX of each other: skewed, rail along the beam's sides only
+    // gets nearer (a station deck, a row of track), so give up.
+    if (near.length < 2 || Number.isNaN((near[1] as [number, number])[1])) {
       if (skew === 0) return null;
       continue;
     }
@@ -760,7 +764,7 @@ export function setGoalpostsForTest(on: boolean): void {
  * goalposts only add things to keep clear of). Hanging cars (arm) and the sky ride (tower) get none. Other tracks are
  * untouched, so a ride whose rail never spans that far over other rail builds exactly the supports it did.
  */
-function addGoalposts(world: World, occ: () => Occupancy, out: SliceRec[], from: number): void {
+function addGoalposts(world: World, occ: () => Occupancy, out: SliceRec[], from: number, others: readonly SliceRec[] = []): void {
   if (!goalpostsOn) return;
   const map = world.state.map;
   const sls = out.slice(from);
@@ -824,6 +828,16 @@ function addGoalposts(world: World, occ: () => Occupancy, out: SliceRec[], from:
   };
   const avoid: { wx: number; wy: number; top: number }[] = [];
   for (const sl of sls) for (const su of sl.supports) avoid.push(su);
+  // other rides' goalposts: their legs, and their beams every half metre
+  for (const sl of others) {
+    for (const su of sl.supports) {
+      const g = su.goal;
+      if (!g) continue;
+      const len = Math.hypot(g.x1 - g.x0, g.y1 - g.y0);
+      const m = Math.max(1, Math.ceil(len / 0.5));
+      for (let i = 0; i <= m; i++) avoid.push({ wx: g.x0 + ((g.x1 - g.x0) * i) / m, wy: g.y0 + ((g.y1 - g.y0) * i) / m, top: g.z });
+    }
+  }
   const tried = new Uint8Array(n);
   const failed = new Set<number>();
   for (let guard = 0; guard < 64; guard++) {
@@ -922,7 +936,11 @@ function sliceBounds(P: Projector, s: WorldSamples, runs: readonly number[], gro
 const SUPPORT_FRAME = new Float64Array(9);
 
 /** Build the slice records of one ride (allocates; runs only when the track changes). */
-export function buildRideSlices(world: World, rideId: number, f: ViewFrame): SliceRec[] {
+/**
+ * `others`: slices of other rides built before this one (TrackLayer.rebuild, in ride order): their goalposts are kept
+ * clear of this ride's.
+ */
+export function buildRideSlices(world: World, rideId: number, f: ViewFrame, others: readonly SliceRec[] = []): SliceRec[] {
   const data = world.state.track.rides[String(rideId)];
   const type = data ? getTrackTypeDef(data.typeId) : undefined;
   if (!data || !type) return [];
@@ -1047,7 +1065,7 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
       tile,
     });
   }
-  addGoalposts(world, () => (occ ??= buildOccupancy(world)), out, 0);
+  addGoalposts(world, () => (occ ??= buildOccupancy(world)), out, 0, others);
   return out;
 }
 
@@ -1165,54 +1183,51 @@ export function realGoalBeams(sl: SliceRec, su: SupportRec, f: ViewFrame, half: 
 }
 
 /**
- * Whether the realistic near half of a goalpost's beam draws after its tile's baked rail picture (true) or before it
- * (2026-11-21). The picture holds every run of the tile, the rail under the beam and rail over it alike, so it cannot be
- * split as today's look splits its runs: each rail sample of the slice (but the held rail's own, within
- * SUPPORT_NEAR_ALONG) that lands on the near half's screen box votes, in front of the beam (nearer the viewer than the
- * beam point at its screen x) for before, behind it for after. The lower rail between the legs is behind the near half;
- * a ring passing over and in front of it is in front.
+ * The view depths (tile units, as cars sort: `floor(view x / 4) + floor(view y / 4) + 1` under a car's front or back)
+ * that a car passing under goalpost `su` can take (2026-11-21): rail of any slice of `slices` lower than the beam whose
+ * envelope the beam crosses, with car ends up to a car's length either way along it, and the highest such rail (`z`).
+ * Infinity / −Infinity when none.
  */
-function realNearAfter(sl: SliceRec, su: SupportRec, f: ViewFrame): boolean {
-  const b = realGoalBeams(sl, su, f, 'near')[0];
-  if (!b) return true;
-  const px = b.c[0] - (b.f[0] as number) * b.a;
-  const py = b.c[1] - (b.f[1] as number) * b.a;
-  const qx = b.c[0] + (b.f[0] as number) * b.a;
-  const qy = b.c[1] + (b.f[1] as number) * b.a;
-  const sx0 = projectX(px, py, f);
-  const sx1 = projectX(qx, qy, f);
-  const lo = Math.min(sx0, sx1) - 2;
-  const hi = Math.max(sx0, sx1) + 2;
-  const s = sl.samples;
-  let own = -1;
-  let bd = Infinity;
-  for (let k = 0; k < s.n; k++) {
-    const d = Math.abs((s.x[k] as number) - su.wx) + Math.abs((s.y[k] as number) - su.wy) + Math.abs((s.z[k] as number) - su.top - sl.look.drop);
-    if (d < bd) {
-      bd = d;
-      own = k;
+export function carDepthsUnder(slices: readonly SliceRec[], su: SupportRec, f: ViewFrame): { min: number; max: number; z: number } {
+  const g = su.goal as GoalPost;
+  const out = { min: Infinity, max: -Infinity, z: -Infinity };
+  const tx = Math.floor(su.wx / TILE_M);
+  const ty = Math.floor(su.wy / TILE_M);
+  const depthAt = (x: number, y: number): number => Math.floor(viewX(x, y, f) / TILE_M) + Math.floor(viewY(x, y, f) / TILE_M) + 1;
+  for (const sl of slices) {
+    if (Math.abs(sl.x - tx) > 2 || Math.abs(sl.y - ty) > 2) continue;
+    const half = (getTrackTypeDef(sl.data.typeId)?.vehicle.carLengthMm ?? 3000) / 2000;
+    const s = sl.samples;
+    for (let r = 0; r < sl.runs.length; r += 2) {
+      for (let k = sl.runs[r] as number; k <= (sl.runs[r + 1] as number); k++) {
+        if ((s.z[k] as number) >= g.z - GOAL_BEAM_DEPTH) continue;
+        const x = s.x[k] as number;
+        const y = s.y[k] as number;
+        if (segDist(x, y, g.x0, g.y0, g.x1, g.y1) >= SUPPORT_CLEAR_MIN + bankReach(s.bankCos[k] as number)) continue;
+        out.z = Math.max(out.z, s.z[k] as number);
+        const cx = Math.cos(s.yaw[k] as number);
+        const cy = Math.sin(s.yaw[k] as number);
+        for (let t = -2 * half; t <= 2 * half + 1e-9; t += 0.5) {
+          const d = depthAt(x + cx * t, y + cy * t);
+          if (d < out.min) out.min = d;
+          if (d > out.max) out.max = d;
+        }
+      }
     }
   }
-  let front = 0;
-  let behind = 0;
-  for (let r = 0; r < sl.runs.length; r += 2) {
-    for (let k = sl.runs[r] as number; k <= (sl.runs[r + 1] as number); k++) {
-      if (Math.abs(k - own) < SUPPORT_NEAR_ALONG) continue;
-      const x = s.x[k] as number;
-      const y = s.y[k] as number;
-      const sx = projectX(x, y, f);
-      if (sx < lo || sx > hi) continue;
-      const t = sx1 === sx0 ? 0 : Math.max(0, Math.min(1, (sx - sx0) / (sx1 - sx0)));
-      const bx = px + (qx - px) * t;
-      const by = py + (qy - py) * t;
-      // on the beam's screen span, give or take the rail's own height (spine, ties)
-      const sy = projectY(x, y, s.z[k] as number, f);
-      if (sy < projectY(bx, by, b.h1 + 0.6, f) || sy > projectY(bx, by, b.h0 - 0.6, f)) continue;
-      if (pointDepthM(x, y, f) > pointDepthM(bx, by, f)) front++;
-      else behind++;
-    }
-  }
-  return behind >= front;
+  return out;
+}
+
+/** Screen bounds (world px, zoom 1, absolute) of a goalpost frame: its leg and the whole beam, with a margin. */
+function goalFrameBounds(x: number, y: number, su: SupportRec, f: ViewFrame, out: ArtBounds): ArtBounds {
+  const g = su.goal as GoalPost;
+  const xs = [projectX(x, y, f), projectX(g.x0, g.y0, f), projectX(g.x1, g.y1, f)];
+  const ys = [projectY(x, y, su.base, f), projectY(g.x0, g.y0, g.z, f), projectY(g.x1, g.y1, g.z, f)];
+  out.left = Math.min(...xs) - 16;
+  out.right = Math.max(...xs) + 16;
+  out.top = Math.min(...ys) - 16;
+  out.bottom = Math.max(...ys) + 12;
+  return out;
 }
 
 /**
@@ -1263,28 +1278,14 @@ export function carShadowAt(x: number, y: number, z: number, g: number, yaw: num
 /** Paint one slice around its anchor (world px). */
 export function paintSlice(ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D, sl: SliceRec, f: ViewFrame): void {
   const P = new Projector(f, sl.ax, sl.ay);
-  // A goalpost (2026-11-21): its far half before the slice's rail under its beam, its near half after (the lower cars
-  // pass between its legs); the rail it holds over it.
-  let beam = Infinity;
+  // A goalpost (2026-11-21): the slice draws its post on the beam; its two frames (a leg and half the beam each) are
+  // drawables of their own (`SUB_GOAL_LEG`), sorted round the cars that pass under the beam.
   for (const su of sl.supports) {
-    if (su.goal) {
-      paintGoalpost(ctx, P, sl.supportStyle, sl.colours.supports, su.goal, su.wx, su.wy, su.yaw, su.top, false);
-      beam = Math.min(beam, su.goal.z);
-    } else paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, su.wx, su.wy, su.yaw, su.base, su.top);
+    if (su.goal) paintGoalPost(ctx, P, sl.supportStyle, sl.colours.supports, su.goal, su.wx, su.wy, su.yaw, su.top);
+    else paintSupport(ctx, P, sl.supportStyle, sl.colours.supports, su.wx, su.wy, su.yaw, su.base, su.top);
   }
-  const opt = { special: sl.special, chain: false, conveyor: sl.conveyor };
-  for (let pass = 0; pass < (beam < Infinity ? 2 : 1); pass++) {
-    if (pass === 1) for (const su of sl.supports) if (su.goal) paintGoalpost(ctx, P, sl.supportStyle, sl.colours.supports, su.goal, su.wx, su.wy, su.yaw, su.top, true);
-    for (let i = 0; i < sl.runs.length; i += 2) {
-      const k0 = sl.runs[i] as number;
-      const k1 = sl.runs[i + 1] as number;
-      if (beam < Infinity) {
-        let hi = -Infinity;
-        for (let k = k0; k <= k1; k++) hi = Math.max(hi, sl.samples.z[k] as number);
-        if ((hi < beam) !== (pass === 0)) continue;
-      }
-      paintRun(ctx, P, sl.look, sl.colours, sl.samples, k0, k1, opt);
-    }
+  for (let i = 0; i < sl.runs.length; i += 2) {
+    paintRun(ctx, P, sl.look, sl.colours, sl.samples, sl.runs[i] as number, sl.runs[i + 1] as number, { special: sl.special, chain: false, conveyor: sl.conveyor });
   }
 }
 
@@ -1363,12 +1364,13 @@ class CarBuffer {
 export class TrackLayer {
   private slices: SliceRec[] = [];
   /**
-   * Goalpost legs (2026-11-21), rebuilt with the slices: each sorts as its own tile's object, the far one of a goalpost
-   * first on its tile (z 0), the near one last (z 255), so a leg on a farther tile never paints over what stands in
-   * front of it. `nearAfter`: the realistic near half beam draws after its tile's rail picture (`realNearAfter`).
+   * Goalpost frames (2026-11-21), rebuilt with the slices: a leg and its half of the beam, one drawable each. The far
+   * frame sorts behind every car that can pass under the beam (no deeper than the far leg, nor than the shallowest tile
+   * such a car's ends touch) and first on its tile (z 0); the near frame in front of them (no shallower than the near leg,
+   * nor than the deepest such tile), just over those cars' rail height there. A car under the beam is then always between
+   * its frames.
    */
-  private goalLegs: { slice: number; su: SupportRec; x: number; y: number; near: boolean; depth: number }[] = [];
-  private nearAfter = new WeakMap<SupportRec, boolean>();
+  private goalLegs: { slice: number; su: SupportRec; x: number; y: number; near: boolean; depth: number; z: number }[] = [];
   private sigs = new Map<number, RideSig>();
   private frameRef: ViewFrame = viewFrame(0, 64, 64);
   private readonly cars = new CarBuffer();
@@ -1390,6 +1392,7 @@ export class TrackLayer {
   declare private realRails?: WeakSet<SliceRec>;
   declare private shadowMap?: World['state']['map'];
   declare private reach?: ArtBounds;
+  private legBounds?: ArtBounds;
   /** Gate booth sprites by roof colour: [entrance × 3 buckets, exit × 3 buckets]. */
   private readonly gateCache = new Map<string, Array<Sprite | null>>();
   private readonly dash = [0, 0];
@@ -1459,7 +1462,7 @@ export class TrackLayer {
     const next: SliceRec[] = [];
     for (const r of world.state.rides) {
       if (r.kind !== 'track') continue;
-      for (const sl of buildRideSlices(world, r.id, this.frameRef)) {
+      for (const sl of buildRideSlices(world, r.id, this.frameRef, next)) {
         const reuse = old.get(sl.key);
         if (reuse) sl.sprites = reuse;
         next.push(sl);
@@ -1473,10 +1476,16 @@ export class TrackLayer {
         const g = su.goal;
         if (!g) continue;
         const near0 = projectY(g.x0, g.y0, 0, f) > projectY(g.x1, g.y1, 0, f);
+        const cars = carDepthsUnder(next, su, f);
         for (const [x, y, near] of [[g.x0, g.y0, near0], [g.x1, g.y1, !near0]] as const) {
-          this.goalLegs.push({ slice: i, su, x, y, near, depth: tileDepthView(Math.floor(x / TILE_M), Math.floor(y / TILE_M), f) });
+          const d = pointDepthM(x, y, f);
+          // the near frame just over those cars on their tile (a car sorts by its rail height, as a Guest), not over
+          // higher track there that may stand in front of it. Limit: a car takes the deeper tile under its front or back,
+          // and draws over that tile's rail of its height even where the rail is in front; the near frame, sorted after
+          // it, does the same (2026-11-21, the down helix in view turn 2: the leg over the return run on the next tile).
+          const z = near ? (cars.z > -Infinity ? Math.min(255, Math.floor(cars.z + 0.5) + 1) : 255) : 0;
+          this.goalLegs.push({ slice: i, su, x, y, near, depth: near ? Math.max(d, cars.max) : Math.min(d, cars.min), z });
         }
-        if (import.meta.env.VITE_ART === 'real') this.nearAfter.set(su, realNearAfter(sl, su, f));
       }
     });
   }
@@ -1521,16 +1530,15 @@ export class TrackLayer {
       if (sl.water) sink.push(KIND_TRACK, i, SUB_WATER, sl.ax, sl.ay, 0, sl.depth, sl.railMin, Layer.Object);
     }
 
-    // Goalpost legs, each on its own tile.
+    // Goalpost frames: a leg and half the beam each.
     for (let i = 0; i < this.goalLegs.length; i++) {
       const l = this.goalLegs[i] as (typeof this.goalLegs)[number];
       const g = l.su.goal as GoalPost;
-      const ax = projectX(l.x, l.y, this.frameRef);
-      const ay = projectY(l.x, l.y, l.su.base, this.frameRef);
-      const top = ay - (g.z - l.su.base) * PX_Z;
-      // a lattice frame's posts 0.75 m to a side, a footing: 12 px around; real shadows reach further (the slice's)
-      if (ax + 14 < view.x0 || ax - 14 > view.x1 || ay + 8 < view.y0 || top - 4 > view.y1) continue;
-      sink.push(KIND_TRACK, i, SUB_GOAL_LEG, ax, ay, 0, l.depth, l.near ? 255 : 0, Layer.Object);
+      const f = this.frameRef;
+      let b = goalFrameBounds(l.x, l.y, l.su, f, (this.legBounds ??= { left: 0, right: 0, top: 0, bottom: 0 }));
+      if (import.meta.env.VITE_ART === 'real') b = withShadowReach(b, 0, g.z - l.su.base, (this.reach ??= { left: 0, right: 0, top: 0, bottom: 0 }));
+      if (b.right < view.x0 || b.left > view.x1 || b.bottom < view.y0 || b.top > view.y1) continue;
+      sink.push(KIND_TRACK, i, SUB_GOAL_LEG, projectX(l.x, l.y, f), projectY(l.x, l.y, l.su.base, f), 0, l.depth, l.z, Layer.Object);
     }
 
     // Gates.
@@ -1722,19 +1730,13 @@ export class TrackLayer {
         for (const rec of sl.supports) {
           const su = realSupportPlacement(sl, f, rec);
           if (!su) continue;
-          // a goalpost (2026-11-21): its far half beam, then the saddle on the beam; its near half before or after the rail
-          // picture (`realNearAfter`); its legs are drawables of their own tiles
-          if (rec.goal) {
-            this.drawRealGoal(ctx, sl, rec, false);
-            if (!this.nearAfter.get(rec)) this.drawRealGoal(ctx, sl, rec, true);
-          }
+          // a goalpost (2026-11-21): the saddle on its beam; its two frames are drawables of their own (`SUB_GOAL_LEG`)
           for (const p of su.pieces) {
             const sp = look.support(type, p.part, su.heading, sl.data.colours.supports);
             if (sp) this.blit(ctx, sp, su.ax, p.ay);
           }
         }
         this.blit(ctx, rail, rp.ax, rp.ay);
-        for (const rec of sl.supports) if (rec.goal && this.nearAfter.get(rec)) this.drawRealGoal(ctx, sl, rec, true);
         // A chained piece (Task 5): its baked trough over the rail; the moving dashes follow (SUB_CHAIN).
         if (sl.data.pieces[sl.pieceIndex]?.chain && look.railPart) {
           const trough = look.railPart(type, sl.pieceId, sl.tile, rp.heading, 'chain');
@@ -1775,7 +1777,10 @@ export class TrackLayer {
     ctx.restore();
   }
 
-  /** A goalpost leg: the realistic look's baked column pieces, or today's look painted live (it is no slice's sprite). */
+  /**
+   * A goalpost frame: its leg (the realistic look's baked column pieces, or today's look painted live: it is no slice's
+   * sprite) and its half of the beam, the far frame's beam over its leg's top, the near frame's leg over its beam.
+   */
   private drawGoalLeg(ctx: CanvasRenderingContext2D, i: number): void {
     const l = this.goalLegs[i];
     const sl = l ? this.slices[l.slice] : undefined;
@@ -1788,22 +1793,32 @@ export class TrackLayer {
       const rail = look.rail(sl.data.typeId, sl.pieceId, sl.tile, realRailPlacement(sl, f).heading, sl.data.colours.track);
       if (rail === null) return;
       if (rail) {
-        for (const leg of realGoalLegPlacement(sl, f, l.su)) {
-          if (leg.wx !== l.x || leg.wy !== l.y) continue;
-          for (const p of leg.pieces) {
-            const sp = look.support(sl.data.typeId, p.part, leg.heading, sl.data.colours.supports);
-            if (sp) this.blit(ctx, sp, leg.ax, p.ay);
+        const leg = (): void => {
+          for (const lp of realGoalLegPlacement(sl, f, l.su)) {
+            if (lp.wx !== l.x || lp.wy !== l.y) continue;
+            for (const p of lp.pieces) {
+              const sp = look.support(sl.data.typeId, p.part, lp.heading, sl.data.colours.supports);
+              if (sp) this.blit(ctx, sp, lp.ax, p.ay);
+            }
           }
-        }
+        };
+        if (!l.near) leg();
+        this.drawRealGoal(ctx, sl, l.su, l.near);
+        if (l.near) leg();
         return;
       }
     }
     ctx.save();
     ctx.translate(this.offX, this.offY);
     ctx.scale(this.scale, this.scale);
-    paintGoalLeg(ctx, new Projector(f, 0, 0), sl.supportStyle, sl.colours.supports, g, l.x, l.y, l.su.base);
+    const P = new Projector(f, 0, 0);
+    const colour = sl.colours.supports;
+    if (!l.near) paintGoalLeg(ctx, P, sl.supportStyle, colour, g, l.x, l.y, l.su.base);
+    paintGoalpost(ctx, P, sl.supportStyle, colour, g, l.su.wx, l.su.wy, l.near);
+    if (l.near) paintGoalLeg(ctx, P, sl.supportStyle, colour, g, l.x, l.y, l.su.base);
     ctx.restore();
   }
+
 
   /** A slice whose sprite is still waiting: its rail as a plain line (§4.13). */
   private drawPlainSlice(ctx: CanvasRenderingContext2D, sl: SliceRec): void {

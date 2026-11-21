@@ -13,7 +13,8 @@ import { buildRideSlices, chooseGoalpost, chooseRunSupport, GOAL_BEAM_DEPTH, GOA
 import { carDims, riderHeightM } from '../../../../src/render/track/paint';
 import { getTrackTypeDef } from '../../../../src/data/track';
 import { Content, tileIndex } from '../../../../src/sim/map';
-import { projectY, tileDepthView, viewFrame } from '../../../../src/render/track/project';
+import { viewFrame, viewX, viewY } from '../../../../src/render/track/project';
+import { Layer, packDepth } from '../../../../src/render/depth';
 import { pieceWorldSamples } from '../../../../src/sim/rides/track/api';
 import type { World } from '../../../../src/sim/types';
 import { makeTestWorld } from '../../../helpers/world';
@@ -486,10 +487,12 @@ describe('goalposts (2026-11-21)', () => {
     }
   });
 
-  it('rebuild cost: goalposts keep buildRideSlices within 2x of the build without them', () => {
-    // TrackLayer.rebuild builds every ride on any track edit and every view turn (measured 2026-11-21, warm, ms per
-    // build, without -> with: raised helix 0.55 -> 0.65, two mine helices 0.75 -> 0.97, same row 0.34 -> 0.42, over a
-    // station, where no goalpost fits, 0.24 -> 0.47)
+  it("rebuild cost: goalposts keep each scene's buildRideSlices within 2x of the build without them", () => {
+    // TrackLayer.rebuild builds every ride on any track edit and every view turn. Measured 2026-11-21 (warm, median ms
+    // per build, without -> with, three runs): raised helix 0.55-0.87 -> 0.66-0.90, two mine helices 0.78-0.86 ->
+    // 0.94-1.57, same row 0.35-0.48 -> 0.37-0.56, over a station where no goalpost fits 0.25-0.43 -> 0.52-0.67 (the
+    // stretch's candidates are all tried and fail). A floor of 0.5 ms over the build without keeps a sub-millisecond scene
+    // from failing on timer noise.
     const station = (() => {
       const w = makeTestWorld();
       place(w, 'steel_coaster', 20, 20, EAST);
@@ -498,22 +501,24 @@ describe('goalposts (2026-11-21)', () => {
       return { w, id };
     })();
     const cases = [helixWorld(RAISE), helixWorld(['helix_right_up', 'straight'], 'mine_train'), (() => { const r = sameRow('steel_coaster'); return { w: r.w, id: r.b }; })(), station];
-    const time = (on: boolean): number => {
+    const time = (c: { w: World; id: number }, on: boolean): number => {
       setGoalpostsForTest(on);
       const runs: number[] = [];
       for (let rep = 0; rep < 7; rep++) {
         const t = performance.now();
-        for (let i = 0; i < 10; i++) for (const c of cases) buildRideSlices(c.w, c.id, f);
-        runs.push(performance.now() - t);
+        for (let i = 0; i < 20; i++) buildRideSlices(c.w, c.id, f);
+        runs.push((performance.now() - t) / 20);
       }
       setGoalpostsForTest(true);
       return runs.sort((p, q) => p - q)[3]!;
     };
-    time(true);
-    time(false);
-    const off = time(false);
-    const on = time(true);
-    expect(on / off).toBeLessThan(2);
+    for (const c of cases) {
+      time(c, true);
+      time(c, false);
+      const off = time(c, false);
+      const on = time(c, true);
+      expect(on).toBeLessThan(Math.max(2 * off, off + 0.5));
+    }
   });
 
   it('the goalposts depend only on the world: a copy built fresh after other rides gives the same ones', () => {
@@ -558,24 +563,59 @@ describe('goalposts (2026-11-21)', () => {
     }
   });
 
-  it('paint order: each leg is a drawable of its own tile in every view turn, the far one first there, the near one last', () => {
-    const { w, b } = sameRow('steel_coaster');
-    for (const rot of [0, 1, 2, 3]) {
-      const fr = viewFrame(rot, 64, 64);
-      const layer = new TrackLayer();
-      const items: { ref: number; sub: number; depth: number; z: number }[] = [];
-      layer.collect(w, { push: (_k, ref, sub, _ax, _ay, _s, depth, z) => items.push({ ref, sub, depth, z }) }, { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 }, 1, 1, 0, 0, 0, rot);
-      const legs = items.filter((it) => it.sub === SUB_GOAL_LEG);
-      const goals = buildRideSlices(w, b, fr).flatMap((sl) => sl.supports.filter((su) => su.goal));
-      expect(goals.length).toBeGreaterThan(0);
-      expect(legs).toHaveLength(goals.length * 2);
-      for (const su of goals) {
-        const g = su.goal!;
-        const near0 = projectY(g.x0, g.y0, 0, fr) > projectY(g.x1, g.y1, 0, fr);
-        for (const [x, y, near] of [[g.x0, g.y0, near0], [g.x1, g.y1, !near0]] as const) {
-          const d = tileDepthView(Math.floor(x / 4), Math.floor(y / 4), fr);
-          expect(legs.some((l) => l.depth === d && l.z === (near ? 255 : 0))).toBe(true);
+  it('paint order: a car under the beam sorts after the far frame and before the near frame, in all four view turns', () => {
+    // a frame is a leg and its half of the beam (one drawable); cars sort as the layer pushes them: the deeper of the
+    // tiles under their front and back, their rail height, Layer.Guest
+    const scenes = [
+      (() => { const r = sameRow('steel_coaster'); return { w: r.w, ids: [r.a, r.b] }; })(),
+      (() => { const r = helixWorld(RAISE); return { w: r.w, ids: [r.id] }; })(),
+      (() => { const r = helixWorld(['helix_right_up', 'straight'], 'mine_train'); return { w: r.w, ids: [r.id] }; })(),
+    ];
+    for (const { w, ids } of scenes) {
+      for (const rot of [0, 1, 2, 3]) {
+        const fr = viewFrame(rot, 64, 64);
+        const layer = new TrackLayer();
+        const items: { ref: number; sub: number; depth: number; z: number; layer: number }[] = [];
+        layer.collect(w, { push: (_k, ref, sub, _ax, _ay, _s, depth, z, ly) => items.push({ ref, sub, depth, z, layer: ly }) }, { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 }, 1, 1, 0, 0, 0, rot);
+        const frames = items.filter((it) => it.sub === SUB_GOAL_LEG);
+        const legs = (layer as unknown as { goalLegs: { su: SupportRec; near: boolean }[] }).goalLegs;
+        const all = ids.flatMap((id) => buildRideSlices(w, id, fr));
+        const goals = all.flatMap((sl) => sl.supports.filter((su) => su.goal));
+        expect(goals.length).toBeGreaterThan(0);
+        expect(frames).toHaveLength(goals.length * 2);
+        let cars = 0;
+        for (const su of goals) {
+          const g = su.goal!;
+          const key = (near: boolean) => {
+            const it = frames.find((fi) => legs[fi.ref]!.near === near && legs[fi.ref]!.su.wx === su.wx && legs[fi.ref]!.su.wy === su.wy)!;
+            return packDepth(it.depth, it.z, it.layer);
+          };
+          const far = key(false);
+          const near = key(true);
+          for (const sl of all) {
+            const s = sl.samples;
+            const half = getTrackTypeDef(sl.data.typeId)!.vehicle.carLengthMm / 2000;
+            for (let r = 0; r < sl.runs.length; r += 2) {
+              for (let k = sl.runs[r]!; k <= sl.runs[r + 1]!; k++) {
+                if (s.z[k]! >= g.z - GOAL_BEAM_DEPTH) continue;
+                if (segDist(s.x[k]!, s.y[k]!, g.x0, g.y0, g.x1, g.y1) >= envelopeAt(s.bankCos[k]!)) continue;
+                // car centres from a car length before the beam to one after it (entering, under, leaving)
+                for (let t = -half; t <= half; t += 0.25) {
+                  const cx = s.x[k]! + Math.cos(s.yaw[k]!) * t;
+                  const cy = s.y[k]! + Math.sin(s.yaw[k]!) * t;
+                  const dx = Math.cos(s.yaw[k]!) * half;
+                  const dy = Math.sin(s.yaw[k]!) * half;
+                  const td = (x: number, y: number) => Math.floor(viewX(x, y, fr) / 4) + Math.floor(viewY(x, y, fr) / 4) + 1;
+                  const car = packDepth(Math.max(td(cx + dx, cy + dy), td(cx - dx, cy - dy)), s.z[k]!, Layer.Guest);
+                  expect(car).toBeGreaterThan(far);
+                  expect(car).toBeLessThan(near);
+                  cars++;
+                }
+              }
+            }
+          }
         }
+        expect(cars).toBeGreaterThan(0);
       }
     }
   });
