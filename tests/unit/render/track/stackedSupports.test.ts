@@ -9,7 +9,7 @@
  * over another) two legs beside the lower rail hold a beam over its cars, under the upper rail.
  */
 import { describe, expect, it } from 'vitest';
-import { buildRideSlices, chooseGoalpost, chooseRunSupport, GOAL_BEAM_DEPTH, GOAL_BEAM_MAX, realGoalBeams, realGoalLegPlacement, realSupportPlacement, setGoalpostsForTest, SUB_GOAL_LEG, supportSample, TrackLayer, type SliceRec, type SupportObstacles, type SupportRec } from '../../../../src/render/track/layer';
+import { buildRideSlices, chooseGoalpost, chooseRunSupport, GOAL_BEAM_DEPTH, GOAL_BEAM_MAX, realGoalBeams, realGoalLegPlacement, realSupportPlacement, setGoalpostsForTest, SUB_GOAL_LEG, takeGoalpostWork, supportSample, TrackLayer, type SliceRec, type SupportObstacles, type SupportRec } from '../../../../src/render/track/layer';
 import { carDims, riderHeightM } from '../../../../src/render/track/paint';
 import { getTrackTypeDef } from '../../../../src/data/track';
 import { Content, tileIndex } from '../../../../src/sim/map';
@@ -487,12 +487,13 @@ describe('goalposts (2026-11-21)', () => {
     }
   });
 
-  it("rebuild cost: goalposts keep each scene's buildRideSlices within 2x of the build without them", () => {
-    // TrackLayer.rebuild builds every ride on any track edit and every view turn. Measured 2026-11-21 (warm, median ms
-    // per build, without -> with, three runs): raised helix 0.55-0.87 -> 0.66-0.90, two mine helices 0.78-0.86 ->
-    // 0.94-1.57, same row 0.35-0.48 -> 0.37-0.56, over a station where no goalpost fits 0.25-0.43 -> 0.52-0.67 (the
-    // stretch's candidates are all tried and fail). A floor of 0.5 ms over the build without keeps a sub-millisecond scene
-    // from failing on timer noise.
+  it('rebuild cost: the goalpost search does bounded work per scene (counted, not timed)', () => {
+    // TrackLayer.rebuild builds every ride on any track edit and every view turn. The search's costs are the obstacle
+    // samples it gathers and the grid samples it visits (`takeGoalpostWork`); per rail sample of the ride, measured
+    // 2026-11-21: raised helix 844 / 323 (2.6), two mine helices 4956 / 447 (11), same row 594 / 380 (1.6), over a
+    // station where no goalpost fits 1592 / 380 (4.2). Before the grid (0612e30^) each candidate scanned every
+    // obstacle in 3 x 3 tiles for every leg step, skew and post: hundreds of thousands per scene. Timing was dropped
+    // here: off and on medians drifted apart under CPU load.
     const station = (() => {
       const w = makeTestWorld();
       place(w, 'steel_coaster', 20, 20, EAST);
@@ -501,23 +502,18 @@ describe('goalposts (2026-11-21)', () => {
       return { w, id };
     })();
     const cases = [helixWorld(RAISE), helixWorld(['helix_right_up', 'straight'], 'mine_train'), (() => { const r = sameRow('steel_coaster'); return { w: r.w, id: r.b }; })(), station];
-    const time = (c: { w: World; id: number }, on: boolean): number => {
-      setGoalpostsForTest(on);
-      const runs: number[] = [];
-      for (let rep = 0; rep < 7; rep++) {
-        const t = performance.now();
-        for (let i = 0; i < 20; i++) buildRideSlices(c.w, c.id, f);
-        runs.push((performance.now() - t) / 20);
-      }
-      setGoalpostsForTest(true);
-      return runs.sort((p, q) => p - q)[3]!;
-    };
     for (const c of cases) {
-      time(c, true);
-      time(c, false);
-      const off = time(c, false);
-      const on = time(c, true);
-      expect(on).toBeLessThan(Math.max(2 * off, off + 0.5));
+      takeGoalpostWork();
+      const slices = buildRideSlices(c.w, c.id, f);
+      const work = takeGoalpostWork();
+      let samples = 0;
+      for (const sl of slices) for (let r = 0; r < sl.runs.length; r += 2) samples += sl.runs[r + 1]! - sl.runs[r]! + 1;
+      expect(work).toBeLessThanOrEqual(20 * samples);
+      // and none at all with goalposts off
+      setGoalpostsForTest(false);
+      buildRideSlices(c.w, c.id, f);
+      setGoalpostsForTest(true);
+      expect(takeGoalpostWork()).toBe(0);
     }
   });
 

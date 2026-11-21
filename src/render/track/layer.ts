@@ -484,7 +484,10 @@ function eachNear(ob: SupportObstacles, xa: number, ya: number, xb: number, yb: 
   for (let r = ra; r <= rb; r++) {
     for (let c = ca; c <= cb; c++) {
       const cell = r * g.nx + c;
-      for (let i = g.start[cell] as number; i < (g.start[cell + 1] as number); i++) if (fn(g.idx[i] as number)) return true;
+      const a = g.start[cell] as number;
+      const b = g.start[cell + 1] as number;
+      goalWork += b - a;
+      for (let i = a; i < b; i++) if (fn(g.idx[i] as number)) return true;
     }
   }
   return false;
@@ -713,6 +716,7 @@ function goalObstacles(world: World, occ: Occupancy, x: number, y: number, rideI
   };
   let n = 0;
   for (const o of parts) for (let k = 0; k < o.s.n; k++) if (inArea(o.s, k)) n++;
+  goalWork += n;
   const ob: SupportObstacles = { n, x: new Float64Array(n), y: new Float64Array(n), z: new Float64Array(n), other: new Uint8Array(n), index: new Int32Array(n), reach: new Float64Array(n), top: new Float64Array(n), legReach: new Float64Array(n) };
   let i = 0;
   for (const o of parts) {
@@ -753,6 +757,16 @@ function columnClear(ob: SupportObstacles, s: WorldSamples, k: number): boolean 
 let goalpostsOn = true;
 export function setGoalpostsForTest(on: boolean): void {
   goalpostsOn = on;
+}
+/**
+ * Goalpost work since the last read (tests): obstacle samples gathered and grid cells' samples visited, the two costs
+ * that grow with a search. Read and reset by `takeGoalpostWork`.
+ */
+let goalWork = 0;
+export function takeGoalpostWork(): number {
+  const w = goalWork;
+  goalWork = 0;
+  return w;
 }
 
 /**
@@ -1368,7 +1382,9 @@ export class TrackLayer {
    * frame sorts behind every car that can pass under the beam (no deeper than the far leg, nor than the shallowest tile
    * such a car's ends touch) and first on its tile (z 0); the near frame in front of them (no shallower than the near leg,
    * nor than the deepest such tile), just over those cars' rail height there. A car under the beam is then always between
-   * its frames.
+   * its frames. Limits (see `rebuild`): a near frame can draw over what stands on the tiles diagonally in front of its
+   * leg (guests, scenery, ground rail), a far frame under what stands on the tile behind its leg, and both share the cars'
+   * over-draw of same-height rail on the tile a car's end reaches.
    */
   private goalLegs: { slice: number; su: SupportRec; x: number; y: number; near: boolean; depth: number; z: number }[] = [];
   private sigs = new Map<number, RideSig>();
@@ -1483,6 +1499,10 @@ export class TrackLayer {
           // higher track there that may stand in front of it. Limit: a car takes the deeper tile under its front or back,
           // and draws over that tile's rail of its height even where the rail is in front; the near frame, sorted after
           // it, does the same (2026-11-21, the down helix in view turn 2: the leg over the return run on the next tile).
+          // Limit: the near frame takes the deepest such tile's key for the whole leg, so it draws over guests,
+          // scenery and other ground-level rail on the tiles diagonally in front of the near leg; the far frame, at the
+          // shallowest, draws under things on the tile behind the far leg. Not fixable while cars sort by their deeper
+          // end's tile (a leg's foot below the cars' band could be a drawable of its own at its own tile's key).
           const z = near ? (cars.z > -Infinity ? Math.min(255, Math.floor(cars.z + 0.5) + 1) : 255) : 0;
           this.goalLegs.push({ slice: i, su, x, y, near, depth: near ? Math.max(d, cars.max) : Math.min(d, cars.min), z });
         }
