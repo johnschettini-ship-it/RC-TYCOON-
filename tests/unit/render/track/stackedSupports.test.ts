@@ -9,11 +9,11 @@
  * over another) two legs beside the lower rail hold a beam over its cars, under the upper rail.
  */
 import { describe, expect, it } from 'vitest';
-import { buildRideSlices, chooseGoalpost, chooseRunSupport, GOAL_BEAM_DEPTH, GOAL_BEAM_MAX, realGoalBeams, realGoalLegPlacement, realSupportPlacement, supportSample, type SliceRec, type SupportObstacles, type SupportRec } from '../../../../src/render/track/layer';
+import { buildRideSlices, chooseGoalpost, chooseRunSupport, GOAL_BEAM_DEPTH, GOAL_BEAM_MAX, realGoalBeams, realGoalLegPlacement, realSupportPlacement, setGoalpostsForTest, SUB_GOAL_LEG, supportSample, TrackLayer, type SliceRec, type SupportObstacles, type SupportRec } from '../../../../src/render/track/layer';
 import { carDims, riderHeightM } from '../../../../src/render/track/paint';
 import { getTrackTypeDef } from '../../../../src/data/track';
 import { Content, tileIndex } from '../../../../src/sim/map';
-import { viewFrame } from '../../../../src/render/track/project';
+import { projectY, tileDepthView, viewFrame } from '../../../../src/render/track/project';
 import { pieceWorldSamples } from '../../../../src/sim/rides/track/api';
 import type { World } from '../../../../src/sim/types';
 import { makeTestWorld } from '../../../helpers/world';
@@ -387,17 +387,39 @@ describe('track over other track', () => {
 
 describe('goalposts (2026-11-21)', () => {
   /**
-   * Ride A lies on the ground along row 20 (its station at x 20, a straight at x 21); ride B starts at x 4 on the same
-   * row, climbs to 6 m and runs straight on along the row, right over A for the two tiles the sim allows
-   * (MAX_UNSUPPORTED_TILES), and on past it.
+   * Ride A comes up column 20 from its station at (20, 23), turns east onto row 20 at x 20 and runs a straight at x 21;
+   * ride B starts at x 4 on row 20, climbs to 6 m and runs straight on along the row, right over A for the two tiles the
+   * sim allows (MAX_UNSUPPORTED_TILES), and on past it. `lower` A's type and pieces (water rides have their own).
    */
-  function sameRow(upper: string): { w: World; a: number; b: number } {
+  function sameRow(upper: string, lower = 'steel_coaster', pieces = ['straight', 'straight', 'turn_small_right', 'straight']): { w: World; a: number; b: number } {
     const w = makeTestWorld();
-    const a = place(w, 'steel_coaster', 20, 20, EAST);
-    addAll(w, a, ['straight']);
+    const a = place(w, lower, 20, 23, NORTH);
+    addAll(w, a, pieces);
     const b = place(w, upper, 4, 20, EAST);
     addAll(w, b, ['station', ...RAISE, ...Array<string>(16).fill('straight')]);
     return { w, a, b };
+  }
+
+  /**
+   * No leg on another ride's station deck (paint.ts paintPlatform: 0.85-1.95 m beside a coaster's rail) or in a water
+   * channel (its walls at its half width), with a leg's 0.4 m footing (the realistic foot's radius).
+   */
+  function legsOffDecksAndWater(slices: readonly SliceRec[], all: readonly SliceRec[]): void {
+    for (const sl of slices) {
+      for (const su of sl.supports) {
+        if (!su.goal) continue;
+        for (const [lx, ly] of [[su.goal.x0, su.goal.y0], [su.goal.x1, su.goal.y1]] as const) {
+          for (const o of all) {
+            if (o === sl) continue;
+            const look = o.look;
+            const keep = o.special === 'station' ? 1.95 + 0.4 : look.channel > 0 && !look.trough ? look.channel + 0.4 : 0;
+            if (keep === 0) continue;
+            const s = o.samples;
+            for (let r = 0; r < o.runs.length; r += 2) for (let k = o.runs[r]!; k <= o.runs[r + 1]!; k++) expect(Math.hypot(lx - s.x[k]!, ly - s.y[k]!)).toBeGreaterThanOrEqual(keep - 1e-9);
+          }
+        }
+      }
+    }
   }
 
   for (const upper of ['steel_coaster', 'mine_train', 'bobsled_run']) {
@@ -406,7 +428,7 @@ describe('goalposts (2026-11-21)', () => {
       const sa = buildRideSlices(w, a, f);
       const sb = buildRideSlices(w, b, f);
       const all = [...sa, ...sb];
-      // B is right over A's rail on A's two tiles (11 m unsupported before goalposts)
+      // B is right over A's rail on A's two tiles of row 20 (8.5 m unsupported before goalposts)
       const over = sb.filter((sl) => sa.some((o) => o.x === sl.x && o.y === sl.y));
       expect(over).toHaveLength(2);
       const goals = sb.flatMap((sl) => sl.supports.filter((su) => su.goal));
@@ -421,10 +443,90 @@ describe('goalposts (2026-11-21)', () => {
     });
   }
 
-  it('the same scene builds the same goalposts twice (deterministic)', () => {
+  it("no leg on a station deck: over another ride's station the goalpost stands past the deck", () => {
+    // A's station at x 20 and a straight at x 21 along row 20, under B
+    const w = makeTestWorld();
+    const a = place(w, 'steel_coaster', 20, 20, EAST);
+    addAll(w, a, ['straight']);
+    const b = place(w, 'steel_coaster', 4, 20, EAST);
+    addAll(w, b, ['station', ...RAISE, ...Array<string>(16).fill('straight')]);
+    const sa = buildRideSlices(w, a, f);
+    const sb = buildRideSlices(w, b, f);
+    expect(sb.some((sl) => sl.supports.some((su) => su.goal))).toBe(true);
+    legsOffDecksAndWater(sb, [...sa, ...sb]);
+    expect(envelopeMargin(sb, [...sa, ...sb])).toBeGreaterThanOrEqual(0);
+    expect(beamMargin(sb, [...sa, ...sb])).toBeGreaterThanOrEqual(0);
+    // the decks keep the legs 2.35 m off a station's rail (a 4.7 m beam, over GOAL_BEAM_MAX), so the goalpost stands past
+    // A's station and the span stays longer there: 11 m before goalposts, 7.25 m with them (a known limit)
+    expect(longestUnheldSpan(sb)).toBeLessThan(7.5);
+  });
+
+  it('no leg in a water channel: B along a row over the rapids', () => {
+    const { w, a, b } = sameRow('steel_coaster', 'rapids_raft', ['rapids_straight', 'rapids_straight', 'rapids_turn_small_r', 'rapids_straight']);
+    const sa = buildRideSlices(w, a, f);
+    const sb = buildRideSlices(w, b, f);
+    const all = [...sa, ...sb];
+    expect(sb.some((sl) => sl.supports.some((su) => su.goal))).toBe(true);
+    legsOffDecksAndWater(sb, all);
+    expect(envelopeMargin(sb, all)).toBeGreaterThanOrEqual(0);
+    expect(beamMargin(sb, all)).toBeGreaterThanOrEqual(0);
+    expect(longestUnheldSpan(sb)).toBeLessThanOrEqual(MAX_SPAN_M);
+  });
+
+  it('every goalpost leg stands on a flat track tile: a sloped tile is no leg spot', () => {
+    const { w, b } = sameRow('steel_coaster');
+    const m = w.state.map;
+    const goals = (): SupportRec[] => buildRideSlices(w, b, f).flatMap((sl) => sl.supports.filter((su) => su.goal));
+    const g0 = goals()[0]!.goal!;
+    // tip the tile under the first leg: that spot goes (another leg spot, or none)
+    const i = tileIndex(m, Math.floor(g0.x0 / 4), Math.floor(g0.y0 / 4));
+    m.slope[i] = 1;
+    for (const su of goals()) {
+      for (const [x, y] of [[su.goal!.x0, su.goal!.y0], [su.goal!.x1, su.goal!.y1]] as const) expect(m.slope[tileIndex(m, Math.floor(x / 4), Math.floor(y / 4))]).toBe(0);
+    }
+  });
+
+  it('rebuild cost: goalposts keep buildRideSlices within 2x of the build without them', () => {
+    // TrackLayer.rebuild builds every ride on any track edit and every view turn (measured 2026-11-21, warm, ms per
+    // build, without -> with: raised helix 0.55 -> 0.65, two mine helices 0.75 -> 0.97, same row 0.34 -> 0.42, over a
+    // station, where no goalpost fits, 0.24 -> 0.47)
+    const station = (() => {
+      const w = makeTestWorld();
+      place(w, 'steel_coaster', 20, 20, EAST);
+      const id = place(w, 'steel_coaster', 4, 20, EAST);
+      addAll(w, id, ['station', ...RAISE, ...Array<string>(16).fill('straight')]);
+      return { w, id };
+    })();
+    const cases = [helixWorld(RAISE), helixWorld(['helix_right_up', 'straight'], 'mine_train'), (() => { const r = sameRow('steel_coaster'); return { w: r.w, id: r.b }; })(), station];
+    const time = (on: boolean): number => {
+      setGoalpostsForTest(on);
+      const runs: number[] = [];
+      for (let rep = 0; rep < 7; rep++) {
+        const t = performance.now();
+        for (let i = 0; i < 10; i++) for (const c of cases) buildRideSlices(c.w, c.id, f);
+        runs.push(performance.now() - t);
+      }
+      setGoalpostsForTest(true);
+      return runs.sort((p, q) => p - q)[3]!;
+    };
+    time(true);
+    time(false);
+    const off = time(false);
+    const on = time(true);
+    expect(on / off).toBeLessThan(2);
+  });
+
+  it('the goalposts depend only on the world: a copy built fresh after other rides gives the same ones', () => {
     const one = buildRideSlices(sameRow('steel_coaster').w, 2, f).map((sl) => [sl.key, sl.supports]);
+    // build other rides first (caches warm, other order), then the same scene again in all four view turns and back
+    const { w } = sameRow('mine_train');
+    for (const r of [0, 1, 2, 3]) for (const id of [1, 2]) buildRideSlices(w, id, viewFrame(r, 64, 64));
     const two = buildRideSlices(sameRow('steel_coaster').w, 2, f).map((sl) => [sl.key, sl.supports]);
     expect(two).toEqual(one);
+    // and the goalpost itself does not depend on the view turn
+    const w3 = sameRow('steel_coaster').w;
+    const g = (r: number) => buildRideSlices(w3, 2, viewFrame(r, 64, 64)).flatMap((sl) => sl.supports.filter((su) => su.goal));
+    for (const r of [1, 2, 3]) expect(g(r)).toEqual(g(0));
   });
 
   it('realistic look: the saddle stands on the beam, the legs are columns from the ground into it, far leg first', () => {
@@ -453,6 +555,28 @@ describe('goalposts (2026-11-21)', () => {
       const all = realGoalBeams(sl, su, fr)[0]!;
       expect(far.a + near.a).toBeCloseTo(all.a, 6);
       expect(far.h1).toBe(g.z);
+    }
+  });
+
+  it('paint order: each leg is a drawable of its own tile in every view turn, the far one first there, the near one last', () => {
+    const { w, b } = sameRow('steel_coaster');
+    for (const rot of [0, 1, 2, 3]) {
+      const fr = viewFrame(rot, 64, 64);
+      const layer = new TrackLayer();
+      const items: { ref: number; sub: number; depth: number; z: number }[] = [];
+      layer.collect(w, { push: (_k, ref, sub, _ax, _ay, _s, depth, z) => items.push({ ref, sub, depth, z }) }, { x0: -1e6, y0: -1e6, x1: 1e6, y1: 1e6 }, 1, 1, 0, 0, 0, rot);
+      const legs = items.filter((it) => it.sub === SUB_GOAL_LEG);
+      const goals = buildRideSlices(w, b, fr).flatMap((sl) => sl.supports.filter((su) => su.goal));
+      expect(goals.length).toBeGreaterThan(0);
+      expect(legs).toHaveLength(goals.length * 2);
+      for (const su of goals) {
+        const g = su.goal!;
+        const near0 = projectY(g.x0, g.y0, 0, fr) > projectY(g.x1, g.y1, 0, fr);
+        for (const [x, y, near] of [[g.x0, g.y0, near0], [g.x1, g.y1, !near0]] as const) {
+          const d = tileDepthView(Math.floor(x / 4), Math.floor(y / 4), fr);
+          expect(legs.some((l) => l.depth === d && l.z === (near ? 255 : 0))).toBe(true);
+        }
+      }
     }
   });
 

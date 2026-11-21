@@ -67,8 +67,8 @@ function blitOnGround(L: LayerView, ctx: CanvasRenderingContext2D, sp: Sprite, w
 
 /** Darkness of a goalpost beam's shadow: as the baked column shadows look on the ground (drawn at 0.5 in the bake). */
 export const GOAL_SHADOW_ALPHA = 0.3;
-/** Blur (world px at zoom 1) of a goalpost beam's shadow edge. */
-const GOAL_SHADOW_BLUR = 1.2;
+/** Soft edge (world px at zoom 1) of a goalpost beam's shadow: a half-dark band this wide round the hull. */
+const GOAL_SHADOW_EDGE = 1.2;
 const hullX: number[] = [];
 const hullY: number[] = [];
 
@@ -92,9 +92,11 @@ function goalShadow(L: LayerView, ctx: CanvasRenderingContext2D, map: World['sta
   const sh = sunShift();
   const k = L.scale;
   ctx.save();
+  // soft-edged as the baked shadows, without a per-frame canvas filter: the hull, and a band at half its darkness outside
   ctx.fillStyle = `rgba(0,0,0,${GOAL_SHADOW_ALPHA})`;
-  // soft-edged, as the baked shadows (their edge is ~SHADOW_EDGE_PX at zoom 1)
-  ctx.filter = `blur(${(GOAL_SHADOW_BLUR * k).toFixed(2)}px)`;
+  ctx.strokeStyle = `rgba(0,0,0,${GOAL_SHADOW_ALPHA / 2})`;
+  ctx.lineWidth = 2 * GOAL_SHADOW_EDGE * k;
+  ctx.lineJoin = 'round';
   for (const b of realGoalBeams(sl, rec, f)) {
     hullX.length = 0;
     hullY.length = 0;
@@ -113,16 +115,15 @@ function goalShadow(L: LayerView, ctx: CanvasRenderingContext2D, map: World['sta
   ctx.restore();
 }
 
-/** Fill the convex hull of points (xs, ys) (gift wrapping: 8 points). */
+/** Fill the convex hull of points (xs, ys) (gift wrapping: 8 points), and stroke its edge outside it only. */
 function fillHull(ctx: CanvasRenderingContext2D, xs: number[], ys: number[]): void {
   const n = xs.length;
   let start = 0;
   for (let i = 1; i < n; i++) if ((xs[i] as number) < (xs[start] as number) || ((xs[i] as number) === (xs[start] as number) && (ys[i] as number) < (ys[start] as number))) start = i;
-  ctx.beginPath();
+  const hull: number[] = [];
   let p = start;
   for (let guard = 0; guard <= n; guard++) {
-    if (guard === 0) ctx.moveTo(xs[p] as number, ys[p] as number);
-    else ctx.lineTo(xs[p] as number, ys[p] as number);
+    hull.push(p);
     let q = (p + 1) % n;
     for (let i = 0; i < n; i++) {
       const cr = ((xs[q] as number) - (xs[p] as number)) * ((ys[i] as number) - (ys[p] as number)) - ((ys[q] as number) - (ys[p] as number)) * ((xs[i] as number) - (xs[p] as number));
@@ -131,8 +132,22 @@ function fillHull(ctx: CanvasRenderingContext2D, xs: number[], ys: number[]): vo
     p = q;
     if (p === start) break;
   }
-  ctx.closePath();
+  const trace = (): void => {
+    hull.forEach((h, i) => (i === 0 ? ctx.moveTo(xs[h] as number, ys[h] as number) : ctx.lineTo(xs[h] as number, ys[h] as number)));
+    ctx.closePath();
+  };
+  ctx.beginPath();
+  trace();
   ctx.fill();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-1e6, -1e6, 2e6, 2e6);
+  trace();
+  ctx.clip('evenodd');
+  ctx.beginPath();
+  trace();
+  ctx.stroke();
+  ctx.restore();
 }
 
 export function drawTrackShadow(layer: TrackLayer, ctx: CanvasRenderingContext2D, world: World, ref: number, sub: number, look: RealLook): void {
