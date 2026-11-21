@@ -284,11 +284,13 @@ const SUPPORT_SPACING = 2;
  * The support of one rail run `[k0, k1]` of a piece on a tile with centre (cx, cy) m: among the run's upright samples
  * (not inverted, not near vertical) at least `minH` over the ground (hanging cars: any height, the arm holds the spine above), the nearest the tile centre whose column
  * keeps SUPPORT_CLEAR_GOOD from every rail under it; else the one with the most room if that is at least
- * SUPPORT_CLEAR_MIN; else, where another piece's rail is right under it (track stacked over track), standing on that
- * rail. A tile whose ground is not the track's (`groundOk` false: a path under it) only takes the last kind. Null when
- * no point qualifies: no column through the piece's own lower rail, which would stand in its cars.
+ * SUPPORT_CLEAR_MIN; else, where rail is right under it, standing on that rail: another piece's (track stacked over
+ * track) or, with `ownStack`, the piece's own further along (a helix's exit lead over its entry lead, 2026-11-21; off for
+ * hanging cars, whose sample line is the car under the spine). A tile whose ground is not the track's (`groundOk` false:
+ * a path under it) only takes the last kind. `fits(k, base)` rejects a point (a column too near one the slice already
+ * has), so the run takes its next best. Null when no point qualifies: never a column through rail under it.
  */
-export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground: number, groundOk: boolean, ob: SupportObstacles, cx: number, cy: number, minH = SUPPORT_MIN_H): { k: number; base: number } | null {
+export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground: number, groundOk: boolean, ob: SupportObstacles, cx: number, cy: number, minH = SUPPORT_MIN_H, fits: (k: number, base: number) => boolean = () => true, ownStack = true): { k: number; base: number } | null {
   let bestA = -1;
   let scoreA = Infinity;
   let bestB = -1;
@@ -312,23 +314,25 @@ export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground
       if (!other && Math.abs((ob.index[j] as number) - k) < SUPPORT_NEAR_ALONG) continue;
       const d = Math.hypot((ob.x[j] as number) - x, (ob.y[j] as number) - y);
       if (d < clear) clear = d;
+      // Rail right under the candidate, of another piece or of this one further along (a helix's exit lead over its
+      // entry lead, 2026-11-21): the column stands on it; never through it to the ground.
       if (d < SUPPORT_CLEAR_MIN) {
-        if (other) stackTop = Math.max(stackTop, oz);
+        if (other || ownStack) stackTop = Math.max(stackTop, oz);
         else ownClose = true;
       }
     }
     const dc = (x - cx) * (x - cx) + (y - cy) * (y - cy);
     if (groundOk && clear >= SUPPORT_CLEAR_GOOD) {
-      if (dc < scoreA) {
+      if (dc < scoreA && fits(k, ground)) {
         scoreA = dc;
         bestA = k;
       }
     } else if (groundOk && clear >= SUPPORT_CLEAR_MIN) {
-      if (clear > scoreB) {
+      if (clear > scoreB && fits(k, ground)) {
         scoreB = clear;
         bestB = k;
       }
-    } else if (!ownClose && stackTop > -Infinity && z - stackTop >= SUPPORT_STACK_ROOM && dc < scoreC) {
+    } else if (!ownClose && stackTop > -Infinity && z - stackTop >= SUPPORT_STACK_ROOM && dc < scoreC && fits(k, stackTop)) {
       scoreC = dc;
       bestC = k;
       baseC = stackTop;
@@ -478,11 +482,15 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
           const k0 = runs[r] as number;
           const k1 = runs[r + 1] as number;
           if (runs.length > 2 && k1 - k0 < SUPPORT_MIN_RUN) continue;
-          const c = chooseRunSupport(s, k0, k1, t.ground, groundOk, ob, cx, cy, lift > 0 ? -Infinity : SUPPORT_MIN_H);
-          if (!c) continue;
-          const su = supportAt(c.k, c.base);
-          if (supports.some((o) => Math.hypot(o.wx - su.wx, o.wy - su.wy) < SUPPORT_SPACING)) continue;
-          supports.push(su);
+          // A column no nearer than SUPPORT_SPACING to one the slice already has, unless one stands on the other's
+          // rail (a raised helix: ground to the entry lead, then entry lead to the exit lead over it); the run takes
+          // its next best point rather than none (2026-11-21: a raised helix's exit lead floated ~7 m).
+          const fits = (k: number, base: number): boolean => {
+            const su = supportAt(k, base);
+            return !supports.some((o) => Math.hypot(o.wx - su.wx, o.wy - su.wy) < SUPPORT_SPACING && o.base < su.top && su.base < o.top);
+          };
+          const c = chooseRunSupport(s, k0, k1, t.ground, groundOk, ob, cx, cy, lift > 0 ? -Infinity : SUPPORT_MIN_H, fits, lift === 0);
+          if (c) supports.push(supportAt(c.k, c.base));
         }
         if (owned && supports.length === 0) supports.push(supportAt(supportSample(s, runs, t.x, t.y), t.ground));
       }

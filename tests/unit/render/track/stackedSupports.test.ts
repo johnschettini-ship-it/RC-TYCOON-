@@ -6,12 +6,12 @@
  * another piece's rail where the design stacks track over track.
  */
 import { describe, expect, it } from 'vitest';
-import { buildRideSlices, chooseRunSupport, supportSample, type SliceRec, type SupportObstacles } from '../../../../src/render/track/layer';
+import { buildRideSlices, chooseRunSupport, supportSample, type SliceRec, type SupportObstacles, type SupportRec } from '../../../../src/render/track/layer';
 import { viewFrame } from '../../../../src/render/track/project';
 import { pieceWorldSamples } from '../../../../src/sim/rides/track/api';
 import type { World } from '../../../../src/sim/types';
 import { makeTestWorld } from '../../../helpers/world';
-import { addAll, EAST, NORTH, place } from '../../track/helpers';
+import { addAll, EAST, NORTH, place, type PieceSpec } from '../../track/helpers';
 
 const f = viewFrame(0, 64, 64);
 
@@ -56,12 +56,90 @@ function clearances(slices: readonly SliceRec[]): number[] {
   return out;
 }
 
-function helixWorld(pre: string[]): { w: World; id: number; helix: number } {
+/** The highest rail line of the ride within 1 m in plan under a support (below its top), or -Infinity: the rail it stands on. */
+function railUnder(slices: readonly SliceRec[], su: SupportRec): number {
+  let top = -Infinity;
+  for (const o of slices) {
+    const s = o.samples;
+    for (let r = 0; r < o.runs.length; r += 2) {
+      for (let k = o.runs[r]!; k <= o.runs[r + 1]!; k++) {
+        if (s.z[k]! < su.top - 0.5 && Math.hypot(su.wx - s.x[k]!, su.wy - s.y[k]!) < 1) top = Math.max(top, s.z[k]!);
+      }
+    }
+  }
+  return top;
+}
+
+/**
+ * The longest stretch of the ride's rail (m, measured along the track in plan) that is at least SUPPORT_MIN_H (1.5 m)
+ * over its ground and has no support under it (2026-11-21). A rail point counts as held where a support's top is right
+ * under it (upright cars: plan < 0.6 m, the rail line `drop` over the top) or it is lower than SUPPORT_MIN_H.
+ */
+function longestUnheldSpan(slices: readonly SliceRec[]): number {
+  const byPiece = new Map<number, SliceRec[]>();
+  for (const sl of slices) byPiece.set(sl.pieceIndex, [...(byPiece.get(sl.pieceIndex) ?? []), sl]);
+  const sups = slices.flatMap((sl) => sl.supports.map((su) => ({ su, drop: sl.look.drop })));
+  let best = 0;
+  let run = 0;
+  let px = NaN;
+  let py = NaN;
+  for (const p of [...byPiece.keys()].sort((a, b) => a - b)) {
+    const sls = byPiece.get(p)!;
+    const s = sls[0]!.samples;
+    const ground = new Float64Array(s.n).fill(-Infinity);
+    for (const sl of sls) for (let r = 0; r < sl.runs.length; r += 2) for (let k = sl.runs[r]!; k <= sl.runs[r + 1]!; k++) ground[k] = sl.ground;
+    for (let k = 0; k < s.n; k++) {
+      const x = s.x[k]!;
+      const y = s.y[k]!;
+      const z = s.z[k]!;
+      if (!Number.isNaN(px)) run += Math.hypot(x - px, y - py);
+      px = x;
+      py = y;
+      const held = z - ground[k]! < 1.5 || sups.some(({ su, drop }) => Math.hypot(su.wx - x, su.wy - y) < 0.6 && Math.abs(su.top + drop - z) < 0.6);
+      if (held) {
+        best = Math.max(best, run);
+        run = 0;
+      }
+    }
+  }
+  return Math.max(best, run);
+}
+
+/** One support per tile holds straight track every TILE_M (4 m); curves and stacked runs get SUPPORT_SPACING (2 m) more. */
+const MAX_SPAN_M = 6;
+
+function helixWorld(pre: PieceSpec[], type = 'steel_coaster', helix = 'helix_right_up'): { w: World; id: number; helix: number } {
   const w = makeTestWorld();
-  const id = place(w, 'steel_coaster', 10, 20, EAST);
-  addAll(w, id, ['station', ...pre, 'helix_right_up', 'straight', 'straight']);
+  const id = place(w, type, 10, 20, EAST);
+  addAll(w, id, ['station', ...pre, helix, 'straight', 'straight']);
   return { w, id, helix: 1 + pre.length + 1 };
 }
+
+const RAISE: PieceSpec[] = ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gentle_up_to_flat'];
+
+describe('helix spans (2026-11-21)', () => {
+  // A raised helix's exit lead runs right over its own entry lead: no ground under it, and the entry lead (the same
+  // piece) was no deck to stand on, so ~13 m of it floated (7 m once that was allowed but a column next to the entry
+  // lead's own blocked the next); a helix on the ground left 7 m.
+  const cases: [string, PieceSpec[], string, string][] = [
+    ['raised, steel, right', RAISE, 'steel_coaster', 'helix_right_up'],
+    ['raised, steel, left', RAISE, 'steel_coaster', 'helix_left_up'],
+    ['raised on a chain lift', RAISE.map((id) => ({ id: id as string, chain: true })), 'steel_coaster', 'helix_right_up'],
+    ['raised by a first helix, mine train', ['helix_right_up', 'straight'], 'mine_train', 'helix_right_up'],
+    ['on the ground, steel', [], 'steel_coaster', 'helix_right_up'],
+    ['coming down, steel', [...RAISE, ...RAISE], 'steel_coaster', 'helix_right_down'],
+  ];
+  for (const [name, pre, type, helix] of cases) {
+    it(`${name}: no elevated rail longer than ${MAX_SPAN_M} m without a support`, () => {
+      const { w, id } = helixWorld(pre, type, helix);
+      const slices = buildRideSlices(w, id, f);
+      expect(longestUnheldSpan(slices)).toBeLessThanOrEqual(MAX_SPAN_M);
+      // no column through rail: each stands on the ground or right on the ride's own rail, 1 m clear of any other
+      for (const c of clearances(slices)) expect(c).toBeGreaterThanOrEqual(1);
+      for (const sl of slices) for (const su of sl.supports) if (su.base !== sl.ground) expect(railUnder(slices, su)).toBeCloseTo(su.base, 6);
+    });
+  }
+});
 
 describe('helix supports', () => {
   it('a helix at ground level: its upper ring and exit lead stand on supports', () => {
@@ -73,8 +151,8 @@ describe('helix supports', () => {
     expect(Math.max(...gaps)).toBeLessThanOrEqual(5);
     // ... and no column stands in the entry lead or the lower ring.
     for (const c of clearances(slices)) expect(c).toBeGreaterThanOrEqual(1);
-    // Every support of this ride stands on the ground (nothing else is under it).
-    for (const sl of slices) for (const su of sl.supports) expect(su.base).toBe(sl.ground);
+    // Every support of this ride stands on the ground, or (2026-11-21) on the helix's own entry lead under its exit lead.
+    for (const sl of slices) for (const su of sl.supports) if (su.base !== sl.ground) expect(railUnder(slices, su)).toBeCloseTo(su.base, 6);
   });
 
   it('a raised helix: both the lower lead and the ring over it are held, beside each other', () => {
@@ -127,10 +205,16 @@ describe('track over other track', () => {
     const c = chooseRunSupport(s, 0, n - 1, 8, true, ob, 2, 2);
     expect(c).not.toBeNull();
     expect(c!.base).toBeCloseTo(8.2, 9);
-    // the same lower rail as part of the same piece is not a deck to stand on: no support rather than one through it
+    // the same lower rail as part of the same piece, far along it (a helix's entry lead under its exit lead,
+    // 2026-11-21): stood on as well; with `ownStack` off (hanging cars) no support rather than one through it
     ob.other.fill(0);
     ob.index.fill(10_000);
-    expect(chooseRunSupport(s, 0, n - 1, 8, true, ob, 2, 2)).toBeNull();
+    expect(chooseRunSupport(s, 0, n - 1, 8, true, ob, 2, 2)!.base).toBeCloseTo(8.2, 9);
+    expect(chooseRunSupport(s, 0, n - 1, 8, true, ob, 2, 2, undefined, undefined, false)).toBeNull();
+    // `fits` turns a point down; the run takes the next best one rather than none
+    const first = chooseRunSupport(s, 0, n - 1, 8, true, ob, 2, 2)!.k;
+    const next = chooseRunSupport(s, 0, n - 1, 8, true, ob, 2, 2, undefined, (k) => k !== first)!;
+    expect(next.k).not.toBe(first);
     // with nothing under it, the support goes to the ground at the sample nearest the tile centre
     const none: SupportObstacles = { n: 0, x: new Float64Array(0), y: new Float64Array(0), z: new Float64Array(0), other: new Uint8Array(0), index: new Int32Array(0) };
     const g = chooseRunSupport(s, 0, n - 1, 8, true, none, 2, 2)!;
