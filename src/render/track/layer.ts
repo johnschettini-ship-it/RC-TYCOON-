@@ -297,7 +297,10 @@ const SUPPORT_SPACING = 2;
  * the tile, and of its own piece further along: a helix's entry lead under its exit lead); else the one with the most
  * room if that is at least SUPPORT_CLEAR_MIN, the car envelope. Every column goes to the ground; none stands on or
  * beside lower rail inside the envelope, where its cars would run through it (2026-11-21: the earlier stacked column,
- * standing on the lower rail's centre line, did). Null on a tile whose ground is not the track's (`groundOk` false: a
+ * standing on the lower rail's centre line, did). Limits: only rail on this tile is checked (rail across the tile edge
+ * is not), the check is at the rail sample (hanging cars' columns stand at the arm offset, not checked there), and the
+ * single-run and owned-tile fallbacks are not checked. Rail directly over lower rail along a row gets no column (up to
+ * MAX_UNSUPPORTED_TILES of span). Null on a tile whose ground is not the track's (`groundOk` false: a
  * path under it) or when no point qualifies: the rail then spans to the next support. `fits(k)` turns a point down (a
  * column too near one the slice already has), so the run takes its next best.
  */
