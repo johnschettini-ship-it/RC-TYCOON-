@@ -15,12 +15,13 @@ import type { RealLook } from '../real/look';
 import type { Sprite } from '../spriteCache';
 import { newShadowGround, shadowDrop, shadowGround, skewedShadowTransform } from '../real/groundShadow';
 import { CAR_SHADOW_ALPHA, railShadowPlane, sunShift } from '../real/trackShadow';
-import { carShadowAt, realRailPlacement, realSupportPlacement, type CarShadow, type SliceRec, type TrackLayer } from './layer';
+import { carShadowAt, realGoalBeams, realGoalLegPlacement, realRailPlacement, realSupportPlacement, type CarShadow, type SliceRec, type SupportRec, type TrackLayer } from './layer';
 import { projectX, projectY, type ViewFrame } from './project';
 
 /** The TrackLayer fields a shadow reads (set by its `collect` this frame). */
 interface LayerView {
   slices: SliceRec[];
+  goalLegs: { slice: number; su: SupportRec; x: number; y: number; near: boolean }[];
   frameRef: ViewFrame;
   cars: { x: ArrayLike<number>; y: ArrayLike<number>; z: ArrayLike<number>; mapYaw: ArrayLike<number>; pitch: ArrayLike<number> };
   carDef: string[];
@@ -32,6 +33,8 @@ interface LayerView {
 /** The layer's drawable kinds (layer.ts SUB_SLICE, SUB_CAR; not exported there: an export changes the website bundle). */
 export const SHADOW_SUB_SLICE = 0;
 export const SHADOW_SUB_CAR = 2;
+/** A goalpost frame (layer.ts SUB_GOAL_LEG): its leg's shadow and its half of the beam's, culled with the frame. */
+export const SHADOW_SUB_GOAL_LEG = 5;
 
 const scratch: CarShadow = { cx: 0, cy: 0, ax: 0, ay: 0, bx: 0, by: 0 };
 const ground = newShadowGround();
@@ -65,6 +68,92 @@ function blitOnGround(L: LayerView, ctx: CanvasRenderingContext2D, sp: Sprite, w
   ctx.restore();
 }
 
+/** Darkness of a goalpost beam's shadow: as the baked column shadows look on the ground (drawn at 0.5 in the bake). */
+export const GOAL_SHADOW_ALPHA = 0.3;
+/** Soft edge (world px at zoom 1) of a goalpost beam's shadow: a half-dark band this wide round the hull. */
+const GOAL_SHADOW_EDGE = 1.2;
+const hullX: number[] = [];
+const hullY: number[] = [];
+
+/**
+ * A goalpost frame's shadows (2026-11-21): its leg's baked column shadows, laid on the ground under it like a column's,
+ * and its half of the beam's, drawn live: the convex hull of the half's box corners, each moved along its own sun ray
+ * onto the ground plane under the beam's middle.
+ */
+function goalShadow(L: LayerView, ctx: CanvasRenderingContext2D, map: World['state']['map'], sl: SliceRec, rec: SupportRec, look: RealLook, lx: number, ly: number, near: boolean): void {
+  const f = L.frameRef;
+  const g = rec.goal;
+  if (!g || !look.supportShadow) return;
+  for (const leg of realGoalLegPlacement(sl, f, rec)) {
+    if (leg.wx !== lx || leg.wy !== ly) continue;
+    if (!shadowGround(map, leg.wx, leg.wy, (g.z + rec.base) / 2, f, ground)) continue;
+    for (const p of leg.pieces) {
+      const sp = look.supportShadow(sl.data.typeId, p.part, leg.heading);
+      if (sp) blitOnGround(L, ctx, sp, leg.ax, p.ay, shadowDrop(ground, leg.wx, leg.wy, p.z), leg.ax, p.ay);
+    }
+  }
+  if (!shadowGround(map, (g.x0 + g.x1) / 2, (g.y0 + g.y1) / 2, g.z, f, ground)) return;
+  const sh = sunShift();
+  const k = L.scale;
+  ctx.save();
+  // soft-edged as the baked shadows, without a per-frame canvas filter: the hull, and a band at half its darkness outside
+  ctx.fillStyle = `rgba(0,0,0,${GOAL_SHADOW_ALPHA})`;
+  ctx.strokeStyle = `rgba(0,0,0,${GOAL_SHADOW_ALPHA / 2})`;
+  ctx.lineWidth = 2 * GOAL_SHADOW_EDGE * k;
+  ctx.lineJoin = 'round';
+  for (const b of realGoalBeams(sl, rec, f, near ? 'near' : 'far')) {
+    hullX.length = 0;
+    hullY.length = 0;
+    for (let i = 0; i < 8; i++) {
+      const sa = i & 1 ? b.a : -b.a;
+      const sb = i & 2 ? b.b : -b.b;
+      const z = i & 4 ? b.h1 : b.h0;
+      const x = b.c[0] + (b.f[0] as number) * sa + (b.r[0] as number) * sb;
+      const y = b.c[1] + (b.f[1] as number) * sa + (b.r[1] as number) * sb;
+      const s0 = shadowDrop(ground, x, y, z);
+      hullX.push((projectX(x, y, f) + s0 * sh.x) * k + L.offX);
+      hullY.push((projectY(x, y, z, f) + s0 * sh.y) * k + L.offY);
+    }
+    fillHull(ctx, hullX, hullY);
+  }
+  ctx.restore();
+}
+
+/** Fill the convex hull of points (xs, ys) (gift wrapping: 8 points), and stroke its edge outside it only. */
+function fillHull(ctx: CanvasRenderingContext2D, xs: number[], ys: number[]): void {
+  const n = xs.length;
+  let start = 0;
+  for (let i = 1; i < n; i++) if ((xs[i] as number) < (xs[start] as number) || ((xs[i] as number) === (xs[start] as number) && (ys[i] as number) < (ys[start] as number))) start = i;
+  const hull: number[] = [];
+  let p = start;
+  for (let guard = 0; guard <= n; guard++) {
+    hull.push(p);
+    let q = (p + 1) % n;
+    for (let i = 0; i < n; i++) {
+      const cr = ((xs[q] as number) - (xs[p] as number)) * ((ys[i] as number) - (ys[p] as number)) - ((ys[q] as number) - (ys[p] as number)) * ((xs[i] as number) - (xs[p] as number));
+      if (cr < 0) q = i;
+    }
+    p = q;
+    if (p === start) break;
+  }
+  const trace = (): void => {
+    hull.forEach((h, i) => (i === 0 ? ctx.moveTo(xs[h] as number, ys[h] as number) : ctx.lineTo(xs[h] as number, ys[h] as number)));
+    ctx.closePath();
+  };
+  ctx.beginPath();
+  trace();
+  ctx.fill();
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(-1e6, -1e6, 2e6, 2e6);
+  trace();
+  ctx.clip('evenodd');
+  ctx.beginPath();
+  trace();
+  ctx.stroke();
+  ctx.restore();
+}
+
 export function drawTrackShadow(layer: TrackLayer, ctx: CanvasRenderingContext2D, world: World, ref: number, sub: number, look: RealLook): void {
   const L = layer as unknown as LayerView;
   const f = L.frameRef;
@@ -92,6 +181,11 @@ export function drawTrackShadow(layer: TrackLayer, ctx: CanvasRenderingContext2D
     if (!shadowGround(map, cx, cy, plane, f, ground)) return;
     const sp = look.railPart(type, sl.pieceId, sl.tile, rp.heading, 'sh');
     if (sp) blitOnGround(L, ctx, sp, rp.ax, rp.ay, shadowDrop(ground, cx, cy, plane), projectX(cx, cy, f), projectY(cx, cy, plane, f));
+  } else if (sub === SHADOW_SUB_GOAL_LEG) {
+    const l = L.goalLegs[ref];
+    const sl = l ? L.slices[l.slice] : undefined;
+    if (!l || !sl || !look.railPart) return;
+    goalShadow(L, ctx, world.state.map, sl, l.su, look, l.x, l.y, l.near);
   } else if (sub === SHADOW_SUB_CAR) {
     const c = L.cars;
     const type = getTrackTypeDef(L.carDef[ref] as string);
