@@ -15,7 +15,7 @@ import type { RealLook } from '../real/look';
 import type { Sprite } from '../spriteCache';
 import { newShadowGround, shadowDrop, shadowGround, skewedShadowTransform } from '../real/groundShadow';
 import { CAR_SHADOW_ALPHA, railShadowPlane, sunShift } from '../real/trackShadow';
-import { carShadowAt, realRailPlacement, realSupportPlacement, type CarShadow, type SliceRec, type TrackLayer } from './layer';
+import { carShadowAt, realGoalBeams, realGoalLegPlacement, realRailPlacement, realSupportPlacement, type CarShadow, type SliceRec, type SupportRec, type TrackLayer } from './layer';
 import { projectX, projectY, type ViewFrame } from './project';
 
 /** The TrackLayer fields a shadow reads (set by its `collect` this frame). */
@@ -65,6 +65,76 @@ function blitOnGround(L: LayerView, ctx: CanvasRenderingContext2D, sp: Sprite, w
   ctx.restore();
 }
 
+/** Darkness of a goalpost beam's shadow: as the baked column shadows look on the ground (drawn at 0.5 in the bake). */
+export const GOAL_SHADOW_ALPHA = 0.3;
+/** Blur (world px at zoom 1) of a goalpost beam's shadow edge. */
+const GOAL_SHADOW_BLUR = 1.2;
+const hullX: number[] = [];
+const hullY: number[] = [];
+
+/**
+ * A goalpost's shadows (2026-11-21): each leg's baked column shadows, laid on the ground under it like a column's, and
+ * the beam's, drawn live: the convex hull of its box's corners, each moved along its own sun ray onto the ground plane
+ * under the beam's middle.
+ */
+function goalShadow(L: LayerView, ctx: CanvasRenderingContext2D, map: World['state']['map'], sl: SliceRec, rec: SupportRec, look: RealLook): void {
+  const f = L.frameRef;
+  const g = rec.goal;
+  if (!g || !look.supportShadow) return;
+  for (const leg of realGoalLegPlacement(sl, f, rec)) {
+    if (!shadowGround(map, leg.wx, leg.wy, (g.z + rec.base) / 2, f, ground)) continue;
+    for (const p of leg.pieces) {
+      const sp = look.supportShadow(sl.data.typeId, p.part, leg.heading);
+      if (sp) blitOnGround(L, ctx, sp, leg.ax, p.ay, shadowDrop(ground, leg.wx, leg.wy, p.z), leg.ax, p.ay);
+    }
+  }
+  if (!shadowGround(map, (g.x0 + g.x1) / 2, (g.y0 + g.y1) / 2, g.z, f, ground)) return;
+  const sh = sunShift();
+  const k = L.scale;
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${GOAL_SHADOW_ALPHA})`;
+  // soft-edged, as the baked shadows (their edge is ~SHADOW_EDGE_PX at zoom 1)
+  ctx.filter = `blur(${(GOAL_SHADOW_BLUR * k).toFixed(2)}px)`;
+  for (const b of realGoalBeams(sl, rec, f)) {
+    hullX.length = 0;
+    hullY.length = 0;
+    for (let i = 0; i < 8; i++) {
+      const sa = i & 1 ? b.a : -b.a;
+      const sb = i & 2 ? b.b : -b.b;
+      const z = i & 4 ? b.h1 : b.h0;
+      const x = b.c[0] + (b.f[0] as number) * sa + (b.r[0] as number) * sb;
+      const y = b.c[1] + (b.f[1] as number) * sa + (b.r[1] as number) * sb;
+      const s0 = shadowDrop(ground, x, y, z);
+      hullX.push((projectX(x, y, f) + s0 * sh.x) * k + L.offX);
+      hullY.push((projectY(x, y, z, f) + s0 * sh.y) * k + L.offY);
+    }
+    fillHull(ctx, hullX, hullY);
+  }
+  ctx.restore();
+}
+
+/** Fill the convex hull of points (xs, ys) (gift wrapping: 8 points). */
+function fillHull(ctx: CanvasRenderingContext2D, xs: number[], ys: number[]): void {
+  const n = xs.length;
+  let start = 0;
+  for (let i = 1; i < n; i++) if ((xs[i] as number) < (xs[start] as number) || ((xs[i] as number) === (xs[start] as number) && (ys[i] as number) < (ys[start] as number))) start = i;
+  ctx.beginPath();
+  let p = start;
+  for (let guard = 0; guard <= n; guard++) {
+    if (guard === 0) ctx.moveTo(xs[p] as number, ys[p] as number);
+    else ctx.lineTo(xs[p] as number, ys[p] as number);
+    let q = (p + 1) % n;
+    for (let i = 0; i < n; i++) {
+      const cr = ((xs[q] as number) - (xs[p] as number)) * ((ys[i] as number) - (ys[p] as number)) - ((ys[q] as number) - (ys[p] as number)) * ((xs[i] as number) - (xs[p] as number));
+      if (cr < 0) q = i;
+    }
+    p = q;
+    if (p === start) break;
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 export function drawTrackShadow(layer: TrackLayer, ctx: CanvasRenderingContext2D, world: World, ref: number, sub: number, look: RealLook): void {
   const L = layer as unknown as LayerView;
   const f = L.frameRef;
@@ -76,6 +146,7 @@ export function drawTrackShadow(layer: TrackLayer, ctx: CanvasRenderingContext2D
     if (look.supportShadow) {
       for (const rec of sl.supports) {
         const su = realSupportPlacement(sl, f, rec);
+        if (rec.goal) goalShadow(L, ctx, map, sl, rec, look);
         // the column's shadow on the ground where its middle's falls
         if (!su || !shadowGround(map, rec.wx, rec.wy, (rec.top + rec.base) / 2, f, ground)) continue;
         for (const p of su.pieces) {

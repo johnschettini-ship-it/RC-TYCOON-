@@ -5,9 +5,14 @@
  * slice gets its own support, placed beside (never through) the lower rail where the tile leaves room. 2026-11-21: no
  * column stands inside the car envelope of any rail (no more columns standing on a lower rail's centre line, which its
  * cars ran through), and a run whose best point is too near another column takes its next best instead of none.
+ * 2026-11-21 (goalposts): where rail lies over other rail (a helix's exit lead over its entry lead, a ride along a row
+ * over another) two legs beside the lower rail hold a beam over its cars, under the upper rail.
  */
 import { describe, expect, it } from 'vitest';
-import { buildRideSlices, chooseRunSupport, supportSample, type SliceRec, type SupportObstacles } from '../../../../src/render/track/layer';
+import { buildRideSlices, chooseGoalpost, chooseRunSupport, GOAL_BEAM_DEPTH, GOAL_BEAM_MAX, realGoalBeams, realGoalLegPlacement, realSupportPlacement, supportSample, type SliceRec, type SupportObstacles, type SupportRec } from '../../../../src/render/track/layer';
+import { carDims, riderHeightM } from '../../../../src/render/track/paint';
+import { getTrackTypeDef } from '../../../../src/data/track';
+import { Content, tileIndex } from '../../../../src/sim/map';
 import { viewFrame } from '../../../../src/render/track/project';
 import { pieceWorldSamples } from '../../../../src/sim/rides/track/api';
 import type { World } from '../../../../src/sim/types';
@@ -55,6 +60,10 @@ function envelopeMargin(slices: readonly SliceRec[], all: readonly SliceRec[] = 
   let worst = Infinity;
   for (const sl of slices) {
     for (const su of sl.supports) {
+      if (su.goal) {
+        worst = Math.min(worst, legMargin(sl, su, all));
+        continue;
+      }
       // the support's own rail sample
       const s0 = sl.samples;
       let own = -1;
@@ -81,6 +90,113 @@ function envelopeMargin(slices: readonly SliceRec[], all: readonly SliceRec[] = 
     }
   }
   return worst;
+}
+
+/**
+ * A goalpost's legs against every rail sample of `all` lower than its rail by 0.5 m (the column check; no sample
+ * excepted, the rail it holds included): the worst plan distance less the envelope. A lattice leg is a frame of two
+ * posts 0.75 m to each side of its axis, square to the beam or to the beam's nearest map axis (the realistic bents):
+ * each post counts.
+ */
+function legMargin(sl: SliceRec, su: SupportRec, all: readonly SliceRec[]): number {
+  const g = su.goal!;
+  const pts: [number, number][] = [];
+  const bx = g.x1 - g.x0;
+  const by = g.y1 - g.y0;
+  const len = Math.hypot(bx, by);
+  for (const [lx, ly] of [[g.x0, g.y0], [g.x1, g.y1]] as const) {
+    if (sl.supportStyle !== 'lattice') {
+      pts.push([lx, ly]);
+      continue;
+    }
+    const q = (Math.round(Math.atan2(by, bx) / (Math.PI / 2)) * Math.PI) / 2;
+    for (const [rx, ry] of [[-by / len, bx / len], [-Math.sin(q), Math.cos(q)]]) for (const sg of [-1, 1]) pts.push([lx + rx! * 0.75 * sg, ly + ry! * 0.75 * sg]);
+  }
+  let worst = Infinity;
+  for (const o of all) {
+    const s = o.samples;
+    for (let r = 0; r < o.runs.length; r += 2) {
+      for (let k = o.runs[r]!; k <= o.runs[r + 1]!; k++) {
+        if (s.z[k]! >= su.top + sl.look.drop - 0.5) continue;
+        for (const [px, py] of pts) worst = Math.min(worst, Math.hypot(px - s.x[k]!, py - s.y[k]!) - envelopeAt(s.bankCos[k]!));
+      }
+    }
+  }
+  return worst;
+}
+
+/** Plan distance from (px, py) to the segment (x0, y0)-(x1, y1). */
+function segDist(px: number, py: number, x0: number, y0: number, x1: number, y1: number): number {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const t = Math.max(0, Math.min(1, ((px - x0) * dx + (py - y0) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - x0 - t * dx, py - y0 - t * dy);
+}
+
+/** How high a ride's cars reach over their rail line (m), riders' heads included: carDims h1 + 0.3 (`riderHeightM`). */
+function carTop(o: SliceRec): number {
+  const shape = getTrackTypeDef(o.data.typeId)!.render.car;
+  return Math.max(riderHeightM(shape, carDims(shape, false)), riderHeightM(shape, carDims(shape, true)));
+}
+
+/**
+ * Every goalpost beam of `slices` against the cars of every rail sample of `all` whose car envelope it crosses in plan
+ * (the samples of the rail it holds, within 4 m along, excepted): the worst room (m) between the beam's bottom
+ * (GOAL_BEAM_DEPTH under its top) and the cars' top (riders' heads; a banked car tips up b·|sinβ| more), or for rail
+ * well over the beam (its rail line 1.2 m over the beam's top) none. Negative: a beam through a car or a rider.
+ */
+function beamMargin(slices: readonly SliceRec[], all: readonly SliceRec[] = slices): number {
+  let worst = Infinity;
+  for (const sl of slices) {
+    for (const su of sl.supports) {
+      const g = su.goal;
+      if (!g) continue;
+      expect(Math.hypot(g.x1 - g.x0, g.y1 - g.y0)).toBeLessThanOrEqual(GOAL_BEAM_MAX + 1e-6);
+      // the beam passes under the rail it holds
+      expect(segDist(su.wx, su.wy, g.x0, g.y0, g.x1, g.y1)).toBeLessThan(0.05);
+      const bot = g.z - GOAL_BEAM_DEPTH;
+      const s0 = sl.samples;
+      let own = -1;
+      let bd = Infinity;
+      for (let k = 0; k < s0.n; k++) {
+        const d = Math.hypot(su.wx - s0.x[k]!, su.wy - s0.y[k]!);
+        if (d < bd) {
+          bd = d;
+          own = k;
+        }
+      }
+      for (const o of all) {
+        const s = o.samples;
+        const h = carTop(o);
+        for (let r = 0; r < o.runs.length; r += 2) {
+          for (let k = o.runs[r]!; k <= o.runs[r + 1]!; k++) {
+            if (o.rideId === sl.rideId && o.pieceIndex === sl.pieceIndex && Math.abs(k - own) < 16) continue;
+            if (segDist(s.x[k]!, s.y[k]!, g.x0, g.y0, g.x1, g.y1) >= envelopeAt(s.bankCos[k]!)) continue;
+            if (s.z[k]! - 1.2 >= g.z) continue;
+            const c = s.bankCos[k]!;
+            worst = Math.min(worst, bot - (s.z[k]! + h * c + 0.8 * Math.sqrt(Math.max(0, 1 - c * c))));
+          }
+        }
+      }
+    }
+  }
+  return worst;
+}
+
+/** Every goalpost of `slices` stands both legs on a track tile of the support's ground. */
+function legsOnGround(w: World, slices: readonly SliceRec[]): void {
+  const m = w.state.map;
+  for (const sl of slices) {
+    for (const su of sl.supports) {
+      if (!su.goal) continue;
+      expect(su.base).toBe(sl.ground);
+      for (const [x, y] of [[su.goal.x0, su.goal.y0], [su.goal.x1, su.goal.y1]] as const) {
+        const i = tileIndex(m, Math.floor(x / 4), Math.floor(y / 4));
+        expect(m.content[i]).toBe(Content.Track);
+        expect(m.heights[i]).toBe(sl.ground);
+      }
+    }
+  }
 }
 
 /**
@@ -120,12 +236,10 @@ function longestUnheldSpan(slices: readonly SliceRec[]): number {
 
 /**
  * One support per tile holds straight track every TILE_M (4 m). A helix's exit lead and the end of its ring run over
- * its entry lead and the start of its ring, inside their car envelope, for 7.46 m of track (helix samples 131-161:
- * no point there has a column spot clear of the other lead's cars, banking included); no ground column fits there,
- * and a column offset beside both leads would need a cross beam neither look has. The limit is that stretch plus
- * 0.5 m for the columns at its two ends.
+ * its entry lead and the start of its ring, inside their car envelope, for 7.46 m of track (helix samples 131-161): no
+ * ground column fits there (the rail spanned 7.96 m), so a goalpost holds it (2026-11-21). Measured: 3.5-4.0 m.
  */
-const MAX_SPAN_M = 8;
+const MAX_SPAN_M = 6;
 
 function helixWorld(pre: PieceSpec[], type = 'steel_coaster', helix = 'helix_right_up'): { w: World; id: number; helix: number } {
   const w = makeTestWorld();
@@ -139,7 +253,8 @@ const RAISE: PieceSpec[] = ['flat_to_gentle_up', 'gentle_up', 'gentle_up', 'gent
 describe('helix spans (2026-11-21)', () => {
   // A raised helix's exit lead runs right over its own entry lead: no ground clear of the entry lead's cars under it,
   // and the entry lead (the same piece) was no deck to stand on, so 13.6 m of it floated; a helix on the ground left
-  // 7.2 m. Now the highest run of a tile picks its column first and a run takes its next best point rather than none.
+  // 7.2 m. Then the highest run of a tile picked its column first and a run took its next best point rather than none
+  // (7.96 m left over the entry lead); now a goalpost holds that stretch.
   const cases: [string, PieceSpec[], string, string][] = [
     ['raised, steel, right', RAISE, 'steel_coaster', 'helix_right_up'],
     ['raised, steel, left', RAISE, 'steel_coaster', 'helix_left_up'],
@@ -158,6 +273,10 @@ describe('helix spans (2026-11-21)', () => {
       expect(envelopeMargin(slices)).toBeGreaterThanOrEqual(0);
       for (const sl of slices) for (const su of sl.supports) expect(su.base).toBe(sl.ground);
       expect(longestUnheldSpan(slices)).toBeLessThanOrEqual(MAX_SPAN_M);
+      // the stretch over the entry lead stands on a goalpost whose beam clears the entry lead's cars
+      expect(slices.some((sl) => sl.supports.some((su) => su.goal))).toBe(true);
+      expect(beamMargin(slices)).toBeGreaterThanOrEqual(0);
+      legsOnGround(w, slices);
     });
   }
 
@@ -263,5 +382,114 @@ describe('track over other track', () => {
     expect(s.x[g.k]).toBeCloseTo(2, 6);
     // a tile whose ground is not the track's (a path under it): no ground support
     expect(chooseRunSupport(s, 0, n - 1, 8, false, none, 2, 2)).toBeNull();
+  });
+});
+
+describe('goalposts (2026-11-21)', () => {
+  /**
+   * Ride A lies on the ground along row 20 (its station at x 20, a straight at x 21); ride B starts at x 4 on the same
+   * row, climbs to 6 m and runs straight on along the row, right over A for the two tiles the sim allows
+   * (MAX_UNSUPPORTED_TILES), and on past it.
+   */
+  function sameRow(upper: string): { w: World; a: number; b: number } {
+    const w = makeTestWorld();
+    const a = place(w, 'steel_coaster', 20, 20, EAST);
+    addAll(w, a, ['straight']);
+    const b = place(w, upper, 4, 20, EAST);
+    addAll(w, b, ['station', ...RAISE, ...Array<string>(16).fill('straight')]);
+    return { w, a, b };
+  }
+
+  for (const upper of ['steel_coaster', 'mine_train', 'bobsled_run']) {
+    it(`${upper} along a row over another ride: a goalpost over the lower cars, no span over ${MAX_SPAN_M} m`, () => {
+      const { w, a, b } = sameRow(upper);
+      const sa = buildRideSlices(w, a, f);
+      const sb = buildRideSlices(w, b, f);
+      const all = [...sa, ...sb];
+      // B is right over A's rail on A's two tiles (11 m unsupported before goalposts)
+      const over = sb.filter((sl) => sa.some((o) => o.x === sl.x && o.y === sl.y));
+      expect(over).toHaveLength(2);
+      const goals = sb.flatMap((sl) => sl.supports.filter((su) => su.goal));
+      expect(goals.length).toBeGreaterThanOrEqual(1);
+      expect(longestUnheldSpan(sb)).toBeLessThanOrEqual(MAX_SPAN_M);
+      // legs clear of both rides' cars, beams over A's cars and riders, both legs on track ground
+      expect(envelopeMargin(sb, all)).toBeGreaterThanOrEqual(0);
+      expect(beamMargin(sb, all)).toBeGreaterThanOrEqual(0);
+      legsOnGround(w, sb);
+      // the lower ride has none (nothing is over it but B's rail)
+      expect(sa.some((sl) => sl.supports.some((su) => su.goal))).toBe(false);
+    });
+  }
+
+  it('the same scene builds the same goalposts twice (deterministic)', () => {
+    const one = buildRideSlices(sameRow('steel_coaster').w, 2, f).map((sl) => [sl.key, sl.supports]);
+    const two = buildRideSlices(sameRow('steel_coaster').w, 2, f).map((sl) => [sl.key, sl.supports]);
+    expect(two).toEqual(one);
+  });
+
+  it('realistic look: the saddle stands on the beam, the legs are columns from the ground into it, far leg first', () => {
+    for (const rot of [0, 1, 2, 3]) {
+      const fr = viewFrame(rot, 64, 64);
+      const { w, id } = helixWorld(RAISE);
+      const sl = buildRideSlices(w, id, fr).find((o) => o.supports.some((su) => su.goal))!;
+      const su = sl.supports.find((o) => o.goal)!;
+      const g = su.goal!;
+      // the saddle alone, on the beam's top
+      expect(realSupportPlacement(sl, fr, su)!.pieces.map((p) => [p.part, p.z])).toEqual([['top', g.z]]);
+      const legs = realGoalLegPlacement(sl, fr, su);
+      expect(legs).toHaveLength(2);
+      expect(legs[0]!.pieces[0]!.ay).toBeLessThan(legs[1]!.pieces[0]!.ay);
+      for (const l of legs) {
+        expect(l.pieces[0]).toMatchObject({ part: 'foot', z: sl.ground });
+        // segments (drawn 1.1 m tall) end inside the beam, under its top
+        const last = l.pieces.at(-1)!;
+        expect(last.part).toBe('seg');
+        expect(last.z + 1.1).toBeLessThanOrEqual(g.z);
+        expect(last.z + 1.1).toBeGreaterThan(g.z - 0.4);
+      }
+      // the beam's two halves meet under the saddle and make the whole
+      const far = realGoalBeams(sl, su, fr, 'far')[0]!;
+      const near = realGoalBeams(sl, su, fr, 'near')[0]!;
+      const all = realGoalBeams(sl, su, fr)[0]!;
+      expect(far.a + near.a).toBeCloseTo(all.a, 6);
+      expect(far.h1).toBe(g.z);
+    }
+  });
+
+  it('hanging coasters keep their arm supports: no goalposts (they hang from an arm beside the track)', () => {
+    const { w, id } = helixWorld(RAISE, 'inverted_coaster');
+    const slices = buildRideSlices(w, id, f);
+    expect(slices.some((sl) => sl.supports.some((su) => su.goal))).toBe(false);
+  });
+
+  it('chooseGoalpost: legs beside the lower rail, the beam under the upper rail and over the lower cars', () => {
+    // an upper straight 6 m up (rail line z 14 over ground 8), a lower piece's rail 0.2 m up exactly under it
+    const s = pieceWorldSamples({ defId: 'straight', x: 0, y: 0, z: 14, dir: 0, chain: false, brakeSpeed: null, cost: 0 });
+    const n = s.n;
+    const lower = (z: number): SupportObstacles => ({ n, x: Float64Array.from(s.x), y: Float64Array.from(s.y), z: new Float64Array(n).fill(z), other: new Uint8Array(n).fill(1), index: new Int32Array(n).fill(-1), top: new Float64Array(n).fill(1.15) });
+    const flat = (): number => 8;
+    const k = (n - 1) >> 1;
+    const g = chooseGoalpost(s, k, 8, lower(8.2), flat)!;
+    expect(g).not.toBeNull();
+    // square across the rail (it runs along x), each leg SUPPORT_CLEAR_GOOD (1.5 m) out, the beam 1.2 m under the rail
+    expect(g.x0).toBeCloseTo(s.x[k]!, 6);
+    expect(g.x1).toBeCloseTo(s.x[k]!, 6);
+    expect(Math.abs(g.y0 - s.y[k]!)).toBeCloseTo(1.5, 6);
+    expect(Math.abs(g.y1 - s.y[k]!)).toBeCloseTo(1.5, 6);
+    expect(g.z).toBeCloseTo(14 - 1.2, 6);
+    // the lower cars' riders reach 8.2 + 1.15 + 0.2 m: a rail 4.5 m up leaves the beam (bottom 12.2 − 0.6) no room
+    const low = pieceWorldSamples({ defId: 'straight', x: 0, y: 0, z: 12.5, dir: 0, chain: false, brakeSpeed: null, cost: 0 });
+    expect(chooseGoalpost(low, k, 8, lower(8.2), flat)).not.toBeNull();
+    const lower2 = lower(8.2);
+    lower2.z.fill(9.5);
+    expect(chooseGoalpost(low, k, 8, lower2, flat)).toBeNull();
+    // no track ground beside the rail: no legs
+    expect(chooseGoalpost(s, k, 8, lower(8.2), () => NaN)).toBeNull();
+    // lower rail 1.4 m to one side: that leg goes further out, the beam stays within GOAL_BEAM_MAX
+    const side = lower(8.2);
+    side.y = Float64Array.from(s.y, (v) => v - 1.4);
+    const g2 = chooseGoalpost(s, k, 8, side, flat)!;
+    expect(Math.hypot(g2.x1 - g2.x0, g2.y1 - g2.y0)).toBeLessThanOrEqual(GOAL_BEAM_MAX + 1e-9);
+    for (const [x, y] of [[g2.x0, g2.y0], [g2.x1, g2.y1]]) expect(Math.abs(y! - (s.y[k]! - 1.4))).toBeGreaterThanOrEqual(1);
   });
 });

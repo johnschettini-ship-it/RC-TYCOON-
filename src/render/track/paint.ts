@@ -681,8 +681,11 @@ function paintTunnel(ctx: Ctx, P: Projector, s: WorldSamples, k0: number, k1: nu
   }
 }
 
-/** A support (§4.13) from the ground up to `top` (absolute m) at (wx, wy); `yaw` orients lattice frames. */
-export function paintSupport(ctx: Ctx, P: Projector, style: SupportStyle, colour: string, wx: number, wy: number, yaw: number, ground: number, top: number): void {
+/**
+ * A support (§4.13) from the ground up to `top` (absolute m) at (wx, wy); `yaw` orients lattice frames. `foot` false: no
+ * footing (a goalpost's post standing on its beam).
+ */
+export function paintSupport(ctx: Ctx, P: Projector, style: SupportStyle, colour: string, wx: number, wy: number, yaw: number, ground: number, top: number, foot = true): void {
   if (top <= ground) return;
   const x = P.x(wx, wy);
   const yb = P.y(wx, wy, ground);
@@ -860,10 +863,12 @@ export function paintSupport(ctx: Ctx, P: Projector, style: SupportStyle, colour
   }
   // Round steel post: a lit left half, a shaded right half, a footing and a cap.
   const w = 0.55 * PX_X;
-  ctx.beginPath();
-  ctx.ellipse(x, yb, w * 0.9, w * 0.45, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#8b939d';
-  ctx.fill();
+  if (foot) {
+    ctx.beginPath();
+    ctx.ellipse(x, yb, w * 0.9, w * 0.45, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#8b939d';
+    ctx.fill();
+  }
   ctx.fillStyle = shade(colour, 1.05);
   ctx.fillRect(x - w / 2, yt, w / 2, yb - yt);
   ctx.fillStyle = shade(colour, 0.72);
@@ -872,6 +877,101 @@ export function paintSupport(ctx: Ctx, P: Projector, style: SupportStyle, colour
   ctx.ellipse(x, yt, w / 2, w / 4, 0, 0, Math.PI * 2);
   ctx.fillStyle = shade(colour, 0.9);
   ctx.fill();
+}
+
+/** A goalpost's beam depth (m) in the website look: a round post's width; a lattice truss is deeper. */
+const GOAL_BEAM_ROUND = 0.4;
+const GOAL_TRUSS = 0.6;
+/** Half the spread (m) of a lattice frame's two posts (`paintSupport` lattice). */
+const LATTICE_HALF = 0.75;
+
+/**
+ * Half of a goalpost (2026-11-21, `layer.ts` GoalPost): legs at (x0, y0) and (x1, y1) from `ground` up to the beam top
+ * `z`, the beam between them, and the support's post on the beam at (wx, wy) up to `top`, all in the style's look:
+ * round steel legs on footings with a steel box beam; lattice frames (their posts along the lower rail, square to the
+ * beam) with a truss of two chords and braces; concrete pillars with a concrete beam. `near` false: the far leg and the
+ * beam up to the post; true: the rest of the beam, the near leg and the post. The slice paints the far half before the
+ * rail under the beam and the near half after it (the lower cars run between the legs, under the beam).
+ */
+export function paintGoalpost(ctx: Ctx, P: Projector, style: SupportStyle, colour: string, g: { x0: number; y0: number; x1: number; y1: number; z: number }, wx: number, wy: number, yaw: number, ground: number, top: number, near: boolean): void {
+  // leg A the far one, leg B the near one
+  const flip = P.y(g.x0, g.y0, 0) > P.y(g.x1, g.y1, 0);
+  const ax = flip ? g.x1 : g.x0;
+  const ay = flip ? g.y1 : g.y0;
+  const bx = flip ? g.x0 : g.x1;
+  const by = flip ? g.y0 : g.y1;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len = Math.hypot(dx, dy);
+  if (len <= 0) return;
+  const bYaw = Math.atan2(dy, dx);
+  const f = [dx / len, dy / len, 0];
+  const r = [-dy / len, dx / len, 0];
+  const u = [0, 0, 1];
+  // where the post stands along the beam (m from leg A)
+  const split = Math.max(0, Math.min(len, (wx - ax) * (f[0] as number) + (wy - ay) * (f[1] as number)));
+  const lattice = style === 'lattice';
+  const pillar = style === 'pillar';
+  const depth = lattice ? GOAL_TRUSS : GOAL_BEAM_ROUND;
+  // a lattice frame's posts at ±0.75 m square to its yaw: the beam's heading puts them along the lower rail
+  const leg = (lx: number, ly: number): void => paintSupport(ctx, P, style, colour, lx, ly, bYaw, ground, lattice || pillar ? g.z : g.z - depth / 2);
+  if (!near) leg(ax, ay);
+  // this half of the beam: from t0 to t1 m along it from leg A, past the legs' axes at the ends
+  const over = pillar ? 0.45 : 0.25;
+  const t0 = near ? split : -over;
+  const t1 = near ? len + over : split;
+  if (lattice) {
+    // two trusses, one in each frame's plane: top and bottom chords, and a brace each way per bay
+    const dark = shade(colour, 0.7);
+    const bays = Math.max(1, Math.round(len));
+    const bay = len / bays;
+    for (const sg of [-1, 1]) {
+      const ox = (r[0] as number) * LATTICE_HALF * sg;
+      const oy = (r[1] as number) * LATTICE_HALF * sg;
+      const pt = (t: number, zz: number): [number, number] => {
+        const px = ax + (f[0] as number) * t + ox;
+        const py = ay + (f[1] as number) * t + oy;
+        return [P.x(px, py), P.y(px, py, zz)];
+      };
+      ctx.beginPath();
+      for (let i = 0; i < bays; i++) {
+        const m = (i + 0.5) * bay;
+        if ((m < split) === near) continue;
+        const p0 = pt(i * bay, g.z - depth);
+        const p1 = pt((i + 1) * bay, g.z);
+        const q0 = pt(i * bay, g.z);
+        const q1 = pt((i + 1) * bay, g.z - depth);
+        ctx.moveTo(p0[0], p0[1]);
+        ctx.lineTo(p1[0], p1[1]);
+        ctx.moveTo(q0[0], q0[1]);
+        ctx.lineTo(q1[0], q1[1]);
+      }
+      ctx.strokeStyle = dark;
+      ctx.lineWidth = 1;
+      ctx.lineCap = 'butt';
+      ctx.stroke();
+      ctx.beginPath();
+      const c0 = Math.max(0, t0);
+      const c1 = Math.min(len, t1);
+      for (const zz of [g.z, g.z - depth]) {
+        const a0 = pt(c0, zz);
+        const a1 = pt(c1, zz);
+        ctx.moveTo(a0[0], a0[1]);
+        ctx.lineTo(a1[0], a1[1]);
+      }
+      ctx.strokeStyle = colour;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  } else if (t1 > t0) {
+    const m = (t0 + t1) / 2;
+    const c: [number, number, number] = [ax + (f[0] as number) * m, ay + (f[1] as number) * m, 0];
+    paintBox(ctx, P, c, f, r, u, (t1 - t0) / 2, pillar ? 0.45 : 0.25, g.z - depth, g.z, pillar ? '#9aa3ad' : colour);
+  }
+  if (!near) return;
+  leg(bx, by);
+  // the post on the beam: a lattice frame's posts on the two chords (its yaw the beam's)
+  if (top > g.z) paintSupport(ctx, P, style, colour, wx, wy, lattice ? bYaw : yaw, g.z, top, false);
 }
 
 // ---------------------------------------------------------------- cars
