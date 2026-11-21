@@ -262,17 +262,27 @@ export interface SupportObstacles {
   z: Float64Array;
   other: Uint8Array;
   index: Int32Array;
+  /** How much further (m) than SUPPORT_CLEAR_MIN the sample's cars reach to a side: a banked car tips out (`bankReach`). */
+  reach?: Float64Array;
 }
 
 /** A rail point at least this far (m) over its base gets a support (a tile whose lowest rail is higher always has one). */
 const SUPPORT_MIN_H = 1.5;
 /** Rail lower than a candidate by more than this (m) is under it. */
 const SUPPORT_UNDER_M = 0.5;
-/** Plan distance (m) from a column to rail under it: room for the car beside it, and the column a clear look. */
+/**
+ * Plan distance (m) from a column to rail under it. SUPPORT_CLEAR_MIN is the car envelope (2026-11-21): the widest
+ * upright car is 0.8 m to a side of its rail (`carDims` b: boat 0.8, coaster 0.78, launch 0.74, ore 0.72) and the
+ * bobsled trough 0.85 m (`channel`), plus 0.15 m for the column, so no column stands where a car or sled passes.
+ * SUPPORT_CLEAR_GOOD adds room for a clear look.
+ */
 const SUPPORT_CLEAR_GOOD = 1.5;
 const SUPPORT_CLEAR_MIN = 1;
-/** A support standing on lower track needs this much height (m) between that rail and its own. */
-const SUPPORT_STACK_ROOM = 2;
+/** A car banked by β reaches b·cosβ + h1·|sinβ| to its low side (b 0.8, h1 0.9 m, the tallest car top): this much more. */
+function bankReach(bankCos: number): number {
+  const sin = Math.sqrt(Math.max(0, 1 - bankCos * bankCos));
+  return Math.max(0, 0.8 * bankCos + 0.9 * sin + 0.15 - SUPPORT_CLEAR_MIN);
+}
 /** Samples (0.25 m each) along its own piece that never block a candidate: the track it is part of. */
 const SUPPORT_NEAR_ALONG = 16;
 /** Runs shorter than this many samples on a tile with several runs get no support of their own (a corner clipped). */
@@ -282,20 +292,24 @@ const SUPPORT_SPACING = 2;
 
 /**
  * The support of one rail run `[k0, k1]` of a piece on a tile with centre (cx, cy) m: among the run's upright samples
- * (not inverted, not near vertical) at least `minH` over the ground (hanging cars: any height, the arm holds the spine above), the nearest the tile centre whose column
- * keeps SUPPORT_CLEAR_GOOD from every rail under it; else the one with the most room if that is at least
- * SUPPORT_CLEAR_MIN; else, where another piece's rail is right under it (track stacked over track), standing on that
- * rail. A tile whose ground is not the track's (`groundOk` false: a path under it) only takes the last kind. Null when
- * no point qualifies: no column through the piece's own lower rail, which would stand in its cars.
+ * (not inverted, not near vertical) at least `minH` over the ground (hanging cars: any height, the arm holds the spine
+ * above), the nearest the tile centre whose column keeps SUPPORT_CLEAR_GOOD from every rail under it (of other pieces on
+ * the tile, and of its own piece further along: a helix's entry lead under its exit lead); else the one with the most
+ * room if that is at least SUPPORT_CLEAR_MIN, the car envelope. Every column goes to the ground; none stands on or
+ * beside lower rail inside the envelope, where its cars would run through it (2026-11-21: the earlier stacked column,
+ * standing on the lower rail's centre line, did). Limits: only rail on this tile is checked (rail across the tile edge
+ * is not), the check is at the rail sample (hanging cars' columns stand at the arm offset, not checked there), and the
+ * single-run and owned-tile fallbacks are not checked. Rail directly over lower rail along a row gets no column (up to
+ * MAX_UNSUPPORTED_TILES of span). Null on a tile whose ground is not the track's (`groundOk` false: a
+ * path under it) or when no point qualifies: the rail then spans to the next support. `fits(k)` turns a point down (a
+ * column too near one the slice already has), so the run takes its next best.
  */
-export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground: number, groundOk: boolean, ob: SupportObstacles, cx: number, cy: number, minH = SUPPORT_MIN_H): { k: number; base: number } | null {
+export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground: number, groundOk: boolean, ob: SupportObstacles, cx: number, cy: number, minH = SUPPORT_MIN_H, fits: (k: number) => boolean = () => true): { k: number; base: number } | null {
+  if (!groundOk) return null;
   let bestA = -1;
   let scoreA = Infinity;
   let bestB = -1;
   let scoreB = -Infinity;
-  let bestC = -1;
-  let scoreC = Infinity;
-  let baseC = 0;
   for (let k = k0; k <= k1; k++) {
     const z = s.z[k] as number;
     if (z - ground < minH) continue;
@@ -303,40 +317,25 @@ export function chooseRunSupport(s: WorldSamples, k0: number, k1: number, ground
     const x = s.x[k] as number;
     const y = s.y[k] as number;
     let clear = Infinity;
-    let ownClose = false;
-    let stackTop = -Infinity;
     for (let j = 0; j < ob.n; j++) {
-      const oz = ob.z[j] as number;
-      if (oz >= z - SUPPORT_UNDER_M) continue;
-      const other = (ob.other[j] as number) === 1;
-      if (!other && Math.abs((ob.index[j] as number) - k) < SUPPORT_NEAR_ALONG) continue;
-      const d = Math.hypot((ob.x[j] as number) - x, (ob.y[j] as number) - y);
+      if ((ob.z[j] as number) >= z - SUPPORT_UNDER_M) continue;
+      if ((ob.other[j] as number) === 0 && Math.abs((ob.index[j] as number) - k) < SUPPORT_NEAR_ALONG) continue;
+      const d = Math.hypot((ob.x[j] as number) - x, (ob.y[j] as number) - y) - (ob.reach ? (ob.reach[j] as number) : 0);
       if (d < clear) clear = d;
-      if (d < SUPPORT_CLEAR_MIN) {
-        if (other) stackTop = Math.max(stackTop, oz);
-        else ownClose = true;
-      }
     }
-    const dc = (x - cx) * (x - cx) + (y - cy) * (y - cy);
-    if (groundOk && clear >= SUPPORT_CLEAR_GOOD) {
-      if (dc < scoreA) {
+    if (clear >= SUPPORT_CLEAR_GOOD) {
+      const dc = (x - cx) * (x - cx) + (y - cy) * (y - cy);
+      if (dc < scoreA && fits(k)) {
         scoreA = dc;
         bestA = k;
       }
-    } else if (groundOk && clear >= SUPPORT_CLEAR_MIN) {
-      if (clear > scoreB) {
-        scoreB = clear;
-        bestB = k;
-      }
-    } else if (!ownClose && stackTop > -Infinity && z - stackTop >= SUPPORT_STACK_ROOM && dc < scoreC) {
-      scoreC = dc;
-      bestC = k;
-      baseC = stackTop;
+    } else if (clear >= SUPPORT_CLEAR_MIN && clear > scoreB && fits(k)) {
+      scoreB = clear;
+      bestB = k;
     }
   }
   if (bestA >= 0) return { k: bestA, base: ground };
   if (bestB >= 0) return { k: bestB, base: ground };
-  if (bestC >= 0) return { k: bestC, base: baseC };
   return null;
 }
 
@@ -353,13 +352,15 @@ function supportObstacles(world: World, occ: Occupancy, tile: number, x: number,
     for (let r = 0; r < runs.length; r += 2) n += (runs[r + 1] as number) - (runs[r] as number) + 1;
     others.push({ s: os, runs });
   }
-  const ob: SupportObstacles = { n, x: new Float64Array(n), y: new Float64Array(n), z: new Float64Array(n), other: new Uint8Array(n), index: new Int32Array(n) };
+  const reach = new Float64Array(n);
+  const ob: SupportObstacles = { n, x: new Float64Array(n), y: new Float64Array(n), z: new Float64Array(n), other: new Uint8Array(n), index: new Int32Array(n), reach };
   let i = 0;
   for (let k = 0; k < s.n; k++, i++) {
     ob.x[i] = s.x[k] as number;
     ob.y[i] = s.y[k] as number;
     ob.z[i] = s.z[k] as number;
     ob.index[i] = k;
+    reach[i] = bankReach(s.bankCos[k] as number);
   }
   for (const o of others) {
     for (let r = 0; r < o.runs.length; r += 2) {
@@ -369,6 +370,7 @@ function supportObstacles(world: World, occ: Occupancy, tile: number, x: number,
         ob.z[i] = o.s.z[k] as number;
         ob.other[i] = 1;
         ob.index[i] = -1;
+        reach[i] = bankReach(o.s.bankCos[k] as number);
       }
     }
   }
@@ -474,16 +476,34 @@ export function buildRideSlices(world: World, rideId: number, f: ViewFrame): Sli
         occ ??= buildOccupancy(world);
         const ob = supportObstacles(world, occ, t.tile, t.x, t.y, rideId, t.pieceIndex, s);
         const groundOk = world.state.map.content[t.tile] === Content.Track;
-        for (let r = 0; r < runs.length; r += 2) {
+        // The highest run first: rail over other rail has the fewest clear points, the lower rail more (2026-11-21).
+        const order: number[] = [];
+        for (let r = 0; r < runs.length; r += 2) order.push(r);
+        const top = (r: number): number => {
+          let h = -Infinity;
+          for (let k = runs[r] as number; k <= (runs[r + 1] as number); k++) h = Math.max(h, s.z[k] as number);
+          return h;
+        };
+        if (order.length > 1) order.sort((a, b) => top(b) - top(a) || a - b);
+        const picked: { r: number; su: SupportRec }[] = [];
+        for (const r of order) {
           const k0 = runs[r] as number;
           const k1 = runs[r + 1] as number;
           if (runs.length > 2 && k1 - k0 < SUPPORT_MIN_RUN) continue;
-          const c = chooseRunSupport(s, k0, k1, t.ground, groundOk, ob, cx, cy, lift > 0 ? -Infinity : SUPPORT_MIN_H);
-          if (!c) continue;
-          const su = supportAt(c.k, c.base);
-          if (supports.some((o) => Math.hypot(o.wx - su.wx, o.wy - su.wy) < SUPPORT_SPACING)) continue;
-          supports.push(su);
+          // A column no nearer than SUPPORT_SPACING to one the slice already has: the run takes its next best point
+          // rather than none (2026-11-21: a helix's exit lead lost its column to its entry lead's and floated).
+          const fits = (k: number): boolean => {
+            const su = lift > 0 ? supportAt(k, t.ground) : null;
+            const wx = su ? su.wx : (s.x[k] as number);
+            const wy = su ? su.wy : (s.y[k] as number);
+            return !picked.some((o) => Math.hypot(o.su.wx - wx, o.su.wy - wy) < SUPPORT_SPACING);
+          };
+          const c = chooseRunSupport(s, k0, k1, t.ground, groundOk, ob, cx, cy, lift > 0 ? -Infinity : SUPPORT_MIN_H, fits);
+          if (c) picked.push({ r, su: supportAt(c.k, c.base) });
         }
+        // in run order, as before (`support` is the first)
+        picked.sort((a, b) => a.r - b.r);
+        for (const p of picked) supports.push(p.su);
         if (owned && supports.length === 0) supports.push(supportAt(supportSample(s, runs, t.x, t.y), t.ground));
       }
     } else if (towerTile && owned) supports.push(supportAt(supportSample(s, runs, t.x, t.y), t.ground));
